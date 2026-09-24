@@ -107,7 +107,7 @@
     <section data-panel="overview">
       <div id="setupBanner"></div>
       <div class="stats" id="stats"></div>
-      <div class="card"><h2>Latest payments</h2><p class="sub">The five most recent checkouts.</p><div class="tablewrap" id="latest"></div></div>
+      <div class="card"><h2>Latest payments</h2><p class="sub">The five most recent payments customers submitted.</p><div class="tablewrap" id="latest"></div></div>
     </section>
 
     <section data-panel="customers" class="hidden">
@@ -122,21 +122,27 @@
     <section data-panel="payments" class="hidden">
       <div class="card">
         <h2>Payments</h2>
-        <p class="sub">Every PhonePe checkout. "Check again" asks PhonePe for the latest status and turns Pro on if it was paid.</p>
+        <p class="sub">Customers pay your UPI QR and send the 12-digit transaction number (UTR). Find the same UTR and amount in your bank or UPI app, then Approve. Approve turns Pro on straight away; Reject lets the customer send a corrected number.</p>
         <div class="tablewrap" id="payments"></div>
       </div>
     </section>
 
     <section data-panel="settings" class="hidden">
       <form class="card" id="settingsForm">
+        <h2>Your UPI account</h2>
+        <p class="sub">Customers pay this UPI ID by scanning a QR code in the app. Paid features switch on once a UPI ID is saved here.</p>
+        <div class="grid2" style="margin-bottom:18px">
+          <label class="f">UPI ID<input type="text" name="upiId" placeholder="yourname@okaxis" autocomplete="off" spellcheck="false"></label>
+          <label class="f">Name shown to customers<input type="text" name="payeeName" placeholder="Kavya Clothing" maxlength="50"></label>
+        </div>
         <h2>Prices and free plan</h2>
-        <p class="sub">Changes apply to new checkouts right away.</p>
+        <p class="sub">Changes apply to new payments right away.</p>
         <div class="grid2">
           <label class="f">Monthly price (₹)<input type="number" name="monthly" min="1" step="1" required></label>
           <label class="f">Yearly price (₹)<input type="number" name="yearly" min="1" step="1" required></label>
           <label class="f">Free bills per month<input type="number" name="freeBills" min="0" max="1000" step="1" required></label>
         </div>
-        <label class="check" style="margin-top:14px"><input type="checkbox" name="enforce"><span><b>Lock Pro features for free users</b><br><span class="muted">Turn off to make everything free for everyone, for example while testing payments.</span></span></label>
+        <label class="check" style="margin-top:14px"><input type="checkbox" name="enforce"><span><b>Lock Pro features for free users</b><br><span class="muted">Turn off to make everything free for everyone.</span></span></label>
         <div class="row" style="margin-top:16px"><button class="btn" type="submit">Save settings</button></div>
       </form>
     </section>
@@ -216,15 +222,15 @@
   }
 
   function stateBadge(s) {
-    const cls = s === 'COMPLETED' ? 'pro' : s === 'FAILED' || s === 'AMOUNT_MISMATCH' ? 'bad' : 'wait';
-    const label = { COMPLETED: 'Paid', FAILED: 'Failed', AMOUNT_MISMATCH: 'Amount mismatch', PENDING: 'Pending', CREATED: 'Started' }[s] || s;
+    const cls = s === 'COMPLETED' ? 'pro' : s === 'REJECTED' ? 'bad' : 'wait';
+    const label = { COMPLETED: 'Approved', REJECTED: 'Rejected', PENDING: 'Waiting for you' }[s] || s;
     return `<span class="pill ${cls}">${esc(label)}</span>`;
   }
   function paymentsTable(list, withActions) {
     if (!list.length) return '<p class="empty">No payments yet.</p>';
-    return `<table><thead><tr><th>Date</th><th>Mobile</th><th>Plan</th><th class="num">Amount</th><th>Status</th><th>Order ID</th>${withActions ? '<th></th>' : ''}</tr></thead><tbody>${list
-      .map((o) => `<tr><td>${when(o.createdAt)}</td><td>${esc(o.phone)}</td><td>${o.plan === 'yearly' ? 'Yearly' : 'Monthly'}</td><td class="num">${money(o.amount / 100)}</td><td>${stateBadge(o.state)}</td><td><code>${esc(o.id)}</code></td>${
-        withActions ? `<td>${o.state !== 'COMPLETED' ? `<button class="btn sec sm" data-recheck="${esc(o.id)}">Check again</button>` : ''}</td>` : ''
+    return `<table><thead><tr><th>Date</th><th>Mobile</th><th>Plan</th><th class="num">Amount</th><th>UTR</th><th>Status</th>${withActions ? '<th></th>' : ''}</tr></thead><tbody>${list
+      .map((o) => `<tr><td>${when(o.createdAt)}</td><td>${esc(o.phone)}</td><td>${o.plan === 'yearly' ? 'Yearly' : 'Monthly'}</td><td class="num">${money(o.amount / 100)}</td><td><code>${esc(o.utr || '—')}</code></td><td>${stateBadge(o.state)}</td>${
+        withActions ? `<td>${o.state === 'PENDING' ? `<div class="actions"><button class="btn sm" data-approve="${esc(o.id)}">Approve</button><button class="btn danger sm" data-reject="${esc(o.id)}">Reject</button></div>` : ''}</td>` : ''
       }</tr>`)
       .join('')}</tbody></table>`;
   }
@@ -238,9 +244,11 @@
         ['Earned this month', money(s.revenueMonth)],
         ['Earned in total', money(s.revenue)],
       ].map(([l, v]) => `<div class="stat"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
-      $('#setupBanner').innerHTML = s.paymentsReady
-        ? `<div class="banner ok">PhonePe is connected (${esc(s.phonepeEnv)} mode). ${s.phonepeEnv === 'sandbox' ? 'Test payments only: switch <code>PHONEPE_ENV</code> to <code>production</code> in Vercel to take real money.' : 'Real payments are live.'}</div>`
-        : `<div class="banner warn"><b>Payments are not switched on yet</b>, so every feature is free for everyone. Add these in Vercel → Project → Settings → Environment Variables, then redeploy:<ul><li><code>PHONEPE_CLIENT_ID</code>, <code>PHONEPE_CLIENT_SECRET</code>, <code>PHONEPE_CLIENT_VERSION</code> from the PhonePe Business dashboard</li><li><code>PHONEPE_ENV</code> = <code>sandbox</code> to test, <code>production</code> for real money</li></ul></div>`;
+      $('#setupBanner').innerHTML = !s.paymentsReady
+        ? `<div class="banner warn"><b>Payments are not switched on yet</b>, so every feature is free for everyone. Add your UPI ID in <b>Settings</b> to start selling Pro.</div>`
+        : s.waiting
+        ? `<div class="banner warn"><b>${s.waiting} payment${s.waiting > 1 ? 's' : ''} waiting for you.</b> Match the UTR in your bank or UPI app, then approve in <b>Payments</b>.</div>`
+        : '<div class="banner ok">UPI payments are on. No payments waiting.</div>';
       $('#latest').innerHTML = paymentsTable(p.payments.slice(0, 5), false);
     } catch (e) { toast(e.message, true); }
   }
@@ -285,12 +293,16 @@
     try { $('#payments').innerHTML = paymentsTable((await api('payments')).payments, true); } catch (e) { toast(e.message, true); }
   }
   $('#payments').addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-recheck]');
+    const b = e.target.closest('[data-approve],[data-reject]');
     if (!b) return;
+    const approve = !!b.dataset.approve;
+    const row = b.closest('tr');
+    const utr = row ? row.children[4].textContent : '';
+    if (!confirm(approve ? `Approve UTR ${utr}? Only do this after you have found this payment in your bank or UPI app.` : `Reject UTR ${utr}? The customer can then send a corrected number.`)) return;
     b.disabled = true;
     try {
-      const { order } = await api('recheck', { id: b.dataset.recheck });
-      toast(order.state === 'COMPLETED' ? 'Paid. Pro is on for this customer.' : `PhonePe says: ${order.state}`);
+      await api(approve ? 'approve' : 'reject', { id: approve ? b.dataset.approve : b.dataset.reject });
+      toast(approve ? 'Approved. Pro is on for this customer.' : 'Rejected.');
       loadPayments();
     } catch (err) { toast(err.message, true); b.disabled = false; }
   });
@@ -303,12 +315,14 @@
       form.yearly.value = settings.yearly;
       form.freeBills.value = settings.freeBills;
       form.enforce.checked = !!settings.enforce;
+      form.upiId.value = settings.upiId || '';
+      form.payeeName.value = settings.payeeName || '';
     } catch (e) { toast(e.message, true); }
   }
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-      await api('saveSettings', { monthly: form.monthly.value, yearly: form.yearly.value, freeBills: form.freeBills.value, enforce: form.enforce.checked });
+      await api('saveSettings', { monthly: form.monthly.value, yearly: form.yearly.value, freeBills: form.freeBills.value, enforce: form.enforce.checked, upiId: form.upiId.value, payeeName: form.payeeName.value });
       toast('Settings saved.');
     } catch (err) { toast(err.message, true); }
   });

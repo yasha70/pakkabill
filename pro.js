@@ -71,35 +71,6 @@
     }
   }
 
-  // Back from PhonePe: /?paid=ORDER#/plan
-  async function checkReturn() {
-    const id = new URLSearchParams(location.search).get('paid');
-    if (!id) return;
-    const clean = () => history.replaceState(null, '', location.pathname + location.hash);
-    if (!acct || !acct.token) return clean();
-    for (let i = 0; i < 10; i++) {
-      try {
-        const r = await api('pay?order=' + encodeURIComponent(id));
-        if (r.state === 'COMPLETED') {
-          clean();
-          toast('Payment received. PakkaBill Pro is active till ' + dateStr(r.user.paidUntil) + '.');
-          return setAcct({ ...acct, user: r.user });
-        }
-        if (r.state === 'FAILED' || r.state === 'AMOUNT_MISMATCH') {
-          clean();
-          return toast('The payment did not go through. No money was taken for Pro.', true);
-        }
-      } catch (e) {
-        clean();
-        return toast(e.message, true);
-      }
-      if (i === 0) toast('Confirming your payment…');
-      await new Promise((r) => setTimeout(r, 3000));
-    }
-    clean();
-    toast('Your payment is still processing. Pro turns on as soon as PhonePe confirms it.');
-  }
-
   const WHY = {
     bills: (n) => `You have used your ${n} free bills this month.`,
     design: () => 'The Royal bill design is part of PakkaBill Pro.',
@@ -145,16 +116,7 @@
           root.querySelector('.pbp-auth input')?.focus();
           return toast('Log in or create an account first.', true);
         }
-        root.querySelectorAll('.pbp-plan').forEach((x) => (x.disabled = true));
-        b.classList.add('is-busy');
-        try {
-          const r = await api('pay', { body: { plan: b.dataset.plan } });
-          location.href = r.redirectUrl;
-        } catch (e) {
-          toast(e.message, true);
-          root.querySelectorAll('.pbp-plan').forEach((x) => (x.disabled = false));
-          b.classList.remove('is-busy');
-        }
+        openPay(b.dataset.plan);
       }),
     );
     root.querySelectorAll('.pbp-tabs button').forEach((b) => b.addEventListener('click', () => redraw(b.dataset.mode)));
@@ -192,15 +154,111 @@
     return `<div class="pbp-acct"><span>${u.phone === 'owner' ? 'Owner account' : 'Logged in as ' + esc(u.phone)}${u.shopName && u.phone !== 'owner' ? ' · ' + esc(u.shopName) : ''}</span><button type="button" class="pbp-link" data-logout>Log out</button></div>`;
   }
 
+  // ---------- UPI payment screen ----------
+  function upiLink(plan, amount) {
+    const p = new URLSearchParams({
+      pn: (cfg.payeeName || 'PakkaBill').slice(0, 40),
+      am: Number(amount).toFixed(2),
+      cu: 'INR',
+      tn: `PakkaBill Pro ${plan} ${acct && acct.user ? acct.user.phone : ''}`.trim().slice(0, 50),
+    });
+    // UPI apps expect the payee address unencoded, as the bill QR does.
+    return `upi://pay?pa=${cfg.upiId.trim()}&` + p.toString().replace(/\+/g, '%20');
+  }
+  function openPay(plan) {
+    if (!cfg || !cfg.upiId) return toast('Payments are not set up yet.', true);
+    const amount = plan === 'yearly' ? cfg.yearly : cfg.monthly;
+    const link = upiLink(plan, amount);
+    let qr = '';
+    try {
+      qr = window.pbQR ? window.pbQR(link, 6, 2) : '';
+    } catch {}
+    const mobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+    showDialog((box) => {
+      box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button>
+        <div class="pbp-badge">PRO</div>
+        <h2 id="pbp-title">Pay ${rupees(amount)}</h2>
+        <p class="pbp-why">PakkaBill Pro for ${plan === 'yearly' ? '1 year' : '1 month'}.</p>
+        <ol class="pbp-steps">
+          <li><b>Scan and pay exactly ${rupees(amount)}</b> with any UPI app.
+            ${qr ? `<img class="pbp-qr" src="${qr}" alt="UPI QR code to pay ${esc(rupees(amount))} to ${esc(cfg.upiId)}">` : ''}
+            <span class="pbp-upi">To <b>${esc(cfg.payeeName || cfg.upiId)}</b> · <code>${esc(cfg.upiId)}</code> <button type="button" class="pbp-link" data-copy>Copy UPI ID</button></span>
+            ${mobile ? `<a class="pbp-btn pbp-open" href="${esc(link)}">Open UPI app</a>` : ''}
+          </li>
+          <li><b>Enter the 12-digit transaction number</b> from the payment receipt. PhonePe calls it <i>UTR</i>, Google Pay <i>UPI transaction ID</i>, Paytm <i>UPI Ref No</i>.
+            <form class="pbp-auth pbp-utr"><input name="utr" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="12-digit number" aria-label="UPI transaction number" required>
+            <p class="pbp-err" role="alert"></p><button class="pbp-btn" type="submit">Submit payment</button></form>
+          </li>
+        </ol>
+        <p class="pbp-fine">We check every payment by hand. Pro turns on as soon as it is confirmed, usually within a few hours.</p>`;
+      box.querySelector('.pbp-x').addEventListener('click', closeUpgrade);
+      box.querySelector('[data-copy]').addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(cfg.upiId);
+          toast('UPI ID copied.');
+        } catch {
+          toast(cfg.upiId);
+        }
+      });
+      const form = box.querySelector('.pbp-utr');
+      form.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const err = form.querySelector('.pbp-err');
+        const btn = form.querySelector('.pbp-btn');
+        const utr = form.utr.value.replace(/\s/g, '');
+        err.textContent = '';
+        if (!/^\d{12}$/.test(utr)) return (err.textContent = 'The transaction number has exactly 12 digits.');
+        btn.disabled = true;
+        try {
+          await api('pay', { body: { plan, utr } });
+          myOrders = null;
+          box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button><div class="pbp-badge">PRO</div>
+            <h2 id="pbp-title">Payment submitted</h2>
+            <p class="pbp-why">Thank you. We will match transaction <b>${esc(utr)}</b> with our account and turn on Pro, usually within a few hours. You can keep using PakkaBill meanwhile.</p>
+            <button type="button" class="pbp-btn" data-done>OK</button>`;
+          box.querySelector('.pbp-x').addEventListener('click', closeUpgrade);
+          box.querySelector('[data-done]').addEventListener('click', closeUpgrade);
+          rerender();
+        } catch (e) {
+          err.textContent = e.message;
+          btn.disabled = false;
+        }
+      });
+      form.utr.focus();
+    });
+  }
+
+  let myOrders = null;
+  async function loadOrders() {
+    if (!acct || !acct.token || !cfg || !cfg.enabled) return;
+    try {
+      myOrders = (await api('pay')).orders;
+      plans.forEach((el) => el.isConnected && drawPlan(el));
+    } catch {}
+  }
+  function ordersHtml() {
+    if (!myOrders || !myOrders.length) return '';
+    const label = { PENDING: 'Waiting for confirmation', COMPLETED: 'Confirmed', REJECTED: 'Not found in our account' };
+    return `<ul class="pbp-orders">${myOrders
+      .map((o) => `<li class="is-${o.state.toLowerCase()}"><span>${rupees(o.amount / 100)} · ${o.plan === 'yearly' ? 'Yearly' : 'Monthly'} · UTR ${esc(o.utr)}</span><b>${label[o.state] || esc(o.state)}</b></li>`)
+      .join('')}</ul>${myOrders.some((o) => o.state === 'REJECTED') ? '<p class="pbp-fine">If a payment was not found, check the transaction number and submit it again.</p>' : ''}`;
+  }
+
   // ---------- Upgrade dialog ----------
   let dialog = null;
-  function openUpgrade(feature, arg) {
+  function showDialog(fill) {
     closeUpgrade();
-    let mode = 'signup';
     dialog = document.createElement('div');
     dialog.className = 'pbp-overlay';
     dialog.innerHTML = '<div class="pbp-dialog" role="dialog" aria-modal="true" aria-labelledby="pbp-title"></div>';
-    const box = dialog.firstChild;
+    dialog.addEventListener('click', (e) => e.target === dialog && closeUpgrade());
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(dialog);
+    fill(dialog.firstChild);
+    return dialog.firstChild;
+  }
+  function openUpgrade(feature, arg) {
+    let mode = 'signup';
     const draw = (m) => {
       if (m) mode = m;
       box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button>
@@ -208,14 +266,12 @@
         <h2 id="pbp-title">Upgrade to PakkaBill Pro</h2>
         <p class="pbp-why">${esc((WHY[feature] || WHY.pdf)(arg))}</p>
         <ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>
-        ${acct && acct.token ? accountHtml() + plansHtml() + '<p class="pbp-fine">You pay securely on PhonePe with UPI, card or netbanking.</p>' : authHtml(mode)}`;
+        ${acct && acct.token ? accountHtml() + plansHtml() + '<p class="pbp-fine">Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.</p>' : authHtml(mode)}`;
       box.querySelector('.pbp-x').addEventListener('click', closeUpgrade);
       wire(box, draw);
     };
+    const box = showDialog(() => {});
     draw();
-    dialog.addEventListener('click', (e) => e.target === dialog && closeUpgrade());
-    document.addEventListener('keydown', onKey);
-    document.body.appendChild(dialog);
     dialogDraw = draw;
     box.querySelector('input,button.pbp-plan')?.focus();
   }
@@ -246,10 +302,10 @@
     else status = `<div class="pbp-status is-free"><b>You are on the free plan</b><span>${cfg.freeBills} bills a month, Carbon, Ledger and Plain designs, printing.</span></div>`;
     el.innerHTML = `<div class="page-head"><div><h1 class="page-title">Plan</h1><p class="page-sub">Your PakkaBill account and Pro plan.</p></div></div>
       <div class="pbp-page">
-        <section class="paper pbp-card">${status}${accountHtml()}</section>
+        <section class="paper pbp-card">${status}${ordersHtml()}${accountHtml()}</section>
         ${cfg && cfg.enabled ? `<section class="paper pbp-card"><h2 class="form-sec__title">PakkaBill Pro</h2>
           <ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>
-          ${acct && acct.token ? plansHtml() + '<p class="pbp-fine">You pay securely on PhonePe with UPI, card or netbanking.</p>' : authHtml(mode)}</section>` : ''}
+          ${acct && acct.token ? plansHtml() + '<p class="pbp-fine">Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.</p>' : authHtml(mode)}</section>` : ''}
       </div>`;
     wire(el, (m) => drawPlan(el, m));
   }
@@ -257,6 +313,7 @@
     if (plans.has(el)) return;
     plans.add(el);
     drawPlan(el);
+    loadOrders();
   }
 
   function pbLocked(el, feature) {
@@ -350,14 +407,29 @@
 .pbp-toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:1100;background:#1d1838;color:#fff;padding:11px 16px;border-radius:12px;font-size:14.5px;max-width:calc(100vw - 32px);box-shadow:0 12px 30px -12px #0009;animation:pbp-in .2s}
 .pbp-toast.is-bad{background:#7d1218}
 @media (width>=1024px){.pbp-toast{bottom:28px}}
-.pb-ico{display:inline-grid;place-items:center}`;
+.pb-ico{display:inline-grid;place-items:center}
+.pbp-steps{margin:4px 0 8px;padding-left:22px;display:grid;gap:14px}
+.pbp-steps li{padding-left:2px}
+.pbp-steps li>b{display:block;margin-bottom:6px}
+.pbp-qr{display:block;width:210px;height:210px;margin:6px 0 8px;border-radius:12px;border:1px solid var(--rule,#ddd);image-rendering:pixelated;background:#fff}
+.pbp-upi{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:14px;color:var(--ink-2,#555)}
+.pbp-upi code{background:var(--carbon-tint,#f6f2ff);padding:1px 7px;border-radius:6px;color:var(--ink,#222)}
+.pbp-open{display:inline-block;margin-top:10px;text-decoration:none}
+.pbp-utr{margin-top:6px}
+.pbp-utr input{letter-spacing:.08em;font-variant-numeric:tabular-nums}
+.pbp-orders{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px}
+.pbp-orders li{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13.5px;padding:8px 10px;border-radius:10px;background:var(--carbon-tint,#f6f2ff)}
+.pbp-orders li b{font-weight:600}
+.pbp-orders .is-pending b{color:var(--amber,#b26a00)}
+.pbp-orders .is-completed b{color:var(--green,#12714b)}
+.pbp-orders .is-rejected b{color:var(--red,#c8202a)}`;
 
   function init() {
     const st = document.createElement('style');
     st.id = 'pbp-css';
     st.textContent = css;
     document.head.appendChild(st);
-    refresh().then(checkReturn);
+    refresh();
     window.addEventListener('online', refresh);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

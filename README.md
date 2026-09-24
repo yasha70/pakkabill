@@ -22,26 +22,25 @@ move them with Shop > Download backup and Restore.
 
 ## PakkaBill Pro (paid plans)
 
-Free users get a monthly bill limit and the Carbon, Ledger and Plain designs. Pro (monthly or yearly,
-paid through PhonePe) unlocks unlimited bills, the Royal design, logo and signature, PDF / share /
-WhatsApp and GSTR-1 JSON. Until the database and PhonePe are configured, everything stays free.
+Free users get a monthly bill limit and the Carbon, Ledger and Plain designs. Pro (monthly or yearly)
+unlocks unlimited bills, the Royal design, logo and signature, PDF / share / WhatsApp and GSTR-1 JSON.
 
-- `api/` Vercel functions: `auth` (sign up, log in), `me`, `config`, `pay` (start and confirm a
-  PhonePe checkout), `webhook` (PhonePe callback), `admin`.
-- `pro.js` plan checks, upgrade dialog and the Plan page inside the app.
-- `admin.html` admin panel, served at `/admin`.
+Payment is by UPI QR: the customer scans the shop owner's UPI QR (amount filled in), pays from any UPI
+app and submits the 12-digit transaction number (UTR). The owner finds that UTR in their bank or UPI
+app and approves it in `/admin`, which turns Pro on. A UTR can only be submitted once. Until a UPI ID
+is saved in `/admin` > Settings, everything stays free.
+
+- `api/` Vercel functions: `auth` (sign up, log in), `me`, `config`, `pay` (submit a UTR, list my
+  payments), `admin`.
+- `pro.js` plan checks, upgrade dialog, UPI payment screen and the Plan page inside the app.
+- `admin.html` admin panel at `/admin`: earnings, customers, payments to approve, prices, UPI ID.
 
 ### Setting it up on Vercel
 
-1. Storage: Vercel project > Storage > Create > Upstash for Redis, connect it to this project.
-   It adds `KV_REST_API_URL` and `KV_REST_API_TOKEN`.
-2. Environment variables (Project > Settings > Environment Variables):
-   - `ADMIN_PASSWORD` at least 8 characters, for `/admin`
-   - `PHONEPE_CLIENT_ID`, `PHONEPE_CLIENT_SECRET`, `PHONEPE_CLIENT_VERSION` from the PhonePe Business dashboard
-   - `PHONEPE_ENV` `sandbox` for test payments, `production` for real money
-   - `PHONEPE_WEBHOOK_USER`, `PHONEPE_WEBHOOK_PASS` the username and password you enter when adding
-     the webhook `https://<your-domain>/api/webhook` on the PhonePe dashboard
-3. Redeploy. Prices and the free bill limit are changed from `/admin` > Settings.
+1. Storage: Vercel project > Storage > Create > Upstash for Redis, connected to this project
+   (adds `KV_REST_API_URL` and `KV_REST_API_TOKEN`).
+2. Environment variable `ADMIN_PASSWORD` (8+ characters) for `/admin`. Redeploy.
+3. In `/admin` > Settings, save your UPI ID and the name customers should see.
 
-Plan checks run in the browser, so a technical user could get around them; payments themselves are
-always confirmed with PhonePe on the server.
+Plan checks run in the browser, so a technical user could get around them. Payments are only counted
+after the owner approves them.

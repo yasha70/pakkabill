@@ -37,8 +37,8 @@ const actions = {
       revenue: paid.reduce((s, o) => s + o.amount, 0) / 100,
       revenueMonth: paid.filter((o) => MONTH(o.paidAt || o.createdAt) === thisMonth).reduce((s, o) => s + o.amount, 0) / 100,
       payments: paid.length,
-      paymentsReady: core.paymentsReady(),
-      phonepeEnv: require('./_lib/phonepe').ENV,
+      waiting: list.filter((o) => o.state === 'PENDING').length,
+      paymentsReady: core.paymentsReady(await core.getSettings()),
     };
   },
 
@@ -81,21 +81,28 @@ const actions = {
     return { password: temp };
   },
 
-  async recheck({ id }) {
-    return { order: await orders.verifyOrder(String(id)) };
+  async approve({ id }) {
+    return { order: await orders.approve(String(id)) };
+  },
+
+  async reject({ id }) {
+    return { order: await orders.reject(String(id)) };
   },
 
   async getSettings() {
     return { settings: await core.getSettings() };
   },
 
-  async saveSettings({ monthly, yearly, freeBills, enforce }) {
+  async saveSettings({ monthly, yearly, freeBills, enforce, upiId, payeeName }) {
     const s = {
       monthly: Math.round(Number(monthly)),
       yearly: Math.round(Number(yearly)),
       freeBills: Math.round(Number(freeBills)),
       enforce: !!enforce,
+      upiId: String(upiId || '').trim(),
+      payeeName: String(payeeName || '').trim().slice(0, 50),
     };
+    if (s.upiId && !core.UPI_ID.test(s.upiId)) throw new core.HttpError(400, 'That does not look like a UPI ID (name@bank).');
     if (!(s.monthly >= 1 && s.yearly >= 1)) throw new core.HttpError(400, 'Prices must be at least ₹1.');
     if (!(s.freeBills >= 0 && s.freeBills <= 1000)) throw new core.HttpError(400, 'Free bills must be 0 to 1000.');
     await db.setJSON('settings', s);

@@ -1,11 +1,11 @@
 // Shared server helpers: responses, settings, accounts, sessions and plans.
 const crypto = require('crypto');
 const db = require('./db');
-const phonepe = require('./phonepe');
 
 const DAY = 24 * 60 * 60 * 1000;
 const PLAN_DAYS = { monthly: 30, yearly: 365 };
-const DEFAULT_SETTINGS = { monthly: 99, yearly: 999, freeBills: 15, enforce: true };
+const DEFAULT_SETTINGS = { monthly: 99, yearly: 999, freeBills: 15, enforce: true, upiId: '', payeeName: '' };
+const UPI_ID = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z][a-zA-Z0-9]{1,64}$/;
 const SESSION_DAYS = 180;
 
 function send(res, status, body) {
@@ -95,9 +95,9 @@ async function getSettings() {
   return { ...DEFAULT_SETTINGS, ...(s || {}) };
 }
 
-// Paid features only switch on once both the database and PhonePe are configured.
-function paymentsReady() {
-  return db.configured() && phonepe.configured();
+// Paid features only switch on once the database is connected and a UPI ID is saved in admin.
+function paymentsReady(settings) {
+  return db.configured() && UPI_ID.test(settings.upiId || '');
 }
 
 function publicUser(u) {
@@ -144,6 +144,7 @@ function extend(user, days) {
 
 module.exports = {
   DAY,
+  UPI_ID,
   PLAN_DAYS,
   HttpError,
   send,
