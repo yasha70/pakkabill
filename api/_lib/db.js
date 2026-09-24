@@ -48,8 +48,9 @@ async function memory([op, ...a]) {
     }
     case 'DEL':
       return a.reduce((n, k) => n + (mem.kv.delete(k) ? 1 : 0), 0);
-    case 'INCR': {
-      const v = (memAlive(a[0]) ? Number(mem.kv.get(a[0])) : 0) + 1;
+    case 'INCR':
+    case 'DECR': {
+      const v = (memAlive(a[0]) ? Number(mem.kv.get(a[0])) : 0) + (op.toUpperCase() === 'INCR' ? 1 : -1);
       mem.kv.set(a[0], String(v));
       return v;
     }

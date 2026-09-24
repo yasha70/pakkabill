@@ -4,6 +4,7 @@
 const crypto = require('crypto');
 const db = require('./db');
 const core = require('./core');
+const promos = require('./promos');
 
 const orderKey = (id) => `order:${id}`;
 const getOrder = (id) => db.getJSON(orderKey(id));
@@ -14,20 +15,24 @@ function normUtr(raw) {
   return /^\d{12}$/.test(d) ? d : '';
 }
 
-async function claim(user, plan, rawUtr) {
-  const settings = await core.getSettings();
-  const rupees = Number(settings[plan]);
-  if (!core.PLAN_DAYS[plan] || !(rupees > 0)) throw new core.HttpError(400, 'Pick the monthly or yearly plan.');
+async function claim(user, plan, rawUtr, couponCode) {
+  const quote = await promos.price(plan, couponCode);
   const utr = normUtr(rawUtr);
   if (!utr) throw new core.HttpError(400, 'Enter the 12-digit UPI transaction number (UTR) from your payment app.');
   const id = `PB${Date.now().toString(36).toUpperCase()}${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
   const free = await db.cmd(['SET', `utr:${utr}`, id, 'NX']);
   if (!free) throw new core.HttpError(409, 'This transaction number has already been submitted.');
+  if (quote.coupon && !(await promos.useCoupon(quote.coupon, quote.maxUses))) {
+    await db.cmd(['DEL', `utr:${utr}`]);
+    throw new core.HttpError(400, 'This coupon has just been fully used.');
+  }
   const order = {
     id,
     phone: user.phone,
     plan,
-    amount: Math.round(rupees * 100),
+    amount: Math.round(quote.amount * 100),
+    listAmount: Math.round(quote.list * 100),
+    coupon: quote.coupon,
     utr,
     state: 'PENDING',
     createdAt: Date.now(),
@@ -71,6 +76,7 @@ async function reject(id) {
   order.rejectedAt = Date.now();
   await saveOrder(order);
   await db.cmd(['DEL', `utr:${order.utr}`]);
+  if (order.coupon) await promos.releaseCoupon(order.coupon);
   return order;
 }
 

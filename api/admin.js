@@ -3,12 +3,25 @@
 const core = require('./_lib/core');
 const db = require('./_lib/db');
 const orders = require('./_lib/orders');
+const promos = require('./_lib/promos');
 
 const OWNER = 'owner';
+const IST = 5.5 * 3600e3;
+// Calendar month in Indian time, e.g. "2026-8" for September 2026.
 const MONTH = (t) => {
-  const d = new Date(t);
-  return `${d.getFullYear()}-${d.getMonth()}`;
+  const d = new Date(t + IST);
+  return `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
 };
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function lastMonths(n) {
+  const d = new Date(Date.now() + IST);
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const m = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - i, 1));
+    out.push({ key: `${m.getUTCFullYear()}-${m.getUTCMonth()}`, label: MONTH_NAMES[m.getUTCMonth()] });
+  }
+  return out;
+}
 
 async function requireAdmin(req) {
   const t = core.bearer(req);
@@ -39,7 +52,56 @@ const actions = {
       payments: paid.length,
       waiting: list.filter((o) => o.state === 'PENDING').length,
       paymentsReady: core.paymentsReady(await core.getSettings()),
+      activeWeek: users.filter((u) => now - (u.lastSeen || 0) < 7 * core.DAY).length,
+      series: lastMonths(6).map(({ key, label }) => ({
+        label,
+        amount: paid.filter((o) => MONTH(o.paidAt || o.createdAt) === key).reduce((s, o) => s + o.amount, 0) / 100,
+      })),
+      // Pro ending in the next 7 days, and Pro that ended in the last 14 days.
+      expiring: users
+        .filter((u) => u.paidUntil > now && u.paidUntil < now + 7 * core.DAY)
+        .sort((a, b) => a.paidUntil - b.paidUntil)
+        .map(core.publicUser),
+      lapsed: users
+        .filter((u) => u.paidUntil && u.paidUntil <= now && u.paidUntil > now - 14 * core.DAY)
+        .sort((a, b) => b.paidUntil - a.paidUntil)
+        .map(core.publicUser),
     };
+  },
+
+  async promos() {
+    return { promos: await promos.promoStats(await promos.listPromos()), coupons: await promos.couponStats(await promos.listCoupons()) };
+  },
+  async savePromo({ promo }) {
+    return { promo: await promos.savePromo(promo || {}) };
+  },
+  async deletePromo({ id }) {
+    await promos.deletePromo(String(id));
+    return { ok: true };
+  },
+  async saveCoupon({ coupon }) {
+    return { coupon: await promos.saveCoupon(coupon || {}) };
+  },
+  async deleteCoupon({ code }) {
+    await promos.deleteCoupon(code);
+    return { ok: true };
+  },
+
+  // Adds Pro days to every account in an audience (or a list of numbers).
+  async gift({ audience, phones, days }) {
+    const n = Math.round(Number(days));
+    if (!(n > 0 && n <= 365)) throw new core.HttpError(400, 'Days must be between 1 and 365.');
+    if (!['all', 'free', 'pro', 'phones'].includes(audience)) throw new core.HttpError(400, 'Pick who gets the gift.');
+    const wanted = audience === 'phones' ? new Set(String(phones || '').split(/[,;\n]+/).map(core.normPhone).filter(Boolean)) : null;
+    if (wanted && !wanted.size) throw new core.HttpError(400, 'Add at least one 10-digit mobile number.');
+    const users = (await allUsers()).filter((u) =>
+      wanted ? wanted.has(u.phone) : promos.inAudience({ audience }, u),
+    );
+    for (const u of users) {
+      core.extend(u, n);
+      await core.saveUser(u);
+    }
+    return { count: users.length };
   },
 
   async users({ q = '' }) {

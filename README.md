@@ -33,7 +33,13 @@ is saved in `/admin` > Settings, everything stays free.
 - `api/` Vercel functions: `auth` (sign up, log in), `me`, `config`, `pay` (submit a UTR, list my
   payments), `admin`.
 - `pro.js` plan checks, upgrade dialog, UPI payment screen and the Plan page inside the app.
-- `admin.html` admin panel at `/admin`: earnings, customers, payments to approve, prices, UPI ID.
+- `admin.html` admin panel at `/admin`: earnings chart, customers (last seen, CSV export), payments to
+  approve, Pro-ending reminders over WhatsApp, prices and UPI ID.
+- Offers tab: publish messages shown as a card in the app and on the Plan page, to everyone, free
+  users, Pro users, people not logged in, or chosen numbers, with optional start/end dates, a button
+  (Pro plans or a link) and free Pro days customers claim once. Coupon codes (% or ₹ off, use limit,
+  end date) and gifting Pro days to a group.
+- `api/news.js` messages for the viewer and claiming free days.
 
 ### Setting it up on Vercel
 

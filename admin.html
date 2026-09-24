@@ -34,8 +34,17 @@
   .card{background:var(--paper);border:1px solid var(--rule);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow);margin-bottom:16px}
   .card h2{font-size:16px;margin:0 0 4px}
   .sub{color:var(--ink-2);margin:0 0 12px;font-size:14px}
-  .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
-  @media (max-width:760px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+  .stat:nth-child(5){border-top-color:#0b6e74}
+  .chart{display:flex;align-items:flex-end;gap:12px;height:170px;padding:8px 4px 0}
+  .bar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;height:100%;min-width:0}
+  .bar i{display:block;width:100%;max-width:56px;border-radius:8px 8px 3px 3px;background:var(--btn);background-image:var(--grad);min-height:3px}
+  .bar b{font-size:12px;font-variant-numeric:tabular-nums;color:var(--ink-2);white-space:nowrap}
+  .bar span{font-size:12px;font-weight:700;color:var(--ink-3)}
+  .people{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .people li{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--rule-soft);border-radius:12px}
+  .people .who b{display:block}
+  .wa{background:#1faa59;background-image:none;color:#fff;text-decoration:none;display:inline-block}
   .stat{background:var(--paper);border:1px solid var(--rule);border-radius:16px;padding:14px 16px;box-shadow:var(--shadow);border-top:4px solid var(--btn)}
   .stat:nth-child(2){border-top-color:#ff7a59}.stat:nth-child(3){border-top-color:#e0a300}.stat:nth-child(4){border-top-color:#1faa7d}
   .stat .l{font-size:12px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em}
@@ -50,8 +59,13 @@
   .btn.danger{background:var(--paper);background-image:none;color:var(--red);border:1.5px solid var(--rule)}
   .btn.sm{padding:5px 10px;font-size:13px;border-radius:8px}
   .btn:disabled{opacity:.6;cursor:wait}
-  input[type=text],input[type=password],input[type=number],input[type=search]{padding:9px 12px;border-radius:9px;border:1.5px solid var(--rule);background:var(--paper);min-width:0}
-  input:focus-visible,button:focus-visible{outline:3px solid #ff7a59;outline-offset:2px}
+  input[type=text],input[type=password],input[type=number],input[type=search],input[type=date]{padding:9px 12px;border-radius:9px;border:1.5px solid var(--rule);background:var(--paper);min-width:0}
+  select,textarea{padding:9px 12px;border-radius:9px;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink);font:inherit;min-width:0;width:100%}
+  textarea{resize:vertical}
+  label.f input{width:100%}
+  label.f input,label.f select,label.f textarea{font-weight:400}
+  label.f .muted{font-weight:500}
+  input:focus-visible,button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #ff7a59;outline-offset:2px}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   .tablewrap{overflow-x:auto;border:1px solid var(--rule);border-radius:12px}
   table{width:100%;border-collapse:collapse;font-size:14px}
@@ -98,6 +112,7 @@
         <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
         <button role="tab" data-tab="customers" aria-selected="false">Customers</button>
         <button role="tab" data-tab="payments" aria-selected="false">Payments</button>
+        <button role="tab" data-tab="offers" aria-selected="false">Offers</button>
         <button role="tab" data-tab="settings" aria-selected="false">Settings</button>
         <button role="tab" data-tab="device" aria-selected="false">This device</button>
       </nav>
@@ -107,6 +122,10 @@
     <section data-panel="overview">
       <div id="setupBanner"></div>
       <div class="stats" id="stats"></div>
+      <div class="grid2" style="align-items:start">
+        <div class="card"><h2>Earnings by month</h2><p class="sub">Approved payments, last 6 months.</p><div class="chart" id="chart"></div></div>
+        <div class="card"><h2>Remind before Pro runs out</h2><p class="sub">Pro ending in the next 7 days, and Pro that ended in the last 14 days. One tap opens WhatsApp with a ready message.</p><div id="expiring"></div></div>
+      </div>
       <div class="card"><h2>Latest payments</h2><p class="sub">The five most recent payments customers submitted.</p><div class="tablewrap" id="latest"></div></div>
     </section>
 
@@ -114,7 +133,7 @@
       <div class="card">
         <h2>Customers</h2>
         <p class="sub">Give or remove Pro, or reset a password for a customer who forgot it.</p>
-        <div class="row" style="margin-bottom:12px"><input id="q" type="search" placeholder="Search mobile or shop name" style="flex:1;max-width:360px"></div>
+        <div class="row" style="margin-bottom:12px"><input id="q" type="search" placeholder="Search mobile or shop name" style="flex:1;max-width:360px"><button class="btn sec sm" id="csv" type="button">Download CSV</button></div>
         <div class="tablewrap" id="users"></div>
       </div>
     </section>
@@ -125,6 +144,69 @@
         <p class="sub">Customers pay your UPI QR and send the 12-digit transaction number (UTR). Find the same UTR and amount in your bank or UPI app, then Approve. Approve turns Pro on straight away; Reject lets the customer send a corrected number.</p>
         <div class="tablewrap" id="payments"></div>
       </div>
+    </section>
+
+    <section data-panel="offers" class="hidden">
+      <form class="card" id="promoForm">
+        <h2 id="promoFormTitle">Publish a message or offer</h2>
+        <p class="sub">It appears as a small card inside PakkaBill and on the customer's Plan page. Add free Pro days to turn it into an offer customers can claim once.</p>
+        <input type="hidden" name="id">
+        <div class="grid2">
+          <label class="f">Title<input type="text" name="title" maxlength="80" placeholder="Diwali gift: 7 days of Pro free" required></label>
+          <label class="f">Style<select name="tone"><option value="info">Information (violet)</option><option value="offer">Offer (orange)</option><option value="warn">Important (yellow)</option></select></label>
+        </div>
+        <label class="f" style="margin-top:12px"><span>Message <span class="muted">(optional)</span></span><textarea name="message" rows="3" maxlength="400" placeholder="Tap below to claim. Valid till 5 November."></textarea></label>
+        <div class="grid2" style="margin-top:12px">
+          <label class="f">Who sees it<select name="audience">
+            <option value="all">Everyone</option>
+            <option value="free">Free users (and people not logged in)</option>
+            <option value="pro">Pro users</option>
+            <option value="guests">People not logged in</option>
+            <option value="phones">Only these mobile numbers</option>
+          </select></label>
+          <label class="f"><span>Free Pro days to claim <span class="muted">(0 = none)</span></span><input type="number" name="trialDays" min="0" max="365" value="0"></label>
+        </div>
+        <label class="f hidden" id="phonesField" style="margin-top:12px">Mobile numbers <span class="muted">(one per line or separated by commas)</span><textarea name="phones" rows="3" placeholder="9876543210, 9123456780"></textarea></label>
+        <div class="grid2" style="margin-top:12px">
+          <label class="f">Button<select name="cta"><option value="none">No button</option><option value="upgrade">Open Pro plans</option><option value="link">Open a link</option></select></label>
+          <label class="f" id="ctaLabelField">Button text<input type="text" name="ctaLabel" maxlength="30" placeholder="See Pro plans"></label>
+        </div>
+        <label class="f hidden" id="linkField" style="margin-top:12px">Link <span class="muted">(https://…)</span><input type="text" name="link" placeholder="https://youtube.com/…"></label>
+        <p class="muted" id="trialNote" style="margin:8px 0 0">With free Pro days, the button is always "Claim N days of Pro free".</p>
+        <div class="grid2" style="margin-top:12px">
+          <label class="f"><span>Starts <span class="muted">(optional)</span></span><input type="date" name="startAt"></label>
+          <label class="f"><span>Ends <span class="muted">(optional, end of day)</span></span><input type="date" name="endAt"></label>
+        </div>
+        <label class="check" style="margin-top:12px"><input type="checkbox" name="active" checked><span>Live (untick to save as a draft)</span></label>
+        <div class="row" style="margin-top:14px"><button class="btn" type="submit" id="promoSave">Publish</button><button class="btn sec hidden" type="button" id="promoCancel">Cancel editing</button></div>
+      </form>
+      <div class="card"><h2>Your messages and offers</h2><p class="sub">"Claimed" counts customers who took the free Pro days.</p><div class="tablewrap" id="promoList"></div></div>
+
+      <div class="grid2" style="align-items:start">
+        <form class="card" id="couponForm">
+          <h2>Coupon code</h2>
+          <p class="sub">Customers type it on the payment screen; the QR amount drops right away. Saving an existing code updates it.</p>
+          <div class="grid2">
+            <label class="f">Code<input type="text" name="code" maxlength="20" placeholder="DIWALI20" style="text-transform:uppercase" required></label>
+            <label class="f">Discount<span class="row" style="gap:6px"><input type="number" name="value" min="1" style="width:90px" required><select name="kind" style="width:auto"><option value="percent">% off</option><option value="flat">₹ off</option></select></span></label>
+            <label class="f">For<select name="plans"><option value="both">Both plans</option><option value="monthly">Monthly only</option><option value="yearly">Yearly only</option></select></label>
+            <label class="f"><span>Uses allowed <span class="muted">(0 = no limit)</span></span><input type="number" name="maxUses" min="0" value="0"></label>
+            <label class="f"><span>Ends <span class="muted">(optional)</span></span><input type="date" name="endAt"></label>
+          </div>
+          <div class="row" style="margin-top:14px"><button class="btn" type="submit">Save coupon</button></div>
+        </form>
+        <form class="card" id="giftForm">
+          <h2>Gift Pro days</h2>
+          <p class="sub">Adds free Pro days straight to accounts, no claiming needed. Good for festivals or saying sorry after a problem.</p>
+          <div class="grid2">
+            <label class="f">Who<select name="audience"><option value="free">All free users</option><option value="all">Every customer</option><option value="pro">Current Pro users</option><option value="phones">Only these numbers</option></select></label>
+            <label class="f">Days<input type="number" name="days" min="1" max="365" value="7" required></label>
+          </div>
+          <label class="f hidden" id="giftPhones" style="margin-top:12px">Mobile numbers<textarea name="phones" rows="2" placeholder="9876543210, 9123456780"></textarea></label>
+          <div class="row" style="margin-top:14px"><button class="btn" type="submit">Give Pro days</button></div>
+        </form>
+      </div>
+      <div class="card"><h2>Coupons</h2><div class="tablewrap" id="couponList"></div></div>
     </section>
 
     <section data-panel="settings" class="hidden">
@@ -174,6 +256,7 @@
   try { token = sessionStorage.getItem('pb-admin') || ''; } catch {}
 
   function toast(msg, bad) {
+    document.querySelectorAll('.toast').forEach((x) => x.remove());
     const t = document.createElement('div');
     t.className = 'toast' + (bad ? ' bad' : '');
     t.setAttribute('role', 'status');
@@ -218,7 +301,7 @@
   function show(tab) {
     document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
     document.querySelectorAll('[data-panel]').forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== tab));
-    ({ overview: loadOverview, customers: loadUsers, payments: loadPayments, settings: loadSettings })[tab]?.();
+    ({ overview: loadOverview, customers: loadUsers, payments: loadPayments, offers: loadOffers, settings: loadSettings })[tab]?.();
   }
 
   function stateBadge(s) {
@@ -243,16 +326,51 @@
         ['Pro right now', s.pro.toLocaleString('en-IN')],
         ['Earned this month', money(s.revenueMonth)],
         ['Earned in total', money(s.revenue)],
+        ['Active this week', s.activeWeek.toLocaleString('en-IN')],
       ].map(([l, v]) => `<div class="stat"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
       $('#setupBanner').innerHTML = !s.paymentsReady
         ? `<div class="banner warn"><b>Payments are not switched on yet</b>, so every feature is free for everyone. Add your UPI ID in <b>Settings</b> to start selling Pro.</div>`
         : s.waiting
         ? `<div class="banner warn"><b>${s.waiting} payment${s.waiting > 1 ? 's' : ''} waiting for you.</b> Match the UTR in your bank or UPI app, then approve in <b>Payments</b>.</div>`
         : '<div class="banner ok">UPI payments are on. No payments waiting.</div>';
+      const top = Math.max(1, ...s.series.map((m) => m.amount));
+      $('#chart').innerHTML = s.series.map((m) => `<div class="bar"><b>${m.amount ? money(m.amount) : ''}</b><i style="height:${Math.round((m.amount / top) * 110) + 3}px" title="${esc(m.label)}: ${money(m.amount)}"></i><span>${esc(m.label)}</span></div>`).join('');
+      const remind = (u, ended) => {
+        const text = ended
+          ? `Namaste${u.shopName ? ' ' + u.shopName : ''}! Your PakkaBill Pro plan ended on ${day(u.paidUntil)}. Renew in a minute from the Plan page to get unlimited bills, PDF and WhatsApp sharing back: ${location.origin}/#/plan`
+          : `Namaste${u.shopName ? ' ' + u.shopName : ''}! Your PakkaBill Pro plan ends on ${day(u.paidUntil)}. Renew from the Plan page to keep unlimited bills, PDF and WhatsApp sharing: ${location.origin}/#/plan`;
+        return `<li><span class="who"><b>${esc(u.shopName || u.phone)}</b><span class="muted">${esc(u.phone)} · ${ended ? 'ended' : 'ends'} ${day(u.paidUntil)}</span></span><a class="btn sm wa" target="_blank" rel="noopener" href="https://wa.me/91${esc(u.phone)}?text=${encodeURIComponent(text)}">WhatsApp reminder</a></li>`;
+      };
+      $('#expiring').innerHTML = s.expiring.length || s.lapsed.length
+        ? `<ul class="people">${s.expiring.map((u) => remind(u, false)).join('')}${s.lapsed.map((u) => remind(u, true)).join('')}</ul>`
+        : '<p class="empty">Nobody to remind right now.</p>';
       $('#latest').innerHTML = paymentsTable(p.payments.slice(0, 5), false);
     } catch (e) { toast(e.message, true); }
   }
 
+  function ago(t) {
+    const m = Math.round((Date.now() - t) / 60000);
+    if (m < 60) return 'Just now';
+    const h = Math.round(m / 60);
+    if (h < 24) return `${h} hour${h > 1 ? 's' : ''} ago`;
+    const d = Math.round(h / 24);
+    return d < 30 ? `${d} day${d > 1 ? 's' : ''} ago` : day(t);
+  }
+  $('#csv').addEventListener('click', async () => {
+    try {
+      const { users } = await api('users', { q: '' });
+      const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const rows = [['Mobile', 'Shop', 'Plan', 'Pro until', 'Last plan', 'Last seen', 'Joined']].concat(
+        users.map((u) => [u.phone, u.shopName, u.pro ? 'Pro' : 'Free', u.paidUntil ? day(u.paidUntil) : '', u.lastPlan, u.lastSeen ? day(u.lastSeen) : '', day(u.createdAt)]),
+      );
+      const blob = new Blob(['\uFEFF' + rows.map((r) => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `pakkabill-customers-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } catch (e) { toast(e.message, true); }
+  });
   let qTimer;
   $('#q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(loadUsers, 250); });
   async function loadUsers() {
@@ -260,8 +378,8 @@
       const { users } = await api('users', { q: $('#q').value });
       const now = Date.now();
       $('#users').innerHTML = users.length
-        ? `<table><thead><tr><th>Mobile</th><th>Shop</th><th>Plan</th><th>Pro until</th><th>Joined</th><th>Actions</th></tr></thead><tbody>${users
-            .map((u) => `<tr><td>${esc(u.phone)}</td><td>${esc(u.shopName) || '<span class="muted">—</span>'}</td><td>${u.paidUntil > now ? '<span class="pill pro">Pro</span>' : '<span class="pill free">Free</span>'}</td><td>${u.paidUntil ? day(u.paidUntil) : '—'}</td><td>${day(u.createdAt)}</td>
+        ? `<table><thead><tr><th>Mobile</th><th>Shop</th><th>Plan</th><th>Pro until</th><th>Last seen</th><th>Joined</th><th>Actions</th></tr></thead><tbody>${users
+            .map((u) => `<tr><td>${esc(u.phone)}</td><td>${esc(u.shopName) || '<span class="muted">—</span>'}</td><td>${u.paidUntil > now ? '<span class="pill pro">Pro</span>' : '<span class="pill free">Free</span>'}</td><td>${u.paidUntil ? day(u.paidUntil) : '—'}</td><td>${u.lastSeen ? ago(u.lastSeen) : '—'}</td><td>${day(u.createdAt)}</td>
               <td><div class="actions"><button class="btn sec sm" data-grant="30" data-phone="${esc(u.phone)}">+1 month</button><button class="btn sec sm" data-grant="365" data-phone="${esc(u.phone)}">+1 year</button><button class="btn sec sm" data-grant="?" data-phone="${esc(u.phone)}">+ days…</button>${u.paidUntil > now ? `<button class="btn danger sm" data-revoke="${esc(u.phone)}">Remove Pro</button>` : ''}<button class="btn sec sm" data-reset="${esc(u.phone)}">Reset password</button></div></td></tr>`)
             .join('')}</tbody></table>`
         : '<p class="empty">No customers found.</p>';
@@ -324,6 +442,135 @@
     try {
       await api('saveSettings', { monthly: form.monthly.value, yearly: form.yearly.value, freeBills: form.freeBills.value, enforce: form.enforce.checked, upiId: form.upiId.value, payeeName: form.payeeName.value });
       toast('Settings saved.');
+    } catch (err) { toast(err.message, true); }
+  });
+
+  // ----- Offers, messages, coupons, gifts -----
+  const AUD = { all: 'Everyone', free: 'Free users', pro: 'Pro users', guests: 'Not logged in', phones: 'Chosen numbers' };
+  const TONE = { info: 'Information', offer: 'Offer', warn: 'Important' };
+  const pf = $('#promoForm');
+  const isoDay = (t) => (t ? new Date(t + 5.5 * 3600e3).toISOString().slice(0, 10) : '');
+  function statusOf(x) {
+    const now = Date.now();
+    if (!x.active) return '<span class="pill free">Draft</span>';
+    if (x.startAt && x.startAt > now) return `<span class="pill wait">Starts ${day(x.startAt)}</span>`;
+    if (x.endAt && x.endAt < now) return '<span class="pill free">Ended</span>';
+    return '<span class="pill pro">Live</span>';
+  }
+  function syncPromoForm() {
+    $('#phonesField').classList.toggle('hidden', pf.audience.value !== 'phones');
+    const trial = Number(pf.trialDays.value) > 0;
+    $('#trialNote').classList.toggle('hidden', !trial);
+    pf.cta.disabled = trial;
+    $('#linkField').classList.toggle('hidden', trial || pf.cta.value !== 'link');
+    $('#ctaLabelField').classList.toggle('hidden', trial || pf.cta.value === 'none');
+  }
+  ['audience', 'trialDays', 'cta'].forEach((n) => pf[n].addEventListener('input', syncPromoForm));
+  function resetPromoForm() {
+    pf.reset();
+    pf.id.value = '';
+    $('#promoFormTitle').textContent = 'Publish a message or offer';
+    $('#promoSave').textContent = 'Publish';
+    $('#promoCancel').classList.add('hidden');
+    syncPromoForm();
+  }
+  $('#promoCancel').addEventListener('click', resetPromoForm);
+  let promoCache = [];
+  let couponCache = [];
+  async function loadOffers() {
+    try {
+      const { promos, coupons } = await api('promos');
+      promoCache = promos;
+      couponCache = coupons;
+      $('#promoList').innerHTML = promos.length
+        ? `<table><thead><tr><th>Title</th><th>Style</th><th>Who</th><th>Free days</th><th>Status</th><th class="num">Claimed</th><th></th></tr></thead><tbody>${promos
+            .map((p) => `<tr><td style="white-space:normal;min-width:200px"><b>${esc(p.title)}</b>${p.message ? `<div class="muted">${esc(p.message.slice(0, 90))}${p.message.length > 90 ? '…' : ''}</div>` : ''}</td><td>${TONE[p.tone]}</td><td>${AUD[p.audience]}${p.audience === 'phones' ? ` (${p.phones.length})` : ''}</td><td>${p.trialDays || '—'}</td><td>${statusOf(p)}</td><td class="num">${p.trialDays ? p.claims : '—'}</td>
+              <td><div class="actions"><button class="btn sec sm" data-edit="${esc(p.id)}">Edit</button><button class="btn sec sm" data-toggle="${esc(p.id)}">${p.active ? 'Pause' : 'Make live'}</button><button class="btn danger sm" data-del="${esc(p.id)}">Delete</button></div></td></tr>`)
+            .join('')}</tbody></table>`
+        : '<p class="empty">Nothing published yet.</p>';
+      $('#couponList').innerHTML = coupons.length
+        ? `<table><thead><tr><th>Code</th><th>Discount</th><th>For</th><th class="num">Used</th><th>Status</th><th></th></tr></thead><tbody>${coupons
+            .map((c) => `<tr><td><code>${esc(c.code)}</code></td><td>${c.kind === 'flat' ? money(c.value) + ' off' : c.value + '% off'}</td><td>${c.plans === 'both' ? 'Both plans' : c.plans === 'yearly' ? 'Yearly' : 'Monthly'}</td><td class="num">${c.used}${c.maxUses ? ' / ' + c.maxUses : ''}</td><td>${statusOf(c)}</td>
+              <td><div class="actions"><button class="btn sec sm" data-share="${esc(c.code)}">Copy share text</button><button class="btn danger sm" data-cdel="${esc(c.code)}">Delete</button></div></td></tr>`)
+            .join('')}</tbody></table>`
+        : '<p class="empty">No coupons yet.</p>';
+    } catch (e) { toast(e.message, true); }
+  }
+  pf.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const promo = Object.fromEntries(new FormData(pf));
+    promo.active = pf.active.checked;
+    promo.cta = pf.cta.value;
+    try {
+      await api('savePromo', { promo });
+      toast(promo.id ? 'Saved.' : promo.active ? 'Published. Customers see it next time they open PakkaBill.' : 'Saved as a draft.');
+      resetPromoForm();
+      loadOffers();
+    } catch (err) { toast(err.message, true); }
+  });
+  $('#promoList').addEventListener('click', async (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    const p = promoCache.find((x) => x.id === (b.dataset.edit || b.dataset.toggle || b.dataset.del));
+    if (!p) return;
+    try {
+      if (b.dataset.edit) {
+        pf.id.value = p.id; pf.title.value = p.title; pf.message.value = p.message; pf.tone.value = p.tone;
+        pf.audience.value = p.audience; pf.phones.value = (p.phones || []).join(', '); pf.trialDays.value = p.trialDays;
+        pf.cta.value = p.cta; pf.ctaLabel.value = p.ctaLabel; pf.link.value = p.link;
+        pf.startAt.value = isoDay(p.startAt); pf.endAt.value = isoDay(p.endAt); pf.active.checked = p.active;
+        $('#promoFormTitle').textContent = 'Edit message';
+        $('#promoSave').textContent = 'Save changes';
+        $('#promoCancel').classList.remove('hidden');
+        syncPromoForm();
+        pf.scrollIntoView({ behavior: 'smooth' });
+      } else if (b.dataset.toggle) {
+        await api('savePromo', { promo: { ...p, phones: (p.phones || []).join(','), startAt: isoDay(p.startAt), endAt: isoDay(p.endAt), active: !p.active } });
+        loadOffers();
+      } else if (b.dataset.del) {
+        if (!confirm(`Delete "${p.title}"? Customers stop seeing it.`)) return;
+        await api('deletePromo', { id: p.id });
+        loadOffers();
+      }
+    } catch (err) { toast(err.message, true); }
+  });
+
+  const cf = $('#couponForm');
+  cf.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const { coupon } = await api('saveCoupon', { coupon: Object.fromEntries(new FormData(cf)) });
+      toast(`Coupon ${coupon.code} saved.`);
+      cf.reset();
+      loadOffers();
+    } catch (err) { toast(err.message, true); }
+  });
+  $('#couponList').addEventListener('click', async (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    try {
+      if (b.dataset.share) {
+        const c = couponCache.find((x) => x.code === b.dataset.share);
+        const off = c.kind === 'flat' ? `${money(c.value)} off` : `${c.value}% off`;
+        const text = `Get ${off} PakkaBill Pro with code ${c.code}${c.endAt ? ` (till ${day(c.endAt)})` : ''}. Open ${location.origin}/#/plan, pick a plan and enter the code.`;
+        try { await navigator.clipboard.writeText(text); toast('Copied. Paste it on WhatsApp or Instagram.'); } catch { prompt('Copy this text:', text); }
+      } else if (b.dataset.cdel) {
+        if (!confirm(`Delete coupon ${b.dataset.cdel}?`)) return;
+        await api('deleteCoupon', { code: b.dataset.cdel });
+        loadOffers();
+      }
+    } catch (err) { toast(err.message, true); }
+  });
+
+  const gf = $('#giftForm');
+  gf.audience.addEventListener('input', () => $('#giftPhones').classList.toggle('hidden', gf.audience.value !== 'phones'));
+  gf.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const who = gf.audience.options[gf.audience.selectedIndex].text.toLowerCase();
+    if (!confirm(`Give ${gf.days.value} days of Pro to ${who}?`)) return;
+    try {
+      const { count } = await api('gift', { audience: gf.audience.value, days: gf.days.value, phones: gf.phones.value });
+      toast(`Done. ${count} account${count === 1 ? '' : 's'} got ${gf.days.value} extra days of Pro.`);
     } catch (err) { toast(err.message, true); }
   });
 

@@ -24,6 +24,7 @@ module.exports = core.handler(async (req, res) => {
       shopName: String(shopName).trim().slice(0, 80),
       pass: core.hashPassword(String(password)),
       createdAt: Date.now(),
+      lastSeen: Date.now(),
       paidUntil: 0,
     };
     const created = await db.cmd(['SET', `user:${phone}`, JSON.stringify(user), 'NX']);
@@ -38,6 +39,8 @@ module.exports = core.handler(async (req, res) => {
     if (!user || !core.checkPassword(String(password), user.pass)) {
       throw new core.HttpError(401, 'Mobile number or password is wrong.');
     }
+    user.lastSeen = Date.now();
+    await core.saveUser(user);
     return core.send(res, 200, { token: await core.createSession(phone), user: core.publicUser(user) });
   }
 

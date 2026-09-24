@@ -108,6 +108,7 @@ function publicUser(u) {
     pro: (u.paidUntil || 0) > Date.now(),
     lastPlan: u.lastPlan || '',
     createdAt: u.createdAt,
+    lastSeen: u.lastSeen || 0,
   };
 }
 
@@ -126,11 +127,15 @@ function bearer(req) {
   return h.startsWith('Bearer ') ? h.slice(7).trim() : '';
 }
 
-async function requireUser(req) {
-  requireDb();
+async function sessionUser(req) {
   const t = bearer(req);
   const phone = t && (await db.cmd(['GET', `sess:${sha256(t)}`]));
-  const user = phone && (await getUser(phone));
+  return (phone && (await getUser(phone))) || null;
+}
+
+async function requireUser(req) {
+  requireDb();
+  const user = await sessionUser(req);
   if (!user) throw new HttpError(401, 'Please log in again.');
   return user;
 }
@@ -168,5 +173,6 @@ module.exports = {
   createSession,
   bearer,
   requireUser,
+  sessionUser,
   extend,
 };

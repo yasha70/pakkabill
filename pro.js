@@ -69,6 +69,7 @@
     } catch {
       /* offline or server not deployed: keep the last known state */
     }
+    loadNews();
   }
 
   const WHY = {
@@ -78,6 +79,8 @@
     gstr1: () => 'GSTR-1 JSON export is part of PakkaBill Pro.',
     pdf: () => 'PDF download and sharing are part of PakkaBill Pro.',
     share: () => 'WhatsApp sharing is part of PakkaBill Pro.',
+    offer: () => 'Everything in PakkaBill, without limits.',
+    claim: () => 'Log in or create a free account to claim your free Pro days.',
   };
   const PERKS = [
     'Unlimited bills every month',
@@ -133,8 +136,12 @@
           const r = await api('auth', {
             body: { action: form.dataset.mode, phone: f.get('phone'), password: f.get('password'), shopName: f.get('shopName') || '' },
           });
-          setAcct({ token: r.token, user: r.user });
+          const claimId = pendingClaim;
+          pendingClaim = '';
+          setAcct({ token: r.token, user: r.user }, !claimId);
+          if (claimId) return claimOffer(claimId);
           toast(r.user.pro ? 'Logged in. Pro is active.' : 'Logged in.');
+          loadNews();
         } catch (e) {
           err.textContent = e.message;
           btn.disabled = false;
@@ -145,6 +152,7 @@
         await api('auth', { body: { action: 'logout' } });
       } catch {}
       setAcct(null);
+      loadNews();
     });
   }
 
@@ -165,20 +173,26 @@
     // UPI apps expect the payee address unencoded, as the bill QR does.
     return `upi://pay?pa=${cfg.upiId.trim()}&` + p.toString().replace(/\+/g, '%20');
   }
-  function openPay(plan) {
+  function openPay(plan, presetCoupon = '') {
     if (!cfg || !cfg.upiId) return toast('Payments are not set up yet.', true);
-    const amount = plan === 'yearly' ? cfg.yearly : cfg.monthly;
-    const link = upiLink(plan, amount);
-    let qr = '';
-    try {
-      qr = window.pbQR ? window.pbQR(link, 6, 2) : '';
-    } catch {}
+    const listPrice = plan === 'yearly' ? cfg.yearly : cfg.monthly;
     const mobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+    let amount = listPrice;
+    let coupon = '';
     showDialog((box) => {
-      box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button>
+      const draw = () => {
+        const link = upiLink(plan, amount);
+        let qr = '';
+        try {
+          qr = window.pbQR ? window.pbQR(link, 6, 2) : '';
+        } catch {}
+        const typed = box.querySelector('.pbp-utr input')?.value || '';
+        box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button>
         <div class="pbp-badge">PRO</div>
-        <h2 id="pbp-title">Pay ${rupees(amount)}</h2>
-        <p class="pbp-why">PakkaBill Pro for ${plan === 'yearly' ? '1 year' : '1 month'}.</p>
+        <h2 id="pbp-title">Pay ${rupees(amount)}${amount < listPrice ? ` <s class="pbp-was">${rupees(listPrice)}</s>` : ''}</h2>
+        <p class="pbp-why">PakkaBill Pro for ${plan === 'yearly' ? '1 year' : '1 month'}.${coupon ? ` Coupon <b>${esc(coupon)}</b> applied.` : ''}</p>
+        <form class="pbp-coupon"><input name="code" placeholder="Coupon code" aria-label="Coupon code" autocomplete="off" value="${esc(coupon || presetCoupon)}"><button type="submit" class="pbp-btn pbp-btn--sm">${coupon ? 'Change' : 'Apply'}</button></form>
+        <p class="pbp-err pbp-coupon-err" role="alert"></p>
         <ol class="pbp-steps">
           <li><b>Scan and pay exactly ${rupees(amount)}</b> with any UPI app.
             ${qr ? `<img class="pbp-qr" src="${qr}" alt="UPI QR code to pay ${esc(rupees(amount))} to ${esc(cfg.upiId)}">` : ''}
@@ -186,45 +200,71 @@
             ${mobile ? `<a class="pbp-btn pbp-open" href="${esc(link)}">Open UPI app</a>` : ''}
           </li>
           <li><b>Enter the 12-digit transaction number</b> from the payment receipt. PhonePe calls it <i>UTR</i>, Google Pay <i>UPI transaction ID</i>, Paytm <i>UPI Ref No</i>.
-            <form class="pbp-auth pbp-utr"><input name="utr" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="12-digit number" aria-label="UPI transaction number" required>
+            <form class="pbp-auth pbp-utr"><input name="utr" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="12-digit number" aria-label="UPI transaction number" value="${esc(typed)}" required>
             <p class="pbp-err" role="alert"></p><button class="pbp-btn" type="submit">Submit payment</button></form>
           </li>
         </ol>
         <p class="pbp-fine">We check every payment by hand. Pro turns on as soon as it is confirmed, usually within a few hours.</p>`;
-      box.querySelector('.pbp-x').addEventListener('click', closeUpgrade);
-      box.querySelector('[data-copy]').addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(cfg.upiId);
-          toast('UPI ID copied.');
-        } catch {
-          toast(cfg.upiId);
-        }
-      });
-      const form = box.querySelector('.pbp-utr');
-      form.addEventListener('submit', async (ev) => {
-        ev.preventDefault();
-        const err = form.querySelector('.pbp-err');
-        const btn = form.querySelector('.pbp-btn');
-        const utr = form.utr.value.replace(/\s/g, '');
-        err.textContent = '';
-        if (!/^\d{12}$/.test(utr)) return (err.textContent = 'The transaction number has exactly 12 digits.');
-        btn.disabled = true;
-        try {
-          await api('pay', { body: { plan, utr } });
-          myOrders = null;
-          box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button><div class="pbp-badge">PRO</div>
+        box.querySelector('.pbp-x').addEventListener('click', closeUpgrade);
+        box.querySelector('[data-copy]').addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(cfg.upiId);
+            toast('UPI ID copied.');
+          } catch {
+            toast(cfg.upiId);
+          }
+        });
+        const cform = box.querySelector('.pbp-coupon');
+        cform.addEventListener('submit', async (ev) => {
+          ev.preventDefault();
+          const code = cform.code.value.trim();
+          const cerr = box.querySelector('.pbp-coupon-err');
+          cerr.textContent = '';
+          if (!code) {
+            coupon = '';
+            amount = listPrice;
+            return draw();
+          }
+          cform.querySelector('button').disabled = true;
+          try {
+            const q = await api('pay', { body: { action: 'quote', plan, coupon: code } });
+            coupon = q.coupon;
+            amount = q.amount;
+            draw();
+            toast(`Coupon applied. You pay ${rupees(amount)}.`);
+          } catch (e) {
+            cerr.textContent = e.message;
+            cform.querySelector('button').disabled = false;
+          }
+        });
+        const form = box.querySelector('.pbp-utr');
+        form.addEventListener('submit', async (ev) => {
+          ev.preventDefault();
+          const err = form.querySelector('.pbp-err');
+          const btn = form.querySelector('.pbp-btn');
+          const utr = form.utr.value.replace(/\s/g, '');
+          err.textContent = '';
+          if (!/^\d{12}$/.test(utr)) return (err.textContent = 'The transaction number has exactly 12 digits.');
+          btn.disabled = true;
+          try {
+            await api('pay', { body: { plan, utr, coupon } });
+            myOrders = null;
+            box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button><div class="pbp-badge">PRO</div>
             <h2 id="pbp-title">Payment submitted</h2>
-            <p class="pbp-why">Thank you. We will match transaction <b>${esc(utr)}</b> with our account and turn on Pro, usually within a few hours. You can keep using PakkaBill meanwhile.</p>
+            <p class="pbp-why">Thank you. We will match transaction <b>${esc(utr)}</b> for ${rupees(amount)} with our account and turn on Pro, usually within a few hours. You can keep using PakkaBill meanwhile.</p>
             <button type="button" class="pbp-btn" data-done>OK</button>`;
-          box.querySelector('.pbp-x').addEventListener('click', closeUpgrade);
-          box.querySelector('[data-done]').addEventListener('click', closeUpgrade);
-          rerender();
-        } catch (e) {
-          err.textContent = e.message;
-          btn.disabled = false;
-        }
-      });
-      form.utr.focus();
+            box.querySelector('.pbp-x').addEventListener('click', closeUpgrade);
+            box.querySelector('[data-done]').addEventListener('click', closeUpgrade);
+            rerender();
+          } catch (e) {
+            err.textContent = e.message;
+            btn.disabled = false;
+          }
+        });
+      };
+      draw();
+      box.querySelector('.pbp-utr input').focus();
+      if (presetCoupon) box.querySelector('.pbp-coupon').requestSubmit();
     });
   }
 
@@ -242,6 +282,87 @@
     return `<ul class="pbp-orders">${myOrders
       .map((o) => `<li class="is-${o.state.toLowerCase()}"><span>${rupees(o.amount / 100)} · ${o.plan === 'yearly' ? 'Yearly' : 'Monthly'} · UTR ${esc(o.utr)}</span><b>${label[o.state] || esc(o.state)}</b></li>`)
       .join('')}</ul>${myOrders.some((o) => o.state === 'REJECTED') ? '<p class="pbp-fine">If a payment was not found, check the transaction number and submit it again.</p>' : ''}`;
+  }
+
+  // ---------- Messages and offers from the admin ----------
+  const SEEN = 'pb-news-seen';
+  let news = [];
+  let pendingClaim = '';
+  let newsEl = null;
+
+  async function loadNews() {
+    try {
+      news = (await api('news')).news || [];
+    } catch {
+      news = [];
+    }
+    drawNewsCard();
+    plans.forEach((el) => el.isConnected && drawPlan(el));
+  }
+
+  function newsAction(n) {
+    if (n.trialDays && !n.claimed) return `<button type="button" class="pbp-btn pbp-btn--sm" data-claim="${esc(n.id)}">Claim ${n.trialDays} day${n.trialDays > 1 ? 's' : ''} of Pro free</button>`;
+    if (n.trialDays && n.claimed) return '<span class="pbp-claimed">Claimed</span>';
+    if (n.cta === 'upgrade') return `<button type="button" class="pbp-btn pbp-btn--sm" data-upgrade>${esc(n.ctaLabel || 'See Pro plans')}</button>`;
+    if (n.cta === 'link' && n.link) return `<a class="pbp-btn pbp-btn--sm" href="${esc(n.link)}" target="_blank" rel="noopener noreferrer">${esc(n.ctaLabel || 'Open')}</a>`;
+    return '';
+  }
+  function newsItemHtml(n) {
+    const until = n.endAt ? `<small>Till ${dateStr(n.endAt)}</small>` : '';
+    return `<b class="pbp-news__title">${esc(n.title)}</b>${n.message ? `<p class="pbp-news__msg">${esc(n.message).replace(/\n/g, '<br>')}</p>` : ''}<div class="pbp-news__row">${newsAction(n)}${until}</div>`;
+  }
+  function wireNews(root) {
+    root.querySelectorAll('[data-claim]').forEach((b) => b.addEventListener('click', () => claimOffer(b.dataset.claim, b)));
+    root.querySelectorAll('[data-upgrade]').forEach((b) => b.addEventListener('click', () => openUpgrade('offer')));
+  }
+
+  function drawNewsCard() {
+    const seen = read(SEEN) || [];
+    const next = news.find((n) => !seen.includes(n.id) && !(n.trialDays && n.claimed));
+    if (!next) {
+      newsEl?.remove();
+      newsEl = null;
+      return;
+    }
+    if (!newsEl) {
+      newsEl = document.createElement('aside');
+      newsEl.setAttribute('aria-label', 'Message from PakkaBill');
+      document.body.appendChild(newsEl);
+    }
+    newsEl.className = `pbp-news tone-${next.tone}`;
+    newsEl.innerHTML = `<button type="button" class="pbp-x" aria-label="Hide this message">×</button>${newsItemHtml(next)}`;
+    newsEl.querySelector('.pbp-x').addEventListener('click', () => {
+      write(SEEN, [...(read(SEEN) || []), next.id].slice(-100));
+      drawNewsCard();
+    });
+    wireNews(newsEl);
+  }
+
+  async function claimOffer(id, btn) {
+    if (!acct || !acct.token) {
+      pendingClaim = id;
+      return openUpgrade('claim');
+    }
+    if (btn) btn.disabled = true;
+    try {
+      const r = await api('news', { body: { action: 'claim', id } });
+      const n = news.find((x) => x.id === id);
+      if (n) n.claimed = true;
+      toast(`Done! PakkaBill Pro is active till ${dateStr(r.user.paidUntil)}.`);
+      closeUpgrade();
+      drawNewsCard();
+      setAcct({ ...acct, user: r.user });
+    } catch (e) {
+      toast(e.message, true);
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function newsListHtml() {
+    if (!news.length) return '';
+    return `<section class="paper pbp-card"><h2 class="form-sec__title">Messages and offers</h2><ul class="pbp-newslist">${news
+      .map((n) => `<li class="tone-${n.tone}">${newsItemHtml(n)}</li>`)
+      .join('')}</ul></section>`;
   }
 
   // ---------- Upgrade dialog ----------
@@ -303,11 +424,13 @@
     el.innerHTML = `<div class="page-head"><div><h1 class="page-title">Plan</h1><p class="page-sub">Your PakkaBill account and Pro plan.</p></div></div>
       <div class="pbp-page">
         <section class="paper pbp-card">${status}${ordersHtml()}${accountHtml()}</section>
+        ${newsListHtml()}
         ${cfg && cfg.enabled ? `<section class="paper pbp-card"><h2 class="form-sec__title">PakkaBill Pro</h2>
           <ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>
           ${acct && acct.token ? plansHtml() + '<p class="pbp-fine">Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.</p>' : authHtml(mode)}</section>` : ''}
       </div>`;
     wire(el, (m) => drawPlan(el, m));
+    wireNews(el);
   }
   function pbPlanMount(el) {
     if (plans.has(el)) return;
@@ -422,7 +545,30 @@
 .pbp-orders li b{font-weight:600}
 .pbp-orders .is-pending b{color:var(--amber,#b26a00)}
 .pbp-orders .is-completed b{color:var(--green,#12714b)}
-.pbp-orders .is-rejected b{color:var(--red,#c8202a)}`;
+.pbp-orders .is-rejected b{color:var(--red,#c8202a)}
+.pbp-btn--sm{font-size:14px;padding:8px 14px;border-radius:9px;text-decoration:none;display:inline-block}
+.pbp-was{font-size:.6em;color:var(--ink-3,#777);font-weight:500}
+.pbp-coupon{display:flex;gap:8px;margin:2px 0 4px}
+.pbp-coupon input{flex:1;min-width:0;font:inherit;font-size:15px;padding:8px 12px;border-radius:9px;border:1.5px dashed var(--rule,#ddd);background:var(--paper,#fff);color:var(--ink,#222);text-transform:uppercase;letter-spacing:.06em}
+.pbp-coupon input::placeholder{text-transform:none;letter-spacing:0}
+.pbp-coupon-err{margin:0 0 6px}
+.pbp-news{position:fixed;z-index:900;right:20px;bottom:24px;width:min(360px,calc(100vw - 32px));background:var(--paper,#fff);color:var(--ink,#222);border-radius:16px;padding:16px 18px 14px;box-shadow:0 18px 40px -14px #1a143099;border:1px solid var(--rule,#ddd);border-top:5px solid var(--carbon,#5b3fe6);animation:pbp-up .25s ease-out}
+@keyframes pbp-up{from{opacity:0;transform:translateY(12px)}}
+.pbp-news .pbp-x{top:6px;right:8px;font-size:22px}
+.pbp-news.tone-offer,.pbp-newslist .tone-offer{border-top-color:#ff7a59}
+.pbp-news.tone-offer{background:linear-gradient(180deg,#fff4ef,var(--paper,#fff) 70%)}
+.pbp-news.tone-warn,.pbp-newslist .tone-warn{border-top-color:#e0a300}
+.pbp-news__title{display:block;font-size:16px;padding-right:22px;line-height:1.3}
+.pbp-news__msg{margin:4px 0 0;color:var(--ink-2,#555);font-size:14px}
+.pbp-news__row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+.pbp-news__row small{color:var(--ink-3,#777)}
+.pbp-news__row:empty{display:none}
+.pbp-claimed{font-weight:700;color:var(--green,#12714b);font-size:14px}
+.pbp-newslist{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:10px}
+.pbp-newslist li{border:1px solid var(--rule,#ddd);border-top:4px solid var(--carbon,#5b3fe6);border-radius:12px;padding:12px 14px}
+@media (width<1024px){.pbp-news{right:16px;bottom:calc(76px + env(safe-area-inset-bottom,0px))}}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .pbp-news.tone-offer{background:var(--paper)}}
+@media print{.pbp-news,.pbp-toast{display:none!important}}`;
 
   function init() {
     const st = document.createElement('style');
