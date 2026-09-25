@@ -1,5 +1,6 @@
-// PakkaBill offline cache: serve the app from the device, refresh it in the background when online.
-const CACHE = 'pakkabill-v9';
+// PakkaBill offline cache: when online, load the latest version from the server (so updates show
+// straight away) and keep a copy; when offline or the network is very slow, use the saved copy.
+const CACHE = 'pakkabill-v10';
 const SHELL = ['./', './index.html', './pro.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -12,18 +13,18 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/admin')) return;
+  const saved = () => caches.match(req, { ignoreSearch: true }).then((hit) => hit || caches.match('./index.html'));
+  const net = fetch(req).then((res) => {
+    if (res && res.ok) {
+      const copy = res.clone();
+      caches.open(CACHE).then((c) => c.put(req, copy));
+    }
+    return res;
+  });
+  const slow = new Promise((resolve) => setTimeout(resolve, 5000)).then(() => caches.match(req, { ignoreSearch: true }));
   e.respondWith(
-    caches.match(req, { ignoreSearch: true }).then((hit) => {
-      const net = fetch(req)
-        .then((res) => {
-          if (res && res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy));
-          }
-          return res;
-        })
-        .catch(() => hit || caches.match('./index.html'));
-      return hit || net;
-    }),
+    Promise.race([net, slow])
+      .then((res) => res || net)
+      .catch(() => saved()),
   );
 });

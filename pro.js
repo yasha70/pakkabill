@@ -578,6 +578,16 @@
     refresh();
     window.addEventListener('online', refresh);
   }
+  // When a new version of the app takes over, reload once so it shows straight away.
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!reloaded) {
+        reloaded = true;
+        location.reload();
+      }
+    });
+  }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
