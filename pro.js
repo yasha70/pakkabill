@@ -581,5 +581,52 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-  Object.assign(window, { pbPro, pbGate, pbCanAddBill, pbPlanMount, pbLocked, pbUpgrade: openUpgrade });
+  // Opens .zip files (the GST portal hands out reports zipped) and returns the
+  // spreadsheets inside; other files pass through unchanged.
+  async function pbUnzipFiles(files) {
+    const out = [];
+    for (const f of files) {
+      if (!/\.zip$/i.test(f.name)) {
+        out.push(f);
+        continue;
+      }
+      const found = [];
+      try {
+        const buf = new Uint8Array(await f.arrayBuffer());
+        const dv = new DataView(buf.buffer);
+        let eocd = -1;
+        for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) {
+          if (dv.getUint32(i, true) === 0x06054b50) {
+            eocd = i;
+            break;
+          }
+        }
+        if (eocd < 0) throw new Error('not a zip');
+        let p = dv.getUint32(eocd + 16, true);
+        for (let k = dv.getUint16(eocd + 10, true); k > 0; k--) {
+          if (dv.getUint32(p, true) !== 0x02014b50) break;
+          const method = dv.getUint16(p + 10, true);
+          const size = dv.getUint32(p + 20, true);
+          const nameLen = dv.getUint16(p + 28, true);
+          const skip = nameLen + dv.getUint16(p + 30, true) + dv.getUint16(p + 32, true);
+          const local = dv.getUint32(p + 42, true);
+          const name = new TextDecoder().decode(buf.subarray(p + 46, p + 46 + nameLen));
+          p += 46 + skip;
+          if (!/\.(xlsx|xls|csv)$/i.test(name) || name.includes('__MACOSX')) continue;
+          const start = local + 30 + dv.getUint16(local + 26, true) + dv.getUint16(local + 28, true);
+          const data = buf.subarray(start, start + size);
+          let bytes = null;
+          if (method === 0) bytes = data;
+          else if (method === 8 && typeof DecompressionStream !== 'undefined')
+            bytes = new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+          if (bytes) found.push(new File([bytes], name.split('/').pop(), { lastModified: f.lastModified }));
+        }
+      } catch {}
+      // Nothing readable inside: pass the zip on so the reader explains the problem.
+      out.push(...(found.length ? found : [f]));
+    }
+    return out;
+  }
+
+  Object.assign(window, { pbPro, pbGate, pbCanAddBill, pbPlanMount, pbLocked, pbUpgrade: openUpgrade, pbUnzipFiles });
 })();
