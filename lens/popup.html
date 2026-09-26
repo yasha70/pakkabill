@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>PakkaBill Lens</title>
+<style>
+body{margin:0;width:460px;font:13px/1.45 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#1C2340;background:#F3F2EE}
+header{background:#6d4aff;color:#fff;padding:10px 12px;border-bottom:4px solid #c04fd0}
+header b{font-size:15px}
+header p{margin:2px 0 0;opacity:.9;font-size:12px}
+.tbl{max-height:420px;overflow:auto;background:#fff}
+table{border-collapse:collapse;width:100%}
+th,td{padding:6px 8px;border-bottom:1px solid #EEEAE0;text-align:right;font-variant-numeric:tabular-nums}
+th:first-child,td:first-child{text-align:left}
+th{background:#F8F7F3;position:sticky;top:0}
+td a{color:#4b35c9;text-decoration:none;font-weight:600}
+td small{display:block;color:#64646E}
+.up{color:#2E7D4F;font-weight:700}
+.row{display:flex;gap:8px;padding:10px 12px}
+button{flex:1;font:inherit;font-weight:700;border:2px solid #6d4aff;background:#fff;color:#6d4aff;border-radius:4px;padding:6px;cursor:pointer}
+.empty{padding:16px 12px;color:#64646E}
+</style></head>
+<body>
+<header><b>PakkaBill Lens</b><p>Competitor products you have opened on Meesho. Open them again on later days to measure how fast they sell.</p></header>
+<div class="tbl" id="list"></div>
+<div class="row"><button id="pb">Open in PakkaBill</button><button id="csv">Download CSV</button><button id="clear">Clear tracked products</button></div>
+<script src="core.js"></script><script src="popup.js"></script>
+</body></html>

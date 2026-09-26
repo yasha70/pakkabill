@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "PakkaBill Lens – Meesho competitor insights",
+  "version": "2.0.0",
+  "description": "Shows a Meesho product's seller price, bank settlement, sales speed and quality signals, and collects competitors in PakkaBill.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://www.meesho.com/*"],
+  "content_scripts": [
+    { "matches": ["https://www.meesho.com/*"], "js": ["core.js", "content.js"], "run_at": "document_idle" },
+    { "matches": ["https://pakkabill1.vercel.app/*"], "js": ["core.js", "bridge.js"], "run_at": "document_idle" }
+  ],
+  "action": { "default_title": "PakkaBill Lens", "default_popup": "popup.html" }
+}

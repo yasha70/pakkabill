@@ -64,3 +64,20 @@ is saved in `/admin` > Settings, everything stays free.
 
 Plan checks run in the browser, so a technical user could get around them. Payments are only counted
 after the owner approves them.
+
+## Meesho Lens (competitor insights)
+
+`#/lens` lists every competitor product you opened on Meesho: price and price changes,
+estimated bank settlement and earning after GST, rating and ratings, estimated orders per
+day (from how fast ratings grow, about the last week), share of poor and average ratings,
+and seller followers and products. Everything stays on the device.
+
+Products come in two ways:
+- **Laptop:** the Chrome/Edge extension, `pakkabill-lens.zip` (download from the Lens page).
+  It shows a panel on Meesho product pages and syncs into PakkaBill when the Lens page opens.
+- **Phone:** the Lens bookmark (copy it from the Lens page). On a Meesho product page it reads
+  the page and opens PakkaBill with that product.
+
+Source is in `lens/`: `core.js` (reading and estimates, shared by all three), `page.js`
+(PakkaBill page), and the extension files. Run `python3 lens/build.py` after editing to
+rebuild `lens.js` and `pakkabill-lens.zip`.
