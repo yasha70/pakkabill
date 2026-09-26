@@ -1,6 +1,6 @@
 // PakkaBill offline cache: when online, load the latest version from the server (so updates show
 // straight away) and keep a copy; when offline or the network is very slow, use the saved copy.
-const CACHE = 'pakkabill-v13';
+const CACHE = 'pakkabill-v14';
 const SHELL = ['./', './index.html', './pro.js', './listing.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

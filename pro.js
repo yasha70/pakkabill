@@ -568,6 +568,7 @@
 .pbp-newslist li{border:1px solid var(--rule,#ddd);border-top:4px solid var(--carbon,#5b3fe6);border-radius:12px;padding:12px 14px}
 @media (width<1024px){.pbp-news{right:16px;bottom:calc(76px + env(safe-area-inset-bottom,0px))}}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .pbp-news.tone-offer{background:var(--paper)}}
+:root[data-theme=dark] .pbp-news.tone-offer{background:var(--paper)}
 @media print{.pbp-news,.pbp-toast{display:none!important}}`;
 
   function init() {
