@@ -5,6 +5,7 @@ GST tax invoices and GSTR-1 JSON for Indian sellers. One static page that works 
 - Bills with Original / Duplicate / Triplicate copies, CGST+SGST or IGST by place of supply,
   the garment 5% / 18% slab, UPI QR, PDF, printing and WhatsApp sharing.
 - GSTR-1 JSON built from Meesho's sales, sales return and tax invoice reports.
+- Meesho listing: the bulk catalog upload Excel from catalogue photos and a Meesho template.
 - Everything stays in the browser on the device. No server, no accounts, no data leaves the phone or laptop.
 
 ## Deploying
@@ -19,6 +20,19 @@ Open the deployed address once, then:
 
 After that it opens from the home screen with no internet. Bills stay on each device;
 move them with Shop > Download backup and Restore.
+
+## Meesho listing
+
+`#/listing` makes the Excel for Meesho's bulk catalog upload. The seller adds Meesho's category
+template (a prefilled one works too), fills product details and sizes once, drops in the front, back
+and side photo of each colour, and pastes the links from Meesho's Images Bulk Upload. The tool writes
+the rows into the seller's own template, so Meesho's instructions, dropdowns and formulas stay as they
+were. Manufacturer and packer details start from Shop settings.
+
+- `listing.js` the whole tool, loaded with the app but only started when the page opens. It carries
+  JSZip 3.10.1 (MIT) so it works offline. The app calls `window.pbListingMount(el)`.
+- Template, details, sizes and the current batch stay on the device (`pb-listing` in localStorage and
+  the `pakkabill-listing` IndexedDB). They are not part of the Shop backup.
 
 ## PakkaBill Pro (paid plans)
 
