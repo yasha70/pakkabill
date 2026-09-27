@@ -755,8 +755,20 @@ details.more[open] > summary { margin-bottom: 10px; }
     for (var k in costs) ci[k.trim().toUpperCase()] = costs[k];
     return function (sku) { var s = String(sku || ''); return costs[s] || ci[s.trim().toUpperCase()] || null; };
   }
-  /* Combo size from the SKU: the letters before the number. BPYG05 -> 4 pieces (the 05 is ignored). */
-  function skuLetters(sku) { var m = String(sku == null ? '' : sku).match(/[A-Za-z]+/); return m ? m[0].length : 0; }
+  /* Combo size from the SKU: one piece per colour letter before the number. BPYG05 -> 4 pieces
+     (the 05 is ignored). A colour written out in brackets is one more piece: PGWM(GREY)05 -> 5.
+     When the bracket only spells out the letter just before it, it is not counted again:
+     RYGPG(grey)05 -> 5, because (grey) says what that last G is. */
+  function skuLetters(sku) {
+    var s = String(sku == null ? '' : sku), cut = s.search(/\d/), head = cut < 0 ? s : s.slice(0, cut), n = 0, prev = '';
+    var re = /\(\s*([A-Za-z][A-Za-z ]*)\)|\[\s*([A-Za-z][A-Za-z ]*)\]|([A-Za-z])/g, m;
+    while ((m = re.exec(head))) {
+      var word = m[1] || m[2];
+      if (word) { if (!(prev && prev.toLowerCase() === word.charAt(0).toLowerCase())) n++; prev = ''; }
+      else { n++; prev = m[3]; }
+    }
+    return n;
+  }
   /* Combo size from Meesho's product name: "Combo of 2", "Pack of 5", "Set Of 3", "3 Pcs". */
   function nameCount(pn) {
     var s = String(pn == null ? '' : pn), m = s.match(/\b(?:combo|pack|set|bundle)\s*(?:of)?\s*(\d{1,2})\b/i) || s.match(/\b(\d{1,2})\s*(?:pcs|pieces|piece|pc)\b/i);
@@ -781,8 +793,11 @@ details.more[open] > summary { margin-bottom: 10px; }
   }
   function piecesOf(sku, cfg, e, M) {
     if (e && e.n != null && e.n !== '' && +e.n >= 1) return Math.round(+e.n);
+    // A pack size written in the product name ("Pack of 5") is the most reliable, so it comes first.
+    var named = M && M.pk && M.pk.names[sku];
+    if (named) return named;
     if (packRule(cfg, M) === 'sku') { var k = skuLetters(sku); return k >= 1 ? k : 1; }
-    return (M && M.pk && M.pk.names[sku]) || 1;
+    return 1;
   }
   function condOf(x, cfg, marks) {
     var mk = marks && marks[x.id];
@@ -2006,7 +2021,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   }
   function packNote(st) {
     var M = S.M, pk = M && M.pk, rule = E.packRule(st, M), mode = packMode(st);
-    var sku = 'The letters before the number in the SKU are the pieces (BPYG05 = 4 pieces, G21 = 1); the number is ignored.';
+    var sku = 'When the product name says the size ("Pack of 5"), that is used. Otherwise each letter before the number in the SKU is a piece and a colour in brackets is one more (BPYG05 = 4, PGWM(GREY)05 = 5, G21 = 1); the number is ignored.';
     var name = 'Read from the product name, like "Combo of 2" or "Pack of 5"; anything else counts as 1 piece.';
     if (mode !== 'auto') return rule === 'sku' ? sku : name;
     if (rule === 'sku') return 'Automatic: your SKUs follow the letters rule (' + pk.agree + ' of ' + pk.stated + ' combo names agree). ' + sku;
