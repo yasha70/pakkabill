@@ -233,19 +233,115 @@
       h('h1', { class: 'page-title' }, title), sub ? h('p', { class: 'page-sub' }, sub) : null));
   }
 
+  /* ---------------- guided help: topic, problem, quick questions, instant fix ---------------- */
+  var SVG = function (d) { return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>'; };
+  var TOPIC = {
+    bills: ['Bills, PDF & printing', 'PDF, printing, design, logo, bill limit', 'g1', SVG('<path d="M5 3h14v18l-2.5-1.6L14 21l-2-1.6L10 21l-2.5-1.6L5 21z"/><path d="M9 8h6M9 12h6M9 16h3"/>')],
+    payment: ['Payment & Pro plan', 'Paid but not active, UTR, renew', 'g3', SVG('<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18M7 15h4"/>')],
+    bug: ['App not working', "Won't open, slow, button or error", 'g5', SVG('<path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>')],
+    gst: ['GST & GSTR-1', 'IGST or CGST, HSN, GSTR-1 file', 'g2', SVG('<path d="M3 21h18M6 17v-5M11 17V7M16 17v-8M21 17V4"/>')],
+    meesho: ['Meesho tools', 'Listing, P&L, Lens', 'g1', SVG('<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>')],
+    account: ['Login & account', 'Log in, password, new phone', 'g4', SVG('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>')],
+    idea: ['Suggest a feature', 'Tell us what to build next', 'g6', SVG('<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>')],
+    other: ['Something else', 'Ask us anything', 'g4', SVG('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z"/>')]
+  };
+  var TOPIC_ORDER = ['bills', 'payment', 'bug', 'gst', 'meesho', 'account', 'idea', 'other'];
+  var Q = {
+    device: { id: 'device', short: 'Device', label: 'Where do you use PakkaBill?', options: ['Android phone', 'iPhone', 'Computer'] },
+    page: { id: 'page', short: 'Page', label: 'Which page?', options: ['Bills', 'New bill', 'Items', 'Parties', 'GST summary', 'Shop', 'Plan', 'Meesho tools', 'Other'] },
+    utr: { id: 'utr', short: 'UTR', label: 'UTR: the 12-digit UPI transaction ID', type: 'utr', hint: 'PhonePe: "UTR" · Google Pay: "UPI transaction ID" · Paytm: "UPI Ref No." Leave empty if you don\'t have it.' }
+  };
+  // [id, label, questions]; the id is what the assistant uses to find the right answer
+  var PROBLEMS = {
+    bills: [
+      ['pdf', 'PDF won\'t download or share', [Q.device, { id: 'what', short: 'What happens', label: 'What happens when you tap PDF?', options: ['Nothing happens', 'An error shows', 'File is blank or cut off', 'Asks me to upgrade'] }]],
+      ['print', 'Printout is cut off or the wrong size', [{ id: 'printer', short: 'Printer', label: 'Which printer?', options: ['A4 / A5 printer', 'Small thermal printer', 'Save as PDF'] }]],
+      ['limit', 'Can\'t make a new bill / asks to upgrade', []],
+      ['design', 'Change the bill design or colours', []],
+      ['logo', 'Add logo, signature or stamp', []],
+      ['lost', 'My bills disappeared', [{ id: 'change', short: 'Changed recently', label: 'Did anything change recently?', options: ['Cleared browser data', 'New phone', 'Different browser', 'Nothing I know of'] }]]
+    ],
+    payment: [
+      ['paid_not_active', 'I paid but Pro is not active', [Q.utr, { id: 'plan', short: 'Plan', label: 'Which plan did you pay for?', options: ['Monthly', 'Yearly', 'Not sure'] }]],
+      ['utr_error', 'UTR not accepted or "already submitted"', [Q.utr]],
+      ['renew', 'Renew or check my plan', []],
+      ['refund', 'I want a refund', [Q.utr]]
+    ],
+    bug: [
+      ['blank', 'App won\'t open or shows a white screen', [Q.device]],
+      ['slow', 'App is slow or gets stuck', [Q.page]],
+      ['button', 'A button or page doesn\'t work', [Q.page]],
+      ['error', 'I see an error message', [Q.page]]
+    ],
+    gst: [
+      ['tax_wrong', 'IGST or CGST + SGST is wrong', []],
+      ['hsn', 'HSN code or GST rate', []],
+      ['gstr1', 'GSTR-1 file or GST summary', [{ id: 'src', short: 'Sales from', label: 'Which sales?', options: ['My PakkaBill bills', 'Amazon', 'Meesho', 'Flipkart'] }]]
+    ],
+    meesho: [
+      ['listing', 'Meesho listing or bulk upload', []],
+      ['pnl', 'Meesho P&L numbers look wrong', []],
+      ['lens', 'Meesho Lens shows nothing', []]
+    ],
+    account: [
+      ['login', 'Can\'t log in', []],
+      ['forgot', 'Forgot my password', []],
+      ['newphone', 'Move PakkaBill to a new phone', []],
+      ['install', 'Install PakkaBill on my phone', []]
+    ]
+  };
+  function problemOf(topic, id) { return (PROBLEMS[topic] || []).find(function (p) { return p[0] === id; }); }
+
+  // what the Help page knows about reply times and WhatsApp (cached for 5 minutes)
+  function getInfo() {
+    if (state.info && Date.now() - state.infoAt < 300000) return Promise.resolve(state.info);
+    return call('info').then(function (j) { state.info = j; state.infoAt = Date.now(); return j; }).catch(function () { return { teamText: 'usually within a few hours', whatsapp: '' }; });
+  }
+  function waLink(no, text) { return 'https://wa.me/91' + no + '?text=' + encodeURIComponent(text); }
+  function statusStrip() {
+    var strip = h('div', { class: 'sup-status', role: 'note' },
+      h('span', { class: 'sup-status__i' }, h('i', { class: 'sup-live', 'aria-hidden': 'true' }), h('b', null, 'Assistant'), ' answers in seconds'),
+      h('span', { class: 'sup-status__i', 'data-team': '' }, '👤 ', h('b', null, 'Our team'), ' replies usually within a few hours'));
+    getInfo().then(function (inf) {
+      var team = strip.querySelector('[data-team]');
+      if (team) team.replaceChildren('👤 ', h('b', null, 'Our team'), ' replies ' + (inf.teamText || 'usually within a few hours'));
+      if (inf.whatsapp) strip.append(h('a', { class: 'sup-wa', href: waLink(inf.whatsapp, 'Hi PakkaBill support, I need help with: '), target: '_blank', rel: 'noopener' }, h('span', { 'aria-hidden': 'true' }, '💬'), 'WhatsApp us'));
+    });
+    return strip;
+  }
+  function topicGrid(small) {
+    return h('ul', { class: 'sup-topics' + (small ? ' is-small' : '') }, TOPIC_ORDER.map(function (k) {
+      var t = TOPIC[k], ico = h('span', { class: 'sup-topic__ico ' + t[2] }); ico.innerHTML = t[3];
+      return h('li', null, h('a', { class: 'sup-topic', href: '#/support?new=1&topic=' + k },
+        ico, h('span', { class: 'sup-topic__t' }, h('b', null, t[0]), h('span', null, t[1]))));
+    }));
+  }
+  function steps(n) {
+    var names = ['Topic', 'Problem', 'Quick fix', 'Send'];
+    return h('ol', { class: 'sup-steps', 'aria-label': 'Step ' + n + ' of 4' }, names.map(function (s, i) {
+      return h('li', { class: i + 1 < n ? 'is-done' : i + 1 === n ? 'is-on' : '', 'aria-current': i + 1 === n ? 'step' : null }, h('span', null, i + 1 < n ? '✓' : String(i + 1)), s);
+    }));
+  }
+
   function listView(el) {
     var a = acct(), box = h('div', { class: 'sup-list' }, h('p', { class: 'fine' }, 'Loading your tickets…'));
+    var fresh = h('div');
     el.replaceChildren(h('div', { class: 'sup' },
-      head('Help & support', 'Tell us about a problem or ask a question. Most answers arrive in seconds.'),
-      h('section', { class: 'paper sup-hero' },
-        h('div', { class: 'sup-hero__txt' }, h('h2', { class: 'form-sec__title' }, 'Need help?'),
-          h('p', null, 'Raise a ticket and the PakkaBill assistant checks your account, payments and app straight away, then answers with a fix you can tap. If it can\'t solve it, a person from our team replies here.')),
-        h('div', { class: 'sup-hero__act' }, h('a', { class: 'pb-btn pb-btn--primary', href: '#/support?new=1' }, '+ Raise a ticket'))),
+      head('Help & support', 'Pick what you need help with. Most answers are instant.'),
+      statusStrip(), fresh,
+      h('section', { class: 'sup-sec', 'aria-labelledby': 'sup-topics-h' },
+        h('h2', { id: 'sup-topics-h', class: 'form-sec__title' }, 'What do you need help with?'), topicGrid()),
       h('section', { class: 'sup-sec', 'aria-labelledby': 'sup-h' }, h('h2', { id: 'sup-h', class: 'form-sec__title' }, 'Your tickets'), box),
       !a ? h('p', { class: 'fine sup-foot' }, 'Tickets you raise without an account are kept on this device. Log in on the Plan page to see them on every device.') : null));
     call('list', { guests: guests() }).then(function (j) {
-      setUnread(j.tickets.filter(function (t) { return t.unread; }).length);
-      if (!j.tickets.length) { box.replaceChildren(h('div', { class: 'paper sup-empty' }, h('b', null, 'No tickets yet'), h('p', { class: 'fine' }, 'When you raise a ticket, it shows here with our replies.'))); return; }
+      var unread = j.tickets.filter(function (t) { return t.unread; });
+      setUnread(unread.length);
+      if (unread.length) {
+        var u = unread[0];
+        fresh.replaceChildren(h('a', { class: 'paper sup-newreply', href: '#/support?t=' + encodeURIComponent(u.id) },
+          h('span', { class: 'sup-newreply__dot', 'aria-hidden': 'true' }), h('span', null, h('b', null, 'New reply on ' + u.no), h('span', null, u.subject)), h('span', { class: 'sup-newreply__go' }, 'Open →')));
+      }
+      if (!j.tickets.length) { box.replaceChildren(h('div', { class: 'paper sup-empty' }, h('b', null, 'No tickets yet'), h('p', { class: 'fine' }, 'Pick a topic above. You get a quick fix straight away, and you can send a ticket to our team if you still need help.'))); return; }
       box.replaceChildren(h('ul', { class: 'sup-items' }, j.tickets.map(function (t) {
         return h('li', null, h('a', { class: 'paper sup-item' + (t.unread ? ' is-unread' : ''), href: '#/support?t=' + encodeURIComponent(t.id) },
           h('div', { class: 'sup-item__top' }, h('span', { class: 'sup-no' }, t.no), pill(t.status), t.unread ? h('span', { class: 'sup-new' }, 'New reply') : null, h('span', { class: 'sup-when' }, when(t.updatedAt))),
@@ -257,44 +353,159 @@
   }
 
   function newView(el) {
-    var a = acct(), p = params(), img = '';
-    var topic = h('select', { class: 'pb-input', id: 'sup-topic' }, TOPICS.map(function (t) { return h('option', { value: t[0] }, t[1]); }));
-    if (p.get('topic')) topic.value = p.get('topic');
-    var subject = h('input', { class: 'pb-input', id: 'sup-subject', maxlength: '120', placeholder: 'For example: PDF does not download', autocomplete: 'off' });
-    var msg = h('textarea', { class: 'pb-input sup-ta', id: 'sup-msg', rows: '5', maxlength: '2000', placeholder: 'What happened, what you expected, and the steps to see it again.' });
-    var phone = a ? null : h('input', { class: 'pb-input', id: 'sup-phone', inputmode: 'tel', maxlength: '14', placeholder: '98765 43210', autocomplete: 'tel' });
-    var name = a ? null : h('input', { class: 'pb-input', id: 'sup-name', maxlength: '60', placeholder: 'Your name or shop name', autocomplete: 'organization' });
-    var note = h('div');
-    var send = h('button', { type: 'submit', class: 'pb-btn pb-btn--primary' }, 'Send ticket');
-    var field = function (id, label, control, hint) { return h('div', { class: 'pb-field' }, h('label', { class: 'pb-field__label', for: id }, label), control, hint ? h('div', { class: 'pb-field__msg' }, hint) : null); };
-    var form = h('form', { class: 'paper sup-form', novalidate: true },
-      h('div', { class: 'sup-grid' },
-        field('sup-topic', 'Topic', h('div', { class: 'pb-select' }, topic)),
-        field('sup-subject', 'Subject', subject),
-        a ? null : field('sup-phone', 'Mobile number', phone, 'We reply here. We may also call or WhatsApp you on this number.'),
-        a ? null : field('sup-name', 'Name (optional)', name)),
-      field('sup-msg', 'Message', msg),
-      picker(function (d) { img = d; }),
-      h('p', { class: 'fine' }, 'We attach basic app details (app version, page, phone or browser type) to help us fix it. No bills or customer data are sent.'),
-      note,
-      h('div', { class: 'sup-actions' }, send, h('a', { class: 'pb-btn pb-btn--ghost', href: '#/support' }, 'Cancel')));
-    form.addEventListener('submit', function (e) {
-      e.preventDefault(); note.replaceChildren();
-      if (subject.value.trim().length < 3) { note.append(banner('Add a short subject.', true)); subject.focus(); return; }
-      if (msg.value.trim().length < 5) { note.append(banner('Tell us a little more about the problem.', true)); msg.focus(); return; }
-      if (phone && phone.value.replace(/\D/g, '').length < 10) { note.append(banner('Enter your 10-digit mobile number so we can reply.', true)); phone.focus(); return; }
-      busyBtn(send, true, 'Sending…');
+    var p = params(), topic = TOPIC[p.get('topic')] ? p.get('topic') : '', pid = p.get('p') || '';
+    var probs = PROBLEMS[topic] || [];
+    var prob = problemOf(topic, pid);
+    var wrap = function (title, sub, back, n, kids) {
+      el.replaceChildren(h('div', { class: 'sup sup-flow' },
+        h('div', { class: 'page-head' }, h('div', null,
+          h('a', { class: 'back', href: back }, '← Back'),
+          h('h1', { class: 'page-title' }, title), sub ? h('p', { class: 'page-sub' }, sub) : null)),
+        steps(n), kids));
+    };
+    // 1. topic
+    if (!topic) {
+      wrap('What do you need help with?', 'Choose a topic. You get an instant fix for most problems.', '#/support', 1, h('div', null, topicGrid(true)));
+      return;
+    }
+    // 2. problem
+    if (probs.length && !prob && pid !== 'other') {
+      var ico = h('span', { class: 'sup-topic__ico ' + TOPIC[topic][2] }); ico.innerHTML = TOPIC[topic][3];
+      wrap(TOPIC[topic][0], 'Which of these is it?', '#/support?new=1', 2, h('div', { class: 'paper sup-probs' },
+        h('ul', { class: 'sup-plist' }, probs.map(function (x) {
+          return h('li', null, h('a', { class: 'sup-prob', href: '#/support?new=1&topic=' + topic + '&p=' + x[0] }, h('span', null, x[1]), h('span', { class: 'sup-prob__go', 'aria-hidden': 'true' }, '›')));
+        }).concat([h('li', null, h('a', { class: 'sup-prob is-other', href: '#/support?new=1&topic=' + topic + '&p=other' }, h('span', null, 'Something else'), h('span', { class: 'sup-prob__go', 'aria-hidden': 'true' }, '›')))]))));
+      return;
+    }
+    // 3. quick questions and the instant fix, then 4. send to the team
+    var label = prob ? prob[1] : (topic === 'idea' ? 'Suggest a feature' : TOPIC[topic][0]);
+    var qs = prob ? prob[2] : [];
+    var answers = {}, fixShown = false, saidNo = false;
+    var backTo = probs.length ? '#/support?new=1&topic=' + topic : '#/support?new=1';
+    var body = h('div');
+    wrap(label, prob ? 'Answer a quick question and see the fix.' : 'Tell us about it and our team will reply here.', backTo, prob ? 3 : 4, body);
+    var compose = function (details) {
+      var lines = [label];
+      qs.forEach(function (q) { if (answers[q.id]) lines.push('• ' + q.short + ': ' + answers[q.id]); });
+      if (details && details.trim()) lines.push('', details.trim());
+      return lines.join('\n');
+    };
+    var qCard = null, fixCard = h('div'), formHolder = h('div');
+    if (qs.length) {
+      var goBtn = h('button', { type: 'button', class: 'pb-btn pb-btn--primary' }, 'Show me the fix →');
+      var qNote = h('div');
+      qCard = h('section', { class: 'paper sup-qs' }, qs.map(function (q) {
+        if (q.type === 'utr') {
+          var inp = h('input', { class: 'pb-input sup-utr', id: 'sup-q-' + q.id, inputmode: 'numeric', maxlength: '16', placeholder: '12-digit number', autocomplete: 'off' });
+          inp.addEventListener('input', function () { answers[q.id] = inp.value.replace(/\D/g, ''); });
+          return h('div', { class: 'sup-q' }, h('label', { class: 'sup-q__l', for: inp.id }, q.label), inp, q.hint ? h('p', { class: 'fine sup-q__hint' }, q.hint) : null);
+        }
+        var group = h('div', { class: 'sup-chips', role: 'radiogroup', 'aria-labelledby': 'sup-ql-' + q.id }, q.options.map(function (o) {
+          var b = h('button', { type: 'button', class: 'sup-chip', role: 'radio', 'aria-checked': 'false', onclick: function () {
+            answers[q.id] = o;
+            group.querySelectorAll('.sup-chip').forEach(function (c) { c.setAttribute('aria-checked', String(c === b)); });
+          } }, o);
+          return b;
+        }));
+        return h('div', { class: 'sup-q' }, h('div', { class: 'sup-q__l', id: 'sup-ql-' + q.id }, q.label), group);
+      }), qNote, h('div', { class: 'sup-actions' }, goBtn));
+      goBtn.onclick = function () {
+        qNote.replaceChildren();
+        var missing = qs.find(function (q) { return q.options && !answers[q.id]; });
+        if (missing) { qNote.append(banner('Please choose: ' + missing.label, true)); return; }
+        if (answers.utr && answers.utr.length !== 12) { qNote.append(banner('The UTR has exactly 12 digits. Check it, or leave it empty.', true)); return; }
+        showFix();
+      };
+    }
+    function showFix() {
+      fixShown = true;
+      if (qCard) qCard.classList.add('is-done');
+      fixCard.replaceChildren(h('section', { class: 'paper sup-fix', role: 'status' },
+        h('span', { class: 'sup-who' }, h('i', { class: 'sup-bot', 'aria-hidden': 'true' }, '✦'), 'Quick fix'),
+        h('div', { class: 'sup-typing' }, h('span', { class: 'sup-dots', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')), 'Checking your account and app…')));
+      fixCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       diag().then(function (d) {
-        return call('create', { category: topic.value, subject: subject.value, message: msg.value, image: img || undefined, phone: phone ? phone.value : undefined, name: name ? name.value : undefined, diag: d });
+        return call('preview', { category: topic, problem: pid, subject: label, message: compose(''), diag: d });
       }).then(function (j) {
-        if (j.key) { var g = guests(); g.unshift({ id: j.ticket.id, key: j.key, no: j.ticket.no }); ls(GUEST, g.slice(0, 30)); }
-        try { sessionStorage.setItem('pb-support-sent', j.ticket.no); } catch (err) { /* ignore */ }
-        syncPush();
-        go('t=' + encodeURIComponent(j.ticket.id));
-      }).catch(function (err) { busyBtn(send, false, 'Send ticket'); note.append(banner(err.message, true)); });
-    });
-    el.replaceChildren(h('div', { class: 'sup' }, head('Raise a ticket', 'Tell us what went wrong or what you need. We reply on this page.', true), form));
-    subject.focus({ preventScroll: true });
+        var a = j.answer, wait = a.outcome === 'escalate';
+        var yes = h('button', { type: 'button', class: 'pb-btn pb-btn--primary' }, wait ? '👍 OK, thanks' : '👍 Yes, that fixed it');
+        var no = h('button', { type: 'button', class: 'pb-btn pb-btn--secondary' }, wait ? '✉️ Send a ticket to the team' : '🙋 No, I still need help');
+        yes.onclick = function () {
+          call('quickfix', { problem: pid, solved: true }).catch(function () {});
+          body.replaceChildren(h('section', { class: 'paper sup-done' }, h('div', { class: 'sup-done__big', 'aria-hidden': 'true' }, '🎉'),
+            h('h2', { class: 'form-sec__title' }, wait ? 'Thanks for checking' : 'Great, glad it\'s fixed!'),
+            h('p', null, wait ? 'You will get a message on the Help page as soon as it is done.' : 'If it comes back, you can always ask us here.'),
+            h('div', { class: 'sup-actions' }, h('a', { class: 'pb-btn pb-btn--primary', href: '#/' }, 'Back to PakkaBill'), h('a', { class: 'pb-btn pb-btn--ghost', href: '#/support' }, 'Help with something else'))));
+          el.querySelector('.sup-steps') && el.querySelector('.sup-steps').replaceWith(steps(5));
+        };
+        no.onclick = function () {
+          saidNo = true;
+          call('quickfix', { problem: pid, solved: false }).catch(function () {});
+          yes.disabled = true; no.disabled = true;
+          showForm();
+        };
+        fixCard.replaceChildren(h('section', { class: 'paper sup-fix' },
+          h('span', { class: 'sup-who' }, h('i', { class: 'sup-bot', 'aria-hidden': 'true' }, '✦'), 'Quick fix', h('span', { class: 'sup-auto' }, 'Checked just now')),
+          h('p', { class: 'sup-fix__txt' }, a.text), actionBar(a.actions),
+          h('div', { class: 'sup-fix__ask' }, h('b', null, wait ? 'Anything else?' : 'Did this fix it?'), h('div', { class: 'sup-actions' }, yes, no))));
+      }).catch(function () {
+        // offline or server busy: go straight to the ticket form
+        fixCard.replaceChildren();
+        showForm();
+      });
+    }
+    function showForm() {
+      if (formHolder.firstChild) return;
+      var a = acct(), img = '';
+      var free = !prob;
+      var subject = free ? h('input', { class: 'pb-input', id: 'sup-subject', maxlength: '120', placeholder: topic === 'idea' ? 'For example: Add barcode scanning' : 'In a few words', autocomplete: 'off' }) : null;
+      var msg = h('textarea', { class: 'pb-input sup-ta', id: 'sup-msg', rows: free ? '5' : '3', maxlength: '2000',
+        placeholder: free ? (topic === 'idea' ? 'What should PakkaBill do, and how would it help you?' : 'What happened, and what did you expect?') : 'Anything else we should know? (optional)' });
+      var phone = a ? null : h('input', { class: 'pb-input', id: 'sup-phone', inputmode: 'tel', maxlength: '14', placeholder: '98765 43210', autocomplete: 'tel' });
+      var name = a ? null : h('input', { class: 'pb-input', id: 'sup-name', maxlength: '60', placeholder: 'Your name or shop name', autocomplete: 'organization' });
+      var urgent = topic === 'idea' ? null : h('input', { type: 'checkbox', id: 'sup-urgent' });
+      var note = h('div');
+      var send = h('button', { type: 'submit', class: 'pb-btn pb-btn--primary' }, 'Send to support');
+      var field = function (id, lab, control, hint) { return h('div', { class: 'pb-field' }, h('label', { class: 'pb-field__label', for: id }, lab), control, hint ? h('div', { class: 'pb-field__msg' }, hint) : null); };
+      var form = h('form', { class: 'paper sup-form', novalidate: true },
+        h('h2', { class: 'form-sec__title' }, free ? (topic === 'idea' ? 'Your idea' : 'Tell us about it') : 'Send it to our team'),
+        !free ? h('p', { class: 'fine' }, 'Your answers above and your app details go with it, so there is no need to explain everything again.') : null,
+        subject ? field('sup-subject', 'Subject', subject) : null,
+        field('sup-msg', free ? 'Message' : 'Details', msg),
+        a ? null : h('div', { class: 'sup-grid' }, field('sup-phone', 'Mobile number', phone, 'We reply here, and may also call or WhatsApp you.'), field('sup-name', 'Name (optional)', name)),
+        picker(function (d) { img = d; }),
+        urgent ? h('label', { class: 'sup-urgent', for: 'sup-urgent' }, urgent, h('span', null, h('b', null, '🚨 This is urgent'), h('span', { class: 'fine' }, 'I can\'t make bills or run my business right now.'))) : null,
+        note,
+        h('div', { class: 'sup-actions' }, send),
+        h('p', { class: 'fine sup-eta', 'data-eta': '' }, 'Our team replies here, usually within a few hours. You get a notification if you turn them on.'));
+      getInfo().then(function (inf) { var e = form.querySelector('[data-eta]'); if (e) e.textContent = 'Our team replies here, ' + (inf.teamText || 'usually within a few hours') + '. You get a notification if you turn them on.'; });
+      form.addEventListener('submit', function (e) {
+        e.preventDefault(); note.replaceChildren();
+        if (subject && subject.value.trim().length < 3) { note.append(banner('Add a short subject.', true)); subject.focus(); return; }
+        if (free && msg.value.trim().length < 5) { note.append(banner('Tell us a little more.', true)); msg.focus(); return; }
+        if (phone && phone.value.replace(/\D/g, '').length < 10) { note.append(banner('Enter your 10-digit mobile number so we can reply.', true)); phone.focus(); return; }
+        busyBtn(send, true, 'Sending…');
+        diag().then(function (d) {
+          return call('create', {
+            category: topic, problem: prob ? pid : undefined, tried: !!(fixShown && saidNo), urgent: !!(urgent && urgent.checked),
+            subject: subject ? subject.value : label, message: free ? msg.value : compose(msg.value),
+            image: img || undefined, phone: phone ? phone.value : undefined, name: name ? name.value : undefined, diag: d
+          });
+        }).then(function (j) {
+          if (j.key) { var g = guests(); g.unshift({ id: j.ticket.id, key: j.key, no: j.ticket.no }); ls(GUEST, g.slice(0, 30)); }
+          try { sessionStorage.setItem('pb-support-sent', j.ticket.no); } catch (err) { /* ignore */ }
+          syncPush();
+          go('t=' + encodeURIComponent(j.ticket.id));
+        }).catch(function (err) { busyBtn(send, false, 'Send to support'); note.append(banner(err.message, true)); });
+      });
+      formHolder.append(form);
+      var st = el.querySelector('.sup-steps'); if (st) st.replaceWith(steps(4));
+      if (!free) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      (subject || (free ? msg : null)) && (subject || msg).focus({ preventScroll: !free });
+    }
+    body.append(qCard, fixCard, formHolder);
+    if (!prob) showForm();
+    else if (!qs.length) showFix();
   }
 
   function lightbox(src) {
@@ -369,8 +580,12 @@
         ask = h('div', { class: 'paper sup-ask' }, h('b', null, 'Did this solve your problem?'), h('div', { class: 'sup-actions' }, yes, no));
       }
       var human = open && t.ai === 'human' && lastMsg && lastMsg.by !== 'support'
-        ? h('p', { class: 'fine sup-human' }, '👤 A person from our team will reply here, usually within a day.' + (pushSupported() && Notification.permission === 'granted' ? ' We will send you a notification.' : ''))
+        ? h('p', { class: 'fine sup-human' }, '👤 A person from our team will reply here, usually within a few hours.' + (pushSupported() && Notification.permission === 'granted' ? ' We will send you a notification.' : ''))
         : null;
+      if (human) getInfo().then(function (inf) {
+        human.firstChild.textContent = '👤 A person from our team will reply here, ' + (inf.teamText || 'usually within a few hours') + '.' + (pushSupported() && Notification.permission === 'granted' ? ' We will send you a notification.' : '');
+        if (inf.whatsapp) human.append(h('br'), h('a', { class: 'sup-wa sup-wa--inline', href: waLink(inf.whatsapp, 'Hi PakkaBill support, about my ticket ' + t.no + ': ' + t.subject), target: '_blank', rel: 'noopener' }, h('span', { 'aria-hidden': 'true' }, '💬'), 'Need it faster? WhatsApp us'));
+      });
       var ta = h('textarea', { class: 'pb-input sup-ta', rows: '3', maxlength: '2000', placeholder: 'Write a reply…', 'aria-label': 'Your reply' });
       var note = h('div'), send = h('button', { type: 'submit', class: 'pb-btn pb-btn--primary' }, 'Send reply');
       var form = h('form', { class: 'paper sup-reply' },
@@ -427,9 +642,10 @@
     + '.sup-meta{font-size:12px;color:var(--ink-3,var(--ink-2))}.sup-sys{justify-self:center;font-size:12.5px;color:var(--ink-2);background:var(--desk);border-radius:999px;padding:3px 12px}'
     + '.sup-pic{display:block;margin-top:8px;padding:0;border:0;background:none;color:inherit;cursor:zoom-in;font:inherit;font-size:13px}.sup-pic img{display:block;max-width:240px;max-height:200px;border-radius:10px}'
     + '.sup-lb{position:fixed;inset:0;z-index:1200;background:rgba(10,8,24,.82);display:grid;place-items:center;padding:16px;cursor:zoom-out}.sup-lb img{max-width:100%;max-height:100%;border-radius:10px}'
-    /* unread dot on the Tools button, the menu link and the Tools tile */
-    + 'html.pb-has-reply .topbar__tools{position:relative}html.pb-has-reply .topbar__tools:after,html.pb-has-reply .spine-nav a[href="#/support"]:after,html.pb-has-reply .pbt__tile[href="#/support"] .pbt__ico:after{content:"";position:absolute;width:10px;height:10px;border-radius:50%;background:#e0603f;box-shadow:0 0 0 2px var(--paper)}'
-    + 'html.pb-has-reply .topbar__tools:after{top:-2px;right:-2px}html.pb-has-reply .spine-nav a[href="#/support"]:after{right:18px;top:50%;margin-top:-5px}html.pb-has-reply .pbt__tile[href="#/support"] .pbt__ico{position:relative}html.pb-has-reply .pbt__tile[href="#/support"] .pbt__ico:after{top:-3px;right:-3px}'
+    /* unread dot on the Help button, the side menu and the Tools tile */
+    + 'html.pb-has-reply .topbar__help,html.pb-has-reply .spine__help{position:relative}html.pb-has-reply .topbar__help:after,html.pb-has-reply .spine__help:after,html.pb-has-reply .spine-nav a[href="#/support"]:after,html.pb-has-reply .pbt__tile[href="#/support"] .pbt__ico:after{content:"";position:absolute;width:10px;height:10px;border-radius:50%;background:#e0603f;box-shadow:0 0 0 2px var(--paper)}'
+    + 'html.pb-has-reply .spine__help:after{top:8px;right:10px}'
+    + 'html.pb-has-reply .topbar__help:after{top:-2px;right:-2px}html.pb-has-reply .spine-nav a[href="#/support"]:after{right:18px;top:50%;margin-top:-5px}html.pb-has-reply .pbt__tile[href="#/support"] .pbt__ico{position:relative}html.pb-has-reply .pbt__tile[href="#/support"] .pbt__ico:after{top:-3px;right:-3px}'
     /* assistant answers, fix buttons, feedback, notifications */
     + '.sup-who{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--carbon)}.sup-bot{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#6c4dff,#ff7a59);color:#fff;font-style:normal;font-size:11px}'
     + '.sup-auto{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#1f7a4d;background:rgba(31,170,89,.14);border-radius:999px;padding:1px 7px}'
@@ -440,12 +656,44 @@
     + '.sup-act__i{font-size:14px;line-height:1}'
     + '.sup-typing{display:flex;align-items:center;gap:10px;color:var(--ink-2)}.sup-dots{display:inline-flex;gap:4px}.sup-dots i{width:7px;height:7px;border-radius:50%;background:var(--carbon);opacity:.35;animation:sup-dot 1.2s infinite}'
     + '.sup-dots i:nth-child(2){animation-delay:.2s}.sup-dots i:nth-child(3){animation-delay:.4s}@keyframes sup-dot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}'
-    + '@media (prefers-reduced-motion:reduce){.sup-dots i{animation:none;opacity:.7}}'
+    + '@media (prefers-reduced-motion:reduce){.sup-dots i,.sup-live{animation:none;opacity:.7}}'
+    + '.sup-wa--inline{margin:10px 0 0}'
     + '.sup-ask{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 18px;border-radius:14px;margin-bottom:14px;border:1.5px solid rgba(108,77,255,.3)}.sup-ask .sup-actions{margin:0}'
     + '.sup-human{margin:12px 0 0;text-align:center}'
     + '.sup-push{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 18px;border-radius:14px;margin:14px 0}.sup-push__t{display:grid;gap:2px}.sup-push__t .fine{margin:0}.sup-push__a{display:flex;gap:8px}.sup-push__a .pb-btn{display:inline-flex}'
     + 'html[data-theme=dark] .sup-auto{color:#6ee7a8;background:rgba(110,231,168,.14)}@media (prefers-color-scheme:dark){html:not([data-theme=light]) .sup-auto{color:#6ee7a8;background:rgba(110,231,168,.14)}}'
     + '.sup-toast{position:fixed;left:50%;bottom:calc(104px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:1300;max-width:calc(100% - 32px);background:#1d1838;color:#fff;padding:11px 18px;border-radius:12px;font-weight:600;box-shadow:0 12px 30px -10px rgba(0,0,0,.5)}.sup-toast.is-bad{background:#8a1c24}'
+    /* guided help */
+    + '.sup-status{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:12px 16px;margin:0 0 18px;border-radius:14px;background:var(--paper);border:1px solid var(--rule);font-size:14px;color:var(--ink-2)}.sup-status b{color:var(--ink)}'
+    + '.sup-status__i{display:inline-flex;align-items:center;gap:6px}.sup-live{width:9px;height:9px;border-radius:50%;background:#1faa59;box-shadow:0 0 0 0 rgba(31,170,89,.5);animation:sup-live 2s infinite}@keyframes sup-live{70%{box-shadow:0 0 0 7px rgba(31,170,89,0)}100%{box-shadow:0 0 0 0 rgba(31,170,89,0)}}'
+    + '.sup-wa{margin-left:auto;display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;background:#1faa59;color:#fff;font-weight:700;text-decoration:none}.sup-wa:hover{background:#178a48}'
+    + '.sup-topics{list-style:none;margin:0 0 22px;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}@media (width >= 900px){.sup-topics{grid-template-columns:repeat(4,minmax(0,1fr))}}'
+    + '.sup-topic{display:flex;flex-direction:column;gap:10px;height:100%;padding:14px;border-radius:16px;background:var(--paper);border:1.5px solid var(--rule);color:var(--ink);text-decoration:none;transition:border-color .12s,transform .12s,box-shadow .12s}'
+    + '.sup-topic:hover{border-color:var(--carbon);transform:translateY(-2px);box-shadow:0 10px 24px -16px rgba(60,30,160,.6)}.sup-topic:focus-visible{outline:2.5px solid var(--carbon);outline-offset:2px}'
+    + '.sup-topic__ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;color:#fff;flex:none}.sup-topic__ico svg{display:block}'
+    + '.sup-topic__ico.g1{background:linear-gradient(135deg,#8b5cf6,#d946ef 60%,#fb7185)}.sup-topic__ico.g2{background:linear-gradient(135deg,#0ea5e9,#6366f1)}.sup-topic__ico.g3{background:linear-gradient(135deg,#f59e0b,#f97316 60%,#ef4444)}'
+    + '.sup-topic__ico.g4{background:linear-gradient(135deg,#10b981,#0ea5e9)}.sup-topic__ico.g5{background:linear-gradient(135deg,#ef4444,#f97316)}.sup-topic__ico.g6{background:linear-gradient(135deg,#eab308,#f59e0b)}'
+    + '.sup-topic__t{display:grid;gap:2px;min-width:0}.sup-topic__t b{font-size:15.5px;line-height:1.25}.sup-topic__t span{font-size:12.5px;line-height:1.35;color:var(--ink-2)}'
+    + '.sup-topics.is-small .sup-topic{flex-direction:row;align-items:center}'
+    + '.sup-steps{list-style:none;display:flex;gap:6px;margin:-4px 0 16px;padding:0;font-size:12.5px;font-weight:600;color:var(--ink-3,var(--ink-2));flex-wrap:wrap}'
+    + '.sup-steps li{display:inline-flex;align-items:center;gap:6px}.sup-steps li+li:before{content:"";width:16px;height:1.5px;background:var(--rule);margin-right:2px}'
+    + '.sup-steps span{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--rule);font-size:11.5px}'
+    + '.sup-steps .is-on{color:var(--carbon)}.sup-steps .is-on span{background:var(--btn-bg);background-image:var(--btn-grad,none);border-color:transparent;color:var(--btn-fg)}.sup-steps .is-done span{background:var(--green-soft,#dff5e8);border-color:transparent;color:var(--green,#1f7a4d)}'
+    + '.sup-probs{padding:6px;border-radius:16px}.sup-plist{list-style:none;margin:0;padding:0}.sup-plist li+li{border-top:1px solid var(--rule-soft,var(--rule))}'
+    + '.sup-prob{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 14px;border-radius:12px;color:var(--ink);text-decoration:none;font-weight:600;font-size:15.5px}.sup-prob:hover{background:var(--carbon-tint)}'
+    + '.sup-prob__go{font-size:24px;line-height:1;color:var(--carbon)}.sup-prob.is-other{color:var(--ink-2);font-weight:500}'
+    + '.sup-qs{padding:18px 20px;border-radius:16px;margin-bottom:14px;display:grid;gap:16px}.sup-qs.is-done .sup-actions{display:none}'
+    + '.sup-q{display:grid;gap:8px}.sup-q__l{font-weight:700;font-size:15px}.sup-q__hint{margin:0}.sup-utr{max-width:260px;letter-spacing:.08em;font-variant-numeric:tabular-nums}'
+    + '.sup-chips{display:flex;flex-wrap:wrap;gap:8px}.sup-chip{font:inherit;font-size:14.5px;font-weight:600;padding:9px 15px;border-radius:999px;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink);cursor:pointer;line-height:1.2}'
+    + '.sup-chip:hover{border-color:var(--carbon)}.sup-chip[aria-checked=true]{border-color:var(--carbon);background:var(--carbon-tint);color:var(--carbon)}.sup-chip[aria-checked=true]:before{content:"✓ "}'
+    + '.sup-fix{padding:16px 18px;border-radius:16px;margin-bottom:14px;border:1.5px solid rgba(108,77,255,.35);background:linear-gradient(135deg,rgba(108,77,255,.07),rgba(255,122,89,.07)),var(--paper);display:grid;gap:10px}'
+    + '.sup-fix__txt{margin:0;white-space:pre-wrap;line-height:1.5;font-size:15px}.sup-fix .sup-acts{margin-top:0}'
+    + '.sup-fix__ask{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap;padding-top:12px;border-top:1px dashed var(--rule)}.sup-fix__ask .sup-actions{margin:0}'
+    + '.sup-done{padding:26px 20px;border-radius:16px;text-align:center;display:grid;justify-items:center;gap:6px}.sup-done__big{font-size:44px;line-height:1}.sup-done p{margin:0;color:var(--ink-2)}'
+    + '.sup-newreply{display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:14px;margin:0 0 18px;text-decoration:none;color:var(--ink);border:1.5px solid var(--carbon);background:var(--carbon-tint)}.sup-newreply>span:nth-child(2){display:grid;min-width:0}.sup-newreply>span:nth-child(2) span{font-size:13.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+    + '.sup-newreply__dot{flex:none;width:11px;height:11px;border-radius:50%;background:#e0603f}.sup-newreply__go{margin-left:auto;font-weight:700;color:var(--carbon);white-space:nowrap}'
+    + '.sup-urgent{display:flex;gap:10px;align-items:flex-start;margin:12px 0 4px;padding:10px 12px;border-radius:12px;border:1.5px dashed var(--rule);cursor:pointer}.sup-urgent input{margin-top:3px;width:18px;height:18px;accent-color:#e0603f}.sup-urgent span{display:grid}.sup-urgent .fine{margin:0}'
+    + '.sup-eta{margin:10px 0 0}.sup-form .form-sec__title{margin:0 0 6px}'
     + '@media (width >= 900px){.sup-toast{bottom:28px}}'
     + '@media (width < 720px){.sup-form,.sup-reply,.sup-conv{padding:14px}.sup-msg{max-width:94%}.sup-ask,.sup-push{padding:12px 14px}}';
   function css() { if (!document.getElementById('sup-css')) { var s = document.createElement('style'); s.id = 'sup-css'; s.textContent = CSS; document.head.append(s); } }

@@ -25,6 +25,17 @@ const OUTCOMES = ['answered', 'escalate', 'ack'];
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const RANK = { low: 0, normal: 1, high: 2, urgent: 3 };
 
+// Problems a customer can pick on the Help page, and the known answer each one leads to
+// ('payment' = the payment check, '' = no ready answer: straight to the team).
+const PROBLEM_KB = {
+  pdf: 'pdf', print: 'print', limit: 'limit', design: 'design', logo: 'logo', lost: 'lost',
+  paid_not_active: 'payment', utr_error: 'payment', renew: 'payment', refund: 'payment',
+  tax_wrong: 'gst', hsn: 'gst', gstr1: 'gstr1',
+  listing: 'listing', pnl: 'pnl', lens: 'lens',
+  blank: 'blank', slow: 'blank', button: '', error: '',
+  login: 'login', forgot: 'login', newphone: 'backup', install: 'install',
+};
+
 async function getSettings() {
   const s = (db.configured() && (await db.getJSON(SETTINGS_KEY))) || {};
   return {
@@ -32,13 +43,52 @@ async function getSettings() {
     ai: s.ai !== false, // let Claude write the answer when a key is set
     aiReady: !!process.env.ANTHROPIC_API_KEY,
     model: MODEL,
+    whatsapp: s.whatsapp || '', // optional support WhatsApp number shown on the Help page
   };
 }
-async function saveSettings({ auto, ai }) {
-  const s = { auto: !!auto, ai: !!ai };
+async function saveSettings({ auto, ai, whatsapp }) {
+  const prev = (await db.getJSON(SETTINGS_KEY)) || {};
+  const s = { ...prev, auto: !!auto, ai: !!ai };
+  if (whatsapp !== undefined) {
+    const w = String(whatsapp || '').trim() ? core.normPhone(whatsapp) : '';
+    if (String(whatsapp || '').trim() && !w) throw new core.HttpError(400, 'Enter a 10-digit WhatsApp number, or leave it empty.');
+    s.whatsapp = w;
+  }
   await db.setJSON(SETTINGS_KEY, s);
   return getSettings();
 }
+
+// How long the team takes to send its first reply (the last 30 tickets), shown on the Help page
+// so customers know what to expect.
+const REPLY_TIMES = 'support:replytimes';
+async function recordReplyTime(ms) {
+  if (!(ms > 0)) return;
+  const list = (await db.getJSON(REPLY_TIMES)) || [];
+  list.push(Math.round(ms / 60000));
+  await db.setJSON(REPLY_TIMES, list.slice(-30));
+}
+async function teamReplyMinutes() {
+  const list = ((await db.getJSON(REPLY_TIMES)) || []).slice().sort((a, b) => a - b);
+  return list.length >= 3 ? list[Math.floor(list.length / 2)] : null;
+}
+function replyText(min) {
+  if (min == null) return 'usually within a few hours';
+  if (min < 45) return 'usually within an hour';
+  if (min < 24 * 60) return `usually within about ${Math.max(1, Math.round(min / 60))} hour${Math.round(min / 60) > 1 ? 's' : ''}`;
+  return 'usually within a day';
+}
+
+// Counts how often each quick fix is shown on the Help page and how often it solved the problem.
+const QF_KEY = 'assist:quickfix';
+async function quickFixStat(problem, field) {
+  if (!PROBLEM_KB.hasOwnProperty(problem) && problem !== 'other') return;
+  const all = (await db.getJSON(QF_KEY)) || {};
+  const row = all[problem] || { shown: 0, solved: 0, help: 0 };
+  row[field] = (row[field] || 0) + 1;
+  all[problem] = row;
+  await db.setJSON(QF_KEY, all);
+}
+const quickFixStats = async () => (await db.getJSON(QF_KEY)) || {};
 
 /* ---------------- small helpers ---------------- */
 const IST = { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' };
@@ -93,12 +143,14 @@ async function investigate(t) {
   if (t.account) {
     user = await core.getUser(t.phone);
     if (!user) note('⚠ The account for this ticket no longer exists.');
-  } else {
+  } else if (t.phone) {
     const other = await core.getUser(t.phone);
     // Guests typed this number themselves, so what we know about it is for the admin only.
     note(other
       ? `ℹ Not logged in. ${t.phone} has an account: ${other.paidUntil > now ? `Pro until ${dateStr(other.paidUntil)}` : 'free plan'}.`
       : `ℹ Not logged in, and no account uses ${t.phone}.`);
+  } else {
+    note('ℹ Not logged in.');
   }
   if (user) {
     f.plan = { pro: (user.paidUntil || 0) > now, paidUntil: user.paidUntil || 0, lastPlan: user.lastPlan || '' };
@@ -143,16 +195,22 @@ const KB = [
   {
     id: 'pdf', cats: ['bills', 'bug'],
     re: /pdf|download|share|sharing|whatsapp/i,
-    text: (f) => (f.locked && f.plan && !f.plan.pro)
+    text: (f) => (f.locked && f.plan && !f.plan.pro) || (f.locked && !f.account && /asks me to upgrade/i.test(f.said))
       ? 'Downloading bills as PDF and sharing them on WhatsApp are part of PakkaBill Pro. On the free plan you can still make bills and print them. Tap "Open Plan page" to see the Pro plans.'
+      : f.plan && f.plan.pro && /asks me to upgrade/i.test(f.said)
+      ? `Your Pro plan is active until ${dateStr(f.plan.paidUntil)}, so PDF should work. The app on this phone has not caught up yet: tap "Refresh my plan" below and try the PDF again.`
       : 'To download a bill: open the bill and tap "PDF". If nothing happens:\n1. Tap "Update PakkaBill now" below so you have the latest version.\n2. Open PakkaBill in Chrome (not inside another app\'s browser), and allow downloads if Chrome asks.\n3. Look in your phone\'s Downloads folder or the Files app.\n\nIf it still fails, reply with a screenshot of the screen.',
-    actions: (f) => ((f.locked && f.plan && !f.plan.pro) ? ['plan'] : ['update']), outcome: 'answered',
+    actions: (f) => ((f.locked && f.plan && !f.plan.pro) || (f.locked && !f.account && /asks me to upgrade/i.test(f.said)) ? ['plan'] : f.plan && f.plan.pro && /asks me to upgrade/i.test(f.said) ? ['refresh_plan'] : ['update']), outcome: 'answered',
   },
   {
     id: 'print', cats: ['bills'],
     re: /print|printer|thermal|a4|a5|page size|cut off|cutting/i,
-    text: () => 'To print: open the bill and tap "Print". In the print screen choose your printer, set paper size to A4 and margins to "Default", and turn on "Background graphics" so colours and the logo print. For a small thermal printer, use the Plain design, which fits narrow paper best.\n\nIf part of the bill is cut off, reply with a photo of the printout and your printer model.',
-    actions: ['update'], outcome: 'answered',
+    text: (f) => /thermal/i.test(f.said)
+      ? 'For a small thermal printer:\n1. Change the bill to the Plain design (Design picker when you make or edit the bill); it is made for narrow paper.\n2. Tap "Print", choose your printer, and set the paper size to your roll width (58 mm or 80 mm) with margins "None".\n3. If the printer app only accepts PDFs, tap "PDF" first and print the file from the printer app.\n\nIf it still cuts off, reply with a photo of the printout and your printer model.'
+      : /save as pdf/i.test(f.said)
+      ? 'To save a bill as a PDF, open the bill and tap "PDF": it keeps the exact layout. The browser\'s "Save as PDF" in the print screen can shrink or cut the page; if you use it, set paper size to A4, margins "Default", scale 100% and turn on "Background graphics".'
+      : 'To print: open the bill and tap "Print". In the print screen choose your printer, set paper size to A4 (or A5 if your paper is half size), margins "Default", scale 100%, and turn on "Background graphics" so colours and the logo print.\n\nIf part of the bill is cut off, reply with a photo of the printout and your printer model.',
+    actions: [], outcome: 'answered',
   },
   {
     id: 'limit', cats: ['bills', 'bug', 'payment'],
@@ -261,6 +319,12 @@ function paymentAnswer(t, f, said) {
     out.lines.push('We have noted your refund request. Someone from our team will check your payment and reply here personally, usually within a day.');
     return { ...out, outcome: 'escalate', priority: 'high', hard: true };
   }
+  if (!t.account && !t.phone) {
+    out.lines.push('To check a payment we need to know which PakkaBill account it is for. Please log in on the Plan page with the mobile number you use in PakkaBill, then come back here and we can check it straight away.',
+      `If you are not able to log in, raise a ticket below with the 12-digit UTR and our team will look it up.${utrText}`);
+    out.actions.push('login');
+    return out;
+  }
   const u = f.utrs[0];
   if (u) {
     if (!u.found) {
@@ -348,15 +412,17 @@ function rulesAnswer(t, f) {
   const latest = `${t.subject}\n${(lastCustomer && lastCustomer.text) || ''}`;
   f.said = said;
   let a;
-  const aboutPay = t.category === 'payment' || f.utrs.length > 0 || RE.debited.test(latest) || RE.refund.test(latest)
+  // The problem the customer picked on the Help page decides the answer; otherwise read the words.
+  const pk = t.problem && PROBLEM_KB.hasOwnProperty(t.problem) ? PROBLEM_KB[t.problem] : null;
+  const aboutPay = pk === 'payment' || (pk === null && (t.category === 'payment' || f.utrs.length > 0 || RE.debited.test(latest) || RE.refund.test(latest)
     || /\b(utr|paid|payment|pay kiya|paise diye|purchased?|bought|subscription|renew)\b/i.test(latest)
-    || (/\b(pro|premium)\b/i.test(latest) && RE.notPro.test(latest));
+    || (/\b(pro|premium)\b/i.test(latest) && RE.notPro.test(latest))));
   if (aboutPay) {
     a = paymentAnswer(t, f, said);
   } else if (t.category === 'idea') {
     a = { lines: ['Thank you for the suggestion! We read every idea, and the popular ones go into the next updates of PakkaBill. We will reply here if we have a question.'], actions: [], outcome: 'ack', priority: 'low', kb: 'idea' };
   } else {
-    const k = pick(t, f);
+    const k = pk ? KB.find((x) => x.id === pk) : pk === '' ? null : pick(t, f);
     if (k) a = { lines: [val(k.text, f)], actions: [...val(k.actions, f)], outcome: val(k.outcome, f), priority: k.priority || 'normal', kb: k.id };
   }
   if (f.app && f.app.outdated && (!a || a.kb !== 'payment')) {
@@ -365,7 +431,7 @@ function rulesAnswer(t, f) {
     else if (a.kb !== 'blank') { a.lines.unshift(line); a.actions.unshift('update'); }
   }
   if (!a) {
-    a = { lines: ['Thank you for the details. I have passed this to our support team with your app details, and they will reply here, usually within a day. If you have a screenshot, please add it; it helps us fix it faster.'], actions: [], outcome: 'escalate', priority: 'normal', kb: '' };
+    a = { lines: [`Thank you for the details. I have passed this to our support team with your app details, and they will reply here, ${f.teamText || 'usually within a few hours'}. If you have a screenshot, please add it; it helps us fix it faster.`], actions: [], outcome: 'escalate', priority: 'normal', kb: '' };
   }
   if (f.findings.some((x) => x.startsWith('⚠ The phone was offline')) && a.kb !== 'payment') {
     a.lines.push('Your phone seemed to be offline when you wrote. Logging in, payments and the Meesho tools need internet.');
@@ -405,6 +471,7 @@ Rules:
 - If a screenshot is attached, read it and use what it shows.
 - outcome: "answered" if your reply should fix it or asks the customer for something specific; "escalate" when a person must act (payment approval, refund, password reset, lost data, a bug you cannot explain); "ack" for suggestions.
 - actions: the one-tap buttons shown under your reply, most useful first, at most 3. update = update the app; refresh_plan = reload the Pro status from the server; plan = open the Plan page; login = open the log-in page; shop, reports (GST summary), new_bill, items, parties, listing, lens, pnl = open that page. Mention the button by its purpose in the reply ("tap Update PakkaBill now below").
+- If already_tried_quick_fix is true, the customer has already read the draft answer and it did not help: do not repeat it. Give a different next step if there is one, tell them the team has their ticket, and use outcome "escalate".
 - summary: one line for the support team saying what the problem is and what you found.`;
 
 const SCHEMA = {
@@ -432,7 +499,13 @@ function anthropic() {
 // What Claude may see: no guest key, no other customers' numbers.
 function briefFor(t, f, draft) {
   return {
-    ticket: { number: t.no, topic: t.category, subject: t.subject, logged_in: !!t.account, customer_name: t.account ? t.name : undefined },
+    ticket: {
+      number: t.no, topic: t.category, subject: t.subject, logged_in: !!t.account, customer_name: t.account ? t.name : undefined,
+      picked_problem: t.problem || undefined,
+      // the customer already saw the quick fix (the draft answer) on the Help page and it did not help
+      already_tried_quick_fix: t.tried ? true : undefined,
+      urgent: t.priority === 'urgent' || undefined,
+    },
     conversation: t.messages.slice(-12).map((m) => ({ from: m.by, text: m.text, screenshot: m.img ? true : undefined })),
     findings: {
       checks: f.findings.map((x) => x.replace(/from a different number \(\d+\)/, 'from a different account').replace(/^ℹ Not logged in.*$/, 'ℹ Not logged in.')),
@@ -494,25 +567,29 @@ async function aiAllowed() {
 
 // Investigates the ticket and returns the answer to post (or null when the assistant should
 // stay quiet because a person is already handling the ticket).
-async function answer(t, { force = false } = {}) {
+async function answer(t, { force = false, rulesOnly = false } = {}) {
   const s = await getSettings();
   if (!force && !s.auto) return null;
   const f = await investigate(t);
+  f.teamText = replyText(await teamReplyMinutes());
   const draft = rulesAnswer(t, f);
   let a = draft;
   // When only a person can finish the job (a payment to approve, a refund, a UTR from another
   // account) the exact built-in answer is used, so nothing wrong is ever said about money.
-  if (!draft.hard && s.ai && s.aiReady && (await aiAllowed())) {
+  if (!rulesOnly && !draft.hard && s.ai && s.aiReady && (await aiAllowed())) {
     try {
       a = await aiAnswer(t, f, draft);
-      if (draft.outcome === 'escalate' && a.outcome !== 'escalate') a.outcome = 'escalate';
+      if ((draft.outcome === 'escalate' || t.tried) && a.outcome !== 'escalate') a.outcome = 'escalate';
       a.priority = maxPrio(a.priority, draft.priority);
     } catch (e) {
       console.error('assistant AI failed, using built-in answer:', e && e.message);
       a = { ...draft, aiError: String((e && e.message) || e).slice(0, 160) };
     }
   }
-  return { ...a, findings: f.findings, kb: draft.kb };
+  return { ...a, findings: f.findings, kb: draft.kb, teamText: f.teamText };
 }
 
-module.exports = { ACTIONS, MAX_BOT_REPLIES, getSettings, saveSettings, investigate, rulesAnswer, answer, findUtrs, dateStr, rupees, tail };
+module.exports = {
+  ACTIONS, PROBLEM_KB, MAX_BOT_REPLIES, getSettings, saveSettings, investigate, rulesAnswer, answer, findUtrs, dateStr, rupees, tail,
+  recordReplyTime, teamReplyMinutes, replyText, quickFixStat, quickFixStats,
+};

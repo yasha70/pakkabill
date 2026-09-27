@@ -96,8 +96,8 @@ const actions = {
   async assistSettings() {
     return { settings: await assist.getSettings() };
   },
-  async saveAssistSettings({ auto, ai }) {
-    return { settings: await assist.saveSettings({ auto, ai }) };
+  async saveAssistSettings({ auto, ai, whatsapp }) {
+    return { settings: await assist.saveSettings({ auto, ai, whatsapp }) };
   },
   async pushKey() {
     return { key: await push.publicKey() };

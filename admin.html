@@ -146,6 +146,9 @@
   .tk-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
   .tk-chips span{font-size:12px;font-weight:700;border-radius:999px;padding:2px 9px;background:var(--tint);color:var(--violet)}
   .tk-chips button{border:0;background:none;color:inherit;cursor:pointer;font-weight:800;padding:0 0 0 4px}
+  .ai-wa{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}.ai-wa .f{min-width:200px;margin:0}
+  .ai-top{display:flex;gap:6px;flex-wrap:wrap}.ai-top span{font-size:12px;border-radius:999px;padding:2px 9px;background:var(--paper);border:1px solid var(--rule)}
+  .ai-tag.late{background:var(--red);color:#fff}.ai-tag.tried{background:var(--amber-soft);color:var(--amber)}
 </style>
 </head>
 <body>
@@ -444,6 +447,13 @@
   const tkPill = (s) => `<span class="pill st-${esc(s)}">${esc(TK_STATUS[s] || s)}</span>`;
   const prPill = (p) => (p && p !== 'normal' ? `<span class="pill pr-${esc(p)}">${esc(p[0].toUpperCase() + p.slice(1))}</span>` : '');
   const ACT_LABEL = { update: 'Update PakkaBill now', refresh_plan: 'Refresh my plan', plan: 'Open Plan page', login: 'Log in', shop: 'Open Shop', reports: 'Open GST summary', new_bill: 'Make a new bill', items: 'Open Items', parties: 'Open Parties', listing: 'Open Meesho listing', lens: 'Open Meesho Lens', pnl: 'Open Meesho P&L' };
+  const PROB_LABEL = { pdf: 'PDF', print: 'Printing', limit: 'Bill limit', design: 'Design', logo: 'Logo', lost: 'Lost bills', paid_not_active: 'Paid, Pro not on', utr_error: 'UTR not accepted', renew: 'Renew', refund: 'Refund', tax_wrong: 'IGST/CGST', hsn: 'HSN/GST rate', gstr1: 'GSTR-1', listing: 'Meesho listing', pnl: 'Meesho P&L', lens: 'Meesho Lens', blank: "App won't open", slow: 'App slow', button: 'Button broken', error: 'Error message', login: 'Log in', forgot: 'Forgot password', newphone: 'New phone', install: 'Install' };
+  const hrs = (min) => (min == null ? '' : min < 60 ? `${min} min` : `${Math.round(min / 60)} h`);
+  function waitTag(t) {
+    if (!t.unreadAdmin || !['open', 'progress', 'waiting'].includes(t.status)) return '';
+    const min = Math.round((Date.now() - t.updatedAt) / 60000);
+    return min >= 30 ? `<span class="ai-tag${min >= 120 ? ' late' : ' human'}" title="Waiting for your reply">⏱ ${hrs(min)}</span>` : '';
+  }
   function aiTag(t) {
     const a = t.ai;
     if (!a || !a.state || a.state === 'off') return '';
@@ -470,6 +480,14 @@
     await api('pushSub', { sub: sub.toJSON() });
     try { localStorage.setItem('pb-admin-push', '1'); } catch {}
   }
+  // Which quick fixes customers see on the Help page, and how often they fix the problem.
+  function qfHtml(qf) {
+    const rows = Object.entries(qf || {}).filter(([, r]) => r.shown).sort((a, b) => b[1].shown - a[1].shown);
+    if (!rows.length) return '';
+    const shown = rows.reduce((n, [, r]) => n + r.shown, 0), solved = rows.reduce((n, [, r]) => n + (r.solved || 0), 0);
+    return `<div class="ai-stat">Quick fixes on the Help page: shown <b>${shown}</b> · fixed it <b>${solved}</b>${shown ? ` (${Math.round((solved / shown) * 100)}%)` : ''}</div>
+      <div class="ai-top" aria-label="Most asked">${rows.slice(0, 6).map(([k, r]) => `<span>${esc(PROB_LABEL[k] || k)}: ${r.shown}${r.solved ? ` · ${r.solved} fixed` : ''}</span>`).join('')}</div>`;
+  }
   function renderAiBar(counts) {
     const s = aiSettings; if (!s) return;
     const alertsOn = pushOK() && Notification.permission === 'granted' && (() => { try { return localStorage.getItem('pb-admin-push') === '1'; } catch { return false; } })();
@@ -478,14 +496,17 @@
         <label class="check"${s.aiReady ? '' : ' title="Add ANTHROPIC_API_KEY in Vercel to use Claude"'}><input type="checkbox" id="aiAi"${s.ai && s.aiReady ? ' checked' : ''}${s.aiReady ? '' : ' disabled'}><span><b>Claude AI answers</b> <span class="muted">${s.aiReady ? esc(s.model) : 'not connected'}</span></span></label>
         <span class="row" style="gap:8px;margin-left:auto">${alertsOn ? '<span class="ai-tag auto">🔔 Phone alerts on</span><button class="btn sec sm" type="button" id="aiTest">Send test</button>' : '<button class="btn sm" type="button" id="aiPush">🔔 Alerts on this device</button>'}</span>
       </div>
-      ${counts ? `<div class="ai-stat">Answered automatically: <b>${counts.autoAnswered || 0}</b> · Solved without you: <b>${counts.autoSolved || 0}</b> · Need you now: <b>${counts.needsReply || 0}</b></div>` : ''}
+      ${counts ? `<div class="ai-stat">Answered automatically: <b>${counts.autoAnswered || 0}</b> · Solved without you: <b>${counts.autoSolved || 0}</b> · Need you now: <b>${counts.needsReply || 0}</b>${counts.teamMinutes != null ? ` · Your usual first reply: <b>${hrs(counts.teamMinutes)}</b>` : ''}</div>` : ''}
+      ${qfHtml(counts && counts.quickFix)}
+      <form class="ai-wa" id="aiWa"><label class="f">Support WhatsApp <span class="muted">(optional, shown on the Help page)</span><input type="tel" name="wa" inputmode="tel" maxlength="14" placeholder="98765 43210" value="${esc(s.whatsapp || '')}"></label><button class="btn sec sm" type="submit">Save</button></form>
       ${s.aiReady ? '' : '<div class="muted">Built-in answers are on. For smarter answers in Hindi, Hinglish or English that can also read screenshots, add <code>ANTHROPIC_API_KEY</code> in Vercel → Settings → Environment Variables, then redeploy.</div>'}`;
-    const save = async () => {
-      try { aiSettings = (await api('saveAssistSettings', { auto: $('#aiAuto').checked, ai: $('#aiAi').checked || (!s.aiReady && s.ai) })).settings; toast('Assistant settings saved.'); renderAiBar(counts); }
+    const save = async (whatsapp) => {
+      try { aiSettings = (await api('saveAssistSettings', { auto: $('#aiAuto').checked, ai: $('#aiAi').checked || (!s.aiReady && s.ai), whatsapp })).settings; toast('Assistant settings saved.'); renderAiBar(counts); }
       catch (e) { toast(e.message, true); }
     };
-    $('#aiAuto').onchange = save;
-    $('#aiAi').onchange = save;
+    $('#aiWa').onsubmit = (e) => { e.preventDefault(); save(e.target.wa.value); };
+    $('#aiAuto').onchange = () => save();
+    $('#aiAi').onchange = () => save();
     const pb = $('#aiPush');
     if (pb) pb.onclick = async () => { pb.disabled = true; try { await adminPush(); toast('Alerts are on. You will get new payments and tickets that need you on this device.'); renderAiBar(counts); } catch (e) { toast(e.message, true); pb.disabled = false; } };
     const tb = $('#aiTest');
@@ -505,7 +526,7 @@
       $('#tkList').innerHTML = tickets.length ? `<ul class="tk-list">${tickets.map((t) => `<li><button type="button" class="tk-row${t.unreadAdmin ? ' is-new' : ''}${t.id === tkOpen ? ' is-on' : ''}" data-tk="${esc(t.id)}">
           <span class="no">${t.unreadAdmin ? '<i class="dot" title="Waiting for your reply"></i>' : ''}${esc(t.no)}</span>
           <span class="sub">${esc(t.subject)}</span>
-          <span class="row" style="gap:6px;justify-content:flex-end">${aiTag(t)}${prPill(t.priority)}${tkPill(t.status)}</span>
+          <span class="row" style="gap:6px;justify-content:flex-end">${waitTag(t)}${t.tried ? '<span class="ai-tag tried" title="The customer tried the quick fix and it did not help">Quick fix didn\'t help</span>' : ''}${aiTag(t)}${prPill(t.priority)}${tkPill(t.status)}</span>
           <span class="meta">${esc(t.name || 'No name')} · ${esc(t.phone)}${t.guest ? ' · no account' : ''} · ${esc(TK_TOPIC[t.category] || t.category)} · ${ago(t.updatedAt)} · ${t.last.by === 'support' ? 'You: ' : t.last.by === 'assistant' ? 'Assistant: ' : ''}${esc(t.last.text || '')}</span>
         </button></li>`).join('')}</ul>`
         : `<p class="empty">${tkFilter === 'active' ? 'No open tickets. All caught up!' : 'No tickets here.'}</p>`;

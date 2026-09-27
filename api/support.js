@@ -12,10 +12,14 @@
 //   pushKey {}                                   -> { key }       (public key for phone notifications)
 //   push    { sub, guests }                      -> { ok }        (notify this device about replies)
 //   unpush  { endpoint, guests }                 -> { ok }
+//   info    {}                                   -> { whatsapp, teamText, ... } (for the Help page)
+//   preview { category, problem, subject, message, diag } -> { answer }  (quick fix before a ticket)
+//   quickfix { problem, solved }                 -> { ok }        (did the quick fix help?)
 const core = require('./_lib/core');
 const db = require('./_lib/db');
 const support = require('./_lib/support');
 const push = require('./_lib/push');
+const assist = require('./_lib/assist');
 
 // Only guest tickets this device can prove it owns.
 async function ownedGuests(guests) {
@@ -71,6 +75,17 @@ module.exports = core.handler(async (req, res) => {
       await core.rateLimit(`tk:reply:${ip}`, 40, 3600);
       const t = await support.ownTicket(b.id, user, b.key);
       return core.send(res, 200, { ticket: await support.feedback(t, !!b.solved) });
+    }
+    case 'info':
+      return core.send(res, 200, await support.info());
+    case 'preview': {
+      await core.rateLimit(`tk:pv:${ip}`, 80, 3600);
+      return core.send(res, 200, { answer: await support.preview(b, user) });
+    }
+    case 'quickfix': {
+      await core.rateLimit(`tk:qf:${ip}`, 80, 3600);
+      await assist.quickFixStat(String(b.problem || ''), b.solved ? 'solved' : 'help');
+      return core.send(res, 200, { ok: true });
     }
     case 'pushKey':
       return core.send(res, 200, { key: await push.publicKey() });

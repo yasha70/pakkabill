@@ -117,6 +117,24 @@ and the Tools card until read. The Plan page links to a payment ticket.
   Resolved, Closed) and priority. Payment tickets start as High. The tab shows how many tickets wait
   for a reply, and the Overview shows open tickets.
 
+### Guided help and finding it
+
+Help is one tap away everywhere: a **Help** button in the phone top bar (with a red dot when there
+is a reply), a **Need help?** card in the desktop side menu, and Help first in the Tools panel.
+
+The Help page asks before it tickets: pick a topic (Bills, Payment, App not working, GST, Meesho,
+Login, Suggestion, Something else), then the exact problem, then answer one or two quick taps
+(device, page, printer, UTR…). The **quick fix** for that problem, checked against the customer's
+own account and app, shows straight away (`preview`, no ticket stored). "Yes, that fixed it" ends
+there; "No, I still need help" opens a short form that sends the answers, app details, optional
+screenshot and an **urgent** flag. Tickets whose quick fix did not help skip the repeat answer and go
+straight to the team (High, or Urgent) with a phone alert to the admin.
+
+The Help page shows the team's real typical first-reply time (median of the last 30 tickets) and,
+if set in the admin Support tab, a **WhatsApp us** button. The admin sees which quick fixes are
+shown and how often they fix the problem, "Quick fix didn't help" tags, and how long each ticket
+has waited (red after 2 hours).
+
 ### Automatic answers (PakkaBill assistant)
 
 Every new ticket is investigated straight away (`api/_lib/assist.js`) and usually answered in a few

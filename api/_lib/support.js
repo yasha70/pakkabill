@@ -63,6 +63,7 @@ function forCustomer(t) {
 function summary(t) {
   const last = t.messages[t.messages.length - 1] || {};
   return {
+    problem: t.problem || '', tried: !!t.tried,
     id: t.id, no: t.no, category: t.category, subject: t.subject, status: t.status, priority: t.priority,
     phone: t.phone, name: t.name, guest: !!t.gk, createdAt: t.createdAt, updatedAt: t.updatedAt,
     unreadAdmin: !!t.unreadAdmin, unreadUser: !!t.unreadUser, count: t.messages.length,
@@ -114,10 +115,13 @@ async function create(input, user) {
     id: `T${now.toString(36).toUpperCase()}${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
     no: `PB-${1000 + Number(n)}`,
     phone, name, account: !!user, category, subject,
-    status: 'open', priority: category === 'payment' ? 'high' : 'normal',
+    status: 'open', priority: input.urgent ? 'urgent' : category === 'payment' ? 'high' : 'normal',
     createdAt: now, updatedAt: now, unreadAdmin: true, unreadUser: false,
     diag: cleanDiag(input.diag), messages: [], imgs: 0,
   };
+  // from the guided Help page: the problem picked, and whether its quick fix was already tried
+  if (assist.PROBLEM_KB.hasOwnProperty(String(input.problem || ''))) t.problem = String(input.problem);
+  if (input.tried) t.tried = true;
   if (guestKey) t.gk = core.sha256(guestKey);
   const auto = (await assist.getSettings()).auto;
   t.ai = { state: auto ? 'pending' : 'off', replies: 0 };
@@ -191,10 +195,18 @@ async function runAssistant(t, { force = false } = {}) {
     if ((prev.replies || 0) > 0 && a.source === 'rules' && a.kb && a.kb === prev.kb && outcome === 'answered') {
       text = HANDOFF; actions = []; outcome = 'escalate';
     }
+    // The customer already tried this quick fix on the Help page: don't repeat it, go to the team.
+    if (!prev.replies && t.tried && a.source === 'rules' && !a.hard) {
+      text = `Thank you. Since the quick fix did not solve it, I have sent your ticket straight to our support team with your answers and app details. They will reply here, ${a.teamText || 'usually within a few hours'}, and you will get a notification.`;
+      actions = []; outcome = 'escalate';
+      if (priority === 'low' || priority === 'normal') priority = t.priority === 'urgent' ? 'urgent' : 'high';
+    }
     await addMessage(t, 'assistant', text, '', actions);
     // Its first answer sets the priority; later ones can only raise it.
-    if (!prev.replies || PRIORITIES.indexOf(priority) > PRIORITIES.indexOf(t.priority)) t.priority = PRIORITIES.includes(priority) ? priority : t.priority;
-    if (outcome === 'answered') { t.status = 'waiting'; t.unreadAdmin = false; }
+    // (a customer's "urgent" is never lowered)
+    const urgent = t.priority === 'urgent';
+    if (!urgent && (!prev.replies || PRIORITIES.indexOf(priority) > PRIORITIES.indexOf(t.priority))) t.priority = PRIORITIES.includes(priority) ? priority : t.priority;
+    if (outcome === 'answered') { t.status = 'waiting'; t.unreadAdmin = urgent; }
     else { t.status = 'open'; t.unreadAdmin = true; }
     t.unreadUser = true;
     t.ai = {
@@ -204,7 +216,7 @@ async function runAssistant(t, { force = false } = {}) {
       aiError: a.aiError || '', findings: a.findings || [], at: Date.now(),
     };
     await save(t);
-    if (outcome !== 'answered') await notifyAdmin(t, outcome === 'ack' ? `Suggestion ${t.no}` : `${t.no} needs you`, a.summary || t.subject);
+    if (outcome !== 'answered' || urgent) await notifyAdmin(t, outcome === 'ack' ? `Suggestion ${t.no}` : `${t.priority === 'urgent' ? 'URGENT: ' : ''}${t.no} needs you`, a.summary || t.subject);
     return t;
   } finally {
     await db.cmd(['DEL', `tkai:${t.id}`]);
@@ -258,6 +270,27 @@ async function onPaymentDecision(order, approved) {
   return list.length;
 }
 
+// ---------- guided help (before a ticket is raised) ----------
+// The quick fix for a picked problem: the built-in answer for this customer, nothing is stored.
+async function preview(input, user) {
+  const category = CATEGORIES[input.category] ? input.category : 'other';
+  const problem = assist.PROBLEM_KB.hasOwnProperty(String(input.problem || '')) ? String(input.problem) : '';
+  const t = {
+    id: 'preview', account: !!user, phone: user ? user.phone : '', category, problem,
+    subject: clip(input.subject, 120) || 'Help', diag: cleanDiag(input.diag),
+    messages: [{ by: 'customer', text: clip(input.message, MAX_TEXT), at: Date.now() }],
+  };
+  const a = await assist.answer(t, { force: true, rulesOnly: true });
+  if (problem) await assist.quickFixStat(problem, 'shown');
+  return { text: a.text, actions: a.actions, outcome: a.outcome, kb: a.kb };
+}
+// What the Help page shows before anything is asked: reply times and how to reach the team.
+async function info() {
+  const s = await assist.getSettings();
+  const min = await assist.teamReplyMinutes();
+  return { auto: s.auto, whatsapp: s.whatsapp || '', teamMinutes: min, teamText: assist.replyText(min) };
+}
+
 // ---------- notifications ----------
 const notifyAdmin = (t, title, body) => push.toAdmin({ title, body: `${t.name || t.phone}: ${clip(body, 140)}`, url: `/admin#support/${t.id}`, tag: `tk-${t.id}` });
 const notifyCustomer = (t, body) => push.toTicket(t, { title: 'Reply from PakkaBill support', body: clip(body, 160), url: `/#/support?t=${t.id}`, tag: `tk-${t.id}` });
@@ -304,6 +337,8 @@ async function counts() {
     total: list.length,
     autoAnswered: list.filter((t) => t.ai && t.ai.replies > 0).length,
     autoSolved: list.filter((t) => t.ai && t.ai.replies > 0 && t.status === 'resolved' && !t.messages.some((m) => m.by === 'support')).length,
+    quickFix: await assist.quickFixStats(),
+    teamMinutes: await assist.teamReplyMinutes(),
   };
 }
 async function adminGet(id, { peek = false } = {}) {
@@ -318,7 +353,9 @@ async function adminReply(id, text, status, img, actions) {
   const t = await db.getJSON(key(String(id)));
   if (!t) throw new core.HttpError(404, 'Ticket not found.');
   if (clip(text, MAX_TEXT).length < 1) throw new core.HttpError(400, 'Write a reply first.');
+  const firstReply = !t.messages.some((m) => m.by === 'support');
   await addMessage(t, 'support', text, cleanImage(img), actions);
+  if (firstReply) await assist.recordReplyTime(Date.now() - t.createdAt);
   t.status = STATUSES.includes(status) ? status : t.status === 'open' ? 'progress' : t.status;
   t.unreadUser = true;
   t.unreadAdmin = false;
@@ -353,6 +390,6 @@ async function adminSet(id, { status, priority }) {
 
 module.exports = {
   CATEGORIES, STATUSES, PRIORITIES, create, ownTicket, listForCustomer, customerReply, image, forCustomer,
-  runAssistant, feedback, onPaymentDecision,
+  runAssistant, feedback, onPaymentDecision, preview, info,
   adminList, adminGet, adminReply, adminDraft, adminSet, counts, save,
 };
