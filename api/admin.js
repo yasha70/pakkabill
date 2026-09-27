@@ -4,6 +4,7 @@ const core = require('./_lib/core');
 const db = require('./_lib/db');
 const orders = require('./_lib/orders');
 const promos = require('./_lib/promos');
+const support = require('./_lib/support');
 
 const OWNER = 'owner';
 const IST = 5.5 * 3600e3;
@@ -52,6 +53,7 @@ const actions = {
       payments: paid.length,
       waiting: list.filter((o) => o.state === 'PENDING').length,
       paymentsReady: core.paymentsReady(await core.getSettings()),
+      tickets: await support.counts(),
       activeWeek: users.filter((u) => now - (u.lastSeen || 0) < 7 * core.DAY).length,
       series: lastMonths(6).map(({ key, label }) => ({
         label,
@@ -67,6 +69,24 @@ const actions = {
         .sort((a, b) => b.paidUntil - a.paidUntil)
         .map(core.publicUser),
     };
+  },
+
+  // ---------- support tickets ----------
+  async tickets({ status = 'active', q = '' }) {
+    return { tickets: await support.adminList({ status: String(status), q }), counts: await support.counts() };
+  },
+  async ticket({ id }) {
+    return { ticket: await support.adminGet(id) };
+  },
+  async ticketReply({ id, message, status, image }) {
+    return { ticket: await support.adminReply(id, message, status, image) };
+  },
+  async ticketSet({ id, status, priority }) {
+    return { ticket: await support.adminSet(id, { status, priority }) };
+  },
+  async ticketImage({ id, n }) {
+    const t = await support.adminGet(id);
+    return { image: await support.image(t, n) };
   },
 
   async promos() {

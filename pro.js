@@ -420,10 +420,10 @@
     if (!cfg || !cfg.enabled) status = '<div class="pbp-status is-free"><b>Everything is free right now.</b><span>Paid plans are not switched on yet.</span></div>';
     else if (isPro()) status = `<div class="pbp-status is-pro"><b>PakkaBill Pro is active</b><span>Till ${dateStr(acct.user.paidUntil)}. Paying again adds time on top.</span></div>`;
     else if (acct && acct.user && acct.user.paidUntil) status = `<div class="pbp-status is-free"><b>Your Pro plan ended on ${dateStr(acct.user.paidUntil)}</b><span>You are on the free plan: ${cfg.freeBills} bills a month.</span></div>`;
-    else status = `<div class="pbp-status is-free"><b>You are on the free plan</b><span>${cfg.freeBills} bills a month, Carbon, Ledger and Plain designs, printing.</span></div>`;
+    else status = `<div class="pbp-status is-free"><b>You are on the free plan</b><span>${cfg.freeBills} bills a month, Carbon, Modern, Classic, Ledger and Plain designs, printing.</span></div>`;
     el.innerHTML = `<div class="page-head"><div><h1 class="page-title">Plan</h1><p class="page-sub">Your PakkaBill account and Pro plan.</p></div></div>
       <div class="pbp-page">
-        <section class="paper pbp-card">${status}${ordersHtml()}${accountHtml()}</section>
+        <section class="paper pbp-card">${status}${ordersHtml()}${accountHtml()}<p class="pbp-fine pbp-help">Paid but Pro is not on yet, or a question about your plan? <a href="#/support?new=1&amp;topic=payment">Raise a support ticket</a>.</p></section>
         ${newsListHtml()}
         ${cfg && cfg.enabled ? `<section class="paper pbp-card"><h2 class="form-sec__title">PakkaBill Pro</h2>
           <ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>

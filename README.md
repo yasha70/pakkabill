@@ -99,3 +99,20 @@ Products come in two ways:
 Source is in `lens/`: `core.js` (reading and estimates, shared by all three), `page.js`
 (PakkaBill page), and the extension files. Run `python3 lens/build.py` after editing to
 rebuild `lens.js` and `pakkabill-lens.zip`.
+
+## Help & support (tickets)
+
+`#/support` (`support.js`) lets anyone raise a ticket: topic, subject, message and an optional
+screenshot (shrunk to ~430 KB JPEG in the browser). Logged-in customers' tickets belong to their
+account; guests give a mobile number and the device keeps a private key per ticket
+(`pb-support-guest` in localStorage). Basic app details go with each ticket (app version, last page,
+browser, screen, plan). Replies from support show as a dot on the Tools button, the Help menu link
+and the Tools card until read. The Plan page links to a payment ticket.
+
+- `api/support.js`: create, list, get, reply, image, unread (rate limited).
+- `api/_lib/support.js`: storage in Redis: `ticket:{id}` (conversation), `ticketimg:{id}:{n}`
+  (screenshots), sorted sets `tickets` and `tickets:u:{phone}`, numbers from `ticket:seq` (PB-1001…).
+- Admin panel, **Support** tab: filter and search, conversation with screenshots, customer's app
+  details, WhatsApp and call buttons, quick replies, status (Open, In progress, Waiting for customer,
+  Resolved, Closed) and priority. Payment tickets start as High. The tab shows how many tickets wait
+  for a reply, and the Overview shows open tickets.

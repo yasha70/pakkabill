@@ -91,6 +91,44 @@
   .hidden{display:none!important}
   .muted{color:var(--ink-3);font-size:13px}
   code{background:var(--rule-soft);padding:1px 6px;border-radius:6px;font-size:13px}
+
+  /* support */
+  nav.tabs .tbadge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;margin-left:6px;border-radius:999px;background:#e0603f;color:#fff;font-size:12px;font-weight:800}
+  .tk-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .seg{display:inline-flex;gap:2px;padding:3px;border-radius:999px;background:var(--tint);border:1px solid var(--rule)}
+  .seg button{border:0;background:none;padding:6px 12px;border-radius:999px;font-weight:600;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+  .seg button[aria-pressed=true]{background:var(--paper);color:var(--violet);box-shadow:0 2px 8px -3px #6c4dff66}
+  .tk-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .tk-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:12px 14px;border:1px solid var(--rule-soft);border-radius:12px;cursor:pointer;background:var(--paper);text-align:left;width:100%;font:inherit;color:inherit}
+  .tk-row:hover,.tk-row.is-on{border-color:var(--violet)}
+  .tk-row.is-new{background:var(--tint)}
+  .tk-row .no{font-weight:800;color:var(--violet);font-size:13px}
+  .tk-row .sub{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tk-row .meta{grid-column:2/4;color:var(--ink-3);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tk-row .dot{width:9px;height:9px;border-radius:50%;background:#e0603f;display:inline-block;margin-right:4px}
+  .pill.st-open{background:var(--tint);color:var(--violet)}.pill.st-progress{background:var(--amber-soft);color:var(--amber)}.pill.st-waiting{background:#ffe3dc;color:#b3401f}.pill.st-resolved{background:var(--green-soft);color:var(--green)}.pill.st-closed{background:var(--rule-soft);color:var(--ink-2)}
+  .pill.pr-urgent{background:var(--red);color:#fff}.pill.pr-high{background:var(--red-soft);color:var(--red)}.pill.pr-low{background:var(--rule-soft);color:var(--ink-3)}
+  .tk-wrap{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+  @media (min-width:980px){.tk-wrap.has-open{grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)}}
+  .tk-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start}
+  .tk-head h2{font-size:18px;margin:2px 0}
+  .tk-who{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 12px}
+  .tk-diag{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;font-size:13px;margin:0 0 12px;padding:10px 12px;border-radius:10px;background:var(--tint)}
+  .tk-diag dt{color:var(--ink-3);font-weight:700}.tk-diag dd{margin:0;overflow-wrap:anywhere}
+  .tk-thread{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:10px;max-height:52vh;overflow:auto;padding-right:4px}
+  .tk-msg{max-width:88%;display:grid;gap:2px}.tk-msg.cust{justify-self:start}.tk-msg.sup{justify-self:end;justify-items:end}
+  .tk-msg .b{padding:9px 13px;border-radius:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+  .tk-msg.cust .b{background:var(--tint);border:1px solid var(--rule);border-bottom-left-radius:4px}
+  .tk-msg.sup .b{background:var(--btn);background-image:var(--grad);color:#fff;border-bottom-right-radius:4px}
+  .tk-msg .m{font-size:12px;color:var(--ink-3)}
+  .tk-sys{justify-self:center;font-size:12px;color:var(--ink-3)}
+  .tk-msg img{display:block;max-width:220px;max-height:180px;border-radius:8px;margin-top:6px;cursor:zoom-in}
+  .tk-quick{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+  .tk-quick button{border:1px dashed var(--rule);background:var(--paper);border-radius:999px;padding:4px 10px;font-size:12.5px;cursor:pointer;color:var(--ink-2)}
+  .tk-quick button:hover{border-color:var(--violet);color:var(--violet)}
+  .btn.wa{background:#1faa59;background-image:none;color:#fff}
+  a.btn{text-decoration:none;display:inline-block}
+  .tk-lb{position:fixed;inset:0;background:#0a0818d0;display:grid;place-items:center;padding:16px;z-index:20;cursor:zoom-out}.tk-lb img{max-width:100%;max-height:100%;border-radius:10px}
 </style>
 </head>
 <body>
@@ -112,6 +150,7 @@
         <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
         <button role="tab" data-tab="customers" aria-selected="false">Customers</button>
         <button role="tab" data-tab="payments" aria-selected="false">Payments</button>
+        <button role="tab" data-tab="support" aria-selected="false">Support<span class="tbadge" id="tkBadge" hidden></span></button>
         <button role="tab" data-tab="offers" aria-selected="false">Offers</button>
         <button role="tab" data-tab="settings" aria-selected="false">Settings</button>
         <button role="tab" data-tab="device" aria-selected="false">This device</button>
@@ -146,6 +185,26 @@
       </div>
     </section>
 
+
+    <section data-panel="support" class="hidden">
+      <div class="tk-wrap" id="tkWrap">
+        <div class="card">
+          <h2>Support tickets</h2>
+          <p class="sub">Problems and questions sent from the Help &amp; support page in PakkaBill. A red dot means the customer is waiting for your reply. Your replies show in their app with a badge.</p>
+          <div class="tk-bar">
+            <div class="seg" role="group" aria-label="Show tickets" id="tkFilter">
+              <button type="button" data-f="active" aria-pressed="true">Active</button>
+              <button type="button" data-f="resolved" aria-pressed="false">Resolved</button>
+              <button type="button" data-f="closed" aria-pressed="false">Closed</button>
+              <button type="button" data-f="all" aria-pressed="false">All</button>
+            </div>
+            <input id="tkQ" type="search" placeholder="Search ticket no., mobile, name or subject" style="flex:1;min-width:200px">
+          </div>
+          <div id="tkList"><p class="empty">Loading…</p></div>
+        </div>
+        <div class="card hidden" id="tkDetail" aria-live="polite"></div>
+      </div>
+    </section>
     <section data-panel="offers" class="hidden">
       <form class="card" id="promoForm">
         <h2 id="promoFormTitle">Publish a message or offer</h2>
@@ -301,7 +360,7 @@
   function show(tab) {
     document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
     document.querySelectorAll('[data-panel]').forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== tab));
-    ({ overview: loadOverview, customers: loadUsers, payments: loadPayments, offers: loadOffers, settings: loadSettings })[tab]?.();
+    ({ overview: loadOverview, customers: loadUsers, payments: loadPayments, support: loadTickets, offers: loadOffers, settings: loadSettings })[tab]?.();
   }
 
   function stateBadge(s) {
@@ -327,12 +386,15 @@
         ['Earned this month', money(s.revenueMonth)],
         ['Earned in total', money(s.revenue)],
         ['Active this week', s.activeWeek.toLocaleString('en-IN')],
+        ['Open tickets', (s.tickets ? s.tickets.active : 0).toLocaleString('en-IN')],
       ].map(([l, v]) => `<div class="stat"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
       $('#setupBanner').innerHTML = !s.paymentsReady
         ? `<div class="banner warn"><b>Payments are not switched on yet</b>, so every feature is free for everyone. Add your UPI ID in <b>Settings</b> to start selling Pro.</div>`
         : s.waiting
         ? `<div class="banner warn"><b>${s.waiting} payment${s.waiting > 1 ? 's' : ''} waiting for you.</b> Match the UTR in your bank or UPI app, then approve in <b>Payments</b>.</div>`
         : '<div class="banner ok">UPI payments are on. No payments waiting.</div>';
+      if (s.tickets && s.tickets.needsReply) $('#setupBanner').innerHTML += `<div class="banner warn"><b>${s.tickets.needsReply} support ticket${s.tickets.needsReply > 1 ? 's' : ''} waiting for your reply.</b> Open <b>Support</b> to answer.</div>`;
+      setTkBadge(s.tickets);
       const top = Math.max(1, ...s.series.map((m) => m.amount));
       $('#chart').innerHTML = s.series.map((m) => `<div class="bar"><b>${m.amount ? money(m.amount) : ''}</b><i style="height:${Math.round((m.amount / top) * 110) + 3}px" title="${esc(m.label)}: ${money(m.amount)}"></i><span>${esc(m.label)}</span></div>`).join('');
       const remind = (u, ended) => {
@@ -346,6 +408,98 @@
         : '<p class="empty">Nobody to remind right now.</p>';
       $('#latest').innerHTML = paymentsTable(p.payments.slice(0, 5), false);
     } catch (e) { toast(e.message, true); }
+  }
+
+
+  // ---------- support tickets ----------
+  const TK_STATUS = { open: 'Open', progress: 'In progress', waiting: 'Waiting for customer', resolved: 'Resolved', closed: 'Closed' };
+  const TK_TOPIC = { bug: 'Something is not working', payment: 'Payment or Pro plan', bills: 'Bills, PDF or printing', gst: 'GST summary or GSTR-1', meesho: 'Meesho tools', account: 'Login or account', idea: 'Suggestion', other: 'Something else' };
+  const TK_QUICK = [
+    ['Looking into it', 'Thank you for telling us. We are looking into this and will update you here shortly.'],
+    ['Need screenshot', 'Could you please send a screenshot of the screen where this happens? Use the 📎 button below your reply box.'],
+    ['Reopen app', 'We have released a fix. Please close PakkaBill fully and open it again, then check once more.'],
+    ['Payment found', 'We found your payment and PakkaBill Pro is now active on your account. Thank you for choosing Pro!'],
+    ['Payment not found', 'We could not find this payment yet. Please check the 12-digit UTR in your UPI app and send it again, or share a screenshot of the payment.'],
+    ['Fixed', 'This is fixed now. Please check and let us know if you still face any problem.'],
+  ];
+  let tkFilter = 'active', tkOpen = '', tkTimer = null;
+  const tkPill = (s) => `<span class="pill st-${esc(s)}">${esc(TK_STATUS[s] || s)}</span>`;
+  const prPill = (p) => (p && p !== 'normal' ? `<span class="pill pr-${esc(p)}">${esc(p[0].toUpperCase() + p.slice(1))}</span>` : '');
+  function setTkBadge(c) {
+    const b = $('#tkBadge'); if (!b || !c) return;
+    b.hidden = !c.needsReply; b.textContent = c.needsReply || '';
+  }
+  async function loadTickets() {
+    try {
+      const { tickets, counts } = await api('tickets', { status: tkFilter, q: $('#tkQ').value });
+      setTkBadge(counts);
+      $('#tkList').innerHTML = tickets.length ? `<ul class="tk-list">${tickets.map((t) => `<li><button type="button" class="tk-row${t.unreadAdmin ? ' is-new' : ''}${t.id === tkOpen ? ' is-on' : ''}" data-tk="${esc(t.id)}">
+          <span class="no">${t.unreadAdmin ? '<i class="dot" title="Waiting for your reply"></i>' : ''}${esc(t.no)}</span>
+          <span class="sub">${esc(t.subject)}</span>
+          <span class="row" style="gap:6px;justify-content:flex-end">${prPill(t.priority)}${tkPill(t.status)}</span>
+          <span class="meta">${esc(t.name || 'No name')} · ${esc(t.phone)}${t.guest ? ' · no account' : ''} · ${esc(TK_TOPIC[t.category] || t.category)} · ${ago(t.updatedAt)} · ${t.last.by === 'support' ? 'You: ' : ''}${esc(t.last.text || '')}</span>
+        </button></li>`).join('')}</ul>`
+        : `<p class="empty">${tkFilter === 'active' ? 'No open tickets. All caught up!' : 'No tickets here.'}</p>`;
+    } catch (e) { toast(e.message, true); }
+  }
+  $('#tkFilter').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-f]'); if (!b) return;
+    tkFilter = b.dataset.f;
+    document.querySelectorAll('#tkFilter [data-f]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    loadTickets();
+  });
+  $('#tkQ').addEventListener('input', () => { clearTimeout(tkTimer); tkTimer = setTimeout(loadTickets, 250); });
+  $('#tkList').addEventListener('click', (e) => { const b = e.target.closest('[data-tk]'); if (b) openTicket(b.dataset.tk); });
+
+  async function openTicket(id) {
+    tkOpen = id;
+    const box = $('#tkDetail');
+    box.classList.remove('hidden'); $('#tkWrap').classList.add('has-open');
+    box.innerHTML = '<p class="empty">Opening…</p>';
+    try {
+      const { ticket: t } = await api('ticket', { id });
+      const d = t.diag || {};
+      const wa = `https://wa.me/91${t.phone}?text=${encodeURIComponent(`Namaste${t.name ? ' ' + t.name : ''}! This is PakkaBill support about your ticket ${t.no}: "${t.subject}".`)}`;
+      const diag = [['App version', d.app], ['Page', d.page], ['Plan', d.plan], ['Device', d.ua], ['Screen', d.screen], ['Installed app', d.installed], ['Online', d.online], ['Colours', d.theme], ['Language', d.lang]].filter(([, v]) => v);
+      box.innerHTML = `<div class="tk-head"><div><span class="muted">${esc(t.no)} · ${esc(TK_TOPIC[t.category] || t.category)} · raised ${when(t.createdAt)}</span><h2>${esc(t.subject)}</h2></div>
+          <button class="btn sec sm" type="button" id="tkClose">Close</button></div>
+        <div class="tk-who"><b>${esc(t.name || 'No name')}</b><span class="muted">${esc(t.phone)} · ${t.guest ? 'no account (guest)' : 'PakkaBill account'}</span>
+          <a class="btn sm wa" target="_blank" rel="noopener" href="${wa}">WhatsApp</a><a class="btn sec sm" href="tel:+91${esc(t.phone)}">Call</a></div>
+        <div class="row" style="margin-bottom:12px">
+          <label class="f" style="min-width:170px">Status<select id="tkStatus">${Object.entries(TK_STATUS).map(([k, v]) => `<option value="${k}"${k === t.status ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
+          <label class="f" style="min-width:140px">Priority<select id="tkPrio">${['low', 'normal', 'high', 'urgent'].map((k) => `<option value="${k}"${k === t.priority ? ' selected' : ''}>${k[0].toUpperCase() + k.slice(1)}</option>`).join('')}</select></label>
+        </div>
+        ${diag.length ? `<details><summary class="muted" style="cursor:pointer;margin-bottom:6px">Customer's app details</summary><dl class="tk-diag">${diag.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl></details>` : ''}
+        <ol class="tk-thread" id="tkThread">${t.messages.map((m) => m.by === 'system'
+          ? `<li class="tk-sys">${esc(m.text)} · ${when(m.at)}</li>`
+          : `<li class="tk-msg ${m.by === 'support' ? 'sup' : 'cust'}"><div class="b">${esc(m.text)}${m.img ? `<img alt="Screenshot" data-img="${m.img}" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">` : ''}</div><span class="m">${m.by === 'support' ? 'You' : esc(t.name || 'Customer')} · ${when(m.at)}</span></li>`).join('')}</ol>
+        <form id="tkReply">
+          <div class="tk-quick" aria-label="Quick replies">${TK_QUICK.map(([l], i) => `<button type="button" data-q="${i}">${esc(l)}</button>`).join('')}</div>
+          <textarea id="tkText" rows="4" maxlength="2000" placeholder="Write your reply. The customer sees it in PakkaBill with a badge." aria-label="Reply"></textarea>
+          <div class="row" style="margin-top:10px">
+            <label class="f" style="min-width:210px">After sending, mark as<select id="tkAfter"><option value="progress">In progress</option><option value="waiting">Waiting for customer</option><option value="resolved">Resolved</option></select></label>
+            <button class="btn" type="submit" style="align-self:flex-end">Send reply</button>
+          </div>
+        </form>`;
+      const th = $('#tkThread'); th.scrollTop = th.scrollHeight;
+      th.querySelectorAll('img[data-img]').forEach(async (img) => {
+        try { const r = await api('ticketImage', { id: t.id, n: Number(img.dataset.img) }); img.src = r.image; img.onclick = () => { const lb = document.createElement('div'); lb.className = 'tk-lb'; lb.innerHTML = '<img alt="Screenshot">'; lb.firstChild.src = r.image; lb.onclick = () => lb.remove(); document.body.appendChild(lb); }; }
+        catch { img.alt = 'Screenshot could not load'; }
+      });
+      $('#tkClose').onclick = () => { tkOpen = ''; box.classList.add('hidden'); $('#tkWrap').classList.remove('has-open'); loadTickets(); };
+      box.querySelector('.tk-quick').onclick = (e) => { const b = e.target.closest('[data-q]'); if (!b) return; const q = TK_QUICK[+b.dataset.q]; $('#tkText').value = q[1]; if (q[0] === 'Payment found' || q[0] === 'Fixed') $('#tkAfter').value = 'resolved'; $('#tkText').focus(); };
+      const set = async (patch) => { try { await api('ticketSet', { id: t.id, ...patch }); toast('Saved.'); openTicket(t.id); loadTickets(); } catch (e) { toast(e.message, true); } };
+      $('#tkStatus').onchange = (e) => set({ status: e.target.value });
+      $('#tkPrio').onchange = (e) => set({ priority: e.target.value });
+      $('#tkReply').onsubmit = async (e) => {
+        e.preventDefault();
+        const text = $('#tkText').value.trim(); if (!text) { toast('Write a reply first.', true); return; }
+        const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
+        try { await api('ticketReply', { id: t.id, message: text, status: $('#tkAfter').value }); toast('Reply sent. The customer sees it in PakkaBill.'); openTicket(t.id); loadTickets(); }
+        catch (err) { toast(err.message, true); btn.disabled = false; }
+      };
+      loadTickets();
+    } catch (e) { box.innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
   }
 
   function ago(t) {
