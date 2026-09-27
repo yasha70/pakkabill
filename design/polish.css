@@ -1,0 +1,16 @@
+/* PakkaBill design polish on top of the doodle wallpaper (injected into index.html). */
+@media screen{
+/* headings that sit on the wallpaper get a soft halo of the page colour, so they stay crisp */
+.page-title,.page-sub,.back,.page-head>.pill,.page-head .month-switch{text-shadow:0 0 2px var(--desk),0 0 10px var(--desk),0 0 22px var(--desk)}
+.page-title:after{content:"";display:block;width:46px;height:4px;border-radius:4px;background:var(--brand-grad);margin-top:12px}
+/* option buttons that are not inside a card get their own card-like pill */
+.pb-seg:not(.paper .pb-seg){background:var(--paper);box-shadow:0 0 0 1px var(--rule-soft),0 8px 18px -14px #3c1ea08c}
+.pb-seg:not(.paper .pb-seg) .pb-seg__opt.is-on{background:var(--carbon-tint);box-shadow:0 0 0 1px var(--rule)}
+/* cards read cleanly against the pattern */
+.paper{box-shadow:var(--shadow-sheet),0 0 0 1px var(--rule-soft)}
+}
+/* frosted-glass top bar and tab bar: the wallpaper blurs softly behind them */
+@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+.topbar{background:color-mix(in srgb,var(--spine) 88%,transparent);-webkit-backdrop-filter:blur(14px) saturate(1.6);backdrop-filter:blur(14px) saturate(1.6)}
+.tabbar{background:color-mix(in srgb,var(--paper) 96%,transparent);-webkit-backdrop-filter:blur(16px) saturate(1.6);backdrop-filter:blur(16px) saturate(1.6)}
+}

@@ -39,7 +39,7 @@ import random
 TILE = 300
 ICON_PX = (21, 27)      # drawn size of an icon on screen
 GAP = 37                # minimum distance between icon centres
-BIT_GAP = 18            # minimum distance for the small dots, rings and sparkles
+BIT_GAP = 21            # minimum distance for the small dots, rings and sparkles
 STROKE = 1.35           # on-screen line width
 
 def torus_d(a, b):
@@ -70,7 +70,8 @@ def bit(kind, x, y):
     if kind == 'spark': return f'<path d="M{x} {y-4}v8M{x-4} {y}h8" stroke-width="1.2"/>'
     return f'<path d="M{x-6} {y}q2-3.2 4 0t4 0 4 0" stroke-width="1.2"/>'
 
-def tile(color, alpha):
+def tile(palette):
+    """palette: [(colour, opacity), ...]; each doodle takes one, so the wallpaper carries the brand gradient."""
     rng = random.Random(20260927)
     names = list(I.keys())
     centres = scatter(rng, GAP, [])
@@ -79,30 +80,36 @@ def tile(color, alpha):
     for k, (x, y) in enumerate(centres):
         name = names[k % len(names)]
         px = rng.uniform(*ICON_PX); sc = px / 40.0; rot = rng.uniform(-28, 28)
+        col, al = palette[k % len(palette)]
         sw = round(STROKE / sc, 2)
-        def draw(X, Y, name=name, sc=sc, rot=rot, sw=sw):
-            return (f'<use href="#{name}" transform="translate({X - 20 * sc:.1f} {Y - 20 * sc:.1f}) rotate({rot:.0f} {20 * sc:.1f} {20 * sc:.1f}) scale({sc:.3f})" stroke-width="{sw}"/>')
+        def draw(X, Y, name=name, sc=sc, rot=rot, sw=sw, col=col, al=al):
+            return (f'<use href="#{name}" stroke="{col}" stroke-opacity="{al}" fill="none" transform="translate({X - 20 * sc:.1f} {Y - 20 * sc:.1f}) rotate({rot:.0f} {20 * sc:.1f} {20 * sc:.1f}) scale({sc:.3f})" stroke-width="{sw}"/>')
         body += wrapped(x, y, 20, draw)
     kinds = ['dot', 'ring', 'dot', 'spark', 'dot', 'squig', 'ring', 'dot']
     for k, (x, y) in enumerate(scatter(rng, BIT_GAP, centres)):
         kind = kinds[k % len(kinds)]
-        body += wrapped(x, y, 8, lambda X, Y, kind=kind: bit(kind, round(X, 1), round(Y, 1)))
+        col, al = palette[(k * 2 + 1) % len(palette)]
+        body += [f'<g stroke="{col}" stroke-opacity="{al}">' + b.replace('fill="C"', f'fill="{col}" fill-opacity="{al}"') + '</g>'
+                 for b in wrapped(x, y, 8, lambda X, Y, kind=kind: bit(kind, round(X, 1), round(Y, 1)))]
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{TILE}" height="{TILE}" viewBox="0 0 {TILE} {TILE}">'
             '<defs>' + ''.join(f'<g id="{k}">{v}</g>' for k, v in I.items()) + '</defs>'
-            f'<g fill="none" stroke="{color}" stroke-opacity="{alpha}" fill-opacity="{alpha}" stroke-width="{STROKE}" stroke-linecap="round" stroke-linejoin="round">'
-            + ''.join(body).replace('fill="C"', f'fill="{color}"') + '</g></svg>')
+            f'<g fill="none" stroke-width="{STROKE}" stroke-linecap="round" stroke-linejoin="round">'
+            + ''.join(body) + '</g></svg>')
 
 def uri(svg):
     return 'url("data:image/svg+xml,' + urllib.parse.quote(svg, safe=" /:=,;()'.-") + '")'
 
-LIGHT = tile('#5b3fd6', 0.15)
-DARK = tile('#c8b6ff', 0.12)
+LIGHT = tile([('#6c4dff', 0.13), ('#c026d3', 0.105), ('#ff6a45', 0.15)])
+DARK = tile([('#b9a6ff', 0.14), ('#e9a3f7', 0.12), ('#ffa58c', 0.13)])
 if len(sys.argv) > 1 and sys.argv[1] == 'svg':
     print(LIGHT if sys.argv[2:] != ['dark'] else DARK); sys.exit()
+# The doodles get their own fixed full-screen layer behind the content. (Adding them as another
+# body background layer broke: the glow has 2 layers in dark and 3 in light, so size and repeat
+# lists landed on the wrong layer.)
 css = (':root{--doodle:' + uri(LIGHT) + ';--doodle-size:' + str(TILE) + 'px}'
        '@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--doodle:' + uri(DARK) + '}}'
        ':root[data-theme=dark]{--doodle:' + uri(DARK) + '}'
-       '@media screen{body{background-image:var(--glow),var(--doodle);background-size:auto,var(--doodle-size);background-repeat:no-repeat,repeat;background-attachment:fixed,fixed}.spine{background-image:var(--doodle);background-size:var(--doodle-size);background-attachment:fixed}}'
+       '@media screen{body:before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background-image:var(--doodle);background-size:var(--doodle-size);background-repeat:repeat}.spine{background-image:var(--doodle);background-size:var(--doodle-size);background-repeat:repeat}}'
        ''
-       '@media print{body{background-image:none!important}}')
+       '@media print{body{background-image:none!important}body:before{display:none!important}}')
 print(css, end='')
