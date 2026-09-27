@@ -6,6 +6,7 @@ GST tax invoices and GSTR-1 JSON for Indian sellers. One static page that works 
   the garment 5% / 18% slab, UPI QR, PDF, printing and WhatsApp sharing.
 - GSTR-1 JSON built from Meesho's sales, sales return and tax invoice reports.
 - Meesho listing: the bulk catalog upload Excel from catalogue photos and a Meesho template.
+- Meesho P&L: profit and loss and payment reconciliation from Meesho's payment report, with Excel and PDF.
 - Everything stays in the browser on the device. No server, no accounts, no data leaves the phone or laptop.
 
 ## Deploying
@@ -33,6 +34,23 @@ were. Manufacturer and packer details start from Shop settings.
   JSZip 3.10.1 (MIT) so it works offline. The app calls `window.pbListingMount(el)`.
 - Template, details, sizes and the current batch stay on the device (`pb-listing` in localStorage and
   the `pakkabill-listing` IndexedDB). They are not part of the Shop backup.
+
+## Meesho P&L
+
+`#/pnl` is profit and loss and payment reconciliation from Meesho's payment report (Excel with
+Order Payments, Ads Cost, Referral Payments and Compensation and Recovery) and, optionally, the orders
+CSV. Every settlement row is checked against Meesho's Final Settlement Amount, money received ties to
+bank credits, and the P&L covers GST (output GST, input credit on Meesho charges and ads, TCS), TDS,
+cost of goods with returns and RTO back in stock or written off, packaging and other expenses. Combo
+size comes from the product name ("Combo of 2", "Pack of 5"), or from the letters before the number in
+the SKU (BPYG05 = 4 pieces) when the seller's names show their SKUs follow that rule. Downloads the P&L as
+Excel and PDF.
+
+- `pnl.html` the whole tool, shown inside PakkaBill in a frame (`pnl.html?embed=1`) with PakkaBill's
+  colours, fonts and light/dark setting. Shop name and GSTIN start from Shop settings.
+- `pnl-libs.js` SheetJS (xlsx-js-style), jsPDF, jsPDF-AutoTable and JSZip, loaded only by `pnl.html`.
+- Uploaded reports stay on the device in the `hisaab` IndexedDB; costs, expenses, return marks and
+  settings in localStorage under `hisaab.v1.`. Settings > Download backup moves them to another device.
 
 ## PakkaBill Pro (paid plans)
 

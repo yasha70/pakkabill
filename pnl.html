@@ -1,0 +1,2652 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hisaab: Meesho P&amp;L and reconciliation</title>
+<script>(function () { try { if (/[?&]embed=1(&|$)/.test(location.search)) document.documentElement.classList.add('embed'); } catch (e) { /* ignore */ } })();</script>
+<style>
+:root {
+  --paper: #F6F7FB; --sheet: #FFFFFF; --rule: #DCE1F0; --rule-2: #B9C1DD;
+  --ink: #1B1F3B; --ink-2: #4A5074; --ink-3: #6F7599;
+  --carbon: #2F3490; --carbon-ink: #FFFFFF; --carbon-soft: #E8E9F8; --band: #2F3490;
+  --margin: #C8323A; --neg: #B42331; --pos: #16774A; --warn: #8A5200; --warn-bg: #FFF4DF;
+  --focus: #5A61E6;
+  --f-head: "Anek Latin", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-deva: "Anek Devanagari", "Nirmala UI", "Mangal", sans-serif;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0F1122; --sheet: #161933; --rule: #2A2F55; --rule-2: #3B4170;
+    --ink: #E7E9F7; --ink-2: #B7BBDA; --ink-3: #8F94BA;
+    --carbon: #8E95FF; --carbon-ink: #0F1122; --carbon-soft: #232858; --band: #1D2168;
+    --margin: #FF6B74; --neg: #FF7A84; --pos: #4CD08F; --warn: #F0B45A; --warn-bg: #2B2410;
+    --focus: #A9AEFF; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0F1122; --sheet: #161933; --rule: #2A2F55; --rule-2: #3B4170;
+  --ink: #E7E9F7; --ink-2: #B7BBDA; --ink-3: #8F94BA;
+  --carbon: #8E95FF; --carbon-ink: #0F1122; --carbon-soft: #232858; --band: #1D2168;
+  --margin: #FF6B74; --neg: #FF7A84; --pos: #4CD08F; --warn: #F0B45A; --warn-bg: #2B2410;
+  --focus: #A9AEFF; color-scheme: dark;
+}
+/* inside PakkaBill: its colours and fonts, no header band (PakkaBill has its own) */
+:root.embed {
+  --paper: #fdf8f3; --sheet: #FFFFFF; --rule: #e2daf2; --rule-2: #cfc4ea;
+  --ink: #2a2540; --ink-2: #5c5776; --ink-3: #736e8d;
+  --carbon: #5b3fe6; --carbon-ink: #FFFFFF; --carbon-soft: #ece6ff;
+  --margin: #c8202a; --neg: #c8202a; --pos: #12714b; --warn: #b26a00; --warn-bg: #fff4df; --focus: #ff7a59;
+}
+@media (prefers-color-scheme: dark) {
+  :root.embed:not([data-theme="light"]) {
+    --paper: #110e20; --sheet: #1b1631; --rule: #3a3160; --rule-2: #4a4078;
+    --ink: #ece8fb; --ink-2: #bdb5d9; --ink-3: #958db3;
+    --carbon: #b3a1ff; --carbon-ink: #140c33; --carbon-soft: #35295e;
+    --margin: #ff8a8f; --neg: #ff8a8f; --pos: #74d8a7; --warn: #f0c26a; --warn-bg: #2b2410; --focus: #ff7a59;
+  }
+}
+:root.embed[data-theme="dark"] {
+  --paper: #110e20; --sheet: #1b1631; --rule: #3a3160; --rule-2: #4a4078;
+  --ink: #ece8fb; --ink-2: #bdb5d9; --ink-3: #958db3;
+  --carbon: #b3a1ff; --carbon-ink: #140c33; --carbon-soft: #35295e;
+  --margin: #ff8a8f; --neg: #ff8a8f; --pos: #74d8a7; --warn: #f0c26a; --warn-bg: #2b2410; --focus: #ff7a59;
+}
+:root.embed.pbfonts { --f-head: "PB Hind", "Hind", system-ui, -apple-system, "Segoe UI", sans-serif; --f-body: "PB Hind", "Hind", system-ui, -apple-system, "Segoe UI", sans-serif; }
+.embed .band { display: none; }
+.embed .tabs { top: 0; }
+.embed .only-own { display: none; }
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 56px); -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16px/1.5 var(--f-body); font-variant-numeric: tabular-nums; }
+h1, h2, h3 { font-family: var(--f-head); line-height: 1.2; margin: 0; }
+h2 { font-size: 1.3rem; font-weight: 650; }
+h3 { font-size: 1.05rem; font-weight: 650; }
+p { margin: 0 0 .6em; }
+a { color: var(--carbon); }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.muted { color: var(--ink-3); }
+.small { font-size: .875rem; }
+.neg { color: var(--neg); }
+.pos { color: var(--pos); }
+
+/* header band */
+.band { background: var(--band); color: #fff; padding: 14px 16px 12px; }
+.band-in { max-width: 860px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+.mark { font-family: var(--f-deva); font-weight: 600; font-size: 1.9rem; line-height: 1; letter-spacing: .01em; }
+.brand { display: flex; flex-direction: column; }
+.brand b { font-family: var(--f-head); font-weight: 600; font-size: 1.05rem; line-height: 1.1; }
+.brand span { font-size: .82rem; opacity: .82; }
+.band-biz { margin-left: auto; text-align: right; font-size: .82rem; opacity: .9; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* tabs */
+.tabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--sheet); border-bottom: 1px solid var(--rule); }
+.tabs-in { max-width: 860px; margin: 0 auto; display: flex; overflow-x: auto; scrollbar-width: none; padding: 0 8px; }
+.tabs-in::-webkit-scrollbar { display: none; }
+.tab { flex: none; background: none; border: 0; padding: 13px 12px 11px; font-weight: 600; font-size: .95rem; color: var(--ink-3); border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--carbon); }
+.tab .dot { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 999px; background: var(--margin); color: #fff; font-size: .72rem; line-height: 18px; text-align: center; }
+
+main { max-width: 860px; margin: 0 auto; padding: 16px 14px 48px; }
+.panel[hidden] { display: none; }
+.stack > * + * { margin-top: 14px; }
+
+.sheet { background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px; padding: 16px; }
+.sheet-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.sheet-h p { margin: 0; }
+
+/* controls */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--rule-2); background: var(--sheet); font-weight: 600; cursor: pointer; text-decoration: none; color: var(--ink); }
+.btn:hover { border-color: var(--carbon); }
+.btn.pri { background: var(--carbon); border-color: var(--carbon); color: var(--carbon-ink); }
+.btn.pri:hover { filter: brightness(1.08); }
+.btn.sm { min-height: 34px; padding: 4px 10px; font-size: .88rem; }
+.btn.link { border: 0; background: none; color: var(--carbon); padding: 4px 2px; min-height: 0; text-decoration: underline; text-underline-offset: 2px; }
+.btn.danger { color: var(--neg); }
+.btn[disabled] { opacity: .55; cursor: progress; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.grow { flex: 1 1 auto; }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: .88rem; color: var(--ink-2); font-weight: 600; }
+.inp, select.inp { min-height: 42px; padding: 8px 10px; border: 1px solid var(--rule-2); border-radius: 6px; background: var(--sheet); width: 100%; }
+.inp.money { text-align: right; }
+.seg { display: inline-flex; border: 1px solid var(--rule-2); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; background: var(--sheet); padding: 8px 12px; min-height: 40px; font-weight: 600; font-size: .9rem; color: var(--ink-2); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule-2); }
+.seg button[aria-pressed="true"] { background: var(--carbon); color: var(--carbon-ink); }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: .95rem; cursor: pointer; }
+.check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--carbon); }
+.fgrid { display: grid; gap: 12px; grid-template-columns: 1fr; }
+@media (min-width: 620px) { .fgrid { grid-template-columns: 1fr 1fr; } }
+
+/* data steps */
+.steps { list-style: none; counter-reset: st; margin: 0; padding: 0; }
+.steps li { counter-increment: st; position: relative; padding: 0 0 14px 44px; }
+.steps li::before { content: counter(st); position: absolute; left: 0; top: 0; width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--carbon); color: var(--carbon); font: 700 .95rem/27px var(--f-head); text-align: center; }
+.steps li.done::before { background: var(--carbon); color: var(--carbon-ink); content: "\2713"; }
+.steps li:not(:last-child)::after { content: ""; position: absolute; left: 14.5px; top: 34px; bottom: 4px; width: 1px; background: var(--rule-2); }
+.steps .st { display: block; font-family: var(--f-head); font-weight: 600; }
+.steps p { margin: 2px 0 0; color: var(--ink-2); font-size: .95rem; }
+.drop { display: block; border: 2px dashed var(--rule-2); border-radius: 8px; padding: 22px 16px; text-align: center; cursor: pointer; background: var(--paper); }
+.drop:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.drop:hover, .drop.over { border-color: var(--carbon); background: var(--carbon-soft); }
+.drop b { display: block; font-family: var(--f-head); font-size: 1.1rem; }
+.file { border-top: 1px solid var(--rule); padding: 12px 0; }
+.file:first-child { border-top: 0; }
+.file-h { display: flex; gap: 10px; align-items: flex-start; }
+.file-h b { word-break: break-all; }
+.sheets { margin: 6px 0 0; padding: 0; list-style: none; font-size: .9rem; color: var(--ink-2); }
+.sheets li { padding: 2px 0; }
+.tick { color: var(--pos); font-weight: 700; }
+.cross { color: var(--neg); font-weight: 700; }
+
+/* callouts */
+.note { border-left: 3px solid var(--warn); background: var(--warn-bg); padding: 10px 12px; border-radius: 0 6px 6px 0; font-size: .93rem; }
+.note.info { border-left-color: var(--carbon); background: var(--carbon-soft); }
+.note.bad { border-left-color: var(--neg); }
+.note p:last-child { margin: 0; }
+.demo-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+/* period bar */
+.period { display: grid; gap: 10px; grid-template-columns: 1fr; }
+@media (min-width: 620px) { .period { grid-template-columns: 1fr auto; align-items: end; } }
+.dl { display: flex; gap: 8px; flex-wrap: wrap; }
+.dl .btn { flex: 1 1 130px; padding-left: 12px; padding-right: 12px; }
+@media (min-width: 620px) { .dl .btn { flex: 0 0 auto; white-space: nowrap; } }
+
+/* KPI slip */
+.slip { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+.slip > div { background: var(--sheet); padding: 10px 12px; }
+.slip .np { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.slip small { display: block; color: var(--ink-3); font-size: .82rem; font-weight: 600; }
+.slip strong { font-family: var(--f-head); font-weight: 600; font-size: 1.15rem; }
+.slip .np strong { font-size: 1.9rem; line-height: 1.1; }
+@media (min-width: 620px) { .slip { grid-template-columns: repeat(4, 1fr); } }
+
+/* the ledger */
+.ledger { position: relative; background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px; padding: 0 0 6px; overflow: hidden; }
+.ledger::before { content: ""; position: absolute; top: 0; bottom: 0; left: 22px; width: 0; border-left: 1.5px solid var(--margin); opacity: .85; }
+.ledger::after { content: ""; position: absolute; top: 0; bottom: 0; left: 26px; width: 0; border-left: 1px solid var(--margin); opacity: .45; }
+.lg-title { padding: 14px 14px 10px 40px; border-bottom: 1.5px solid var(--rule-2); }
+.lg-title h2 { font-size: 1.15rem; }
+.lg-title p { margin: 2px 0 0; font-size: .88rem; color: var(--ink-3); }
+.lg-head, .lg-row, .lg-sec, .lg-tot { display: flex; justify-content: space-between; gap: 12px; padding: 7px 14px 7px 40px; border-bottom: 1px solid var(--rule); }
+.lg-head { font-size: .8rem; color: var(--ink-3); font-weight: 600; padding-top: 6px; padding-bottom: 6px; }
+.lg-sec { font-family: var(--f-head); font-weight: 600; color: var(--carbon); padding-top: 14px; font-size: 1rem; }
+.lg-row span:first-child { padding-left: 12px; color: var(--ink-2); }
+.lg-tot { font-weight: 700; }
+.lg-tot.sub { font-weight: 600; }
+.lg-tot .amt { border-top: 1px solid var(--ink-3); padding-top: 2px; margin-top: -3px; }
+.lg-tot.gp { background: var(--carbon-soft); }
+.lg-tot.np { font-family: var(--f-head); font-size: 1.2rem; font-weight: 700; padding-top: 12px; padding-bottom: 12px; border-bottom: 0; }
+.lg-tot.np .amt { border-top: 1.5px solid var(--ink); border-bottom: 4px double var(--margin); padding-bottom: 1px; }
+.amt { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+.lg-foot { padding: 8px 14px 4px 40px; font-size: .85rem; color: var(--ink-3); }
+
+/* tables */
+.tw { overflow-x: auto; border: 1px solid var(--rule); border-radius: 3px; background: var(--sheet); }
+table.t { border-collapse: collapse; width: 100%; font-size: .9rem; }
+table.t th, table.t td { padding: 8px 10px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+table.t th { font-weight: 600; color: var(--ink-2); background: var(--paper); white-space: nowrap; font-size: .82rem; }
+table.t td.n, table.t th.n { text-align: right; white-space: nowrap; }
+table.t tr.tot td { font-weight: 700; border-top: 1.5px solid var(--rule-2); }
+table.t tr.np td { font-weight: 700; }
+table.t input.inp { min-height: 36px; padding: 6px 8px; min-width: 88px; }
+details.more > summary { cursor: pointer; font-weight: 600; font-family: var(--f-head); list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::after { content: "+"; font-size: 1.3rem; line-height: 1; color: var(--ink-3); }
+details.more[open] > summary::after { content: "\2212"; }
+details.more[open] > summary { margin-bottom: 10px; }
+.kv { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; font-size: .93rem; }
+.kv > span:nth-child(2n) { text-align: right; }
+.kv .b { font-weight: 700; border-top: 1px solid var(--rule-2); padding-top: 4px; }
+
+/* reconcile */
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.chip { flex: none; border: 1px solid var(--rule-2); background: var(--sheet); border-radius: 999px; padding: 6px 12px; font-size: .88rem; font-weight: 600; cursor: pointer; color: var(--ink-2); white-space: nowrap; }
+.chip span { color: var(--ink-3); font-weight: 600; margin-left: 4px; }
+.chip[aria-pressed="true"] { background: var(--carbon); border-color: var(--carbon); color: var(--carbon-ink); }
+.chip[aria-pressed="true"] span { color: inherit; opacity: .85; }
+.chip.alert:not([aria-pressed="true"]) { border-color: var(--margin); color: var(--neg); }
+.olist { background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px; }
+.ord { padding: 10px 12px; border-bottom: 1px solid var(--rule); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; }
+.ord:last-child { border-bottom: 0; }
+.ord .id { font-weight: 700; word-break: break-all; }
+.ord .pn { color: var(--ink-2); font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ord .meta { color: var(--ink-3); font-size: .85rem; }
+.ord .right { text-align: right; grid-row: 1 / span 2; grid-column: 2; }
+.ord .right b { display: block; }
+.ord .full { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+.tag { display: inline-block; font-size: .78rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--carbon-soft); color: var(--ink-2); }
+.tag.bad { background: transparent; border: 1px solid var(--margin); color: var(--neg); }
+.tag.good { background: transparent; border: 1px solid var(--pos); color: var(--pos); }
+.cond { min-height: 34px; padding: 4px 8px; border: 1px solid var(--rule-2); border-radius: 6px; background: var(--sheet); font-size: .88rem; }
+.cond.def { border-style: dashed; }
+
+/* costs */
+.clist .crow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 8px; align-items: end; padding: 12px 0; border-bottom: 1px solid var(--rule); }
+.clist .crow:last-child { border-bottom: 0; }
+.clist .crow.miss { box-shadow: inset 3px 0 0 var(--margin); padding-left: 10px; }
+.clist .crow .info { grid-column: 1 / -1; min-width: 0; }
+.clist .crow .sku { font-weight: 700; word-break: break-all; }
+.clist .crow .sub { font-size: .84rem; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clist .crow label { display: flex; flex-direction: column; gap: 3px; font-size: .76rem; font-weight: 600; color: var(--ink-3); min-width: 0; }
+.clist .crow .inp { min-height: 38px; padding: 6px 8px; min-width: 0; width: 100%; }
+@media (min-width: 620px) {
+  .clist .crow { grid-template-columns: minmax(0, 1fr) 130px 80px 110px; }
+  .clist .crow .info { grid-column: auto; align-self: center; }
+}
+
+/* expenses */
+.exp { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.exp:last-child { border-bottom: 0; }
+
+.toast { position: fixed; left: 16px; right: 16px; margin: 0 auto; width: fit-content; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--paper); padding: 10px 16px; border-radius: 8px; font-size: .92rem; max-width: calc(100% - 32px); box-shadow: 0 4px 18px rgba(20, 22, 60, .25); z-index: 20; }
+.toast[hidden] { display: none; }
+.busy { position: fixed; inset: 0; background: rgba(15, 17, 34, .35); display: flex; align-items: center; justify-content: center; z-index: 30; }
+.busy[hidden] { display: none; }
+.busy div { background: var(--sheet); color: var(--ink); padding: 16px 20px; border-radius: 8px; font-weight: 600; }
+.empty { text-align: center; padding: 28px 12px; }
+.empty h2 { margin-bottom: 6px; }
+@media (prefers-reduced-motion: no-preference) {
+  .ledger .lg-tot.np .amt { transition: color .2s; }
+}
+@media print {
+  .band, .tabs, .no-print, .toast { display: none !important; }
+  body { background: #fff; }
+}
+
+</style>
+</head>
+<body>
+<header class="band">
+  <div class="band-in">
+    <span class="mark" lang="hi" aria-hidden="true">हिसाब</span>
+    <div class="brand"><b>Hisaab</b><span>Meesho P&amp;L and reconciliation</span></div>
+    <div class="band-biz" id="band-biz"></div>
+  </div>
+</header>
+<nav class="tabs" aria-label="Sections"><div class="tabs-in" id="tabs-in" role="tablist"></div></nav>
+<main id="main">
+  <section class="panel" id="p-pl" role="tabpanel" aria-labelledby="t-pl" hidden></section>
+  <section class="panel" id="p-rc" role="tabpanel" aria-labelledby="t-rc" hidden></section>
+  <section class="panel" id="p-data" role="tabpanel" aria-labelledby="t-data" hidden></section>
+  <section class="panel" id="p-costs" role="tabpanel" aria-labelledby="t-costs" hidden></section>
+  <section class="panel" id="p-exp" role="tabpanel" aria-labelledby="t-exp" hidden></section>
+  <section class="panel" id="p-set" role="tabpanel" aria-labelledby="t-set" hidden></section>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="busy" id="busy" hidden><div id="busy-t" role="status">Working</div></div>
+<script defer src="pnl-libs.js"></script>
+<script>
+/* Hisaab engine: Meesho payment-report parsing, calibration, P&L and reconciliation.
+   Pure functions. All money is integer paise so every total ties to the paisa. */
+(function (root, factory) {
+  var E = factory();
+  if (typeof module === 'object' && module.exports) module.exports = E; else root.HE = E;
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  var TOL = 100; // a row "matches" when components explain Final Settlement within Rs 1
+
+  /* ---------------- text, numbers, dates ---------------- */
+  function txt(v) { return String(v == null ? '' : v).replace(/[\u00a0\s]+/g, ' ').trim(); }
+  function h(v) { return txt(v).toLowerCase(); }
+  function slug(v) { return h(v).replace(/%/g, ' pct').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'col'; }
+
+  function cleanNum(v) {
+    if (v == null) return null;
+    if (typeof v === 'number') return isFinite(v) ? v : null;
+    if (typeof v === 'boolean') return null;
+    var s = String(v).trim();
+    if (!s) return null;
+    s = s.replace(/[\u2212\u2012\u2013\u2014]/g, '-');
+    var neg = false;
+    if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1).trim(); }
+    s = s.replace(/\u20b9|rs\.?|inr/gi, '').replace(/[,\s\u00a0]/g, '').replace(/%$/, '');
+    if (/^[0-9.]+-$/.test(s)) { neg = !neg; s = s.slice(0, -1); }
+    if (!/^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i.test(s)) return null;
+    var n = parseFloat(s);
+    if (!isFinite(n)) return null;
+    return neg ? -n : n;
+  }
+  function paise(n) { return n == null ? 0 : Math.round(n * 100 + (n >= 0 ? 1e-9 : -1e-9)); }
+
+  var MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+  var MNAME = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function dim(y, m) { return new Date(Date.UTC(y, m, 0)).getUTCDate(); }
+  function ymd(y, m, d) {
+    if (!(y >= 1990 && y <= 2100) || !(m >= 1 && m <= 12) || !(d >= 1 && d <= dim(y, m))) return '';
+    return y + '-' + pad(m) + '-' + pad(d);
+  }
+  function toDate(v) {
+    if (v == null || v === '') return '';
+    if (typeof v === 'number') {
+      if (v > 20000 && v < 80000) {
+        var t = new Date(Math.round((Math.floor(v) - 25569) * 864e5));
+        return ymd(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
+      }
+      return '';
+    }
+    if (v instanceof Date) return isNaN(v) ? '' : ymd(v.getFullYear(), v.getMonth() + 1, v.getDate());
+    var s = txt(v), m;
+    if ((m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/))) return ymd(+m[1], +m[2], +m[3]);
+    if ((m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})(?!\d)/))) {
+      var a = +m[1], b = +m[2], y = +m[3];
+      if (y < 100) y += 2000;
+      if (b > 12 && a <= 12) return ymd(y, a, b); // month-first only when unambiguous
+      return ymd(y, b, a); // Indian day-first
+    }
+    if ((m = s.match(/^(\d{1,2})(?:st|nd|rd|th)?[\s\-\/]+([a-z]{3,9})\.?[\s,\-\/]+(\d{2,4})/i))) {
+      var mo = MON[m[2].toLowerCase().slice(0, 3)], yy = +m[3];
+      if (yy < 100) yy += 2000;
+      return mo ? ymd(yy, mo, +m[1]) : '';
+    }
+    if ((m = s.match(/^([a-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/i))) {
+      var mo2 = MON[m[1].toLowerCase().slice(0, 3)];
+      return mo2 ? ymd(+m[3], mo2, +m[2]) : '';
+    }
+    if (/^\d{5}(\.\d+)?$/.test(s)) return toDate(parseFloat(s));
+    return '';
+  }
+  function lastDateIn(v) {
+    var s = txt(v);
+    var re = /\d{4}-\d{1,2}-\d{1,2}|\d{1,2}(?:st|nd|rd|th)?[\s\-\/][A-Za-z]{3,9}\.?[\s,\-\/]+\d{2,4}|[A-Za-z]{3,9}\.? \d{1,2},? \d{4}|\d{1,2}[\/.]\d{1,2}[\/.]\d{2,4}|\d{1,2}-\d{1,2}-\d{4}/g;
+    var all = s.match(re) || [], best = '';
+    for (var i = 0; i < all.length; i++) { var d = toDate(all[i]); if (d && d > best) best = d; }
+    return best;
+  }
+  function dnum(s) { return Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 864e5; }
+  function addDays(s, n) { var t = new Date((dnum(s) + n) * 864e5); return ymd(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate()); }
+  function diffDays(a, b) { return Math.round(dnum(b) - dnum(a)); }
+  function monthStart(m) { return m.slice(0, 7) + '-01'; }
+  function monthEnd(m) { return m.slice(0, 7) + '-' + pad(dim(+m.slice(0, 4), +m.slice(5, 7))); }
+  function nextMonth(m) { var y = +m.slice(0, 4), mo = +m.slice(5, 7) + 1; if (mo > 12) { mo = 1; y++; } return y + '-' + pad(mo); }
+  function daysInMonth(m) { return dim(+m.slice(0, 4), +m.slice(5, 7)); }
+  function fmtDate(d) { return d ? (+d.slice(8, 10)) + ' ' + MNAME[+d.slice(5, 7) - 1] + ' ' + d.slice(0, 4) : ''; }
+  function fmtMonth(m) { return m ? MNAME[+m.slice(5, 7) - 1] + ' ' + m.slice(0, 4) : ''; }
+
+  /* Indian digit grouping without relying on ICU: 12,34,567.89 */
+  function grp(s) { if (s.length <= 3) return s; var last = s.slice(-3), rest = s.slice(0, -3); return rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + last; }
+  function money(p, opt) {
+    opt = opt || {};
+    p = Math.round(+p || 0);
+    var neg = p < 0, a = Math.abs(p), r = Math.floor(a / 100), ps = a % 100;
+    var s = grp(String(r)) + (opt.noPaise ? '' : '.' + pad(ps));
+    if (opt.sym) s = opt.sym + s;
+    if (!neg) return s;
+    return opt.paren ? '(' + s + ')' : '-' + s;
+  }
+
+  /* ---------------- statuses ---------------- */
+  var RANK = { '': 0, OTHER: 1, TRANSIT: 2, DELIVERED: 3, EXCHANGE: 4, CANCELLED: 5, RTO: 6, RETURN: 7, LOST: 8 };
+  function normSt(s) {
+    var u = ' ' + String(s == null ? '' : s).toUpperCase().replace(/[^A-Z]+/g, ' ').trim() + ' ';
+    if (!u.trim()) return '';
+    if (/LOST/.test(u)) return 'LOST';
+    if (/CANCEL/.test(u)) return 'CANCELLED';
+    if (/RTO|RETURN TO ORIGIN|RETURNED TO ORIGIN/.test(u)) return 'RTO';
+    if (/EXCHANGE/.test(u)) return 'EXCHANGE';
+    if (/RETURN/.test(u)) return 'RETURN';
+    if (/UNDELIVER|NOT DELIVER| NDR |FAILED/.test(u)) return 'TRANSIT';
+    if (/DELIVER/.test(u)) return 'DELIVERED';
+    if (/SHIP|TRANSIT|DISPATCH|PICK|READY|MANIFEST|OUT FOR|PENDING|HOLD|PLACED|ACCEPT|PACK| NEW |PROCESS|CONFIRM/.test(u)) return 'TRANSIT';
+    return 'OTHER';
+  }
+  var ST_LABEL = { '': 'No status', OTHER: 'Other', TRANSIT: 'In transit', DELIVERED: 'Delivered', EXCHANGE: 'Exchanged', CANCELLED: 'Cancelled', RTO: 'RTO', RETURN: 'Customer return', LOST: 'Lost' };
+
+  /* ---------------- column classification ---------------- */
+  var CATL = {
+    comm: 'Commission', shipfwd: 'Shipping charges', shipret: 'Return / RTO shipping',
+    shipadj: 'GST compensation on shipping', fees: 'Platform & other fees', support: 'Other support services',
+    penalty: 'Penalties', other: 'Other deductions',
+    sale: 'Sales', ret: 'Returns', tcs: 'TCS', tds: 'TDS', comp: 'Compensation', claims: 'Claims', recovery: 'Recovery'
+  };
+  var CHARGE_CATS = ['comm', 'shipfwd', 'shipret', 'shipadj', 'fees', 'support', 'penalty', 'other'];
+
+  function classify(lbl) {
+    var s = h(lbl), cat;
+    if (/sale\s*return|return\s*amount|refund/.test(s)) cat = 'ret';
+    else if (/total\s*sale|sale\s*amount|gross\s*sale/.test(s)) cat = 'sale';
+    else if (/\btcs\b/.test(s)) cat = 'tcs';
+    else if (/\btds\b/.test(s)) cat = 'tds';
+    else if (/gst\s*compensation/.test(s)) cat = 'shipadj';
+    else if (/return\s*shipping|\brto\b|reverse\s*shipping|return\s*logistic/.test(s)) cat = 'shipret';
+    else if (/shipping|delivery\s*charge|logistic/.test(s)) cat = 'shipfwd';
+    else if (/commission/.test(s)) cat = 'comm';
+    else if (/support\s*service|waiver/.test(s)) cat = 'support';
+    else if (/penalt/.test(s)) cat = 'penalty';
+    else if (/fee|premium|platform|charge/.test(s)) cat = 'fees';
+    else if (/compensation/.test(s)) cat = 'comp';
+    else if (/claim/.test(s)) cat = 'claims';
+    else if (/recover/.test(s)) cat = 'recovery';
+    else cat = 'other';
+    var gst = 'none';
+    if (cat === 'sale' || cat === 'ret') gst = 'sale';
+    else if (['tcs', 'tds', 'comp', 'claims', 'recovery', 'shipadj'].indexOf(cat) < 0) {
+      if (/\bgst on\b/.test(s) || s === 'gst' || /^gst amount/.test(s)) gst = 'pure';
+      else if (/\binc(l|luding)?\b\.?\s*(of\s*)?(gst|taxes|tax)/.test(s)) gst = 'incl';
+    }
+    return { cat: cat, gst: gst };
+  }
+  function gstPart(v, mode) {
+    if (mode === 'incl') return Math.round(v * 18 / 118);
+    if (mode === 'pure') return v;
+    return 0;
+  }
+
+  /* ---------------- sheet detection ---------------- */
+  function findCol(H, res, ex) {
+    for (var r = 0; r < res.length; r++)
+      for (var j = 0; j < H.length; j++)
+        if (H[j] && res[r].test(H[j]) && !(ex && ex.test(H[j]))) return j;
+    return -1;
+  }
+  function detect(rows, sheetName) {
+    var sn = h(sheetName), lim = Math.min(rows.length, 30);
+    for (var i = 0; i < lim; i++) {
+      var cells = (rows[i] || []).map(h);
+      var has = function (re) { for (var k = 0; k < cells.length; k++) if (re.test(cells[k])) return true; return false; };
+      if (has(/sub\s*order/) && has(/final\s*settlement/)) return { type: 'pay', hr: i };
+      if (has(/\bads?\s*cost/) && (has(/campaign/) || has(/deduction/))) return { type: 'ads', hr: i };
+      if (has(/referral/) && has(/amount/)) return { type: 'ref', hr: i };
+      if (/compensation|recovery/.test(sn) && has(/amount/)) return { type: 'adj', hr: i };
+      if (has(/sub\s*order/) && (has(/reason\s*for\s*credit/) || has(/packet\s*id/) || has(/supplier\s*(listed|discounted)\s*price/) || has(/customer\s*state/) || has(/order\s*status/) || (has(/order\s*date/) && has(/status/)))) return { type: 'ord', hr: i };
+    }
+    return { type: 'skip', hr: -1 };
+  }
+  function digitCount(s) { var m = String(s).match(/\d/g); return m ? m.length : 0; }
+
+  /* ---------------- Order Payments ---------------- */
+  var NONCOMP = /date|\bid\b|\bno\b|number|awb|%|percent|\brate\b|listing\s*price|quantity|\bqty\b|reason|status|type|name|sku|state|final\s*settlement|\bsize\b|hsn|invoice|packet|catalog|pincode|\butr\b|remark/;
+
+  function parsePay(rows, hr, sheetName, cfg) {
+    var raw = (rows[hr] || []).map(txt), H = raw.map(h);
+    var c = {
+      id: findCol(H, [/^sub\s*order\s*(no|number|id)?\.?$/, /sub\s*order/]),
+      od: findCol(H, [/^order\s*date/, /order\s*date/]),
+      dd: findCol(H, [/dispatch\s*date/, /shipped\s*date/]),
+      pd: findCol(H, [/payment\s*date/, /settlement\s*date/, /paid\s*(on|date)/]),
+      st: findCol(H, [/live\s*order\s*status/, /order\s*status/, /status/]),
+      sku: findCol(H, [/supplier\s*sku/, /\bsku\b/]),
+      pn: findCol(H, [/product\s*name/, /^product$/]),
+      g: findCol(H, [/product\s*gst/, /gst\s*(%|rate|pct|percent)/]),
+      q: findCol(H, [/^quantity/, /quantity|\bqty\b/]),
+      tx: findCol(H, [/transaction\s*id/, /\butr\b/, /transaction/]),
+      f: findCol(H, [/final\s*settlement/]),
+      lp: findCol(H, [/listing\s*price/]),
+      pt: findCol(H, [/price\s*type/])
+    };
+    var idCols = {};
+    for (var key0 in c) if (c[key0] >= 0) idCols[c[key0]] = 1;
+
+    var data = [], skipped = 0;
+    for (var i = hr + 1; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r || !r.length) continue;
+      var idv = txt(r[c.id]);
+      if (!idv) continue;
+      if (digitCount(idv) < 5 || cleanNum(r[c.f]) === null) { skipped++; continue; }
+      data.push(r);
+    }
+
+    var comps = [], seen = {};
+    for (var j = 0; j < H.length; j++) {
+      if (idCols[j] || !H[j] || NONCOMP.test(H[j])) continue;
+      var ne = 0, nn = 0;
+      for (var d = 0; d < data.length; d++) {
+        var v = data[d][j];
+        if (v === '' || v == null) continue;
+        ne++;
+        if (cleanNum(v) !== null) nn++;
+      }
+      if (!ne || nn / ne < 0.9) continue;
+      var key = slug(raw[j]);
+      if (seen[key]) { var k2 = 2; while (seen[key + '#' + k2]) k2++; key = key + '#' + k2; }
+      seen[key] = 1;
+      var cl = classify(raw[j]);
+      comps.push({ j: j, key: key, label: raw[j], cat: cl.cat, gst: cl.gst, dup: key.indexOf('#') > 0 });
+    }
+
+    var n = data.length, m = comps.length;
+    var F = new Array(n), A = [];
+    for (var k = 0; k < m; k++) A.push(new Array(n));
+    for (var i2 = 0; i2 < n; i2++) {
+      F[i2] = paise(cleanNum(data[i2][c.f]));
+      for (var k3 = 0; k3 < m; k3++) A[k3][i2] = paise(cleanNum(data[i2][comps[k3].j]) || 0);
+    }
+    var best = calibrate(F, A, comps);
+
+    var reg = {}, recs = [], defG = +((cfg && cfg.defaultGst) || 5), pdFallback = 0;
+    comps.forEach(function (cc) { reg[cc.key] = { label: cc.label, cat: cc.cat, gst: cc.gst }; });
+    for (var i3 = 0; i3 < n; i3++) {
+      var row = data[i3];
+      var q = Math.abs(cleanNum(row[c.q]) || 0) || 1;
+      var g = cleanNum(row[c.g]);
+      if (g != null && g > 0 && g < 1) g = g * 100;
+      if (g == null || g < 0 || g > 40) g = defG;
+      var rec = {
+        id: txt(row[c.id]), st: txt(row[c.st]), od: toDate(row[c.od]), dd: toDate(row[c.dd]), pd: toDate(row[c.pd]),
+        tx: txt(row[c.tx]), sku: txt(row[c.sku]), pn: txt(row[c.pn]), q: q, g: g, f: F[i3], a: {}, s: 0, r: 0, o: 0,
+        lp: c.lp >= 0 ? paise(cleanNum(row[c.lp]) || 0) : 0, pt: txt(row[c.pt])
+      };
+      if (!rec.pd) { rec.pd = rec.dd || rec.od; pdFallback++; }
+      var sum = 0;
+      for (var k4 = 0; k4 < m; k4++) {
+        if (!best.coef[k4]) continue;
+        var val = best.coef[k4] * A[k4][i3];
+        if (!val) continue;
+        rec.a[comps[k4].key] = val;
+        sum += val;
+        if (comps[k4].cat === 'sale') rec.s += val;
+        else if (comps[k4].cat === 'ret') rec.r += val;
+      }
+      rec.o = rec.f - sum;
+      recs.push(rec);
+    }
+    return {
+      type: 'pay', recs: recs, reg: reg, skipped: skipped, pdFallback: pdFallback,
+      cal: { matched: best.s, total: n, cols: comps.map(function (cc, idx) { return { key: cc.key, label: cc.label, cat: cc.cat, gst: cc.gst, coef: best.coef[idx] }; }) }
+    };
+  }
+
+  /* Find which columns (and signs) add up to Final Settlement on the most rows. */
+  function calibrate(F, A, comps) {
+    var n = F.length, m = comps.length;
+    var hasNet = comps.some(function (c) { return /net\s*other\s*support/.test(h(c.label)); });
+    function isBreak(c) { var s = h(c.label); return hasNet && /support\s*service|waiver/.test(s) && !/net\s*other\s*support|\bgst on\b/.test(s); }
+    function isNet(c) { return /net\s*other\s*support/.test(h(c.label)); }
+    var base = comps.map(function (c) { return (c.dup || isBreak(c)) ? 0 : 1; });
+    var starts = [
+      base,
+      comps.map(function () { return 1; }),
+      comps.map(function (c) { return isNet(c) ? 0 : 1; }),
+      base.map(function (b, k) { return comps[k].cat === 'sale' || comps[k].cat === 'ret' ? b : -b; }),
+      base.map(function (b, k) { return comps[k].cat === 'sale' ? b : -b; })
+    ];
+    function evalRes(res) {
+      var s = 0, err = 0;
+      for (var i = 0; i < n; i++) { var a = Math.abs(res[i]); if (a <= TOL) s++; err += Math.min(a, 1e9); }
+      return { s: s, err: err };
+    }
+    var best = null;
+    starts.forEach(function (st) {
+      var coef = st.slice(), res = F.slice();
+      for (var k = 0; k < m; k++) if (coef[k]) for (var i = 0; i < n; i++) res[i] -= coef[k] * A[k][i];
+      var cur = evalRes(res);
+      for (var pass = 0; pass < 6; pass++) {
+        var improved = false;
+        for (var k2 = 0; k2 < m; k2++) {
+          if (comps[k2].cat === 'sale') continue;
+          var alts = [1, 0, -1];
+          for (var ai = 0; ai < 3; ai++) {
+            var alt = alts[ai];
+            if (alt === coef[k2]) continue;
+            var dlt = alt - coef[k2], s = 0, err = 0, col = A[k2];
+            for (var i2 = 0; i2 < n; i2++) { var a = Math.abs(res[i2] - dlt * col[i2]); if (a <= TOL) s++; err += Math.min(a, 1e9); }
+            if (s > cur.s) {
+              for (var i3 = 0; i3 < n; i3++) res[i3] -= dlt * col[i3];
+              coef[k2] = alt; cur = { s: s, err: err }; improved = true;
+            }
+          }
+        }
+        if (!improved) break;
+      }
+      if (!best || cur.s > best.s || (cur.s === best.s && cur.err < best.err)) best = { coef: coef.slice(), s: cur.s, err: cur.err };
+    });
+    if (!best) best = { coef: [], s: 0, err: 0 };
+    return best;
+  }
+
+  /* ---------------- Ads, Referral, Compensation & Recovery ---------------- */
+  function parseAds(rows, hr) {
+    var raw = (rows[hr] || []).map(txt), H = raw.map(h);
+    var c = {
+      cid: findCol(H, [/campaign\s*id/, /campaign/]),
+      dt: findCol(H, [/deduction\s*date/, /^date$/, /date/], /duration/),
+      dur: findCol(H, [/deduction\s*duration/, /duration|period/]),
+      tot: findCol(H, [/total\s*ads?\s*cost/, /^total/]),
+      gst: findCol(H, [/^gst$/, /^gst\b/, /\bgst\b/], /incl|total|cost/),
+      cost: findCol(H, [/ad\s*cost\s*incl/, /\bads?\s*cost/], /total/)
+    };
+    var tmp = [];
+    for (var i = hr + 1; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r || !r.length) continue;
+      var t = c.tot >= 0 ? cleanNum(r[c.tot]) : null;
+      if (t === null && c.tot < 0 && c.cost >= 0) { var a = cleanNum(r[c.cost]); if (a !== null) t = a + (cleanNum(r[c.gst]) || 0); }
+      if (t === null || t === 0) continue;
+      var dt = toDate(r[c.dt]);
+      if (!dt && c.dur >= 0) dt = lastDateIn(r[c.dur]);
+      tmp.push({ cid: txt(r[c.cid]), dt: dt, dur: txt(r[c.dur]), t: paise(t), g: c.gst >= 0 ? cleanNum(r[c.gst]) : null });
+    }
+    var pos = 0, neg = 0;
+    tmp.forEach(function (x) { if (x.t > 0) pos++; else neg++; });
+    var flip = pos > neg;
+    tmp.forEach(function (x) {
+      if (flip) x.t = -x.t;
+      x.g = x.g === null ? Math.round(x.t * 18 / 118) : (x.t < 0 ? -1 : 1) * Math.abs(paise(x.g));
+    });
+    return { type: 'ads', recs: tmp, flipped: flip };
+  }
+  function parseAmt(rows, hr, type) {
+    var raw = (rows[hr] || []).map(txt), H = raw.map(h);
+    var c = {
+      dt: findCol(H, [/payment\s*date/, /credit\s*date/, /deduction\s*date/, /date/]),
+      amt: type === 'ref' ? findCol(H, [/net\s*referral\s*amount/, /net\s*amount/, /referral\s*amount/, /amount/]) : findCol(H, [/amount\s*\(inc/, /net\s*amount/, /amount/]),
+      desc: findCol(H, [/reason/, /description|remark|narration/, /type/, /referral\s*(id|code|name)|supplier|campaign/])
+    };
+    var out = [];
+    for (var i = hr + 1; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r || !r.length) continue;
+      var t = cleanNum(r[c.amt]);
+      if (t === null || t === 0) continue;
+      out.push({ dt: toDate(r[c.dt]), t: paise(t), desc: txt(r[c.desc]) });
+    }
+    return { type: type, recs: out };
+  }
+
+  /* ---------------- Orders report ---------------- */
+  function parseOrd(rows, hr) {
+    var raw = (rows[hr] || []).map(txt), H = raw.map(h);
+    var c = {
+      id: findCol(H, [/^sub\s*order\s*(no|number|id)?\.?$/, /sub\s*order/]),
+      od: findCol(H, [/^order\s*date/, /order\s*date/, /date/]),
+      st: findCol(H, [/reason\s*for\s*credit/, /order\s*status/, /status/]),
+      sku: findCol(H, [/supplier\s*sku/, /\bsku\b/]),
+      pn: findCol(H, [/product\s*name/, /^product$/]),
+      size: findCol(H, [/\bsize\b/]),
+      q: findCol(H, [/quantity|\bqty\b/]),
+      price: findCol(H, [/supplier\s*discounted\s*price/, /supplier\s*listed\s*price/, /selling\s*price/, /price/]),
+      state: findCol(H, [/customer\s*state/, /\bstate\b/])
+    };
+    var out = [], skipped = 0;
+    for (var i = hr + 1; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r || !r.length) continue;
+      var id = txt(r[c.id]);
+      if (!id) continue;
+      if (digitCount(id) < 5) { skipped++; continue; }
+      out.push({
+        id: id, od: toDate(r[c.od]), st: txt(r[c.st]), sku: txt(r[c.sku]), pn: txt(r[c.pn]), size: txt(r[c.size]),
+        q: Math.abs(cleanNum(r[c.q]) || 0) || 1, price: paise(cleanNum(r[c.price]) || 0), state: txt(r[c.state])
+      });
+    }
+    return { type: 'ord', recs: out, skipped: skipped };
+  }
+
+  /* ---------------- one uploaded file (workbook or CSV) ---------------- */
+  var seq = 0;
+  function uid(p) { seq++; return (p || 'f') + Date.now().toString(36) + seq.toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  function ingest(name, size, sheets, cfg) {
+    var f = { id: uid('f'), name: name, size: size || 0, at: Date.now(), sheets: [], pay: [], ads: [], ref: [], adj: [], ord: [], reg: {} };
+    var maxPd = '';
+    sheets.forEach(function (sh) {
+      var rows = sh.rows || [];
+      var d = detect(rows, sh.name);
+      var info = { name: sh.name, type: d.type, n: 0 };
+      if (d.type === 'pay') {
+        var p = parsePay(rows, d.hr, sh.name, cfg);
+        f.pay = f.pay.concat(p.recs);
+        for (var k in p.reg) f.reg[k] = p.reg[k];
+        info.n = p.recs.length; info.matched = p.cal.matched; info.cols = p.cal.cols; info.skipped = p.skipped; info.pdFallback = p.pdFallback;
+        p.recs.forEach(function (x) { if (x.pd > maxPd) maxPd = x.pd; });
+        info.from = p.recs.reduce(function (a, x) { return !a || (x.pd && x.pd < a) ? x.pd : a; }, '');
+        info.to = p.recs.reduce(function (a, x) { return x.pd > a ? x.pd : a; }, '');
+      } else if (d.type === 'ads') {
+        var a = parseAds(rows, d.hr); f.ads = f.ads.concat(a.recs); info.n = a.recs.length;
+      } else if (d.type === 'ref' || d.type === 'adj') {
+        var r = parseAmt(rows, d.hr, d.type); f[d.type] = f[d.type].concat(r.recs); info.n = r.recs.length;
+      } else if (d.type === 'ord') {
+        var o = parseOrd(rows, d.hr); f.ord = f.ord.concat(o.recs); info.n = o.recs.length;
+        info.from = o.recs.reduce(function (a, x) { return !a || (x.od && x.od < a) ? x.od : a; }, '');
+        info.to = o.recs.reduce(function (a, x) { return x.od > a ? x.od : a; }, '');
+      }
+      f.sheets.push(info);
+    });
+    var undated = 0;
+    ['ads', 'ref', 'adj'].forEach(function (t) { f[t].forEach(function (x) { if (!x.dt) { x.dt = maxPd; undated++; } }); });
+    f.undated = undated;
+    return f;
+  }
+
+  /* ---------------- merge all files, removing overlaps ---------------- */
+  function dedupe(files, prop, sig, dup) {
+    var best = {};
+    files.forEach(function (f, fi) {
+      var cnt = {};
+      (f[prop] || []).forEach(function (x) { var s = sig(x); cnt[s] = (cnt[s] || 0) + 1; });
+      for (var s in cnt) if (!best[s] || cnt[s] > best[s].n) best[s] = { fi: fi, n: cnt[s] };
+    });
+    var out = [];
+    files.forEach(function (f, fi) {
+      (f[prop] || []).forEach(function (x) { if (best[sig(x)].fi === fi) out.push(x); else dup[f.id] = (dup[f.id] || 0) + 1; });
+    });
+    return out;
+  }
+  function merge(files) {
+    files = files || [];
+    var M = { pay: [], ads: [], ref: [], adj: [], ord: {}, reg: {}, dup: {} };
+    files.forEach(function (f) { for (var k in f.reg) M.reg[k] = f.reg[k]; });
+    M.pay = dedupe(files, 'pay', function (x) { return x.id + '|' + x.tx + '|' + x.pd + '|' + x.f; }, M.dup);
+    M.pay.sort(function (a, b) { return a.pd < b.pd ? -1 : a.pd > b.pd ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+    M.ads = dedupe(files, 'ads', function (x) { return x.cid + '|' + x.dt + '|' + x.t; }, M.dup);
+    M.ref = dedupe(files, 'ref', function (x) { return x.dt + '|' + x.t + '|' + x.desc; }, M.dup);
+    M.adj = dedupe(files, 'adj', function (x) { return x.dt + '|' + x.t + '|' + x.desc; }, M.dup);
+    files.forEach(function (f) { (f.ord || []).forEach(function (o) { M.ord[o.id] = o; }); });
+    M.pk = packInfo(M);
+    return M;
+  }
+
+  /* ---------------- costs & conditions ---------------- */
+  function costFn(costs) {
+    costs = costs || {};
+    var ci = {};
+    for (var k in costs) ci[k.trim().toUpperCase()] = costs[k];
+    return function (sku) { var s = String(sku || ''); return costs[s] || ci[s.trim().toUpperCase()] || null; };
+  }
+  /* Combo size from the SKU: the letters before the number. BPYG05 -> 4 pieces (the 05 is ignored). */
+  function skuLetters(sku) { var m = String(sku == null ? '' : sku).match(/[A-Za-z]+/); return m ? m[0].length : 0; }
+  /* Combo size from Meesho's product name: "Combo of 2", "Pack of 5", "Set Of 3", "3 Pcs". */
+  function nameCount(pn) {
+    var s = String(pn == null ? '' : pn), m = s.match(/\b(?:combo|pack|set|bundle)\s*(?:of)?\s*(\d{1,2})\b/i) || s.match(/\b(\d{1,2})\s*(?:pcs|pieces|piece|pc)\b/i);
+    var n = m ? +m[1] : 0;
+    return n >= 2 && n <= 20 ? n : 0;
+  }
+  /* How this seller's combos are sized. The SKU-letters rule is used automatically only when
+     the product names prove it: most SKUs whose name states a pack size have that many letters. */
+  function packInfo(M) {
+    var names = {}, agree = 0, stated = 0;
+    function see(sku, pn) { if (!sku || names[sku] != null) return; var n = nameCount(pn); if (n) names[sku] = n; }
+    (M.pay || []).forEach(function (p) { see(p.sku, p.pn); });
+    for (var id in (M.ord || {})) see(M.ord[id].sku, M.ord[id].pn);
+    for (var k in names) { stated++; if (skuLetters(k) === names[k]) agree++; }
+    return { names: names, stated: stated, agree: agree, letters: stated >= 2 && agree / stated >= 0.8 };
+  }
+  function packRule(cfg, M) {
+    var v = cfg && cfg.packFromSku;
+    if (v === true || v === 'sku') return 'sku';
+    if (v === false || v === 'name') return 'name';
+    return M && M.pk && M.pk.letters ? 'sku' : 'name';
+  }
+  function piecesOf(sku, cfg, e, M) {
+    if (e && e.n != null && e.n !== '' && +e.n >= 1) return Math.round(+e.n);
+    if (packRule(cfg, M) === 'sku') { var k = skuLetters(sku); return k >= 1 ? k : 1; }
+    return (M && M.pk && M.pk.names[sku]) || 1;
+  }
+  function condOf(x, cfg, marks) {
+    var mk = marks && marks[x.id];
+    if (mk === 'ok' || mk === 'loss') return { c: mk, def: false };
+    if (x.st === 'LOST') return { c: 'loss', def: false };
+    if (x.st === 'RTO') return { c: cfg.rtoDefault === 'loss' ? 'loss' : 'ok', def: true };
+    return { c: cfg.returnDefault === 'ok' ? 'ok' : 'loss', def: true };
+  }
+
+  /* ---------------- per-order index + cost attribution to settlement legs ---------------- */
+  function index(M, cfg, costs, marks) {
+    var P = M.pay, n = P.length, reg = M.reg;
+    function z() { var a = new Array(n); for (var i = 0; i < n; i++) a[i] = 0; return a; }
+    var L = { fwd: z(), rst: z(), loss: z(), pack: z(), fu: z(), ru: z(), lu: z(), rlu: z(), rlv: z(), nc: z(), parcel: z(), sale: z(), retn: z(), rto: z(), rdef: z() };
+    var O = {}, list = [];
+    function mk(id) { var x = { id: id, legs: [], rank: -1, st: '', stRaw: '', sku: '', pn: '', q: 1, od: '', sale: -1, ret: -1, f: 0, s: 0, r: 0, o: 0, rc: 0, cl: 0, hasPay: false, ord: null }; O[id] = x; list.push(x); return x; }
+    for (var i = 0; i < n; i++) {
+      var p = P[i], x = O[p.id] || mk(p.id);
+      if (!x.legs.length) { x.q = p.q; }
+      x.legs.push(i); x.hasPay = true;
+      var ns = normSt(p.st);
+      if (RANK[ns] > x.rank) { x.rank = RANK[ns]; x.st = ns; x.stRaw = p.st; }
+      x.f += p.f; x.s += p.s; x.r += p.r; x.o += p.o;
+      if (!x.sku && p.sku) x.sku = p.sku;
+      if (!x.pn && p.pn) x.pn = p.pn;
+      if (!x.od && p.od) x.od = p.od;
+      if (p.s > 0 && x.sale < 0) { x.sale = i; x.q = p.q; }
+      if (p.r < 0 && x.ret < 0) x.ret = i;
+      for (var k in p.a) {
+        var cat = (reg[k] || {}).cat;
+        if (cat === 'recovery') x.rc += p.a[k];
+        else if (cat === 'claims' || cat === 'comp') x.cl += p.a[k];
+      }
+    }
+    for (var id in M.ord) {
+      var o = M.ord[id], y = O[id] || mk(id);
+      y.ord = o;
+      var ns2 = normSt(o.st);
+      if (RANK[ns2] > y.rank) { y.rank = RANK[ns2]; y.st = ns2; y.stRaw = o.st; }
+      if (!y.sku) y.sku = o.sku;
+      if (!y.pn) y.pn = o.pn;
+      if (!y.od) y.od = o.od;
+      if (!y.hasPay) y.q = o.q || 1;
+    }
+    var cf = costFn(costs), extra = [], PK = {};
+    list.forEach(function (x) {
+      if (x.rank < 0) x.rank = 0;
+      var e = cf(x.sku), pcs = piecesOf(x.sku, cfg, e, M);
+      // cost entered per piece; one sold unit of a combo SKU holds pcs pieces
+      var cost = e && e.c != null && e.c !== '' ? +e.c * pcs : null;
+      var pk = e && e.p != null && e.p !== '' ? +e.p : (+cfg.pack || 0);
+      var q = x.q || 1, qp = q * pcs;
+      x.cost = cost; x.pcs = pcs;
+      if (x.sku) PK[x.sku] = pcs;
+      if (x.sale >= 0) {
+        var s = x.sale;
+        L.fwd[s] += (cost || 0) * q; L.fu[s] += qp; L.pack[s] += pk; L.parcel[s] = 1; L.sale[s] = 1;
+        if (cost == null) L.nc[s] += qp;
+      }
+      if (x.ret >= 0 || x.st === 'RTO' || x.st === 'LOST' || x.st === 'RETURN') {
+        var cd = condOf(x, cfg, marks); x.cond = cd.c; x.condDef = cd.def;
+      }
+      if (x.ret >= 0) {
+        var rr = x.ret;
+        L.retn[rr] = 1;
+        if (x.cond === 'ok') { L.rst[rr] += (cost || 0) * q; L.ru[rr] += qp; }
+        else { L.rlu[rr] += qp; L.rlv[rr] += (cost || 0) * q; }
+        if (x.condDef) L.rdef[rr] = 1;
+      }
+      if (x.sale < 0 && x.ret < 0 && (x.st === 'RTO' || x.st === 'LOST')) {
+        var loss = x.cond === 'loss' ? (cost || 0) * q : 0;
+        if (x.legs.length) {
+          var a0 = x.legs[0];
+          L.pack[a0] += pk; L.parcel[a0] = 1; L.rto[a0] = 1; L.loss[a0] += loss;
+          if (x.cond === 'loss') { L.lu[a0] += qp; if (cost == null) L.nc[a0] += qp; }
+          if (x.condDef) L.rdef[a0] = 1;
+        } else if (x.od) {
+          extra.push({ id: x.id, dt: x.od, sku: x.sku, pn: x.pn, pack: pk, loss: loss, lu: x.cond === 'loss' ? qp : 0, nc: (x.cond === 'loss' && cost == null) ? qp : 0, def: !!x.condDef });
+        }
+      }
+    });
+    return { O: O, list: list, L: L, extra: extra, PK: PK };
+  }
+
+  /* ---------------- periods ---------------- */
+  function dataMonths(M, IX, basis) {
+    var set = {};
+    M.pay.forEach(function (p) { var d = basis === 'order' ? (p.od || p.pd) : p.pd; if (d) set[d.slice(0, 7)] = 1; });
+    IX.extra.forEach(function (e) { if (e.dt) set[e.dt.slice(0, 7)] = 1; });
+    [M.ads, M.ref, M.adj].forEach(function (arr) { arr.forEach(function (x) { if (x.dt) set[x.dt.slice(0, 7)] = 1; }); });
+    return Object.keys(set).sort();
+  }
+  function periodFor(sel, M, IX) {
+    var basis = sel.basis === 'order' ? 'order' : 'pay';
+    if (sel.mode === 'custom' && sel.from && sel.to) {
+      var a = sel.from <= sel.to ? sel.from : sel.to, b = sel.from <= sel.to ? sel.to : sel.from;
+      return { from: a, to: b, basis: basis, mode: 'custom', label: fmtDate(a) + ' to ' + fmtDate(b) };
+    }
+    if (sel.mode === 'month' && sel.m) return { from: monthStart(sel.m), to: monthEnd(sel.m), basis: basis, mode: 'month', m: sel.m, label: fmtMonth(sel.m) };
+    var ms = dataMonths(M, IX, basis);
+    if (!ms.length) return { from: '0000-01-01', to: '0000-01-01', basis: basis, mode: 'all', empty: true, label: 'No data yet' };
+    return { from: monthStart(ms[0]), to: monthEnd(ms[ms.length - 1]), basis: basis, mode: 'all', label: ms.length > 1 ? fmtMonth(ms[0]) + ' to ' + fmtMonth(ms[ms.length - 1]) : fmtMonth(ms[0]) };
+  }
+
+  /* ---------------- expenses ---------------- */
+  function expFor(expenses, from, to) {
+    var out = [];
+    if (!from || !to || from > to || from < '1990') return out;
+    (expenses || []).forEach(function (e) {
+      var amt = 0, m = from.slice(0, 7), last = to.slice(0, 7), guard = 0;
+      while (m <= last && guard++ < 1200) {
+        var ms = monthStart(m), me = monthEnd(m);
+        var s = from > ms ? from : ms, en = to < me ? to : me;
+        var days = diffDays(s, en) + 1;
+        if (days > 0 && (e.when === 'monthly' || e.when === m)) amt += Math.round((+e.amt || 0) * days / daysInMonth(m));
+        m = nextMonth(m);
+      }
+      if (amt) out.push({ id: e.id, name: e.name || 'Expense', amt: amt, when: e.when });
+    });
+    return out;
+  }
+
+  /* ---------------- the P&L ---------------- */
+  function compute(M, IX, cfg, expenses, per) {
+    var P = M.pay, reg = M.reg, L = IX.L, REGD = !!cfg.gstReg, claim = cfg.taxCredits !== 'expense';
+    function inP(d) { return !!d && d >= per.from && d <= per.to; }
+    var K = { S: 0, R: 0, OUT: 0, T: 0, D: 0, CP: 0, CL: 0, RC: 0, O: 0, F: 0, fwd: 0, rst: 0, loss: 0, pack: 0, fu: 0, ru: 0, lu: 0, rlu: 0, rlv: 0, parcels: 0, retn: 0, rton: 0, rdef: 0, sales: 0, legs: 0, unexpl: 0, revPend: 0, revPendV: 0, AD: 0, ADG: 0, REF: 0, ADJ: 0 };
+    var CH = {}; CHARGE_CATS.forEach(function (c) { CH[c] = { v: 0, g: 0 }; });
+    var COLS = {}, SK = {}, NC = {};
+    function sk(sku, pn) { var k = sku || '(no SKU)'; return SK[k] || (SK[k] = { sku: k, pn: pn || '', sold: 0, units: 0, retU: 0, rto: 0, S: 0, R: 0, OUT: 0, COGS: 0, MC: 0, OCR: 0, TX: 0, pack: 0 }); }
+    for (var i = 0; i < P.length; i++) {
+      var p = P[i], d = per.basis === 'order' ? (p.od || p.pd) : p.pd;
+      if (!inP(d)) continue;
+      var s = sk(p.sku, p.pn);
+      if (!s.pn && p.pn) s.pn = p.pn;
+      K.F += p.f; K.legs++;
+      var mc = 0, ocr = 0, tx = 0;
+      for (var k in p.a) {
+        var v = p.a[k], R = reg[k] || { cat: 'other', gst: 'none' };
+        var col = COLS[k] || (COLS[k] = { v: 0, g: 0 });
+        col.v += v;
+        switch (R.cat) {
+          case 'sale': K.S += v; break;
+          case 'ret': K.R += v; break;
+          case 'tcs': K.T += v; tx += v; break;
+          case 'tds': K.D += v; tx += v; break;
+          case 'comp': K.CP += v; ocr += v; break;
+          case 'claims': K.CL += v; ocr += v; break;
+          case 'recovery': K.RC += v; ocr += v; break;
+          default: {
+            var g = REGD ? gstPart(v, R.gst) : 0, cc = CH[R.cat] ? R.cat : 'other';
+            CH[cc].v += v; CH[cc].g += g; col.g += g; mc += v - g;
+          }
+        }
+      }
+      K.O += p.o; mc += p.o;
+      if (Math.abs(p.o) > TOL) K.unexpl++;
+      var out = REGD ? Math.round((p.s + p.r) * p.g / (100 + p.g)) : 0;
+      K.OUT += out;
+      var cg = L.fwd[i] - L.rst[i] + L.loss[i];
+      K.fwd += L.fwd[i]; K.rst += L.rst[i]; K.loss += L.loss[i]; K.pack += L.pack[i];
+      K.fu += L.fu[i]; K.ru += L.ru[i]; K.lu += L.lu[i]; K.rlu += L.rlu[i]; K.rlv += L.rlv[i];
+      K.parcels += L.parcel[i]; K.retn += L.retn[i]; K.rton += L.rto[i]; K.rdef += L.rdef[i]; K.sales += L.sale[i];
+      if (L.sale[i]) { var xo = IX.O[p.id]; if (xo && (xo.st === 'RETURN' || xo.st === 'RTO') && xo.ret < 0) { K.revPend++; K.revPendV += p.s; } }
+      if (L.nc[i]) NC[p.sku || '(no SKU)'] = (NC[p.sku || '(no SKU)'] || 0) + L.nc[i];
+      s.S += p.s; s.R += p.r; s.OUT += out; s.COGS += cg; s.MC += mc; s.OCR += ocr; s.TX += tx; s.pack += L.pack[i];
+      s.sold += L.sale[i]; s.units += L.fu[i]; s.retU += L.ru[i] + L.rlu[i]; s.rto += L.rto[i];
+    }
+    IX.extra.forEach(function (e) {
+      if (!inP(e.dt)) return;
+      var s2 = sk(e.sku, e.pn);
+      K.pack += e.pack; K.loss += e.loss; K.lu += e.lu; K.parcels++; K.rton++; if (e.def) K.rdef++;
+      if (e.nc) NC[e.sku || '(no SKU)'] = (NC[e.sku || '(no SKU)'] || 0) + e.nc;
+      s2.pack += e.pack; s2.COGS += e.loss; s2.rto++;
+    });
+    M.ads.forEach(function (a) { if (inP(a.dt)) { K.AD += a.t; if (REGD) K.ADG += a.g; } });
+    M.ref.forEach(function (r) { if (inP(r.dt)) K.REF += r.t; });
+    M.adj.forEach(function (r) { if (inP(r.dt)) K.ADJ += r.t; });
+    var EXL = expFor(expenses, per.from, per.to), EXP = 0;
+    EXL.forEach(function (e) { EXP += e.amt; });
+
+    var CHv = 0, CHG = 0;
+    CHARGE_CATS.forEach(function (c) { CHv += CH[c].v; CHG += CH[c].g; });
+    var NS = K.S + K.R, NR = NS - K.OUT, COGS = K.fwd - K.rst + K.loss, GP = NR - COGS;
+    var MCx = CHv - CHG + K.O, taxExp = claim ? 0 : K.T + K.D, OCR = K.CP + K.CL + K.RC;
+    var adsNet = K.AD - K.ADG, credits = OCR + K.ADJ + K.REF, OPEX = K.pack + EXP;
+    var NP = GP + MCx + taxExp + credits + adsNet - OPEX;
+    var payout = K.F + K.AD + K.REF + K.ADJ, ITC = -(CHG + K.ADG), addBack = claim ? -(K.T + K.D) : 0;
+    var bridgeNP = payout + addBack - (K.OUT - ITC) - COGS - OPEX;
+
+    var skus = Object.keys(SK).map(function (k) {
+      var x = SK[k];
+      x.NS = x.S + x.R; x.NR = x.NS - x.OUT;
+      x.contrib = x.NR - x.COGS + x.MC + x.OCR + (claim ? 0 : x.TX) - x.pack;
+      x.pcs = (IX.PK && IX.PK[x.sku]) || 1;
+      x.perUnit = x.units ? Math.round(x.contrib / x.units) : 0;
+      x.perOrder = x.sold ? Math.round(x.contrib / x.sold) : 0;
+      return x;
+    }).sort(function (a, b) { return b.NS - a.NS || (a.sku < b.sku ? -1 : 1); });
+    var unalloc = K.ADJ + K.REF + adsNet - EXP, skuSum = 0;
+    skus.forEach(function (x) { skuSum += x.contrib; });
+
+    var lines = [];
+    function sec(l) { lines.push({ k: 'sec', l: l }); }
+    function row(l, v, note) { lines.push({ k: 'row', l: l, v: v, note: note || '' }); }
+    function tot(l, v, k) { lines.push({ k: k || 'tot', l: l, v: v }); }
+    sec('Revenue');
+    row('Gross sales' + (REGD ? ' (incl. GST)' : ''), K.S);
+    row('Less: customer returns', K.R);
+    tot('Net sales' + (REGD ? ' (incl. GST)' : ''), NS, 'sub');
+    if (REGD) row('Less: output GST on net sales', -K.OUT);
+    tot('Net revenue', NR);
+    sec('Cost of goods sold');
+    function pcs(n) { return n + (n === 1 ? ' piece' : ' pieces'); }
+    row('Cost of goods shipped (' + pcs(K.fu) + ')', -K.fwd);
+    if (K.rst || K.ru) row('Returned goods back in stock (' + pcs(K.ru) + ')', K.rst);
+    if (K.loss || K.lu) row('RTO / lost goods written off (' + pcs(K.lu) + ')', -K.loss);
+    tot('Total cost of goods sold', -COGS);
+    tot('Gross profit', GP, 'gp');
+    sec('Meesho charges' + (REGD ? ' (excl. GST)' : ' (incl. GST)'));
+    var anyCh = false;
+    CHARGE_CATS.forEach(function (c) { if (CH[c].v) { anyCh = true; row(CATL[c], CH[c].v - CH[c].g); } });
+    if (K.O) { anyCh = true; row('Unexplained difference vs Final Settlement', K.O); }
+    if (!anyCh) row('No charges in this period', 0);
+    tot('Total Meesho charges', MCx);
+    if (!claim && (K.T || K.D)) { sec('TCS & TDS (counted as expense)'); row('TCS deducted (GST)', K.T); row('TDS deducted (income tax)', K.D); tot('Total TCS & TDS', taxExp); }
+    if (credits) {
+      sec('Claims, compensation & recoveries');
+      if (K.CP) row('Order compensation', K.CP);
+      if (K.CL) row('Claims received', K.CL);
+      if (K.RC) row('Recoveries by Meesho', K.RC);
+      if (K.ADJ) row('Account-level compensation & recovery', K.ADJ);
+      if (K.REF) row('Referral payments', K.REF);
+      tot('Total claims & credits', credits);
+    }
+    if (K.AD) { sec('Marketing'); row('Meesho Ads' + (REGD ? ' (excl. GST)' : ' (incl. GST)'), adsNet); tot('Total marketing', adsNet); }
+    sec('Operating expenses');
+    row('Packaging (' + K.parcels + ' parcels)', -K.pack);
+    EXL.forEach(function (e) { row(e.name + (e.when === 'monthly' ? ' (monthly)' : ''), -e.amt); });
+    tot('Total operating expenses', -OPEX);
+    tot('Net profit', NP, 'np');
+
+    var bridge = [];
+    bridge.push({ l: 'Order settlements (sum of Final Settlement Amount)', v: K.F });
+    if (K.AD) bridge.push({ l: 'Ads cost deducted', v: K.AD });
+    if (K.REF) bridge.push({ l: 'Referral payments', v: K.REF });
+    if (K.ADJ) bridge.push({ l: 'Account-level compensation & recovery', v: K.ADJ });
+    bridge.push({ l: 'Money received from Meesho', v: payout, k: 'sub' });
+    if (addBack) bridge.push({ l: 'Add back: TCS & TDS deducted (you claim these)', v: addBack });
+    if (REGD) bridge.push({ l: 'Less: GST payable (output GST minus input credit)', v: -(K.OUT - ITC) });
+    bridge.push({ l: 'Less: cost of goods sold', v: -COGS });
+    bridge.push({ l: 'Less: operating expenses', v: -OPEX });
+    bridge.push({ l: 'Net profit', v: bridgeNP, k: 'np' });
+
+    var gst = REGD ? { out: K.OUT, itcCh: -CHG, itcAds: -K.ADG, itc: ITC, net: K.OUT - ITC, tcs: -K.T, cash: K.OUT - ITC + K.T } : null;
+    var missing = Object.keys(NC).map(function (k) { return { sku: k, units: NC[k] }; }).sort(function (a, b) { return b.units - a.units; });
+
+    var colList = Object.keys(COLS).map(function (k) {
+      var R = reg[k] || { label: k, cat: 'other', gst: 'none' };
+      return { key: k, label: R.label, cat: R.cat, gstMode: R.gst, v: COLS[k].v, g: COLS[k].g };
+    });
+
+    return {
+      per: per, REGD: REGD, claim: claim, K: K, CH: CH, cols: colList,
+      NS: NS, NR: NR, COGS: COGS, GP: GP, MCx: MCx, taxExp: taxExp, OCR: OCR, credits: credits, adsNet: adsNet,
+      EXL: EXL, EXP: EXP, OPEX: OPEX, NP: NP, payout: payout, ITC: ITC, addBack: addBack,
+      margin: NR ? NP / NR : 0, returnRate: K.parcels ? (K.retn + K.rton) / K.parcels : 0,
+      lines: lines, bridge: bridge, gst: gst, skus: skus, unalloc: unalloc, missing: missing,
+      checks: { bridge: bridgeNP === NP, sku: skuSum + unalloc === NP, bridgeNP: bridgeNP, skuSum: skuSum }
+    };
+  }
+
+  function monthly(M, IX, cfg, expenses, basis) {
+    return dataMonths(M, IX, basis).map(function (m) {
+      var r = compute(M, IX, cfg, expenses, { from: monthStart(m), to: monthEnd(m), basis: basis, mode: 'month', m: m });
+      return { m: m, NS: r.NS, NR: r.NR, COGS: r.COGS, GP: r.GP, MCx: r.MCx, ads: r.adsNet, credits: r.credits, OPEX: r.OPEX, NP: r.NP, payout: r.payout, orders: r.K.sales, parcels: r.K.parcels };
+    });
+  }
+
+  /* ---------------- reconciliation ---------------- */
+  var BUCKETS = ['settled', 'awaiting', 'overdue', 'transit', 'returned', 'rto', 'cancelled', 'adjust', 'older', 'other'];
+  function reconcile(M, IX, cfg) {
+    var firstPd = '', lastPd = '';
+    M.pay.forEach(function (p) { if (p.pd) { if (!firstPd || p.pd < firstPd) firstPd = p.pd; if (p.pd > lastPd) lastPd = p.pd; } });
+    var od = +cfg.overdueDays || 21;
+    var rows = [], counts = {};
+    BUCKETS.concat(['issues']).forEach(function (b) { counts[b] = { n: 0, amt: 0 }; });
+    IX.list.forEach(function (x) {
+      var b, flags = [];
+      var est = x.ord ? (x.ord.price || 0) * (x.ord.q || 1) : 0;
+      if (x.st === 'CANCELLED') b = 'cancelled';
+      else if (x.st === 'RTO' || x.st === 'LOST') b = 'rto';
+      else if (x.st === 'RETURN') b = 'returned';
+      else if (!x.hasPay) {
+        var old = x.od && firstPd && x.od < addDays(firstPd, -25);
+        if (x.st === 'DELIVERED' || x.st === 'EXCHANGE') {
+          if (!lastPd) b = 'awaiting';
+          else if (old) b = 'older';
+          else b = (x.od && diffDays(x.od, lastPd) > od) ? 'overdue' : 'awaiting';
+        } else if (x.st === 'TRANSIT') b = old ? 'older' : 'transit';
+        else b = 'other';
+      } else if (x.sale >= 0) b = 'settled';
+      else b = 'adjust';
+      if (x.hasPay && x.rc) flags.push('recovery');
+      if (x.hasPay && Math.abs(x.o) > TOL) flags.push('unexplained');
+      if (x.st === 'CANCELLED' && x.s > 0) flags.push('paidCancelled');
+      if (b === 'settled' && x.f < 0) flags.push('negative');
+      if (x.cl > 0) flags.push('claim');
+      if ((x.st === 'RETURN' || x.st === 'RTO') && x.sale >= 0 && x.ret < 0) flags.push('revPending');
+      if (b === 'overdue') flags.push('overdue');
+      var lastLeg = x.legs.length ? M.pay[x.legs[x.legs.length - 1]].pd : '';
+      var r = { id: x.id, b: b, st: x.st, stRaw: x.stRaw, sku: x.sku, pn: x.pn, od: x.od, pd: lastLeg, legs: x.legs.length, f: x.f, s: x.s, r: x.r, rc: x.rc, cl: x.cl, o: x.o, est: est, cond: x.cond || '', condDef: !!x.condDef, flags: flags, q: x.q, hasPay: x.hasPay };
+      rows.push(r);
+      counts[b].n++; counts[b].amt += x.hasPay ? x.f : est;
+      var issue = flags.some(function (f) { return f === 'recovery' || f === 'unexplained' || f === 'paidCancelled' || f === 'negative' || f === 'overdue'; });
+      if (issue) { r.issue = true; counts.issues.n++; counts.issues.amt += x.hasPay ? x.f : est; }
+    });
+    rows.sort(function (a, b) { return (b.od || '') < (a.od || '') ? -1 : (b.od || '') > (a.od || '') ? 1 : a.id < b.id ? -1 : 1; });
+    return { rows: rows, counts: counts, firstPd: firstPd, lastPd: lastPd };
+  }
+
+  function payouts(M) {
+    var G = {};
+    function g(d) { return G[d] || (G[d] = { d: d, ids: {}, n: 0, f: 0, ads: 0, ref: 0, adj: 0, tx: {} }); }
+    M.pay.forEach(function (p) { var x = g(p.pd || ''); if (!x.ids[p.id]) { x.ids[p.id] = 1; x.n++; } x.f += p.f; if (p.tx) x.tx[p.tx] = 1; });
+    M.ads.forEach(function (a) { g(a.dt || '').ads += a.t; });
+    M.ref.forEach(function (a) { g(a.dt || '').ref += a.t; });
+    M.adj.forEach(function (a) { g(a.dt || '').adj += a.t; });
+    return Object.keys(G).sort().reverse().map(function (d) {
+      var x = G[d];
+      return { d: d, n: x.n, f: x.f, ads: x.ads, ref: x.ref, adj: x.adj, net: x.f + x.ads + x.ref + x.adj, tx: Object.keys(x.tx) };
+    });
+  }
+
+  function health(M) {
+    var pd0 = '', pd1 = '', od0 = '', od1 = '', unexpl = 0, orders = {};
+    M.pay.forEach(function (p) {
+      if (p.pd) { if (!pd0 || p.pd < pd0) pd0 = p.pd; if (p.pd > pd1) pd1 = p.pd; }
+      if (Math.abs(p.o) > TOL) unexpl++;
+      orders[p.id] = 1;
+    });
+    Object.keys(M.ord).forEach(function (k) { var o = M.ord[k]; if (o.od) { if (!od0 || o.od < od0) od0 = o.od; if (o.od > od1) od1 = o.od; } });
+    var dups = 0; for (var k in M.dup) dups += M.dup[k];
+    return { pd0: pd0, pd1: pd1, od0: od0, od1: od1, legs: M.pay.length, orders: Object.keys(orders).length, ordRows: Object.keys(M.ord).length, ads: M.ads.length, ref: M.ref.length, adj: M.adj.length, unexpl: unexpl, dups: dups };
+  }
+
+  /* ---------------- sample data in Meesho's real layout ---------------- */
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function r2(n) { return Math.round(n * 100) / 100; }
+  function f2(n) { return (Math.round(n * 100) / 100).toFixed(2); }
+
+  var PAY_HEAD = ['Sub Order No', 'Order Date', 'Dispatch Date', 'Product Name', 'Supplier SKU', 'Live Order Status', 'Product GST %', 'Listing Price (Incl. taxes)', 'Quantity', 'Transaction ID', 'Payment Date', 'Final Settlement Amount', 'Price Type', 'Total Sale Amount (Incl. Shipping & GST)', 'Total Sale Return Amount (Incl. Shipping & GST)', 'Fixed Fee (Incl. GST)', 'Warehousing fee (inc Gst)', 'Return premium (incl GST)', 'Return premium (incl GST) of Return', 'Meesho Commission Percentage', 'Meesho Commission (Incl. GST)', 'Meesho gold platform fee (Incl. GST)', 'Meesho mall platform fee (Incl. GST)', 'Return Shipping Charge (Incl. GST)', 'GST Compensation (PRP Shipping)', 'Shipping Charge (Incl. GST)', 'Other Support Service Charges (Excl. GST)', 'Waivers (Excl. GST)', 'Net Other Support Service Charges (Excl. GST)', 'GST on Net Other Support Service Charges', 'TCS', 'TDS Rate %', 'TDS', 'Compensation', 'Claims', 'Recovery', 'Compensation Reason', 'Claims Reason', 'Recovery Reason'];
+  var PAY_COMPS = ['Total Sale Amount (Incl. Shipping & GST)', 'Total Sale Return Amount (Incl. Shipping & GST)', 'Fixed Fee (Incl. GST)', 'Warehousing fee (inc Gst)', 'Return premium (incl GST)', 'Return premium (incl GST) of Return', 'Meesho Commission (Incl. GST)', 'Meesho gold platform fee (Incl. GST)', 'Meesho mall platform fee (Incl. GST)', 'Return Shipping Charge (Incl. GST)', 'GST Compensation (PRP Shipping)', 'Shipping Charge (Incl. GST)', 'Net Other Support Service Charges (Excl. GST)', 'GST on Net Other Support Service Charges', 'TCS', 'TDS', 'Compensation', 'Claims', 'Recovery'];
+
+  function demo() {
+    var rnd = mulberry32(20260927);
+    var SKUS = [
+      { sku: 'BPYG05', pn: 'Readymade Cotton Blouse Combo of 4 Black Pink Yellow Green', size: '38', p: 649, w: 4, ship: 78.00 },
+      { sku: 'RGB12', pn: 'Readymade Cotton Blouse Combo of 3 Red Green Blue', size: '36', p: 499, w: 4, ship: 70.21 },
+      { sku: 'MN08', pn: 'Readymade Blouse Combo of 2 Maroon Navy', size: '38', p: 369, w: 5, ship: 62.54 },
+      { sku: 'G21', pn: 'Art Silk Readymade Blouse Golden Zari', size: '40', p: 399, w: 3, ship: 62.54 },
+      { sku: 'K34', pn: 'Padded Stretchable Readymade Blouse Black', size: '34', p: 349, w: 2, ship: 62.54 },
+      { sku: 'BG32', pn: 'Men Track Pants Combo of 2 Black Grey', size: 'L', p: 549, w: 4, ship: 78.00 },
+      { sku: 'BG34', pn: 'Men Track Pants Combo of 2 Black Grey', size: 'XL', p: 549, w: 3, ship: 78.00 },
+      { sku: 'N30', pn: 'Men Solid Track Pant Navy', size: 'M', p: 329, w: 2, ship: 70.21 }
+    ];
+    var W = 0; SKUS.forEach(function (s) { W += s.w; });
+    function pickSku() { var x = rnd() * W; for (var i = 0; i < SKUS.length; i++) { x -= SKUS[i].w; if (x < 0) return SKUS[i]; } return SKUS[0]; }
+    function dow(d) { return new Date(dnum(d) * 864e5).getUTCDay(); }
+    function nextWed(d) { return addDays(d, (3 - dow(d) + 7) % 7); }
+    var CUT = '2026-09-25', START = '2026-08-01', END = '2026-09-24';
+    var txFor = {};
+    function tx(pd) { return txFor[pd] || (txFor[pd] = 'MSHO' + pd.replace(/-/g, '') + String(100000 + Math.floor(rnd() * 899999))); }
+    var STATES = ['Madhya Pradesh', 'Uttar Pradesh', 'Maharashtra', 'Rajasthan', 'Bihar', 'Gujarat', 'West Bengal', 'Karnataka', 'Delhi', 'Haryana'];
+    var pay = [], orders = [], legend = {};
+    PAY_HEAD.forEach(function (hd) { legend[hd] = ''; });
+    legend['Sub Order No'] = 'Unique id of each sub order';
+    legend['Final Settlement Amount'] = 'L = N + O + P + Q + R + S + U + V + W + X + Y + Z + AC + AD + AE + AG + AH + AI + AJ';
+    legend['Total Sale Amount (Incl. Shipping & GST)'] = 'Amount paid by customer incl. shipping and GST';
+    legend['TCS'] = 'Tax collected at source under GST';
+    legend['TDS'] = 'Tax deducted at source u/s 194-O';
+    var expect = { F: 0, legs: 0, unexplainedRows: 1, orders: 0, overdue: 0 };
+    function leg(o, pd, st, v) {
+      var row = {};
+      PAY_HEAD.forEach(function (hd) { row[hd] = ''; });
+      row['Sub Order No'] = o.id; row['Order Date'] = o.od; row['Dispatch Date'] = o.dd || '';
+      row['Product Name'] = o.s.pn; row['Supplier SKU'] = o.s.sku; row['Live Order Status'] = st;
+      row['Product GST %'] = '5'; row['Listing Price (Incl. taxes)'] = f2(o.s.p); row['Quantity'] = '1';
+      row['Transaction ID'] = tx(pd); row['Payment Date'] = pd; row['Price Type'] = 'Regular';
+      row['Meesho Commission Percentage'] = v['Meesho Commission (Incl. GST)'] ? '2' : '0'; row['TDS Rate %'] = '0.1';
+      var tot = 0;
+      PAY_COMPS.forEach(function (c) { var x = r2(v[c] || 0); row[c] = f2(x); tot += Math.round(x * 100); });
+      row['Other Support Service Charges (Excl. GST)'] = f2(v.osc || 0);
+      row['Waivers (Excl. GST)'] = f2(v.wv || 0);
+      if (v.reasons) for (var rk in v.reasons) row[rk] = v.reasons[rk];
+      tot += Math.round((v.unexplained || 0) * 100);
+      row['Final Settlement Amount'] = f2(tot / 100);
+      expect.F += tot; expect.legs++;
+      pay.push({ pd: pd, id: o.id, row: row });
+    }
+    function support() {
+      if (rnd() < 0.35) return { osc: -8, wv: 3, net: -5, gst: -0.9 };
+      return { osc: 0, wv: 0, net: 0, gst: 0 };
+    }
+    var seqN = 0, d = START, recoveryDone = false, unexplDone = false, missingPaid = 0;
+    while (d <= END) {
+      var perDay = 5 + Math.floor(rnd() * 6);
+      for (var k = 0; k < perDay; k++) {
+        seqN++;
+        var s = pickSku();
+        var o = { id: String(17550000000000 + seqN * 9173 + Math.floor(rnd() * 900)) + '_1', od: d, s: s };
+        var x = rnd(), fate = x < 0.04 ? 'cancel' : x < 0.16 ? 'rto' : x < 0.27 ? 'return' : x < 0.28 ? 'lost' : 'deliver';
+        o.dd = fate === 'cancel' ? '' : addDays(d, 1);
+        var dl = o.dd ? addDays(o.dd, 3 + Math.floor(rnd() * 4)) : '';
+        var ordStatus;
+        var tcs = -r2(s.p / 1.05 * 0.005), tds = -r2(s.p * 0.001);
+        if (fate === 'cancel') {
+          ordStatus = 'CANCELLED';
+          if (rnd() < 0.5) { var pdc = nextWed(addDays(d, 3)); if (pdc <= CUT) leg(o, pdc, 'Cancelled', {}); }
+        } else if (fate === 'deliver' || fate === 'return') {
+          if (o.dd > CUT) ordStatus = 'READY_TO_SHIP';
+          else if (dl > CUT) ordStatus = 'SHIPPED';
+          else ordStatus = 'DELIVERED';
+          var pd1 = nextWed(addDays(dl, 7));
+          var skipPay = false;
+          if (fate === 'deliver' && missingPaid < 3 && d >= '2026-08-03' && d <= '2026-08-08' && rnd() < 0.5) { skipPay = true; missingPaid++; expect.overdue++; }
+          if (pd1 <= CUT && !skipPay) {
+            var sp = support();
+            var v = { 'Total Sale Amount (Incl. Shipping & GST)': s.p, 'Shipping Charge (Incl. GST)': -s.ship, 'Net Other Support Service Charges (Excl. GST)': sp.net, 'GST on Net Other Support Service Charges': sp.gst, osc: sp.osc, wv: sp.wv, 'TCS': tcs, 'TDS': tds };
+            if (s.sku === 'G21') v['Meesho Commission (Incl. GST)'] = -r2(s.p * 0.02 * 1.18);
+            if (!recoveryDone && d >= '2026-08-20' && fate === 'deliver') { v['Recovery'] = -50; v.reasons = { 'Recovery Reason': 'Wrong product dispatched' }; recoveryDone = true; }
+            else if (!unexplDone && d >= '2026-08-25' && fate === 'deliver') { v.unexplained = -3; unexplDone = true; }
+            var st1 = fate === 'return' && rnd() < 0.5 ? 'Shipped' : 'Delivered';
+            leg(o, pd1, st1, v);
+            if (fate === 'deliver' && rnd() < 0.06) {
+              var pda = addDays(pd1, 7);
+              if (pda <= CUT) leg(o, pda, '', { 'Net Other Support Service Charges (Excl. GST)': -2.5, 'GST on Net Other Support Service Charges': -0.45, osc: -2.5, wv: 0 });
+            }
+          }
+          if (fate === 'return' && dl <= CUT) {
+            var ri = addDays(dl, 2 + Math.floor(rnd() * 5));
+            if (ri <= CUT) ordStatus = 'RETURN';
+            var pd2 = nextWed(addDays(dl, 12 + Math.floor(rnd() * 9)));
+            if (pd2 <= CUT && pd1 <= CUT) leg(o, pd2, 'Return', { 'Total Sale Return Amount (Incl. Shipping & GST)': -s.p, 'Return Shipping Charge (Incl. GST)': -r2(s.ship * 1.1), 'TCS': -tcs, 'TDS': -tds });
+          }
+        } else if (fate === 'rto') {
+          var rtoDone = addDays(o.dd, 8 + Math.floor(rnd() * 7));
+          ordStatus = o.dd > CUT ? 'READY_TO_SHIP' : rtoDone <= CUT ? 'RTO_COMPLETE' : (addDays(o.dd, 4) <= CUT ? 'RTO_INITIATED' : 'SHIPPED');
+          var pdr = nextWed(addDays(rtoDone, 3));
+          if (pdr <= CUT) leg(o, pdr, 'RTO', rnd() < 0.4 ? { 'Return Shipping Charge (Incl. GST)': -46.02 } : {});
+        } else {
+          ordStatus = addDays(o.dd, 20) <= CUT ? 'LOST' : 'SHIPPED';
+          var pdl = nextWed(addDays(o.dd, 25));
+          if (pdl <= CUT) leg(o, pdl, 'Lost', { 'Claims': r2(s.p * 0.8), reasons: { 'Claims Reason': 'Shipment lost in transit' } });
+        }
+        var disc = s.p - (rnd() < 0.3 ? 10 : 0);
+        orders.push([ordStatus, o.id, d, STATES[Math.floor(rnd() * STATES.length)], s.pn, s.sku, s.size, '1', f2(s.p), f2(disc), 'PKT' + String(9000000 + seqN)]);
+      }
+      d = addDays(d, 1);
+    }
+    expect.orders = orders.length;
+    pay.sort(function (a, b) { return a.pd < b.pd ? -1 : a.pd > b.pd ? 1 : a.id < b.id ? -1 : 1; });
+    var payRows = [PAY_HEAD.slice(), PAY_HEAD.map(function (hd) { return legend[hd]; })];
+    pay.forEach(function (p) { payRows.push(PAY_HEAD.map(function (hd) { return p.row[hd]; })); });
+    var adsHead = ['Deduction Duration', 'Deduction Date', 'Campaign ID', 'Ad Cost', 'Credits / Waivers / Discounts', 'Ad Cost incl. Credits/Waivers/Discounts', 'GST', 'Total Ads Cost'];
+    var adsRows = [adsHead, ['Period for which ads cost is deducted', 'Date of deduction', 'Campaign identifier', 'Ad spend', 'Credits applied', 'D - E', '18% of F', '-(F + G)']];
+    expect.AD = 0; expect.ADG = 0;
+    for (var wk = '2026-08-12'; wk <= '2026-09-23'; wk = addDays(wk, 7)) {
+      var cost = 380 + Math.floor(rnd() * 320), cred = rnd() < 0.3 ? 25 : 0, net = cost - cred, g = r2(net * 0.18), t = -r2(net + g);
+      expect.AD += Math.round(t * 100); expect.ADG -= Math.round(g * 100);
+      adsRows.push([addDays(wk, -7) + ' to ' + addDays(wk, -1), wk, 'CMP' + wk.replace(/-/g, '').slice(2), f2(cost), f2(cred), f2(net), f2(g), f2(t)]);
+    }
+    var refRows = [['Payment Date', 'Referred Supplier', 'Net Referral Amount'], ['Date of credit', 'Supplier you referred', 'Amount credited'], ['2026-09-09', 'Shree Textiles (Surat)', '250.00']];
+    var adjRows = [['Date', 'Type', 'Reason', 'Amount (inc GST) INR'], ['Date of entry', 'Compensation or Recovery', 'Why', 'Positive = credit'], ['2026-08-26', 'Compensation', 'Warehouse damage compensation', '180.00'], ['2026-09-16', 'Recovery', 'Label reprint charges', '-75.00']];
+    var ordRows = [['Reason for Credit Entry', 'Sub Order No', 'Order Date', 'Customer State', 'Product Name', 'SKU', 'Size', 'Quantity', 'Supplier Listed Price (Incl. GST + Commission)', 'Supplier Discounted Price (Incl GST and Commision)', 'Packet Id']].concat(orders);
+    expect.REF = 25000; expect.ADJ = 18000 - 7500;
+    return {
+      payBook: { name: 'SAMPLE_SP_ORDER_ADS_REFERRAL_PAYMENT_FILE_2026-08-01_2026-09-25.xlsx', sheets: [{ name: 'Order Payments', rows: payRows }, { name: 'Ads Cost', rows: adsRows }, { name: 'Referral Payments', rows: refRows }, { name: 'Compensation and Recovery', rows: adjRows }, { name: 'Disclaimer', rows: [['This file is generated for sample purposes.']] }] },
+      ordBook: { name: 'SAMPLE_Orders_2026-08-01_2026-09-24.csv', sheets: [{ name: 'Orders', rows: ordRows }] },
+      costs: {
+        'BPYG05': { c: 9000, p: 1200 }, 'RGB12': { c: 9000, p: null }, 'MN08': { c: 9500, p: null }, 'G21': { c: 17500, p: null },
+        'K34': { c: 15000, p: null }, 'BG32': { c: 12500, p: 1200 }, 'BG34': { c: 12500, p: 1200 }, 'N30': { c: 13000, p: 1200 }
+      },
+      pack: 900,
+      expenses: [
+        { id: 'x1', name: 'Rent', amt: 300000, when: 'monthly' },
+        { id: 'x2', name: 'Internet', amt: 49900, when: 'monthly' },
+        { id: 'x3', name: 'Product photoshoot', amt: 120000, when: '2026-08' }
+      ],
+      expect: expect
+    };
+  }
+
+  var DEFAULTS = { biz: '', gstin: '', gstReg: true, taxCredits: 'claim', defaultGst: 5, returnDefault: 'ok', rtoDefault: 'ok', overdueDays: 21, pack: 0, packFromSku: 'auto', sv: 3 };
+
+  return {
+    TOL: TOL, DEFAULTS: DEFAULTS, CATL: CATL, CHARGE_CATS: CHARGE_CATS, BUCKETS: BUCKETS, ST_LABEL: ST_LABEL, RANK: RANK, MNAME: MNAME,
+    txt: txt, h: h, cleanNum: cleanNum, paise: paise, toDate: toDate, lastDateIn: lastDateIn, addDays: addDays, diffDays: diffDays,
+    monthStart: monthStart, monthEnd: monthEnd, nextMonth: nextMonth, fmtDate: fmtDate, fmtMonth: fmtMonth, money: money,
+    skuLetters: skuLetters, nameCount: nameCount, packRule: packRule, piecesOf: piecesOf, normSt: normSt, classify: classify, detect: detect, parsePay: parsePay, parseAds: parseAds, parseAmt: parseAmt, parseOrd: parseOrd,
+    calibrate: calibrate, ingest: ingest, merge: merge, index: index, dataMonths: dataMonths, periodFor: periodFor, expFor: expFor,
+    compute: compute, monthly: monthly, reconcile: reconcile, payouts: payouts, health: health, demo: demo, uid: uid
+  };
+});
+
+</script>
+<script>
+/* Hisaab app: state, storage, file reading, actions. Views live in views.js, exports in export.js. */
+(function () {
+  'use strict';
+  var E = window.HE;
+  var LS = 'hisaab.v1.';
+  var DOCS = ['settings', 'costs', 'expenses', 'marks'];
+  var A = window.HA = {};
+  var EMBED = document.documentElement.classList.contains('embed');
+  A.EMBED = EMBED;
+
+  /* ---------------- tiny utils ---------------- */
+  function $(s, r) { return (r || document).querySelector(s); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function toPaise(v) { var n = E.cleanNum(v); return n === null ? null : E.paise(n); }
+  function rupeeInput(p) { if (p == null || p === '') return ''; var r = p / 100; return (Math.round(r) === r) ? String(r) : r.toFixed(2); }
+  A.$ = $; A.esc = esc; A.toPaise = toPaise; A.rupeeInput = rupeeInput;
+
+  var toastT;
+  function toast(msg, ms) {
+    var t = $('#toast'); if (!t) return;
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastT); toastT = setTimeout(function () { t.hidden = true; }, ms || 3200);
+  }
+  function busy(msg) { var b = $('#busy'); if (!b) return; if (msg) { $('#busy-t').textContent = msg; b.hidden = false; } else b.hidden = true; }
+  A.toast = toast; A.busy = busy;
+
+  /* ---------------- state ---------------- */
+  var S = A.S = {
+    real: { files: [], settings: Object.assign({}, E.DEFAULTS), costs: {}, expenses: [], marks: {}, ts: {} },
+    demo: null,
+    tab: '',
+    sel: { mode: 'all', basis: 'pay', m: '', from: '', to: '' },
+    rc: { b: 'all', q: '', n: 60 },
+    cf: { q: '', miss: false },
+    db: null, uid: null, local: true
+  };
+  function W() { return S.demo || S.real; }
+  A.W = W;
+
+  /* ---------------- local storage (small docs) ---------------- */
+  function lsGet(k) { try { var v = localStorage.getItem(LS + k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(LS + k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+  function lsDel(k) { try { localStorage.removeItem(LS + k); } catch (e) { /* ignore */ } }
+
+  function toDoc(name, w) {
+    if (name === 'settings') { var s = {}; for (var k in E.DEFAULTS) s[k] = w.settings[k]; return s; }
+    if (name === 'costs') return { list: Object.keys(w.costs).map(function (k) { var c = w.costs[k]; return { s: k, c: c.c == null ? null : c.c, p: c.p == null ? null : c.p, n: c.n == null ? null : c.n }; }) };
+    if (name === 'expenses') return { list: w.expenses.map(function (e) { return { id: e.id, name: e.name, amt: e.amt, when: e.when }; }) };
+    return { list: Object.keys(w.marks).map(function (k) { return { i: k, c: w.marks[k] }; }) };
+  }
+  function fromDoc(name, d, w) {
+    if (!d) return;
+    if (name === 'settings') {
+      var s = Object.assign({}, E.DEFAULTS);
+      for (var k in E.DEFAULTS) if (d[k] !== undefined && d[k] !== null) s[k] = d[k];
+      if (!(+d.sv >= 2)) { s.returnDefault = 'ok'; s.sv = 2; }
+      if (!(+d.sv >= 3)) { if (s.packFromSku === true) s.packFromSku = 'auto'; else if (s.packFromSku === false) s.packFromSku = 'name'; s.sv = 3; }
+      w.settings = s;
+    } else if (name === 'costs') {
+      var c = {};
+      (d.list || []).forEach(function (r) { if (r && r.s) c[r.s] = { c: r.c == null ? null : +r.c, p: r.p == null ? null : +r.p, n: r.n == null ? null : +r.n }; });
+      w.costs = c;
+    } else if (name === 'expenses') {
+      w.expenses = (d.list || []).filter(function (e) { return e && e.id && e.when; }).map(function (e) { return { id: String(e.id), name: String(e.name || 'Expense'), amt: +e.amt || 0, when: String(e.when) }; });
+    } else {
+      var m = {};
+      (d.list || []).forEach(function (r) { if (r && r.i && (r.c === 'ok' || r.c === 'loss')) m[r.i] = r.c; });
+      w.marks = m;
+    }
+  }
+  function loadLocal() {
+    DOCS.forEach(function (name) { var d = lsGet(name); if (d) { fromDoc(name, d, S.real); S.real.ts[name] = +d.updatedAt || 0; } });
+    var ui = lsGet('ui');
+    if (ui && ui.sel) { S.sel.basis = ui.sel.basis === 'order' ? 'order' : 'pay'; }
+  }
+
+  /* ---------------- IndexedDB (uploaded data, can be large) ---------------- */
+  var idbP = null;
+  function idb() {
+    if (idbP) return idbP;
+    idbP = new Promise(function (res) {
+      var done = false; function fin(v) { if (!done) { done = true; res(v); } }
+      setTimeout(function () { fin(null); }, 4000);
+      try {
+        var r = indexedDB.open('hisaab', 1);
+        r.onupgradeneeded = function () { r.result.createObjectStore('kv'); };
+        r.onsuccess = function () { fin(r.result); };
+        r.onerror = function () { fin(null); };
+        r.onblocked = function () { fin(null); };
+      } catch (e) { fin(null); }
+    });
+    return idbP;
+  }
+  function idbGet(k) {
+    return idb().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (res) {
+        try { var q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = function () { res(q.result || null); }; q.onerror = function () { res(null); }; } catch (e) { res(null); }
+      });
+    });
+  }
+  function idbSet(k, v) {
+    return idb().then(function (db) {
+      if (!db) return false;
+      return new Promise(function (res) {
+        try {
+          var tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k);
+          tx.oncomplete = function () { res(true); }; tx.onerror = function () { res(false); }; tx.onabort = function () { res(false); };
+        } catch (e) { res(false); }
+      });
+    });
+  }
+  function saveFiles() {
+    if (S.demo) return Promise.resolve(true);
+    return idbSet('files', S.real.files).then(function (ok) {
+      if (!ok) toast('Could not keep the uploaded data on this device. It will be gone after a reload.', 5000);
+      return ok;
+    });
+  }
+
+  /* ---------------- account sync (db capability, private per user) ---------------- */
+  function cap(name) {
+    try { return (window.claude && typeof window.claude.use === 'function') ? Promise.resolve(window.claude.use(name)).catch(function () { return null; }) : Promise.resolve(null); }
+    catch (e) { return Promise.resolve(null); }
+  }
+  A.cap = cap;
+  function docPath(name) { return 'data/users/' + S.uid + '/' + name; }
+  var timers = {}, chain = {};
+  function writeRemote(name) {
+    if (!S.db || !S.uid) return;
+    chain[name] = (chain[name] || Promise.resolve()).then(function () {
+      var body = toDoc(name, S.real); body.updatedAt = S.real.ts[name] || Date.now();
+      return S.db.doc(docPath(name)).set(body);
+    }).catch(function (e) {
+      console.warn('Sync failed for ' + name, e && (e.code || e.message));
+      if (e && e.code && e.code !== 'unavailable') toast('Could not save ' + name + ' to your account. It is still saved on this device.', 5000);
+    });
+  }
+  function persist(name) {
+    if (S.demo) return;
+    var now = Date.now();
+    S.real.ts[name] = now;
+    var body = toDoc(name, S.real); body.updatedAt = now;
+    lsSet(name, body);
+    if (S.db && S.uid) { clearTimeout(timers[name]); timers[name] = setTimeout(function () { writeRemote(name); }, 800); }
+  }
+  A.persist = persist;
+  async function initRemote() {
+    var user = await cap('user'); if (!user) return;
+    var id = null; try { id = await user.id(); } catch (e) { id = null; }
+    if (!id) return;
+    var db = await cap('db'); if (!db) return;
+    S.uid = id; S.db = db; S.local = false;
+    var changed = false;
+    for (var i = 0; i < DOCS.length; i++) {
+      var name = DOCS[i];
+      try {
+        var snap = await db.doc(docPath(name)).get();
+        var remote = snap && snap.exists ? JSON.parse(JSON.stringify(snap.data() || {})) : null;
+        var lt = S.real.ts[name] || 0, rt = remote ? (+remote.updatedAt || 0) : 0;
+        if (remote && rt > lt) { fromDoc(name, remote, S.real); S.real.ts[name] = rt; lsSet(name, remote); changed = true; }
+        else if (lt > rt) writeRemote(name);
+      } catch (e) { console.warn('Could not read ' + name, e && (e.code || e.message)); }
+    }
+    if (changed && !S.demo) refresh();
+    else if (S.tab === 'data' || S.tab === 'set') render();
+    else renderChrome();
+  }
+
+  /* ---------------- libraries (loaded with defer from the CDN) ---------------- */
+  var FALLBACK = {
+    XLSX: ['https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'],
+    jsPDF: ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'],
+    JSZip: ['https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js']
+  };
+  function have(n) {
+    if (n === 'XLSX') return !!(window.XLSX && window.XLSX.utils);
+    if (n === 'jsPDF') return !!(window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API && window.jspdf.jsPDF.API.autoTable);
+    if (n === 'JSZip') return !!window.JSZip;
+    return true;
+  }
+  var injected = {};
+  function inject(n) {
+    if (injected[n] || !FALLBACK[n]) return;
+    injected[n] = true;
+    var list = FALLBACK[n].slice();
+    (function next() {
+      var src = list.shift(); if (!src) return;
+      var s = document.createElement('script'); s.src = src; s.onload = next; s.onerror = next; document.head.appendChild(s);
+    })();
+  }
+  function libs(names) {
+    return new Promise(function (res, rej) {
+      var t0 = Date.now();
+      (function poll() {
+        var miss = names.filter(function (n) { return !have(n); });
+        if (!miss.length) return res();
+        if (document.readyState === 'complete' && Date.now() - t0 > 2500) miss.forEach(inject);
+        if (Date.now() - t0 > 25000) return rej(new Error('Could not load ' + miss.join(', ') + '. Check your internet connection and try again.'));
+        setTimeout(poll, 120);
+      })();
+    });
+  }
+  A.libs = libs;
+
+  /* ---------------- derived data ---------------- */
+  function cfg() { return W().settings; }
+  A.cfg = cfg;
+  function recompute() {
+    var w = W();
+    S.M = E.merge(w.files);
+    S.IX = E.index(S.M, cfg(), w.costs, w.marks);
+    S.H = E.health(S.M);
+    S.months = E.dataMonths(S.M, S.IX, S.sel.basis);
+    if (S.sel.mode === 'month' && S.months.indexOf(S.sel.m) < 0) S.sel.mode = 'all';
+    S.per = E.periodFor(S.sel, S.M, S.IX);
+    S.R = E.compute(S.M, S.IX, cfg(), w.expenses, S.per);
+    S.REC = E.reconcile(S.M, S.IX, cfg());
+    S.PO = E.payouts(S.M);
+    S.MO = E.monthly(S.M, S.IX, cfg(), w.expenses, S.sel.basis);
+    if (!S.R.checks.bridge || !S.R.checks.sku) console.error('Hisaab identity check failed', S.R.checks);
+  }
+  A.recompute = recompute;
+  function hasData() { return W().files.length > 0; }
+  A.hasData = hasData;
+
+  /* ---------------- rendering hooks (views.js fills A.V) ---------------- */
+  var TABS = [['pl', 'P&L'], ['rc', 'Reconcile'], ['data', 'Upload'], ['costs', 'Costs'], ['exp', 'Expenses'], ['set', 'Settings']];
+  A.TABS = TABS;
+  function renderChrome() {
+    var st = cfg();
+    var biz = $('#band-biz');
+    if (biz) biz.innerHTML = (st.biz ? esc(st.biz) : '') + (st.gstin ? '<br>' + esc(st.gstin) : '');
+    var miss = hasData() ? S.R.missing.length : 0, iss = hasData() ? S.REC.counts.issues.n : 0;
+    $('#tabs-in').innerHTML = TABS.map(function (t) {
+      var badge = t[0] === 'costs' && miss ? '<span class="dot" aria-label="' + miss + ' missing">' + miss + '</span>' : t[0] === 'rc' && iss ? '<span class="dot" aria-label="' + iss + ' need attention">' + iss + '</span>' : '';
+      return '<button class="tab" role="tab" id="t-' + t[0] + '" aria-controls="p-' + t[0] + '" aria-selected="' + (S.tab === t[0]) + '" data-act="tab" data-tab="' + t[0] + '">' + esc(t[1]) + badge + '</button>';
+    }).join('');
+    var act = $('#t-' + S.tab), strip = $('#tabs-in');
+    if (act && strip) {
+      var l = act.offsetLeft - strip.offsetLeft, r = l + act.offsetWidth;
+      if (l < strip.scrollLeft) strip.scrollLeft = Math.max(0, l - 16);
+      else if (r > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = r - strip.clientWidth + 16;
+    }
+  }
+  function render() {
+    renderChrome();
+    TABS.forEach(function (t) {
+      var p = $('#p-' + t[0]);
+      if (t[0] === S.tab) {
+        p.hidden = false; p.innerHTML = A.V[t[0]]();
+        var chip = p.querySelector('.chip[aria-pressed="true"]');
+        if (chip && chip.parentNode) chip.parentNode.scrollLeft = Math.max(0, chip.offsetLeft - chip.parentNode.offsetLeft - 16);
+      }
+      else { p.hidden = true; p.innerHTML = ''; }
+    });
+  }
+  function refresh() { recompute(); render(); }
+  A.render = render; A.refresh = refresh; A.renderChrome = renderChrome;
+  function setTab(t, keepScroll) {
+    S.tab = t; render();
+    try { sessionStorage.setItem(LS + 'tab', t); } catch (e) { /* ignore */ }
+    if (!keepScroll) window.scrollTo(0, 0);
+  }
+  A.setTab = setTab;
+
+  /* ---------------- reading uploads ---------------- */
+  function readBook(name, buf) {
+    var wb;
+    if (/\.csv$/i.test(name) || /\.txt$/i.test(name)) {
+      var text = new TextDecoder('utf-8').decode(new Uint8Array(buf)).replace(/^\uFEFF/, '');
+      wb = XLSX.read(text, { type: 'string', raw: true });
+    } else {
+      wb = XLSX.read(new Uint8Array(buf), { type: 'array', raw: true, cellDates: false });
+    }
+    return wb.SheetNames.map(function (n) {
+      return { name: n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '', blankrows: false }) };
+    });
+  }
+  A.readBook = readBook;
+  async function expand(fileList) {
+    var items = [], bad = [];
+    for (var i = 0; i < fileList.length; i++) {
+      var file = fileList[i];
+      var buf = await file.arrayBuffer();
+      if (/\.zip$/i.test(file.name)) {
+        await libs(['JSZip']);
+        var zip = await window.JSZip.loadAsync(buf);
+        var names = Object.keys(zip.files).filter(function (n) { return !zip.files[n].dir && /\.(xlsx|xls|csv)$/i.test(n) && !/(^|\/)(__MACOSX|\._)/.test(n); });
+        if (!names.length) bad.push(file.name + ' has no Excel or CSV files inside');
+        for (var j = 0; j < names.length; j++) items.push({ name: names[j].split('/').pop(), size: 0, buf: await zip.files[names[j]].async('arraybuffer') });
+      } else if (/\.(xlsx|xls|csv|xlsm)$/i.test(file.name)) {
+        items.push({ name: file.name, size: file.size, buf: buf });
+      } else bad.push(file.name + ' is not an Excel, CSV or ZIP file');
+    }
+    return { items: items, bad: bad };
+  }
+  async function addFiles(fileList) {
+    if (!fileList || !fileList.length) return;
+    busy('Reading your files');
+    try {
+      await libs(['XLSX']);
+      var ex = await expand(fileList), added = 0, msgs = ex.bad.slice();
+      var target = S.real;
+      for (var i = 0; i < ex.items.length; i++) {
+        var it = ex.items[i];
+        var size = it.size || it.buf.byteLength;
+        if (target.files.some(function (f) { return f.name === it.name && f.size === size; })) { msgs.push(it.name + ' is already added'); continue; }
+        var sheets;
+        try { sheets = readBook(it.name, it.buf); }
+        catch (e) { msgs.push(it.name + ' could not be opened. If it is password protected, open it in Excel and save a copy without a password.'); continue; }
+        var f = E.ingest(it.name, size, sheets, target.settings);
+        if (!f.sheets.some(function (s) { return s.type !== 'skip' && s.n > 0; })) {
+          msgs.push(it.name + ' has no Meesho payment, ads or order rows. Upload the payment report (Excel) or the orders CSV.');
+          continue;
+        }
+        target.files.push(f); added++;
+      }
+      if (added) {
+        S.demo = null;
+        await saveFiles();
+        recompute();
+        if (!S.tab || S.tab === 'data') S.tab = 'data';
+        render();
+      }
+      busy();
+      if (msgs.length) toast(msgs.map(function (m) { return /[.!?]$/.test(m) ? m : m + '.'; }).join(' '), 7000);
+      else if (added) toast(added === 1 ? 'File added' : added + ' files added');
+    } catch (e) {
+      busy(); console.error(e);
+      toast(e && e.message ? e.message : 'Could not read the files.', 6000);
+    }
+  }
+  A.addFiles = addFiles;
+
+  /* ---------------- sample data ---------------- */
+  function startDemo() {
+    var D = E.demo();
+    var st = Object.assign({}, S.real.settings, { pack: D.pack, biz: S.real.settings.biz || 'Sample blouse store', gstReg: true, taxCredits: 'claim', returnDefault: 'ok', rtoDefault: 'ok' });
+    var files = [E.ingest(D.payBook.name, 0, D.payBook.sheets, st), E.ingest(D.ordBook.name, 0, D.ordBook.sheets, st)];
+    S.demo = { files: files, settings: st, costs: JSON.parse(JSON.stringify(D.costs)), expenses: D.expenses.map(function (e) { return Object.assign({}, e); }), marks: {}, ts: {}, sample: true };
+    S.sel = { mode: 'all', basis: 'pay', m: '', from: '', to: '' };
+    recompute(); setTab('pl');
+    toast('Showing sample data. Nothing is saved.');
+  }
+  function endDemo() { S.demo = null; recompute(); setTab(hasData() ? 'pl' : 'data'); }
+  A.startDemo = startDemo; A.endDemo = endDemo;
+
+  /* ---------------- downloads ---------------- */
+  var dlP = null;
+  async function saveBlob(filename, blob) {
+    if (!dlP) dlP = cap('downloads');
+    var dl = await dlP;
+    if (dl && typeof dl.save === 'function') {
+      try { await dl.save({ filename: filename, data: blob }); toast('Saved ' + filename); return; }
+      catch (e) {
+        var code = e && e.code;
+        if (code === 'declined') { toast('Download cancelled'); return; }
+        if (code === 'rate_limited') { toast('A download is already waiting for your answer. Try again in a moment.'); return; }
+        if (code === 'too_large') { toast('This file is too large to save here.'); return; }
+        if (code === 'extension_not_enabled' || code === 'rejected_extension') { toast('This file type cannot be saved here.'); return; }
+        console.warn('downloads.save failed, using a direct link', code);
+      }
+    }
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = filename; a.rel = 'noopener'; document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 2000);
+  }
+  A.saveBlob = saveBlob;
+  function fileSlug() {
+    var p = S.per, biz = (cfg().biz || 'Meesho').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'Meesho';
+    var tag = p.mode === 'month' ? E.fmtMonth(p.m).replace(' ', '-') : p.mode === 'custom' ? p.from + '_to_' + p.to : 'All-' + (S.months[0] || '') + '_to_' + (S.months[S.months.length - 1] || '');
+    return biz + '_PnL_' + tag;
+  }
+  async function exportFile(kind, btn) {
+    if (!hasData()) return;
+    if (btn) btn.disabled = true;
+    busy(kind === 'xlsx' ? 'Building the Excel file' : 'Building the PDF');
+    try {
+      await libs(kind === 'xlsx' ? ['XLSX'] : ['jsPDF']);
+      var ctx = { S: S, E: E, w: W(), cfg: cfg() };
+      var blob = kind === 'xlsx' ? window.HX.xlsx(ctx) : window.HX.pdf(ctx);
+      busy();
+      await saveBlob(fileSlug() + '.' + kind, blob);
+    } catch (e) {
+      busy(); console.error(e);
+      toast(e && e.message ? e.message : 'Could not build the file.', 6000);
+    } finally { if (btn) btn.disabled = false; }
+  }
+
+  /* ---------------- costs import/export, backup ---------------- */
+  async function importCosts(file) {
+    try {
+      await libs(['XLSX']);
+      var buf = await file.arrayBuffer(), sheets = readBook(file.name, buf), n = 0, w = W();
+      sheets.forEach(function (sh) {
+        var rows = sh.rows, hr = -1, cs = -1, cc = -1, cp = -1, cn = -1;
+        for (var i = 0; i < Math.min(rows.length, 15) && hr < 0; i++) {
+          var H = (rows[i] || []).map(E.h);
+          var a = H.findIndex(function (x) { return /sku/.test(x); }), b = H.findIndex(function (x) { return /cost|price|rate/.test(x) && !/packag/.test(x); });
+          if (a >= 0 && b >= 0) {
+            hr = i; cs = a; cc = b;
+            cp = H.findIndex(function (x) { return /packag/.test(x); });
+            cn = H.findIndex(function (x) { return /piece|pcs|combo/.test(x) && !/cost|price|rate/.test(x); });
+          }
+        }
+        if (hr < 0) return;
+        for (var r = hr + 1; r < rows.length; r++) {
+          var sku = E.txt(rows[r][cs]); if (!sku) continue;
+          var c = toPaise(rows[r][cc]), p = cp >= 0 ? toPaise(rows[r][cp]) : null, pc = cn >= 0 ? E.cleanNum(rows[r][cn]) : null;
+          if (pc !== null && !(pc >= 1 && pc <= 50)) pc = null;
+          if (c === null && p === null && pc === null) continue;
+          var cur = w.costs[sku] || {};
+          var nn = cur.n == null ? null : cur.n;
+          if (pc !== null) nn = Math.round(pc) === E.piecesOf(sku, w.settings, null, S.M) ? null : Math.round(pc);
+          w.costs[sku] = { c: c !== null ? c : (cur.c == null ? null : cur.c), p: p !== null ? p : (cur.p == null ? null : cur.p), n: nn }; n++;
+        }
+      });
+      if (!n) { toast('No rows found. The sheet needs an SKU column and a Cost column.', 6000); return; }
+      persist('costs'); refresh(); toast(n + ' costs imported');
+    } catch (e) { console.error(e); toast('Could not read that cost sheet.', 5000); }
+  }
+  function exportCosts() {
+    var rows = [['SKU', 'Product', 'Pieces in combo', 'Cost per piece (Rs)', 'Packaging per parcel (Rs, optional)']];
+    A.skuList().forEach(function (x) {
+      var c = W().costs[x.sku] || {};
+      rows.push([x.sku, x.pn, x.pcs, c.c == null ? '' : rupeeInput(c.c), c.p == null ? '' : rupeeInput(c.p)]);
+    });
+    var csv = rows.map(function (r) { return r.map(function (v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }).join('\r\n');
+    saveBlob('Hisaab_costs.csv', new Blob(['\uFEFF' + csv], { type: 'text/csv' }));
+  }
+  function backup() {
+    var w = S.real, out = { app: 'hisaab', v: 1, at: new Date().toISOString() };
+    DOCS.forEach(function (d) { out[d] = toDoc(d, w); });
+    saveBlob('Hisaab_backup_' + new Date().toISOString().slice(0, 10) + '.json', new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' }));
+  }
+  async function restore(file) {
+    try {
+      var d = JSON.parse(await file.text());
+      if (!d || d.app !== 'hisaab') throw new Error('bad');
+      S.demo = null;
+      DOCS.forEach(function (n) { if (d[n]) { fromDoc(n, d[n], S.real); persist(n); } });
+      refresh(); toast('Backup restored');
+    } catch (e) { toast('That is not a Hisaab backup file.', 5000); }
+  }
+
+  /* ---------------- SKU list for the Costs tab ---------------- */
+  A.skuList = function () {
+    var map = {}, w = W();
+    (S.IX ? S.IX.list : []).forEach(function (x) {
+      var k = x.sku; if (!k) return;
+      var e = map[k] || (map[k] = { sku: k, pn: '', orders: 0, units: 0 });
+      e.orders++; if (x.sale >= 0) e.units += x.q || 1;
+      if (!e.pn && x.pn) e.pn = x.pn;
+    });
+    Object.keys(w.costs).forEach(function (k) { if (!map[k]) map[k] = { sku: k, pn: '', orders: 0, units: 0 }; });
+    Object.keys(map).forEach(function (k) { map[k].pcs = E.piecesOf(k, w.settings, w.costs[k], S.M); map[k].auto = E.piecesOf(k, w.settings, null, S.M); });
+    return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) { return b.orders - a.orders || (a.sku < b.sku ? -1 : 1); });
+  };
+
+  /* ---------------- actions ---------------- */
+  function setCost(sku, field, raw) {
+    var w = W(), empty = String(raw).trim() === '', v;
+    if (field === 'n') {
+      v = empty ? null : E.cleanNum(raw);
+      if (v !== null && !(v >= 1 && v <= 50 && Math.round(v) === v)) { toast('Pieces must be a whole number from 1 to 50'); return false; }
+    } else {
+      v = empty ? null : toPaise(raw);
+      if (v !== null && v < 0) { toast('Cost cannot be negative'); return false; }
+      if (!empty && v === null) { toast('Enter a number, like 128 or 128.50'); return false; }
+    }
+    var cur = w.costs[sku] || {};
+    cur = { c: cur.c == null ? null : cur.c, p: cur.p == null ? null : cur.p, n: cur.n == null ? null : cur.n }; cur[field] = v;
+    if (cur.c == null && cur.p == null && cur.n == null) delete w.costs[sku]; else w.costs[sku] = cur;
+    persist('costs'); recompute(); renderChrome();
+    return true;
+  }
+  function refreshCostRow(el) {
+    var row = el.closest('.crow'); if (!row) return;
+    var sku = el.getAttribute('data-sku'), x = A.skuList().filter(function (s) { return s.sku === sku; })[0];
+    if (x && A.V.costInfo) row.querySelector('.info').innerHTML = A.V.costInfo(x);
+    var c = W().costs[sku]; row.classList.toggle('miss', !(c && c.c != null));
+    if (A.V.costSummary) A.V.costSummary();
+  }
+  var ACT = {
+    tab: function (el) { setTab(el.getAttribute('data-tab')); },
+    demo: startDemo,
+    endDemo: endDemo,
+    basis: function (el) { S.sel.basis = el.getAttribute('data-v'); lsSet('ui', { sel: { basis: S.sel.basis } }); refresh(); },
+    xlsx: function (el) { exportFile('xlsx', el); },
+    pdf: function (el) { exportFile('pdf', el); },
+    rmFile: function (el) {
+      var id = el.getAttribute('data-id');
+      if (S.demo) return;
+      S.real.files = S.real.files.filter(function (f) { return f.id !== id; });
+      saveFiles(); refresh(); toast('File removed');
+    },
+    clearFiles: function () {
+      if (S.demo) { endDemo(); return; }
+      if (!confirm('Remove all uploaded files from this device? Costs, expenses and settings stay.')) return;
+      S.real.files = []; saveFiles(); refresh(); toast('Uploaded files removed');
+    },
+    resetAll: function () {
+      if (!confirm('Erase uploaded files, costs, expenses, return marks and settings? This cannot be undone.')) return;
+      S.demo = null;
+      S.real = { files: [], settings: Object.assign({}, E.DEFAULTS), costs: {}, expenses: [], marks: {}, ts: {} };
+      saveFiles(); DOCS.forEach(function (d) { lsDel(d); persist(d); });
+      refresh(); toast('Everything erased');
+    },
+    rcb: function (el) { S.rc.b = el.getAttribute('data-b'); S.rc.n = 60; render(); },
+    rcgo: function (el) { S.rc.b = el.getAttribute('data-b'); S.rc.n = 60; S.rc.q = ''; setTab('rc'); },
+    rcMore: function () { S.rc.n += 60; render(); },
+    bulk: function () {
+      var q = E.txt($('#bulk-q').value).toUpperCase(), c = toPaise($('#bulk-c').value), onlyEmpty = $('#bulk-e').checked;
+      if (c === null || c < 0) { toast('Enter the cost per piece in rupees'); return; }
+      var n = 0, w = W();
+      A.skuList().forEach(function (x) {
+        if (q && x.sku.toUpperCase().indexOf(q) < 0) return;
+        var cur = w.costs[x.sku] || {};
+        if (onlyEmpty && cur.c != null) return;
+        w.costs[x.sku] = { c: c, p: cur.p == null ? null : cur.p, n: cur.n == null ? null : cur.n }; n++;
+      });
+      if (!n) { toast(q ? 'No SKU matches "' + q + '"' : 'Every SKU already has a cost'); return; }
+      persist('costs'); refresh(); toast('Cost set for ' + n + ' SKU' + (n > 1 ? 's' : ''));
+    },
+    costExport: exportCosts,
+    addExp: function () {
+      var name = E.txt($('#ex-n').value), a = toPaise($('#ex-a').value), how = $('#ex-w').value, m = $('#ex-m').value;
+      if (!name) { toast('Write what the expense is for'); return; }
+      if (a === null || a <= 0) { toast('Enter the amount in rupees'); return; }
+      var w = W();
+      w.expenses.push({ id: E.uid('x'), name: name, amt: a, when: how === 'monthly' ? 'monthly' : m });
+      persist('expenses'); refresh(); toast('Expense added');
+    },
+    rmExp: function (el) {
+      var id = el.getAttribute('data-id'), w = W();
+      w.expenses = w.expenses.filter(function (e) { return e.id !== id; });
+      persist('expenses'); refresh();
+    },
+    backup: backup,
+    theme: function (el) { var v = el.getAttribute('data-v'); if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v); lsSet('theme', v); render(); },
+    print: function () { window.print(); }
+  };
+  var CH = {
+    per: function (el) {
+      var v = el.value;
+      if (v === 'all') S.sel.mode = 'all';
+      else if (v === 'custom') {
+        S.sel.mode = 'custom';
+        if (!S.sel.from || !S.sel.to) { S.sel.from = S.per.from > '1990' ? S.per.from : ''; S.sel.to = S.per.to > '1990' ? S.per.to : ''; }
+      } else { S.sel.mode = 'month'; S.sel.m = v.slice(2); }
+      refresh();
+    },
+    from: function (el) { S.sel.from = el.value; if (S.sel.from && S.sel.to) refresh(); },
+    to: function (el) { S.sel.to = el.value; if (S.sel.from && S.sel.to) refresh(); },
+    cost: function (el) { if (setCost(el.getAttribute('data-sku'), 'c', el.value)) refreshCostRow(el); },
+    cpack: function (el) { if (setCost(el.getAttribute('data-sku'), 'p', el.value)) refreshCostRow(el); },
+    cpcs: function (el) { if (setCost(el.getAttribute('data-sku'), 'n', el.value)) refreshCostRow(el); else { var c = W().costs[el.getAttribute('data-sku')]; el.value = c && c.n != null ? c.n : ''; } },
+    pack: function (el) {
+      var v = el.value.trim() === '' ? 0 : toPaise(el.value);
+      if (v === null || v < 0) { toast('Enter the packaging cost in rupees'); return; }
+      W().settings.pack = v; persist('settings'); recompute(); renderChrome(); toast('Packaging cost saved');
+    },
+    cmiss: function (el) { S.cf.miss = el.checked; render(); },
+    cond: function (el) {
+      var id = el.getAttribute('data-id'), w = W();
+      w.marks[id] = el.value; persist('marks'); recompute(); renderChrome();
+      el.classList.remove('def');
+      var tag = el.parentNode.querySelector('.cond-hint'); if (tag) tag.remove();
+    },
+    set: function (el) {
+      var k = el.getAttribute('data-k'), st = W().settings, v;
+      if (el.type === 'checkbox') v = el.checked;
+      else if (k === 'defaultGst' || k === 'overdueDays') {
+        v = E.cleanNum(el.value);
+        if (v === null || v < 0 || (k === 'defaultGst' && v > 40) || (k === 'overdueDays' && v > 365)) { toast('Enter a valid number'); el.value = st[k]; return; }
+      } else v = el.value;
+      st[k] = v; persist('settings');
+      if (k === 'gstReg' || k === 'taxCredits' || k === 'returnDefault' || k === 'rtoDefault' || k === 'packFromSku') refresh(); else { recompute(); renderChrome(); }
+      toast('Saved');
+    },
+    exw: function (el) { var m = $('#ex-m-wrap'); if (m) m.hidden = el.value === 'monthly'; }
+  };
+  var IN = {
+    rcq: function (el) { S.rc.q = el.value; S.rc.n = 60; var box = $('#rc-list'); if (box) box.innerHTML = A.V.rcList(); },
+    cq: function (el) { S.cf.q = el.value; var box = $('#c-list'); if (box) box.innerHTML = A.V.costRows(); }
+  };
+  var inT;
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest('[data-act]'); if (!el) return;
+    var f = ACT[el.getAttribute('data-act')]; if (!f) return;
+    e.preventDefault(); f(el, e);
+  });
+  document.addEventListener('change', function (e) {
+    var el = e.target;
+    if (el.id === 'fin') { var picked = Array.prototype.slice.call(el.files || []); el.value = ''; addFiles(picked); return; }
+    if (el.getAttribute && el.getAttribute('data-file') === 'costs') { if (el.files[0]) importCosts(el.files[0]); el.value = ''; return; }
+    if (el.getAttribute && el.getAttribute('data-file') === 'restore') { if (el.files[0]) restore(el.files[0]); el.value = ''; return; }
+    var k = el.getAttribute && el.getAttribute('data-ch'); if (k && CH[k]) CH[k](el, e);
+  });
+  document.addEventListener('input', function (e) {
+    var el = e.target, k = el.getAttribute && el.getAttribute('data-in'); if (!k || !IN[k]) return;
+    clearTimeout(inT); inT = setTimeout(function () { IN[k](el); }, 160);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.matches && e.target.matches('#ex-n, #ex-a')) { e.preventDefault(); ACT.addExp(); }
+    if (e.key === 'Enter' && e.target.matches && e.target.matches('#bulk-q, #bulk-c')) { e.preventDefault(); ACT.bulk(); }
+    if (e.key === 'Enter' && e.target.matches && e.target.matches('.clist .inp')) { e.target.blur(); }
+  });
+  ['dragenter', 'dragover'].forEach(function (t) {
+    document.addEventListener(t, function (e) { var d = e.target.closest && e.target.closest('#drop'); if (d) { e.preventDefault(); d.classList.add('over'); } });
+  });
+  ['dragleave', 'drop'].forEach(function (t) {
+    document.addEventListener(t, function (e) { var d = e.target.closest && e.target.closest('#drop'); if (d) d.classList.remove('over'); });
+  });
+  document.addEventListener('drop', function (e) {
+    var d = e.target.closest && e.target.closest('#drop');
+    if (d) { e.preventDefault(); addFiles(Array.prototype.slice.call(e.dataTransfer.files || [])); }
+  });
+  window.addEventListener('dragover', function (e) { e.preventDefault(); });
+  window.addEventListener('drop', function (e) { e.preventDefault(); });
+
+  /* ---------------- inside PakkaBill ---------------- */
+  function parentDoc() { try { return window.parent && window.parent !== window ? window.parent.document : null; } catch (e) { return null; } }
+  function followParentTheme() {
+    var pd = parentDoc(); if (!pd) return;
+    var sync = function () {
+      var t = pd.documentElement.getAttribute('data-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); else document.documentElement.removeAttribute('data-theme');
+    };
+    sync();
+    try { new MutationObserver(sync).observe(pd.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); } catch (e) { /* ignore */ }
+  }
+  function useParentFonts() {
+    var pd = parentDoc(); if (!pd) return;
+    try {
+      var css = '';
+      for (var i = 0; i < pd.styleSheets.length; i++) {
+        var rules; try { rules = pd.styleSheets[i].cssRules; } catch (e) { continue; }
+        for (var j = 0; j < rules.length; j++) if (rules[j].type === 5 && /PB Hind/.test(rules[j].cssText)) css += rules[j].cssText + '\n';
+      }
+      if (!css) return;
+      var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+      document.documentElement.classList.add('pbfonts');
+    } catch (e) { /* ignore */ }
+  }
+  function readShop() {
+    return new Promise(function (res) {
+      var done = false; function fin(v) { if (!done) { done = true; res(v); } }
+      setTimeout(function () { fin(null); }, 3000);
+      try {
+        var rq = indexedDB.open('pakkabill', 1);
+        rq.onupgradeneeded = function () { rq.transaction.abort(); }; // never create PakkaBill's database from here
+        rq.onerror = function () { fin(null); };
+        rq.onsuccess = function () {
+          var db = rq.result;
+          try { var g = db.transaction('kv').objectStore('kv').get('business'); g.onsuccess = function () { fin(g.result || null); db.close(); }; g.onerror = function () { fin(null); db.close(); }; }
+          catch (e) { db.close(); fin(null); }
+        };
+      } catch (e) { fin(null); }
+    }).then(function (b) {
+      if (b) return b;
+      try { return JSON.parse(localStorage.getItem('pakkabill:business') || 'null'); } catch (e) { return null; }
+    });
+  }
+  function shopDefaults() {
+    return readShop().then(function (b) {
+      if (!b) return;
+      var st = S.real.settings, changed = false;
+      if (!st.biz && String(b.name || '').trim()) { st.biz = String(b.name).trim(); changed = true; }
+      if (!st.gstin && String(b.gstin || '').trim()) { st.gstin = String(b.gstin).trim().toUpperCase(); changed = true; }
+      if (changed && !S.demo) render();
+    });
+  }
+
+  /* ---------------- boot ---------------- */
+  async function boot() {
+    if (EMBED) { followParentTheme(); useParentFonts(); }
+    else { var th = lsGet('theme'); if (th === 'light' || th === 'dark') document.documentElement.setAttribute('data-theme', th); }
+    loadLocal();
+    recompute();
+    var t0 = ''; try { t0 = sessionStorage.getItem(LS + 'tab') || ''; } catch (e) { t0 = ''; }
+    S.tab = 'data'; render();
+    var files = await idbGet('files');
+    if (Array.isArray(files) && files.length && !S.demo) { S.real.files = files; recompute(); }
+    S.tab = (t0 && TABS.some(function (t) { return t[0] === t0; })) ? t0 : (hasData() ? 'pl' : 'data');
+    if (!hasData() && (S.tab === 'pl' || S.tab === 'rc')) S.tab = 'data';
+    render();
+    if (EMBED) shopDefaults(); else initRemote();
+  }
+  A.boot = boot;
+})();
+
+</script>
+<script>
+/* Hisaab views: each returns an HTML string. Every value from a file goes through esc(). */
+(function () {
+  'use strict';
+  var E = window.HE, A = window.HA, S = A.S, esc = A.esc;
+  var V = A.V = {};
+
+  function mny(p) { return E.money(p, { paren: true }); }
+  function amt(p) { return '<span class="amt' + (p < 0 ? ' neg' : '') + '">' + mny(p) + '</span>'; }
+  function rs(p, np) { return E.money(p, { sym: '\u20b9', noPaise: !!np }); }
+  function pct(x) { return (x * 100).toFixed(1) + '%'; }
+  function fd(d) { return d ? E.fmtDate(d) : ''; }
+  function pl(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+  function condWord(c) { return c === 'ok' ? 'back in stock' : 'not resellable'; }
+  function packMode(st) { var v = st.packFromSku; return v === true || v === 'sku' ? 'sku' : v === false || v === 'name' ? 'name' : 'auto'; }
+  function packSel(st) {
+    var cur = packMode(st);
+    return '<select class="inp" data-ch="set" data-k="packFromSku">' + [['auto', 'Automatic'], ['name', 'From the product name'], ['sku', 'From the SKU letters (BPYG05 = 4)']].map(function (o) {
+      return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
+  }
+  function packNote(st) {
+    var M = S.M, pk = M && M.pk, rule = E.packRule(st, M), mode = packMode(st);
+    var sku = 'The letters before the number in the SKU are the pieces (BPYG05 = 4 pieces, G21 = 1); the number is ignored.';
+    var name = 'Read from the product name, like "Combo of 2" or "Pack of 5"; anything else counts as 1 piece.';
+    if (mode !== 'auto') return rule === 'sku' ? sku : name;
+    if (rule === 'sku') return 'Automatic: your SKUs follow the letters rule (' + pk.agree + ' of ' + pk.stated + ' combo names agree). ' + sku;
+    return 'Automatic: ' + name;
+  }
+
+  function demoBar() {
+    if (!S.demo) return '';
+    return '<div class="note info demo-bar no-print"><p class="grow" style="margin:0">You are looking at sample data for a blouse and track pant store. Nothing here is saved.</p>' +
+      '<button class="btn sm" data-act="endDemo">Close sample</button></div>';
+  }
+  function empty() {
+    return '<section class="sheet empty"><h2>No Meesho data yet</h2><p class="muted">Upload your payment report to see your profit, or look around with sample data first.</p>' +
+      '<div class="row" style="justify-content:center"><button class="btn pri" data-act="tab" data-tab="data">Upload files</button><button class="btn" data-act="demo">Try with sample data</button></div></section>';
+  }
+  function kv(pairs) {
+    return '<div class="kv">' + pairs.map(function (p) {
+      var b = p[2] ? ' class="b"' : '';
+      return '<span' + b + '>' + esc(p[0]) + '</span><span' + (p[2] ? ' class="b' + (typeof p[1] === 'number' && p[1] < 0 ? ' neg' : '') + '"' : (typeof p[1] === 'number' && p[1] < 0 ? ' class="neg"' : '')) + '>' + (typeof p[1] === 'number' ? mny(p[1]) : esc(p[1])) + '</span>';
+    }).join('') + '</div>';
+  }
+
+  /* ---------------- P&L ---------------- */
+  V.pl = function () {
+    if (!A.hasData()) return empty();
+    var R = S.R, K = R.K, st = A.cfg(), per = S.per, h = demoBar();
+    var opts = '<option value="all"' + (S.sel.mode === 'all' ? ' selected' : '') + '>All data</option>';
+    S.months.forEach(function (m) { opts += '<option value="m:' + m + '"' + (S.sel.mode === 'month' && S.sel.m === m ? ' selected' : '') + '>' + E.fmtMonth(m) + '</option>'; });
+    opts += '<option value="custom"' + (S.sel.mode === 'custom' ? ' selected' : '') + '>Custom dates</option>';
+    h += '<section class="sheet no-print"><div class="period"><div class="stack">' +
+      '<label class="f">Period<select class="inp" data-ch="per">' + opts + '</select></label>' +
+      (S.sel.mode === 'custom' ? '<div class="row"><label class="f grow">From<input type="date" class="inp" data-ch="from" value="' + esc(S.sel.from) + '"></label><label class="f grow">To<input type="date" class="inp" data-ch="to" value="' + esc(S.sel.to) + '"></label></div>' : '') +
+      '<div class="row"><span class="small muted">Count sales by</span><div class="seg" role="group" aria-label="Count sales by">' +
+      '<button data-act="basis" data-v="pay" aria-pressed="' + (S.sel.basis === 'pay') + '">Payment date</button>' +
+      '<button data-act="basis" data-v="order" aria-pressed="' + (S.sel.basis === 'order') + '">Order date</button></div></div></div>' +
+      '<div class="dl"><button class="btn pri" data-act="xlsx">Download Excel</button><button class="btn" data-act="pdf">Download PDF</button></div></div></section>';
+
+    if (!S.H.legs) {
+      h += '<div class="note bad"><p>Add the payment report to see profit. The orders report alone has no settlement amounts.</p></div>';
+    }
+    h += '<div class="slip" role="group" aria-label="Summary">' +
+      '<div class="np"><div><small>Net profit</small><strong class="' + (R.NP < 0 ? 'neg' : '') + '">' + rs(R.NP, true) + '</strong></div>' +
+      '<span class="small muted">' + (R.NR ? pct(R.margin) + ' of net revenue' : '') + '</span></div>' +
+      '<div><small>Net sales</small><strong>' + rs(R.NS, true) + '</strong></div>' +
+      '<div><small>Received from Meesho</small><strong>' + rs(R.payout, true) + '</strong></div>' +
+      '<div><small>Orders sold</small><strong>' + K.sales + '</strong></div>' +
+      '<div><small>Returns and RTO</small><strong>' + (K.parcels ? pct(R.returnRate) : '0%') + '</strong></div></div>';
+
+    var notes = '';
+    if (R.missing.length) {
+      var u = 0; R.missing.forEach(function (x) { u += x.units; });
+      notes += '<div class="note bad"><p>Cost is missing for ' + pl(R.missing.length, 'SKU') + ' (' + pl(u, 'piece') + '). Profit is overstated until you add them.</p><button class="btn sm" data-act="tab" data-tab="costs">Add costs</button></div>';
+    }
+    if (K.rdef) {
+      if (st.returnDefault === 'ok' && st.rtoDefault === 'ok') {
+        notes += '<div class="note info"><p>' + K.rdef + ' returns and RTO parcels are counted as back in stock, so their cost goes back to your stock. If any came back damaged, used or wrong, mark it Not resellable in Reconcile.</p><button class="btn sm" data-act="rcgo" data-b="returned">Review returns</button></div>';
+      } else {
+        notes += '<div class="note"><p>' + K.rdef + ' returns and RTO parcels use the default condition: customer returns ' + condWord(st.returnDefault) + ', RTO parcels ' + condWord(st.rtoDefault) + '. Mark each one in Reconcile for exact stock cost.</p><button class="btn sm" data-act="rcgo" data-b="returned">Review returns</button></div>';
+      }
+    }
+    if (K.revPend) {
+      notes += '<div class="note info"><p>' + pl(K.revPend, 'order') + ' show as returned or RTO, but Meesho has not reversed the sale in these files yet (' + rs(K.revPendV) + ' of sales). Profit will drop when that reversal is paid out.</p></div>';
+    }
+    if (K.unexpl) {
+      notes += '<div class="note info"><p>' + (K.unexpl === 1 ? '1 settlement row does' : K.unexpl + ' settlement rows do') + ' not fully add up from Meesho\u2019s own columns: Meesho paid ' + rs(Math.abs(K.O)) + (K.O < 0 ? ' less' : ' more') + ' than they add up to. The difference is shown as its own line, so the total still matches Meesho.</p></div>';
+    }
+    if (notes) h += '<div class="stack no-print">' + notes + '</div>';
+
+    var lines = '';
+    R.lines.forEach(function (l) {
+      if (l.k === 'sec') lines += '<div class="lg-sec">' + esc(l.l) + '</div>';
+      else if (l.k === 'row') lines += '<div class="lg-row"><span>' + esc(l.l) + '</span>' + amt(l.v) + '</div>';
+      else lines += '<div class="lg-tot' + (l.k === 'tot' ? '' : ' ' + l.k) + '"><span>' + esc(l.l) + '</span>' + amt(l.v) + '</div>';
+    });
+    var foot = ['Brackets mean a cost or a deduction.'];
+    if (R.REGD) foot.push('Sales and charges are shown without GST; the GST section below has the tax.');
+    if (K.rlu) foot.push(pl(K.rlu, 'returned piece') + ' counted as not resellable, so their cost (' + rs(K.rlv) + ') stays in cost of goods.');
+    h += '<section class="ledger" aria-label="Profit and loss statement"><div class="lg-title"><h2>Profit and loss statement</h2>' +
+      '<p>' + esc((st.biz ? st.biz + ', ' : '') + per.label) + ', counted by ' + (per.basis === 'order' ? 'order date' : 'payment date') + '</p></div>' +
+      '<div class="lg-head"><span>Particulars</span><span>Amount (\u20b9)</span></div>' + lines +
+      '<div class="lg-foot">' + esc(foot.join(' ')) + '</div></section>';
+
+    h += '<details class="sheet more" open><summary>How profit ties to money received</summary>' +
+      kv(R.bridge.map(function (b) { return [b.l, b.v, !!b.k]; })) +
+      '<p class="small muted" style="margin:10px 0 0">Money received is the sum of Final Settlement Amount plus ads, referral and compensation entries. It should match the Meesho credits in your bank for the same payment dates.</p></details>';
+
+    var g = R.gst, tx = '';
+    if (g) {
+      tx += kv([['Output GST on net sales', g.out], ['Less: input credit on Meesho charges', -g.itcCh], ['Less: input credit on ads', -g.itcAds],
+        ['Net GST payable', g.net, true], ['Less: TCS already collected by Meesho', -g.tcs], ['GST left to pay in cash', g.cash, true]]);
+    } else {
+      tx += '<p>GST is not split out because GST registration is off in Settings. Meesho charges and ads are counted including GST.</p>';
+    }
+    tx += '<p class="small" style="margin:10px 0 0">Meesho deducted ' + rs(-K.T) + ' TCS (under GST) and ' + rs(-K.D) + ' TDS (income tax, section 194-O) from these payouts. ' +
+      (R.claim ? 'Both are added back to profit because you can claim them: TCS in your GST return and TDS in your income tax return, where it shows in Form 26AS.' : 'They are counted as an expense, as chosen in Settings.') + '</p>';
+    if (g) tx += '<p class="small muted" style="margin:6px 0 0">Input credit is worked out at 18% on the columns Meesho marks as including GST. Check it against Meesho\u2019s monthly tax invoice before you file.</p>';
+    h += '<details class="sheet more"><summary>GST, TCS and TDS</summary>' + tx + '</details>';
+
+    var sk = R.skus.map(function (x) {
+      return '<tr><td><b>' + esc(x.sku) + '</b>' + (x.pcs > 1 ? ' <span class="tag">pack of ' + x.pcs + '</span>' : '') + (x.pn ? '<div class="small muted">' + esc(x.pn) + '</div>' : '') + '</td><td class="n">' + x.sold + '</td><td class="n">' + x.units + '</td><td class="n">' + (x.retU + x.rto) + '</td>' +
+        '<td class="n">' + mny(x.NS) + '</td><td class="n' + (x.contrib < 0 ? ' neg' : '') + '">' + mny(x.contrib) + '</td><td class="n' + (x.perOrder < 0 ? ' neg' : '') + '">' + (x.sold ? mny(x.perOrder) : '') + '</td></tr>';
+    }).join('');
+    h += '<details class="sheet more"><summary>Profit by SKU</summary><div class="tw"><table class="t"><thead><tr><th>SKU</th><th class="n">Orders</th><th class="n">Pieces</th><th class="n">Returns and RTO</th><th class="n">Net sales</th><th class="n">Profit</th><th class="n">Per order</th></tr></thead><tbody>' + sk +
+      '<tr class="tot"><td>Not tied to a SKU (ads, referral, account credits, expenses)</td><td></td><td></td><td></td><td></td><td class="n' + (R.unalloc < 0 ? ' neg' : '') + '">' + mny(R.unalloc) + '</td><td></td></tr>' +
+      '<tr class="np"><td>Net profit</td><td class="n">' + K.sales + '</td><td class="n">' + K.fu + '</td><td></td><td class="n">' + mny(R.NS) + '</td><td class="n' + (R.NP < 0 ? ' neg' : '') + '">' + mny(R.NP) + '</td><td></td></tr></tbody></table></div>' +
+      '<p class="small muted" style="margin:8px 0 0">SKU profit is after cost of goods, Meesho charges and packaging, before ads and other expenses.</p></details>';
+
+    if (S.MO.length > 1) {
+      var mo = S.MO.map(function (m) {
+        return '<tr><td>' + E.fmtMonth(m.m) + '</td><td class="n">' + mny(m.NS) + '</td><td class="n">' + mny(m.GP) + '</td><td class="n">' + mny(m.MCx) + '</td><td class="n' + (m.NP < 0 ? ' neg' : '') + '"><b>' + mny(m.NP) + '</b></td><td class="n">' + mny(m.payout) + '</td></tr>';
+      }).join('');
+      h += '<details class="sheet more"><summary>Month by month</summary><div class="tw"><table class="t"><thead><tr><th>Month</th><th class="n">Net sales</th><th class="n">Gross profit</th><th class="n">Meesho charges</th><th class="n">Net profit</th><th class="n">Received</th></tr></thead><tbody>' + mo + '</tbody></table></div>' +
+        '<p class="small muted" style="margin:8px 0 0">Counted by ' + (S.sel.basis === 'order' ? 'order date' : 'payment date') + '. Monthly expenses are included in each month.</p></details>';
+    }
+    return '<div class="stack">' + h + '</div>';
+  };
+
+  /* ---------------- Reconcile ---------------- */
+  var BL = { all: 'All orders', issues: 'Needs attention', settled: 'Paid', awaiting: 'Awaiting payment', overdue: 'Payment overdue', transit: 'In transit', returned: 'Customer returns', rto: 'RTO and lost', cancelled: 'Cancelled', adjust: 'Adjustment only', older: 'Before these files', other: 'Other' };
+  function bucketHelp(b) {
+    var d = A.cfg().overdueDays;
+    return {
+      all: 'Every sub order in your files. The amount is what Meesho paid for it, all payment rows added up.',
+      issues: 'Recoveries, rows that do not add up, negative payouts, paid-but-cancelled orders and overdue payments.',
+      settled: 'Orders with a sale settlement from Meesho.',
+      awaiting: 'Delivered orders with no payment yet, still inside the normal payment window.',
+      overdue: 'Delivered orders placed more than ' + d + ' days before your latest payment date, still without a payment. Raise a ticket with Meesho if it is not in the next payout.',
+      transit: 'Shipped orders not delivered yet.',
+      returned: 'Customer returns. They count as back in stock; mark any that came back damaged, used or wrong as Not resellable.',
+      rto: 'Parcels that came back undelivered, and lost parcels. Mark whether each item went back into stock.',
+      cancelled: 'Cancelled orders.',
+      adjust: 'Payment rows without a sale in these files, such as fee adjustments for orders paid earlier.',
+      older: 'Orders placed well before your first payment date. Upload older payment files to settle them.',
+      other: 'Orders with a status the tool could not place.'
+    }[b] || '';
+  }
+  var FLAG = { recovery: ['Recovery charged', 'bad'], unexplained: ['Does not add up', 'bad'], paidCancelled: ['Paid but cancelled', 'bad'], negative: ['Negative payout', 'bad'], claim: ['Claim received', 'good'], revPending: ['Sale not reversed yet', ''], overdue: ['Payment overdue', 'bad'] };
+
+  function ordRow(r) {
+    var tags = r.flags.map(function (f) { var t = FLAG[f]; return t ? '<span class="tag' + (t[1] ? ' ' + t[1] : '') + '">' + t[0] + '</span>' : ''; }).join('');
+    var cond = '';
+    if (r.cond) {
+      cond = '<select class="cond' + (r.condDef ? ' def' : '') + '" data-ch="cond" data-id="' + esc(r.id) + '" aria-label="Item condition for ' + esc(r.id) + '">' +
+        '<option value="ok"' + (r.cond === 'ok' ? ' selected' : '') + '>Back in stock</option><option value="loss"' + (r.cond === 'loss' ? ' selected' : '') + '>Not resellable</option></select>' +
+        (r.condDef ? '<span class="small muted cond-hint">default, not checked</span>' : '');
+    }
+    var right = r.hasPay
+      ? '<b class="amt' + (r.f < 0 ? ' neg' : '') + '">' + rs(r.f) + '</b><span class="meta">' + (r.legs > 1 ? r.legs + ' payment rows' : 'paid ' + fd(r.pd)) + '</span>'
+      : (r.est ? '<b class="amt muted">' + rs(r.est) + '</b><span class="meta">order value</span>' : '<span class="meta">no payment</span>');
+    var meta = esc(E.ST_LABEL[r.st] || 'No status') + (r.od ? ', ordered ' + fd(r.od) : '') + (r.hasPay && r.legs > 1 ? ', last paid ' + fd(r.pd) : '');
+    return '<div class="ord"><div><div class="id">' + esc(r.id) + '</div><div class="pn">' + esc([r.sku, r.pn].filter(Boolean).join(', ')) + '</div></div>' +
+      '<div class="right">' + right + '</div><div class="meta" style="grid-column:1/-1" title="' + esc(r.stRaw) + '">' + meta + '</div>' +
+      (tags || cond ? '<div class="full">' + tags + cond + '</div>' : '') + '</div>';
+  }
+  V.rcList = function () {
+    var q = S.rc.q.trim().toUpperCase(), b = S.rc.b;
+    var rows = S.REC.rows.filter(function (r) {
+      if (b !== 'all' && (b === 'issues' ? !r.issue : r.b !== b)) return false;
+      return !q || r.id.toUpperCase().indexOf(q) >= 0 || (r.sku || '').toUpperCase().indexOf(q) >= 0;
+    });
+    if (!rows.length) return '<div class="sheet small muted">No orders match.</div>';
+    var sum = 0; rows.forEach(function (r) { sum += r.hasPay ? r.f : r.est; });
+    var shown = rows.slice(0, S.rc.n);
+    var h = '<p class="small muted" style="margin:0 0 8px">' + pl(rows.length, 'order') + ', ' + rs(sum) + (b === 'awaiting' || b === 'overdue' ? ' in order value' : '') + '</p>' +
+      '<div class="olist">' + shown.map(ordRow).join('') + '</div>';
+    if (rows.length > shown.length) h += '<div class="row" style="margin-top:10px"><button class="btn" data-act="rcMore">Show ' + Math.min(60, rows.length - shown.length) + ' more of ' + (rows.length - shown.length) + '</button></div>';
+    return h;
+  };
+  V.rc = function () {
+    if (!A.hasData()) return empty();
+    var C = S.REC.counts, total = S.REC.rows.length;
+    if (S.rc.b !== 'all' && !(C[S.rc.b] && C[S.rc.b].n)) S.rc.b = 'all';
+    var keys = ['all', 'issues'].concat(E.BUCKETS);
+    var chips = keys.filter(function (k) { return k === 'all' || C[k].n; }).map(function (k) {
+      return '<button class="chip' + (k === 'issues' || k === 'overdue' ? ' alert' : '') + '" data-act="rcb" data-b="' + k + '" aria-pressed="' + (S.rc.b === k) + '">' + BL[k] + '<span>' + (k === 'all' ? total : C[k].n) + '</span></button>';
+    }).join('');
+    var h = demoBar() + '<section class="stack"><div class="chips" role="group" aria-label="Filter orders">' + chips + '</div>' +
+      '<p class="small muted" style="margin:0">' + esc(bucketHelp(S.rc.b)) + '</p>' +
+      '<input class="inp" type="search" data-in="rcq" placeholder="Search sub order number or SKU" value="' + esc(S.rc.q) + '" aria-label="Search orders">' +
+      '<div id="rc-list">' + V.rcList() + '</div></section>';
+    var PO = S.PO;
+    if (PO.length) {
+      h += '<details class="sheet more" style="margin-top:14px"><summary>Payouts by date (' + PO.length + ')</summary><div class="tw"><table class="t"><thead><tr><th>Payment date</th><th class="n">Orders</th><th class="n">Settlements</th><th class="n">Ads</th><th class="n">Other</th><th class="n">Net received</th></tr></thead><tbody>' +
+        PO.map(function (p) {
+          return '<tr><td>' + (p.d ? fd(p.d) : 'No date') + (p.tx.length ? '<div class="small muted">' + esc(p.tx.slice(0, 2).join(', ')) + (p.tx.length > 2 ? ' and ' + (p.tx.length - 2) + ' more' : '') + '</div>' : '') + '</td>' +
+            '<td class="n">' + p.n + '</td><td class="n">' + mny(p.f) + '</td><td class="n">' + mny(p.ads) + '</td><td class="n">' + mny(p.ref + p.adj) + '</td><td class="n"><b>' + mny(p.net) + '</b></td></tr>';
+        }).join('') + '</tbody></table></div><p class="small muted" style="margin:8px 0 0">Match each net amount with the Meesho credit in your bank statement. The transaction ID helps you find it.</p></details>';
+    }
+    return h;
+  };
+
+  /* ---------------- Upload ---------------- */
+  function step(done, title, body) { return '<li' + (done ? ' class="done"' : '') + '><span class="st">' + title + (done ? '<span class="sr"> (done)</span>' : '') + '</span><p>' + body + '</p></li>'; }
+  function kb(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+  function fileRow(f) {
+    var what = { pay: 'settlement rows', ads: 'ads deductions', ref: 'referral payments', adj: 'compensation and recovery entries', ord: 'orders' };
+    var sh = f.sheets.map(function (s) {
+      if (s.type === 'skip' || !s.n) return '<li class="muted">' + esc(s.name) + ': not used</li>';
+      var t = '<span class="tick" aria-hidden="true">\u2713</span> ' + esc(s.name) + ': ' + s.n + ' ' + what[s.type];
+      if (s.type === 'pay') t += ', paid ' + fd(s.from) + ' to ' + fd(s.to) + '. ' + s.matched + ' of ' + s.n + ' rows add up exactly to Final Settlement';
+      if (s.type === 'ord' && s.from) t += ', ordered ' + fd(s.from) + ' to ' + fd(s.to);
+      return '<li>' + t + '</li>';
+    }).join('');
+    var dup = S.M.dup[f.id] ? '<p class="small muted" style="margin:4px 0 0">' + pl(S.M.dup[f.id], 'row') + ' already in another file, counted once.</p>' : '';
+    var when = ''; try { when = new Date(f.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { when = ''; }
+    return '<div class="file"><div class="file-h"><div class="grow"><b>' + esc(f.name) + '</b><div class="small muted">' + (f.size ? kb(f.size) + ', ' : '') + 'added ' + esc(when) + '</div></div>' +
+      (S.demo ? '' : '<button class="btn sm danger" data-act="rmFile" data-id="' + esc(f.id) + '" aria-label="Remove ' + esc(f.name) + '">Remove</button>') + '</div>' +
+      '<ul class="sheets">' + sh + '</ul>' + dup + '</div>';
+  }
+  V.data = function () {
+    var w = A.W(), H = S.H, files = w.files, skus = A.skuList();
+    var sold = skus.filter(function (x) { return x.units > 0; });
+    var costDone = sold.length > 0 && sold.every(function (x) { return w.costs[x.sku] && w.costs[x.sku].c != null; });
+    var h = demoBar() + '<section class="sheet"><div class="sheet-h"><h2>Add your Meesho reports</h2></div><ol class="steps">' +
+      step(H.legs > 0, 'Payment report', 'In the Meesho Supplier Panel, open <strong>Payments</strong> and download the payment report for the dates you want. It is an Excel file with sheets such as Order Payments and Ads Cost. Add every payment file you have; rows that repeat across files are counted once.') +
+      step(H.ordRows > 0, 'Orders report (optional)', 'From <strong>Orders</strong>, download the orders CSV. It adds orders that are not paid yet, so pending and overdue payments show up.') +
+      step(costDone, 'Product costs', 'Enter what one unit of each SKU costs you. <button class="btn link" data-act="tab" data-tab="costs">Open Costs</button>') +
+      step(w.expenses.length > 0, 'Other expenses', 'Rent, packing help, internet, photoshoots. <button class="btn link" data-act="tab" data-tab="exp">Open Expenses</button>') +
+      '</ol><label class="drop" id="drop"><input type="file" id="fin" class="sr" multiple accept=".xlsx,.xls,.csv,.zip"><b>Drop Meesho files here</b><span class="muted small">or tap to choose. Excel, CSV or ZIP.</span></label>' +
+      '<p class="small muted" style="margin:10px 0 0">Files are read on this device and kept here for next time. Costs, expenses, return marks and settings are saved ' + (S.local ? 'in this browser.' : 'privately to your account.') + '</p>' +
+      (S.real.files.length || S.demo ? '' : '<div class="row" style="margin-top:12px"><button class="btn" data-act="demo">Try with sample data</button></div>') + '</section>';
+    if (files.length) {
+      h += '<section class="sheet"><div class="sheet-h"><h2>' + (S.demo ? 'Sample files' : 'Uploaded files') + '</h2>' + (S.demo ? '' : '<button class="btn sm danger" data-act="clearFiles">Remove all</button>') + '</div>' + files.map(fileRow).join('') + '</section>';
+      var mt = 0, nt = 0;
+      files.forEach(function (f) { f.sheets.forEach(function (s) { if (s.type === 'pay') { mt += s.matched || 0; nt += s.n || 0; } }); });
+      var pairs = [];
+      if (H.legs) pairs.push(['Payment dates', fd(H.pd0) + ' to ' + fd(H.pd1)], ['Settlement rows', H.legs + ' for ' + pl(H.orders, 'order')], ['Rows that add up to Final Settlement', mt + ' of ' + nt]);
+      else pairs.push(['Payment report', 'not added yet']);
+      pairs.push(['Orders report', H.ordRows ? H.ordRows + ' orders, ' + fd(H.od0) + ' to ' + fd(H.od1) : 'not added']);
+      pairs.push(['Ads deductions', String(H.ads)]);
+      if (H.ref || H.adj) pairs.push(['Referral and compensation entries', String(H.ref + H.adj)]);
+      if (H.dups) pairs.push(['Repeated rows skipped', String(H.dups)]);
+      h += '<section class="sheet"><h2 style="margin-bottom:10px">What your files cover</h2>' + kv(pairs) +
+        '<div class="row" style="margin-top:14px"><button class="btn pri" data-act="tab" data-tab="pl">See profit and loss</button><button class="btn" data-act="tab" data-tab="costs">Enter product costs</button></div></section>';
+    }
+    return '<div class="stack">' + h + '</div>';
+  };
+
+  /* ---------------- Costs ---------------- */
+  function costSummaryText() {
+    var w = A.W(), l = A.skuList(), have = l.filter(function (x) { return w.costs[x.sku] && w.costs[x.sku].c != null; }).length;
+    return have + ' of ' + l.length + ' have a cost';
+  }
+  V.costSummary = function () { var el = document.getElementById('c-sum'); if (el) el.textContent = costSummaryText(); };
+  V.costInfo = function (x) {
+    var c = A.W().costs[x.sku] || {}, bits = [x.units + ' sold'];
+    if (c.c != null && x.pcs > 1) bits.push(rs(c.c * x.pcs) + ' cost per order');
+    return '<span class="sku">' + esc(x.sku) + '</span>' + (x.pcs > 1 ? ' <span class="tag">pack of ' + x.pcs + '</span>' : '') +
+      '<div class="sub">' + bits.join(', ') + (x.pn ? '. ' + esc(x.pn) : '') + '</div>';
+  };
+  V.costRows = function () {
+    var w = A.W(), st = w.settings, q = S.cf.q.trim().toUpperCase();
+    var list = A.skuList().filter(function (x) {
+      if (S.cf.miss && w.costs[x.sku] && w.costs[x.sku].c != null) return false;
+      return !q || x.sku.toUpperCase().indexOf(q) >= 0 || x.pn.toUpperCase().indexOf(q) >= 0;
+    });
+    if (!list.length) return '<p class="small muted" style="padding:10px 0">' + (A.hasData() ? 'No SKUs match.' : 'Upload a payment report to list your SKUs here.') + '</p>';
+    return list.slice(0, 400).map(function (x) {
+      var c = w.costs[x.sku] || {}, miss = c.c == null, sk = esc(x.sku);
+      return '<div class="crow' + (miss ? ' miss' : '') + '"><div class="info">' + V.costInfo(x) + '</div>' +
+        '<label>Per piece (\u20b9)<input class="inp money" data-ch="cost" data-sku="' + sk + '" inputmode="decimal" value="' + A.rupeeInput(c.c) + '" placeholder="Cost"></label>' +
+        '<label>Pieces<input class="inp money" data-ch="cpcs" data-sku="' + sk + '" inputmode="numeric" value="' + (c.n != null ? c.n : '') + '" placeholder="' + x.auto + '"></label>' +
+        '<label>Packaging (\u20b9)<input class="inp money" data-ch="cpack" data-sku="' + sk + '" inputmode="decimal" value="' + A.rupeeInput(c.p) + '" placeholder="' + A.rupeeInput(st.pack || 0) + '"></label></div>';
+    }).join('') + (list.length > 400 ? '<p class="small muted">Showing 400 of ' + list.length + '. Search to find the rest.</p>' : '');
+  };
+  V.costs = function () {
+    var st = A.W().settings;
+    var h = demoBar() + '<section class="sheet stack"><h2>Product costs</h2>' +
+      '<p class="muted" style="margin:0">Enter what one piece costs you to buy or make, in rupees. For a combo SKU the tool multiplies it by the pieces in the pack.</p>' +
+      '<div class="fgrid"><label class="f">Pieces in a combo' + packSel(st) + '</label></div>' +
+      '<p class="small muted" style="margin:0">' + esc(packNote(st)) + ' For any SKU that is different, type the right count under Pieces.</p>' +
+      '<div class="fgrid"><label class="f">Packaging per parcel (\u20b9)<input class="inp money" data-ch="pack" inputmode="decimal" value="' + A.rupeeInput(st.pack || 0) + '"></label></div>' +
+      '<p class="small muted" style="margin:0">Poly bag, label and tape for one parcel. Counted once per shipped parcel, RTO parcels included.</p></section>' +
+      '<section class="sheet"><h3 style="margin-bottom:8px">Same cost per piece for many SKUs</h3><div class="row">' +
+      '<input class="inp" id="bulk-q" placeholder="Part of SKU, blank for all" aria-label="Part of the SKU, or leave empty for all SKUs" style="flex:1 1 180px">' +
+      '<input class="inp money" id="bulk-c" inputmode="decimal" placeholder="\u20b9 per piece" aria-label="Cost per piece in rupees" style="flex:0 1 120px">' +
+      '<button class="btn" data-act="bulk">Apply</button></div>' +
+      '<label class="check small" style="margin-top:8px"><input type="checkbox" id="bulk-e" checked> Only fill SKUs that have no cost yet</label></section>' +
+      '<section class="sheet"><div class="sheet-h"><h3>Your SKUs</h3><span class="small muted" id="c-sum">' + costSummaryText() + '</span></div>' +
+      '<div class="row" style="margin-bottom:4px"><input class="inp" type="search" data-in="cq" placeholder="Search SKU" value="' + esc(S.cf.q) + '" aria-label="Search SKU" style="flex:1 1 200px">' +
+      '<label class="check small"><input type="checkbox" data-ch="cmiss"' + (S.cf.miss ? ' checked' : '') + '> Only missing</label></div>' +
+      '<div class="clist" id="c-list">' + V.costRows() + '</div>' +
+      '<div class="row" style="margin-top:12px"><button class="btn sm" data-act="costExport">Download cost sheet</button>' +
+      '<label class="btn sm">Upload cost sheet<input type="file" class="sr" data-file="costs" accept=".csv,.xlsx,.xls"></label></div>' +
+      '<p class="small muted" style="margin:8px 0 0">The cost sheet has SKU, pieces and cost per piece columns. Fill it in Excel and upload it back.</p></section>';
+    return '<div class="stack">' + h + '</div>';
+  };
+
+  /* ---------------- Expenses ---------------- */
+  function monthChoices() {
+    var set = {}, now = new Date(), y = now.getFullYear(), m = now.getMonth() + 1;
+    for (var i = 0; i < 15; i++) { set[y + '-' + (m < 10 ? '0' : '') + m] = 1; m--; if (m < 1) { m = 12; y--; } }
+    (S.months || []).forEach(function (x) { set[x] = 1; });
+    var list = Object.keys(set).sort().reverse(), def = (S.months && S.months.length) ? S.months[S.months.length - 1] : list[0];
+    return list.map(function (x) { return '<option value="' + x + '"' + (x === def ? ' selected' : '') + '>' + E.fmtMonth(x) + '</option>'; }).join('');
+  }
+  V.exp = function () {
+    var w = A.W(), inPer = {};
+    if (A.hasData()) S.R.EXL.forEach(function (x) { inPer[x.id] = x.amt; });
+    var h = demoBar() + '<section class="sheet"><h2 style="margin-bottom:6px">Other business expenses</h2>' +
+      '<p class="muted">Costs outside Meesho\u2019s report. A monthly amount is spread by day, so half a month counts half.</p><div class="fgrid">' +
+      '<label class="f">What for<input class="inp" id="ex-n" placeholder="Rent, packing help, internet" maxlength="60"></label>' +
+      '<label class="f">Amount (\u20b9)<input class="inp money" id="ex-a" inputmode="decimal" placeholder="0"></label>' +
+      '<label class="f">How often<select class="inp" id="ex-w" data-ch="exw"><option value="monthly">Every month</option><option value="once">One time, in one month</option></select></label>' +
+      '<label class="f" id="ex-m-wrap" hidden>Month<select class="inp" id="ex-m">' + monthChoices() + '</select></label></div>' +
+      '<div class="row" style="margin-top:12px"><button class="btn pri" data-act="addExp">Add expense</button></div></section>';
+    if (w.expenses.length) {
+      h += '<section class="sheet"><h3 style="margin-bottom:4px">Your expenses</h3>' + w.expenses.map(function (e) {
+        var p = inPer[e.id];
+        return '<div class="exp"><div class="grow"><b>' + esc(e.name) + '</b><div class="small muted">' + (e.when === 'monthly' ? 'Every month' : 'One time, ' + E.fmtMonth(e.when)) +
+          (A.hasData() ? ', ' + (p ? rs(p) : 'nothing') + ' in ' + esc(S.per.label) : '') + '</div></div><span class="amt">' + rs(e.amt) + '</span>' +
+          '<button class="btn sm danger" data-act="rmExp" data-id="' + esc(e.id) + '" aria-label="Delete ' + esc(e.name) + '">Delete</button></div>';
+      }).join('') + '</section>';
+    } else h += '<p class="small muted">No expenses added yet.</p>';
+    return '<div class="stack">' + h + '</div>';
+  };
+
+  /* ---------------- Settings ---------------- */
+  V.set = function () {
+    var st = A.W().settings;
+    function sel(k, opts) {
+      return '<select class="inp" data-ch="set" data-k="' + k + '">' + opts.map(function (o) { return '<option value="' + o[0] + '"' + (String(st[k]) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
+    }
+    var th = document.documentElement.getAttribute('data-theme') || 'auto';
+    var h = demoBar() +
+      '<section class="sheet stack"><h2>Business</h2><div class="fgrid">' +
+      '<label class="f">Business name<input class="inp" data-ch="set" data-k="biz" value="' + esc(st.biz) + '" maxlength="80" placeholder="Shown on the P&amp;L"></label>' +
+      '<label class="f">GSTIN<input class="inp" data-ch="set" data-k="gstin" value="' + esc(st.gstin) + '" maxlength="15" placeholder="Optional" autocapitalize="characters"></label></div>' +
+      '<label class="check"><input type="checkbox" data-ch="set" data-k="gstReg"' + (st.gstReg ? ' checked' : '') + '><span>I am registered under GST<br><span class="small muted">Turn this off if you sell with a Meesho Enrolment ID instead of a GSTIN. Then GST is not split out and charges count including GST.</span></span></label>' +
+      '<div class="fgrid"><label class="f">TCS and TDS deducted by Meesho' + sel('taxCredits', [['claim', 'I claim them back'], ['expense', 'Count them as an expense']]) + '</label>' +
+      '<label class="f">GST rate when the file has none (%)<input class="inp" data-ch="set" data-k="defaultGst" inputmode="decimal" value="' + esc(st.defaultGst) + '"></label></div></section>' +
+      '<section class="sheet stack"><h2>Returns and payments</h2><div class="fgrid">' +
+      '<label class="f">Customer returns usually are' + sel('returnDefault', [['ok', 'Back in stock'], ['loss', 'Not resellable']]) + '</label>' +
+      '<label class="f">RTO parcels usually are' + sel('rtoDefault', [['ok', 'Back in stock'], ['loss', 'Not resellable']]) + '</label>' +
+      '<label class="f">Payment overdue after (days from order)<input class="inp" data-ch="set" data-k="overdueDays" inputmode="numeric" value="' + esc(st.overdueDays) + '"></label></div>' +
+      '<p class="small muted" style="margin:0">Mark each return or RTO in Reconcile to override these.</p></section>' +
+      '<section class="sheet stack"><h2>Backup</h2><p class="muted" style="margin:0">Download your costs, expenses, return marks and settings as a file, or restore them on another device.</p>' +
+      '<div class="row"><button class="btn" data-act="backup">Download backup</button><label class="btn">Restore backup<input type="file" class="sr" data-file="restore" accept=".json,application/json"></label></div></section>' +
+      '<section class="sheet stack only-own"><h2>Appearance</h2><div class="seg" role="group" aria-label="Theme">' +
+      [['auto', 'Match device'], ['light', 'Light'], ['dark', 'Dark']].map(function (t) { return '<button data-act="theme" data-v="' + t[0] + '" aria-pressed="' + (th === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</div></section>' +
+      '<section class="sheet stack"><h2>Remove data</h2><div class="row"><button class="btn danger" data-act="clearFiles">Remove uploaded files</button><button class="btn danger" data-act="resetAll">Erase everything</button></div></section>';
+    return '<div class="stack">' + h + '</div>';
+  };
+})();
+
+</script>
+<script>
+/* Hisaab exports: styled Excel workbook (xlsx-js-style) and PDF statement (jsPDF + autotable). */
+(function () {
+  'use strict';
+  var HX = window.HX = {};
+  var BL = { settled: 'Paid', awaiting: 'Awaiting payment', overdue: 'Payment overdue', transit: 'In transit', returned: 'Customer return', rto: 'RTO or lost', cancelled: 'Cancelled', adjust: 'Adjustment only', older: 'Before these files', other: 'Other' };
+  var FL = { recovery: 'Recovery charged', unexplained: 'Does not add up', paidCancelled: 'Paid but cancelled', negative: 'Negative payout', claim: 'Claim received', revPending: 'Sale not reversed yet', overdue: 'Payment overdue' };
+  function r(p) { return Math.round(p) / 100; }
+  function today() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function inPer(S, p) { var d = S.per.basis === 'order' ? (p.od || p.pd) : p.pd; return !!d && d >= S.per.from && d <= S.per.to; }
+
+  /* ================= Excel ================= */
+  HX.xlsx = function (ctx) {
+    var S = ctx.S, E = ctx.E, R = S.R, K = R.K, st = ctx.cfg, X = window.XLSX, per = S.per;
+    var NUM = '#,##0.00;[Red](#,##0.00);"-"', INT = '0';
+    var INK = '1B1F3B', CARBON = '2F3490', SOFT = 'E8E9F8', RULE = 'B9C1DD', RED = 'C8323A', GREY = '6F7599';
+    var ST = {
+      title: { font: { bold: true, sz: 15, color: { rgb: INK } } },
+      sub: { font: { sz: 11, color: { rgb: GREY } } },
+      head: { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: CARBON } }, alignment: { vertical: 'center', wrapText: true } },
+      sec: { font: { bold: true, color: { rgb: CARBON } }, fill: { patternType: 'solid', fgColor: { rgb: SOFT } } },
+      row: { alignment: { indent: 1 } },
+      tot: { font: { bold: true }, border: { top: { style: 'thin', color: { rgb: RULE } } } },
+      gp: { font: { bold: true }, fill: { patternType: 'solid', fgColor: { rgb: SOFT } }, border: { top: { style: 'thin', color: { rgb: RULE } } } },
+      np: { font: { bold: true, sz: 12 }, border: { top: { style: 'thin', color: { rgb: INK } }, bottom: { style: 'double', color: { rgb: RED } } } },
+      bold: { font: { bold: true } },
+      note: { font: { color: { rgb: GREY } }, alignment: { wrapText: true, vertical: 'top' } }
+    };
+    function merge(a, b) {
+      var o = {}; [a, b].forEach(function (s) { if (!s) return; for (var k in s) o[k] = (typeof s[k] === 'object' && !Array.isArray(s[k])) ? Object.assign({}, o[k] || {}, s[k]) : s[k]; });
+      return o;
+    }
+    function m(p, s) { return { v: r(p), t: 'n', z: NUM, s: merge({ numFmt: NUM, alignment: { horizontal: 'right' } }, s) }; }
+    function n(v, s) { return { v: +v || 0, t: 'n', z: INT, s: merge({ numFmt: INT, alignment: { horizontal: 'right' } }, s) }; }
+    function t(v, s) { return { v: String(v == null ? '' : v), t: 's', s: s || undefined }; }
+    function sheet(rows, widths, freeze) {
+      var ws = {}, maxC = 0;
+      rows.forEach(function (row, i) {
+        (row || []).forEach(function (c, j) {
+          if (c === null || c === undefined) return;
+          var cell = (typeof c === 'object') ? c : (typeof c === 'number' ? { v: c, t: 'n' } : { v: String(c), t: 's' });
+          if (cell.t === 's' && cell.v === '' && !cell.s) return;
+          if (!cell.s) delete cell.s;
+          ws[X.utils.encode_cell({ r: i, c: j })] = cell;
+          if (j + 1 > maxC) maxC = j + 1;
+        });
+      });
+      ws['!ref'] = X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(rows.length - 1, 0), c: Math.max(maxC - 1, 0) } });
+      if (widths) ws['!cols'] = widths.map(function (w) { return { wch: w }; });
+      if (freeze) ws['!freeze'] = freeze;
+      return ws;
+    }
+    function heads(list) { return list.map(function (h) { return t(h, ST.head); }); }
+    var wb = X.utils.book_new();
+    var basis = per.basis === 'order' ? 'order date' : 'payment date';
+
+    /* P&L */
+    var P = [];
+    P.push([t(st.biz || 'Meesho seller', ST.title)]);
+    P.push([t('Profit and loss statement', ST.sub)]);
+    P.push([t('Period'), t(per.label + ' (' + per.from + ' to ' + per.to + ')')]);
+    P.push([t('Counted by'), t(basis)]);
+    if (st.gstin) P.push([t('GSTIN'), t(st.gstin)]);
+    P.push([t('Generated'), t(today())]);
+    P.push([]);
+    P.push(heads(['Particulars', 'Amount (Rs)']));
+    R.lines.forEach(function (l) {
+      if (l.k === 'sec') P.push([t(l.l, ST.sec), t('', ST.sec)]);
+      else if (l.k === 'row') P.push([t(l.l, ST.row), m(l.v)]);
+      else { var s = ST[l.k === 'tot' || l.k === 'sub' ? 'tot' : l.k]; P.push([t(l.l, s), m(l.v, s)]); }
+    });
+    P.push([]);
+    P.push([t('How profit ties to money received', ST.sec), t('', ST.sec)]);
+    R.bridge.forEach(function (b) { var s = b.k === 'np' ? ST.np : b.k ? ST.tot : null; P.push([t(b.l, s || ST.row), m(b.v, s)]); });
+    if (R.gst) {
+      var g = R.gst;
+      P.push([]);
+      P.push([t('GST summary', ST.sec), t('', ST.sec)]);
+      [['Output GST on net sales', g.out], ['Less: input credit on Meesho charges', -g.itcCh], ['Less: input credit on ads', -g.itcAds], ['Net GST payable', g.net, 1], ['Less: TCS already collected by Meesho', -g.tcs], ['GST left to pay in cash', g.cash, 1]]
+        .forEach(function (x) { P.push([t(x[0], x[2] ? ST.tot : ST.row), m(x[1], x[2] ? ST.tot : null)]); });
+    }
+    P.push([]);
+    P.push([t('Tax deducted by Meesho', ST.sec), t('', ST.sec)]);
+    P.push([t('TCS collected under GST', ST.row), m(-K.T)]);
+    P.push([t('TDS under section 194-O', ST.row), m(-K.D)]);
+    P.push([t(R.claim ? 'Both are claimable, so they are added back to profit.' : 'Both are counted as an expense (Settings).', ST.note)]);
+    X.utils.book_append_sheet(wb, sheet(P, [58, 18], { xSplit: 0, ySplit: 8 }), 'P&L');
+
+    /* SKU wise */
+    var SK = [heads(['SKU', 'Product', 'Pieces per order', 'Orders sold', 'Pieces sold', 'Pieces returned', 'RTO parcels', 'Gross sales', 'Returns', 'Net sales', 'Output GST', 'Net revenue', 'Cost of goods', 'Meesho charges', 'Claims and recoveries', 'TCS/TDS as expense', 'Packaging', 'Profit', 'Profit per order', 'Profit per piece'])];
+    R.skus.forEach(function (x) {
+      SK.push([t(x.sku), t(x.pn), n(x.pcs), n(x.sold), n(x.units), n(x.retU), n(x.rto), m(x.S), m(x.R), m(x.NS), m(-x.OUT), m(x.NR), m(-x.COGS), m(x.MC), m(x.OCR), m(R.claim ? 0 : x.TX), m(-x.pack), m(x.contrib, ST.bold), m(x.perOrder), m(x.perUnit)]);
+    });
+    SK.push([t('Not tied to a SKU (ads, referral, account credits, expenses)', ST.tot)].concat(new Array(16).fill(t('', ST.tot))).concat([m(R.unalloc, ST.tot)]));
+    SK.push([t('Net profit', ST.np), t('', ST.np), t('', ST.np), n(K.sales, ST.np), n(K.fu, ST.np)].concat(new Array(12).fill(t('', ST.np))).concat([m(R.NP, ST.np)]));
+    X.utils.book_append_sheet(wb, sheet(SK, [16, 40, 9, 10, 10, 10, 10, 13, 13, 13, 12, 13, 13, 14, 13, 12, 11, 13, 12, 12], { xSplit: 1, ySplit: 1 }), 'SKU wise');
+
+    /* Month wise */
+    if (S.MO.length) {
+      var MO = [heads(['Month', 'Net sales', 'Net revenue', 'Cost of goods', 'Gross profit', 'Meesho charges', 'Ads', 'Claims and credits', 'Operating expenses', 'Net profit', 'Received from Meesho', 'Orders sold', 'Parcels'])];
+      S.MO.forEach(function (x) { MO.push([t(E.fmtMonth(x.m)), m(x.NS), m(x.NR), m(-x.COGS), m(x.GP), m(x.MCx), m(x.ads), m(x.credits), m(-x.OPEX), m(x.NP, ST.bold), m(x.payout), n(x.orders), n(x.parcels)]); });
+      X.utils.book_append_sheet(wb, sheet(MO, [12, 13, 13, 13, 13, 14, 12, 13, 14, 13, 15, 10, 10], { xSplit: 1, ySplit: 1 }), 'Month wise');
+    }
+
+    /* Settlement rows in the period, every Meesho column that was used */
+    var cols = R.cols.slice().sort(function (a, b) { var ks = Object.keys(S.M.reg); return ks.indexOf(a.key) - ks.indexOf(b.key); });
+    var L = [heads(['Payment date', 'Sub order no', 'Order date', 'SKU', 'Product', 'Status', 'Qty', 'GST %', 'Transaction ID'].concat(cols.map(function (c) { return c.label; })).concat(['Final Settlement Amount', 'Unexplained difference']))];
+    S.M.pay.forEach(function (p) {
+      if (!inPer(S, p)) return;
+      var row = [t(p.pd), t(p.id), t(p.od), t(p.sku), t(p.pn), t(p.st), n(p.q), n(p.g), t(p.tx)];
+      cols.forEach(function (c) { row.push(m(p.a[c.key] || 0)); });
+      row.push(m(p.f, ST.bold)); row.push(m(p.o));
+      L.push(row);
+    });
+    X.utils.book_append_sheet(wb, sheet(L, [12, 24, 12, 22, 30, 12, 6, 7, 22].concat(cols.map(function () { return 14; })).concat([16, 12]), { xSplit: 2, ySplit: 1 }), 'Settlement rows');
+
+    /* Reconciliation, all orders */
+    var RC = [heads(['Sub order no', 'Order date', 'SKU', 'Product', 'Status', 'Where it stands', 'Payment rows', 'Last payment date', 'Net settlement', 'Sale', 'Return', 'Recovery', 'Claims and compensation', 'Unexplained', 'Order value (orders report)', 'Item condition', 'Notes'])];
+    S.REC.rows.forEach(function (x) {
+      RC.push([t(x.id), t(x.od), t(x.sku), t(x.pn), t(E.ST_LABEL[x.st] || x.stRaw), t(BL[x.b] || x.b), n(x.legs), t(x.pd), m(x.f), m(x.s), m(x.r), m(x.rc), m(x.cl), m(x.o), m(x.est),
+        t(x.cond ? (x.cond === 'ok' ? 'Back in stock' : 'Not resellable') + (x.condDef ? ' (default)' : '') : ''), t(x.flags.map(function (f) { return FL[f] || f; }).join(', '))]);
+    });
+    X.utils.book_append_sheet(wb, sheet(RC, [24, 12, 22, 30, 14, 18, 8, 12, 13, 12, 12, 11, 12, 11, 13, 18, 30], { xSplit: 1, ySplit: 1 }), 'Reconciliation');
+
+    /* Payouts */
+    var PO = [heads(['Payment date', 'Orders', 'Settlements', 'Ads', 'Referral', 'Compensation and recovery', 'Net received', 'Transaction IDs'])];
+    S.PO.forEach(function (p) { PO.push([t(p.d), n(p.n), m(p.f), m(p.ads), m(p.ref), m(p.adj), m(p.net, ST.bold), t(p.tx.join(', '))]); });
+    X.utils.book_append_sheet(wb, sheet(PO, [13, 8, 13, 12, 11, 14, 14, 40], { xSplit: 1, ySplit: 1 }), 'Payouts');
+
+    /* Meesho charges by column */
+    var CH = [heads(['Column in Meesho file', 'Counted as', 'Amount in file', 'GST part (input credit)', 'Amount excl. GST'])];
+    R.cols.forEach(function (c) { CH.push([t(c.label), t(E.CATL[c.cat] || c.cat), m(c.v), m(-c.g), m(c.v - c.g)]); });
+    X.utils.book_append_sheet(wb, sheet(CH, [46, 28, 15, 18, 16], { xSplit: 0, ySplit: 1 }), 'Meesho columns');
+
+    /* Expenses */
+    var EX = [heads(['Expense', 'How often', 'Amount entered', 'Counted in this period'])];
+    var inP = {}; R.EXL.forEach(function (e) { inP[e.id] = e.amt; });
+    ctx.w.expenses.forEach(function (e) { EX.push([t(e.name), t(e.when === 'monthly' ? 'Every month' : 'One time, ' + E.fmtMonth(e.when)), m(e.amt), m(inP[e.id] || 0)]); });
+    EX.push([t('Packaging (' + K.parcels + ' parcels)'), t('Per parcel'), m(ctx.cfg.pack || 0), m(K.pack)]);
+    X.utils.book_append_sheet(wb, sheet(EX, [30, 22, 15, 20]), 'Expenses');
+
+    /* Notes */
+    var H = S.H, mt = 0, nt = 0;
+    ctx.w.files.forEach(function (f) { f.sheets.forEach(function (s) { if (s.type === 'pay') { mt += s.matched || 0; nt += s.n || 0; } }); });
+    var NO = [[t('How this report is built', ST.title)], []];
+    [
+      ['Money received', 'Sum of Final Settlement Amount from Order Payments, plus Ads Cost, Referral Payments and Compensation and Recovery entries, for the payment dates in the period.'],
+      ['Sales', 'Total Sale Amount and Total Sale Return Amount columns. With GST registration on, output GST is taken out at each row\u2019s Product GST %.'],
+      ['Meesho charges', 'Every fee column that makes up Final Settlement. Columns marked "incl. GST" have 18% GST taken out as input credit.'],
+      ['Cost of goods', 'Your cost per piece times the pieces shipped. Returns marked back in stock are added back; RTO or lost parcels marked not resellable are written off.'],
+      ['Combo size', packNote(st) + ' Typed counts on the Costs tab take priority.'],
+      ['TCS and TDS', R.claim ? 'Deducted by Meesho and claimable, so added back to profit.' : 'Counted as an expense, as chosen in Settings.'],
+      ['Check', 'Settlement rows that add up exactly to Final Settlement: ' + mt + ' of ' + nt + '. Any difference is shown as "Unexplained difference" so totals still match Meesho.'],
+      ['Payment dates covered', H.pd0 ? H.pd0 + ' to ' + H.pd1 : 'none'],
+      ['Orders report covered', H.od0 ? H.od0 + ' to ' + H.od1 + ' (' + H.ordRows + ' orders)' : 'not uploaded'],
+      ['Repeated rows skipped', String(H.dups)],
+      ['GST registered', st.gstReg ? 'Yes' : 'No'],
+      ['Customer returns default', st.returnDefault === 'ok' ? 'Back in stock' : 'Not resellable'],
+      ['RTO parcels default', st.rtoDefault === 'ok' ? 'Back in stock' : 'Not resellable'],
+      ['Returns using the default', String(K.rdef)],
+      ['SKUs missing a cost', R.missing.length ? R.missing.map(function (x) { return x.sku + ' (' + x.units + ')'; }).join(', ') : 'none']
+    ].forEach(function (x) { NO.push([t(x[0], ST.bold), t(x[1], ST.note)]); });
+    X.utils.book_append_sheet(wb, sheet(NO, [28, 100]), 'Notes');
+
+    var out = X.write(wb, { type: 'array', bookType: 'xlsx', compression: true });
+    return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  };
+
+  /* ================= PDF ================= */
+  HX.pdf = function (ctx) {
+    var S = ctx.S, E = ctx.E, R = S.R, K = R.K, st = ctx.cfg, per = S.per;
+    var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4' });
+    var PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight(), M = 40;
+    var INK = [27, 31, 59], GREY = [111, 117, 153], CARBON = [47, 52, 144], SOFT = [232, 233, 248], RULE = [220, 225, 240], RED = [200, 50, 58], NEG = [180, 35, 49];
+    function a(s) { return String(s == null ? '' : s).replace(/\u20b9/g, 'Rs.').replace(/[\u2013\u2014\u2212]/g, '-').replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[^\x20-\x7E]/g, ''); }
+    function mn(p) { return E.money(p, { paren: true }); }
+    function rsx(p) { return 'Rs. ' + E.money(p, { noPaise: true }); }
+    var basis = per.basis === 'order' ? 'order date' : 'payment date';
+
+    doc.setFillColor(CARBON[0], CARBON[1], CARBON[2]); doc.rect(0, 0, PW, 80, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
+    doc.text(a(st.biz || 'Meesho seller'), M, 34);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5);
+    doc.text(a('Profit and loss statement, ' + per.label), M, 53);
+    doc.text(a('Counted by ' + basis + ' (' + per.from + ' to ' + per.to + ')'), M, 68);
+    if (st.gstin) doc.text(a('GSTIN ' + st.gstin), PW - M, 34, { align: 'right' });
+    doc.text(a('Generated ' + today()), PW - M, 53, { align: 'right' });
+
+    var y = 98, gap = 8, bw = (PW - 2 * M - 3 * gap) / 4;
+    [['Net sales', rsx(R.NS)], ['Received from Meesho', rsx(R.payout)], ['Net profit', rsx(R.NP), R.NP < 0], ['Margin on net revenue', R.NR ? (R.margin * 100).toFixed(1) + '%' : '-']].forEach(function (k, i) {
+      var x = M + i * (bw + gap);
+      doc.setDrawColor(RULE[0], RULE[1], RULE[2]); doc.setFillColor(246, 247, 251); doc.rect(x, y, bw, 46, 'FD');
+      doc.setTextColor(GREY[0], GREY[1], GREY[2]); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.text(a(k[0]), x + 8, y + 15);
+      var c = k[2] ? NEG : INK; doc.setTextColor(c[0], c[1], c[2]); doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text(a(k[1]), x + 8, y + 35);
+    });
+    doc.setFont('helvetica', 'normal');
+    y += 64;
+
+    var kinds = R.lines.map(function (l) { return l.k; });
+    var body = R.lines.map(function (l) {
+      if (l.k === 'sec') return [{ content: a(l.l), colSpan: 2 }];
+      return [a(l.l), mn(l.v)];
+    });
+    doc.autoTable({
+      startY: y, head: [['Particulars', 'Amount (Rs.)']], body: body, theme: 'plain', margin: { left: M, right: M },
+      styles: { font: 'helvetica', fontSize: 9.5, cellPadding: { top: 4, bottom: 4, left: 8, right: 8 }, textColor: INK },
+      headStyles: { fontStyle: 'bold', textColor: GREY, fontSize: 8.5 },
+      columnStyles: { 1: { halign: 'right', cellWidth: 130 } },
+      didParseCell: function (d) {
+        if (d.section !== 'body') return;
+        var k = kinds[d.row.index];
+        if (k === 'sec') { d.cell.styles.fontStyle = 'bold'; d.cell.styles.textColor = CARBON; d.cell.styles.fillColor = SOFT; }
+        else if (k === 'row') { if (d.column.index === 0) d.cell.styles.cellPadding = { top: 4, bottom: 4, left: 20, right: 8 }; }
+        else { d.cell.styles.fontStyle = 'bold'; if (k === 'np') d.cell.styles.fontSize = 11.5; if (k === 'gp') d.cell.styles.fillColor = [246, 247, 251]; }
+        if (d.column.index === 1 && k !== 'sec') { var v = R.lines[d.row.index].v; if (v < 0) d.cell.styles.textColor = NEG; }
+      },
+      didDrawCell: function (d) {
+        var c = d.cell;
+        if (d.section === 'head') { doc.setDrawColor(185, 193, 221); doc.setLineWidth(1); doc.line(c.x, c.y + c.height, c.x + c.width, c.y + c.height); return; }
+        var k = kinds[d.row.index];
+        doc.setDrawColor(RULE[0], RULE[1], RULE[2]); doc.setLineWidth(0.5); doc.line(c.x, c.y + c.height, c.x + c.width, c.y + c.height);
+        if (d.column.index === 1 && (k === 'tot' || k === 'sub' || k === 'gp' || k === 'np')) {
+          doc.setDrawColor(INK[0], INK[1], INK[2]); doc.setLineWidth(0.6); doc.line(c.x + 30, c.y + 1, c.x + c.width, c.y + 1);
+        }
+        if (d.column.index === 1 && k === 'np') {
+          doc.setDrawColor(RED[0], RED[1], RED[2]); doc.setLineWidth(0.7);
+          doc.line(c.x + 30, c.y + c.height - 3, c.x + c.width, c.y + c.height - 3); doc.line(c.x + 30, c.y + c.height - 0.8, c.x + c.width, c.y + c.height - 0.8);
+        }
+      }
+    });
+    var notes = ['Brackets mean a cost or a deduction.'];
+    if (R.REGD) notes.push('Sales and charges exclude GST.');
+    if (K.rdef) notes.push(K.rdef + ' returns/RTO use the default condition (customer returns: ' + (st.returnDefault === 'ok' ? 'back in stock' : 'not resellable') + ', RTO: ' + (st.rtoDefault === 'ok' ? 'back in stock' : 'not resellable') + ').');
+    if (R.missing.length) notes.push('Cost missing for ' + R.missing.length + ' SKU(s); profit is overstated.');
+    if (K.revPend) notes.push(K.revPend + ' returned/RTO orders not yet reversed by Meesho (' + rsx(K.revPendV) + ' of sales).');
+    var fy = doc.lastAutoTable.finalY + 14;
+    doc.setFontSize(8.5); doc.setTextColor(GREY[0], GREY[1], GREY[2]);
+    var nl = doc.splitTextToSize(a(notes.join(' ')), PW - 2 * M);
+    if (fy + nl.length * 11 > PH - 44) { doc.addPage(); fy = 50; doc.setFontSize(8.5); doc.setTextColor(GREY[0], GREY[1], GREY[2]); }
+    doc.text(nl, M, fy);
+    var cursor = fy + nl.length * 11;
+
+    function head(title, sub) {
+      var yy = cursor + 22;
+      if (yy > PH - 140) { doc.addPage(); yy = 50; }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(INK[0], INK[1], INK[2]); doc.text(a(title), M, yy);
+      doc.setFont('helvetica', 'normal');
+      if (sub) { doc.setFontSize(8.5); doc.setTextColor(GREY[0], GREY[1], GREY[2]); var sl = doc.splitTextToSize(a(sub), PW - 2 * M); doc.text(sl, M, yy + 13); yy += 11 * sl.length + 2; }
+      return yy + 8;
+    }
+    function table(title, sub, hd, rows, numFrom, opt) {
+      var sy = head(title, sub);
+      var cs = {}; for (var i = numFrom; i < hd.length; i++) cs[i] = { halign: 'right' };
+      doc.autoTable(Object.assign({
+        startY: sy, head: [hd.map(a)], body: rows, theme: 'striped', margin: { left: M, right: M },
+        styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 3.5, textColor: INK, overflow: 'linebreak' },
+        headStyles: { fillColor: CARBON, textColor: [255, 255, 255], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [246, 247, 251] }, columnStyles: cs,
+        didParseCell: function (d) { if (d.section === 'body' && typeof d.cell.raw === 'string' && /^\(.*\)$/.test(d.cell.raw)) d.cell.styles.textColor = NEG; }
+      }, opt || {}));
+      cursor = doc.lastAutoTable.finalY;
+    }
+    table('How profit ties to money received', 'Money received should match the Meesho credits in your bank for the same payment dates.', ['Item', 'Amount (Rs.)'],
+      R.bridge.map(function (b) { return [{ content: a(b.l), styles: b.k ? { fontStyle: 'bold' } : {} }, { content: mn(b.v), styles: b.k ? { fontStyle: 'bold' } : {} }]; }), 1, { columnStyles: { 1: { halign: 'right', cellWidth: 130 } } });
+    if (R.gst) {
+      var g = R.gst;
+      table('GST summary', 'Input credit is worked out at 18% on columns Meesho marks as including GST. Check against Meesho\'s monthly tax invoice before filing.', ['Item', 'Amount (Rs.)'],
+        [['Output GST on net sales', mn(g.out)], ['Less: input credit on Meesho charges', mn(-g.itcCh)], ['Less: input credit on ads', mn(-g.itcAds)], [{ content: 'Net GST payable', styles: { fontStyle: 'bold' } }, { content: mn(g.net), styles: { fontStyle: 'bold' } }], ['Less: TCS already collected by Meesho', mn(-g.tcs)], [{ content: 'GST left to pay in cash', styles: { fontStyle: 'bold' } }, { content: mn(g.cash), styles: { fontStyle: 'bold' } }]],
+        1, { columnStyles: { 1: { halign: 'right', cellWidth: 130 } } });
+    }
+    table('Tax deducted by Meesho', R.claim ? 'Claimable: TCS in your GST return, TDS in your income tax return (Form 26AS). Added back to profit.' : 'Counted as an expense, as chosen in Settings.', ['Item', 'Amount (Rs.)'],
+      [['TCS collected under GST', mn(-K.T)], ['TDS under section 194-O', mn(-K.D)]], 1, { columnStyles: { 1: { halign: 'right', cellWidth: 130 } } });
+    table('Profit by SKU', 'After cost of goods, Meesho charges and packaging; before ads and other expenses.', ['SKU', 'Orders', 'Pieces', 'Returns/RTO', 'Net sales', 'Cost of goods', 'Meesho charges', 'Profit', 'Per order'],
+      R.skus.map(function (x) { return [a(x.sku) + (x.pcs > 1 ? ' (' + x.pcs + ' pcs)' : ''), String(x.sold), String(x.units), String(x.retU + x.rto), mn(x.NS), mn(-x.COGS), mn(x.MC), mn(x.contrib), x.sold ? mn(x.perOrder) : '']; })
+        .concat([[{ content: 'Not tied to a SKU (ads, referral, account credits, expenses)', colSpan: 7, styles: { fontStyle: 'bold' } }, { content: mn(R.unalloc), styles: { fontStyle: 'bold', halign: 'right' } }, ''],
+          [{ content: 'Net profit', colSpan: 7, styles: { fontStyle: 'bold' } }, { content: mn(R.NP), styles: { fontStyle: 'bold', halign: 'right' } }, '']]), 1);
+    if (S.MO.length > 1) {
+      table('Month by month', 'Counted by ' + basis + '.', ['Month', 'Net sales', 'Gross profit', 'Meesho charges', 'Ads', 'Expenses', 'Net profit', 'Received'],
+        S.MO.map(function (x) { return [E.fmtMonth(x.m), mn(x.NS), mn(x.GP), mn(x.MCx), mn(x.ads), mn(-x.OPEX), mn(x.NP), mn(x.payout)]; }), 1);
+    }
+    table('Payouts by date', 'All payment dates in your files.', ['Payment date', 'Orders', 'Settlements', 'Ads', 'Other', 'Net received'],
+      S.PO.map(function (p) { return [p.d || 'No date', String(p.n), mn(p.f), mn(p.ads), mn(p.ref + p.adj), mn(p.net)]; }), 1);
+
+    var pages = doc.internal.getNumberOfPages();
+    for (var i = 1; i <= pages; i++) {
+      doc.setPage(i); doc.setFontSize(8); doc.setTextColor(GREY[0], GREY[1], GREY[2]);
+      doc.text(a('Prepared from Meesho payment reports with Hisaab. Figures depend on the costs and return conditions entered.'), M, PH - 22);
+      doc.text('Page ' + i + ' of ' + pages, PW - M, PH - 22, { align: 'right' });
+    }
+    return doc.output('blob');
+  };
+})();
+
+</script>
+<script>HA.boot();</script>
+</body>
+</html>
