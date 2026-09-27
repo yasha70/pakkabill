@@ -33,53 +33,76 @@ I = {
  'scissor':'<circle cx="9" cy="30" r="4.5"/><circle cx="22" cy="33" r="4.5"/><path d="M12 27 30 5M19 29 30 9"/>',
  'mega':   '<path d="M5 16v8h6l14 8V8L11 16z"/><path d="M11 24l3 10h4l-2-10M30 14a6 6 0 0 1 0 12"/>',
 }
-# (icon, x, y, rotate, scale) inside a 420x420 tile, kept clear of the edges so the tile repeats cleanly.
-P = [
- ('bag', 18, 16, -12, 1.05), ('receipt', 96, 8, 8, 1.0), ('coin', 176, 22, -6, 1.0), ('truck', 248, 12, 4, 1.1), ('tag', 338, 18, 14, 1.0),
- ('gst', 30, 92, 10, 1.15), ('calc', 118, 86, -10, 0.95), ('box', 196, 96, 6, 1.1), ('heart', 284, 88, -14, 0.85), ('qr', 352, 94, 0, 0.9),
- ('blouse', 14, 176, 8, 1.05), ('chart', 96, 170, -4, 1.0), ('percent', 178, 184, 0, 0.8), ('cart', 240, 170, -8, 1.1), ('invoice', 330, 172, 10, 1.0),
- ('cal', 36, 258, -8, 0.95), ('store', 116, 252, 4, 1.05), ('star', 204, 262, 16, 0.9), ('hanger', 270, 258, -6, 1.05), ('coins', 356, 262, 6, 0.9),
- ('clip', 16, 340, 6, 0.95), ('phone', 94, 334, -12, 0.95), ('mega', 170, 340, 8, 1.0), ('barcode', 252, 342, -4, 0.95), ('scissor', 340, 336, 12, 1.0),
-]
-# small confetti between the icons: dots, rings, sparkles, squiggles
-BITS = [
- ('dot', 70, 60), ('ring', 150, 62), ('spark', 228, 70), ('dot', 312, 64), ('squig', 392, 64),
- ('ring', 80, 146), ('dot', 162, 150), ('spark', 262, 146), ('ring', 318, 152), ('dot', 402, 148),
- ('spark', 60, 228), ('dot', 150, 232), ('squig', 214, 226), ('ring', 300, 232), ('dot', 334, 236),
- ('dot', 76, 312), ('ring', 158, 314), ('spark', 236, 318), ('dot', 318, 312), ('ring', 400, 314),
- ('squig', 60, 404), ('dot', 140, 404), ('ring', 226, 404), ('spark', 306, 404), ('dot', 396, 404),
-]
-def bit(kind, x, y):
-    if kind == 'dot': return f'<circle cx="{x}" cy="{y}" r="2.4" fill="C" stroke="none"/>'
-    if kind == 'ring': return f'<circle cx="{x}" cy="{y}" r="4.5"/>'
-    if kind == 'spark': return f'<path d="M{x} {y-6}v12M{x-6} {y}h12M{x-3.5} {y-3.5}l7 7M{x+3.5} {y-3.5}l-7 7" stroke-width="1.5"/>'
-    return f'<path d="M{x-9} {y}q3-5 6 0t6 0 6 0"/>'
+# Seamless scatter: icons are placed by a seeded Poisson-disk walk on a torus, so spacing is even
+# everywhere, and anything that crosses an edge is drawn again on the opposite side.
+import random
+TILE = 300
+ICON_PX = (21, 27)      # drawn size of an icon on screen
+GAP = 37                # minimum distance between icon centres
+BIT_GAP = 18            # minimum distance for the small dots, rings and sparkles
+STROKE = 1.35           # on-screen line width
 
-ROW_SHIFT = {0: 0, 1: 18, 2: -4, 3: 14, 4: 4}
-NUDGE = [(3, -5), (-6, 4), (5, 6), (-4, -3), (6, 2), (-3, 7), (4, -6), (-5, 1)]
+def torus_d(a, b):
+    dx = abs(a[0] - b[0]); dy = abs(a[1] - b[1])
+    dx = min(dx, TILE - dx); dy = min(dy, TILE - dy)
+    return (dx * dx + dy * dy) ** 0.5
+
+def scatter(rng, gap, existing, tries=4000):
+    pts = []
+    for _ in range(tries):
+        c = (rng.uniform(0, TILE), rng.uniform(0, TILE))
+        if all(torus_d(c, q) >= gap for q in pts) and all(torus_d(c, q) >= gap * 0.62 + 9 for q in existing):
+            pts.append(c)
+    return pts
+
+def wrapped(x, y, reach, draw):
+    out = []
+    for ox in (-TILE, 0, TILE):
+        for oy in (-TILE, 0, TILE):
+            X, Y = x + ox, y + oy
+            if -reach <= X <= TILE + reach and -reach <= Y <= TILE + reach:
+                out.append(draw(X, Y))
+    return out
+
+def bit(kind, x, y):
+    if kind == 'dot': return f'<circle cx="{x}" cy="{y}" r="1.5" fill="C" stroke="none"/>'
+    if kind == 'ring': return f'<circle cx="{x}" cy="{y}" r="2.8"/>'
+    if kind == 'spark': return f'<path d="M{x} {y-4}v8M{x-4} {y}h8" stroke-width="1.2"/>'
+    return f'<path d="M{x-6} {y}q2-3.2 4 0t4 0 4 0" stroke-width="1.2"/>'
+
 def tile(color, alpha):
+    rng = random.Random(20260927)
+    names = list(I.keys())
+    centres = scatter(rng, GAP, [])
+    rng.shuffle(names)
     body = []
-    for i, (name, x, y, r, sc) in enumerate(P):
-        dx, dy = NUDGE[i % len(NUDGE)]
-        x = max(4, min(TILE - 50, x + ROW_SHIFT[i // 5] + dx)); y = max(4, min(TILE - 50, y + dy))
-        body.append(f'<g transform="translate({x} {y}) rotate({r} 20 20) scale({sc})">{I[name]}</g>')
-    body += [bit(*b) for b in BITS]
-    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{TILE}" height="{TILE}" viewBox="0 0 {TILE} {TILE}">'
-           f'<g fill="none" stroke="{color}" stroke-opacity="{alpha}" fill-opacity="{alpha}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
-           + ''.join(body).replace('fill="C"', f'fill="{color}"') + '</g></svg>')
-    return svg
+    for k, (x, y) in enumerate(centres):
+        name = names[k % len(names)]
+        px = rng.uniform(*ICON_PX); sc = px / 40.0; rot = rng.uniform(-28, 28)
+        sw = round(STROKE / sc, 2)
+        def draw(X, Y, name=name, sc=sc, rot=rot, sw=sw):
+            return (f'<use href="#{name}" transform="translate({X - 20 * sc:.1f} {Y - 20 * sc:.1f}) rotate({rot:.0f} {20 * sc:.1f} {20 * sc:.1f}) scale({sc:.3f})" stroke-width="{sw}"/>')
+        body += wrapped(x, y, 20, draw)
+    kinds = ['dot', 'ring', 'dot', 'spark', 'dot', 'squig', 'ring', 'dot']
+    for k, (x, y) in enumerate(scatter(rng, BIT_GAP, centres)):
+        kind = kinds[k % len(kinds)]
+        body += wrapped(x, y, 8, lambda X, Y, kind=kind: bit(kind, round(X, 1), round(Y, 1)))
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{TILE}" height="{TILE}" viewBox="0 0 {TILE} {TILE}">'
+            '<defs>' + ''.join(f'<g id="{k}">{v}</g>' for k, v in I.items()) + '</defs>'
+            f'<g fill="none" stroke="{color}" stroke-opacity="{alpha}" fill-opacity="{alpha}" stroke-width="{STROKE}" stroke-linecap="round" stroke-linejoin="round">'
+            + ''.join(body).replace('fill="C"', f'fill="{color}"') + '</g></svg>')
 
 def uri(svg):
     return 'url("data:image/svg+xml,' + urllib.parse.quote(svg, safe=" /:=,;()'.-") + '")'
 
-LIGHT = tile('#5b3fd6', 0.13)
-DARK = tile('#c8b6ff', 0.115)
+LIGHT = tile('#5b3fd6', 0.15)
+DARK = tile('#c8b6ff', 0.12)
 if len(sys.argv) > 1 and sys.argv[1] == 'svg':
     print(LIGHT if sys.argv[2:] != ['dark'] else DARK); sys.exit()
 css = (':root{--doodle:' + uri(LIGHT) + ';--doodle-size:' + str(TILE) + 'px}'
        '@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--doodle:' + uri(DARK) + '}}'
        ':root[data-theme=dark]{--doodle:' + uri(DARK) + '}'
-       '@media screen{body{background-image:var(--glow),var(--doodle);background-size:auto,var(--doodle-size);background-repeat:no-repeat,repeat;background-attachment:fixed,scroll}}'
-       '@media screen and (width < 720px){:root{--doodle-size:340px}}'
+       '@media screen{body{background-image:var(--glow),var(--doodle);background-size:auto,var(--doodle-size);background-repeat:no-repeat,repeat;background-attachment:fixed,fixed}.spine{background-image:var(--doodle);background-size:var(--doodle-size);background-attachment:fixed}}'
+       ''
        '@media print{body{background-image:none!important}}')
 print(css, end='')
