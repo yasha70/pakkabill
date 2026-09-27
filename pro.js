@@ -74,7 +74,7 @@
 
   const WHY = {
     bills: (n) => `You have used your ${n} free bills this month.`,
-    design: () => 'The Royal bill design is part of PakkaBill Pro.',
+    design: () => 'The Royal, Elegant and Boutique bill designs are part of PakkaBill Pro.',
     logo: () => 'Your logo and signature on bills are part of PakkaBill Pro.',
     gstr1: () => 'GSTR-1 JSON export is part of PakkaBill Pro.',
     pdf: () => 'PDF download and sharing are part of PakkaBill Pro.',
@@ -84,7 +84,7 @@
   };
   const PERKS = [
     'Unlimited bills every month',
-    'Royal design, your logo and signature',
+    'Royal, Elegant and Boutique designs, your logo and signature',
     'PDF download, share and WhatsApp',
     'GSTR-1 JSON from Meesho reports',
   ];
