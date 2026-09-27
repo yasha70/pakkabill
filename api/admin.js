@@ -5,6 +5,8 @@ const db = require('./_lib/db');
 const orders = require('./_lib/orders');
 const promos = require('./_lib/promos');
 const support = require('./_lib/support');
+const assist = require('./_lib/assist');
+const push = require('./_lib/push');
 
 const OWNER = 'owner';
 const IST = 5.5 * 3600e3;
@@ -78,8 +80,38 @@ const actions = {
   async ticket({ id }) {
     return { ticket: await support.adminGet(id) };
   },
-  async ticketReply({ id, message, status, image }) {
-    return { ticket: await support.adminReply(id, message, status, image) };
+  async ticketReply({ id, message, status, image, actions }) {
+    return { ticket: await support.adminReply(id, message, status, image, actions) };
+  },
+  // Findings and a suggested reply from the assistant (sent only if the admin sends it).
+  async ticketDraft({ id }) {
+    return await support.adminDraft(id);
+  },
+  // Lets the assistant answer this ticket now, even if a person had taken it over.
+  async ticketAssist({ id }) {
+    const t = await support.adminGet(id, { peek: true });
+    await support.runAssistant(t, { force: true });
+    return { ticket: await support.adminGet(id) };
+  },
+  async assistSettings() {
+    return { settings: await assist.getSettings() };
+  },
+  async saveAssistSettings({ auto, ai }) {
+    return { settings: await assist.saveSettings({ auto, ai }) };
+  },
+  async pushKey() {
+    return { key: await push.publicKey() };
+  },
+  async pushSub({ sub }) {
+    await push.subscribe(push.ADMIN, sub);
+    return { ok: true };
+  },
+  async pushUnsub({ endpoint }) {
+    await push.unsubscribe(push.ADMIN, endpoint);
+    return { ok: true };
+  },
+  async pushTest() {
+    return { sent: await push.toAdmin({ title: 'PakkaBill admin alerts are on', body: 'You will get a notification here for new payments and tickets that need you.', url: '/admin', tag: 'admin-test' }) };
   },
   async ticketSet({ id, status, priority }) {
     return { ticket: await support.adminSet(id, { status, priority }) };
@@ -164,11 +196,17 @@ const actions = {
   },
 
   async approve({ id }) {
-    return { order: await orders.approve(String(id)) };
+    const before = await orders.getOrder(String(id));
+    const order = await orders.approve(String(id));
+    if (before && before.state !== 'COMPLETED') await support.onPaymentDecision(order, true);
+    return { order };
   },
 
   async reject({ id }) {
-    return { order: await orders.reject(String(id)) };
+    const before = await orders.getOrder(String(id));
+    const order = await orders.reject(String(id));
+    if (before && before.state === 'PENDING') await support.onPaymentDecision(order, false);
+    return { order };
   },
 
   async getSettings() {

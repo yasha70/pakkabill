@@ -1,0 +1,9 @@
+{
+  "name": "pakkabill",
+  "private": true,
+  "description": "PakkaBill GST billing app: static PWA with Vercel serverless functions in api/",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "web-push": "^3.6.7"
+  }
+}

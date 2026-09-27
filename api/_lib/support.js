@@ -1,9 +1,15 @@
 // Support tickets: customers (logged in or not) report a problem or ask a question, and the
 // admin replies from the admin panel. Each ticket is one JSON document with its conversation;
 // screenshots are stored separately so the ticket stays small.
+//
+// The PakkaBill assistant (assist.js) investigates each new ticket and answers it when it can.
+// t.ai.state: 'pending' (the assistant should look at it), 'done' (it answered and may answer
+// a follow-up), 'human' (a person is handling it; the assistant stays quiet) or 'off'.
 const crypto = require('crypto');
 const db = require('./db');
 const core = require('./core');
+const assist = require('./assist');
+const push = require('./push');
 
 const CATEGORIES = {
   bug: 'Something is not working',
@@ -37,18 +43,21 @@ function cleanImage(img) {
 function cleanDiag(d) {
   d = d && typeof d === 'object' ? d : {};
   const out = {};
-  for (const [k, n] of [['app', 40], ['page', 80], ['ua', 220], ['screen', 30], ['lang', 20], ['theme', 10], ['online', 5], ['installed', 5], ['plan', 20]]) {
+  for (const [k, n] of [['app', 40], ['latest', 40], ['page', 80], ['ua', 220], ['screen', 30], ['lang', 20], ['theme', 10], ['online', 5], ['installed', 5], ['plan', 20]]) {
     if (d[k] != null && String(d[k]).trim()) out[k] = clip(d[k], n);
   }
   return out;
 }
 
-// What a customer sees: no guest key hash, no internal notes.
+// What a customer sees: no guest key hash, no findings or internal notes.
 function forCustomer(t) {
+  const ai = t.ai || {};
   return {
     id: t.id, no: t.no, category: t.category, subject: t.subject, status: t.status,
     createdAt: t.createdAt, updatedAt: t.updatedAt, unread: !!t.unreadUser,
-    messages: t.messages.map((m) => ({ by: m.by, text: m.text, at: m.at, img: m.img || 0 })),
+    // 'pending': the assistant is checking; 'done': it answered; 'human': with the support team
+    ai: ai.state || 'off', feedback: ai.feedback || '',
+    messages: t.messages.map((m) => ({ by: m.by, text: m.text, at: m.at, img: m.img || 0, actions: m.actions && m.actions.length ? m.actions : undefined })),
   };
 }
 function summary(t) {
@@ -58,6 +67,7 @@ function summary(t) {
     phone: t.phone, name: t.name, guest: !!t.gk, createdAt: t.createdAt, updatedAt: t.updatedAt,
     unreadAdmin: !!t.unreadAdmin, unreadUser: !!t.unreadUser, count: t.messages.length,
     last: { by: last.by, text: clip(last.text, 140), at: last.at },
+    ai: t.ai ? { state: t.ai.state, outcome: t.ai.outcome || '', source: t.ai.source || '', feedback: t.ai.feedback || '' } : null,
   };
 }
 
@@ -66,9 +76,11 @@ async function save(t) {
   await db.cmd(['ZADD', 'tickets', t.updatedAt, t.id]);
 }
 
-async function addMessage(t, by, text, img) {
+async function addMessage(t, by, text, img, actions) {
   if (t.messages.length >= MAX_MESSAGES) throw new core.HttpError(400, 'This ticket is very long. Please raise a new ticket.');
   const m = { by, text: clip(text, MAX_TEXT), at: Date.now() };
+  const acts = (Array.isArray(actions) ? actions : []).filter((a) => assist.ACTIONS.includes(a)).slice(0, 3);
+  if (acts.length) m.actions = acts;
   if (img) {
     t.imgs = (t.imgs || 0) + 1;
     await db.cmd(['SET', imgKey(t.id, t.imgs), img]);
@@ -107,9 +119,12 @@ async function create(input, user) {
     diag: cleanDiag(input.diag), messages: [], imgs: 0,
   };
   if (guestKey) t.gk = core.sha256(guestKey);
+  const auto = (await assist.getSettings()).auto;
+  t.ai = { state: auto ? 'pending' : 'off', replies: 0 };
   await addMessage(t, 'customer', text, img);
   await save(t);
   await db.cmd(['ZADD', `tickets:u:${phone}`, now, t.id]);
+  if (!auto) await notifyAdmin(t, `New ticket ${t.no}`, t.subject);
   return { ticket: forCustomer(t), key: guestKey };
 }
 
@@ -132,15 +147,120 @@ async function listForCustomer(user, guests) {
   return list.sort((a, b) => b.updatedAt - a.updatedAt).map((t) => { const c = forCustomer(t); delete c.messages; c.last = summary(t).last; return c; });
 }
 
-async function customerReply(t, text, img) {
+async function customerReply(t, text, img, diag) {
   if (clip(text, MAX_TEXT).length < 1 && !img) throw new core.HttpError(400, 'Write a message first.');
   await addMessage(t, 'customer', text, cleanImage(img));
+  if (diag) t.diag = { ...(t.diag || {}), ...cleanDiag(diag) };
   if (t.status === 'resolved' || t.status === 'closed' || t.status === 'waiting') t.status = 'open';
-  t.unreadAdmin = true;
   t.unreadUser = false;
+  const ai = t.ai || { state: 'off' };
+  // The assistant answers follow-ups only while no person has taken the ticket over.
+  const botTurn = ai.state === 'done' && (ai.replies || 0) < assist.MAX_BOT_REPLIES && (await assist.getSettings()).auto;
+  if (botTurn) t.ai = { ...ai, state: 'pending' };
+  else {
+    t.unreadAdmin = true;
+    if (ai.state === 'done' || ai.state === 'pending') t.ai = { ...ai, state: 'human' };
+  }
   await save(t);
+  if (!botTurn) await notifyAdmin(t, `Reply on ${t.no}`, text || 'Sent a screenshot');
   return forCustomer(t);
 }
+
+// ---------- the assistant ----------
+const HANDOFF = 'Thank you. I have passed this to our support team with everything I found, and a person will reply here, usually within a day. You will get a notification when they do.';
+
+// Runs the assistant on a ticket waiting for it and posts its answer. Returns the ticket.
+async function runAssistant(t, { force = false } = {}) {
+  if (!force && (!t.ai || t.ai.state !== 'pending')) return t;
+  const lock = await db.cmd(['SET', `tkai:${t.id}`, '1', 'NX', 'EX', 90]);
+  if (!lock) return t;
+  try {
+    const prev = t.ai || {};
+    const a = await assist.answer(t, { force });
+    t = (await db.getJSON(key(t.id))) || t; // a person may have replied while it was thinking
+    if (!force && (!t.ai || t.ai.state !== 'pending')) return t;
+    if (!a) {
+      t.ai = { ...prev, state: 'off' };
+      t.unreadAdmin = true;
+      await save(t);
+      await notifyAdmin(t, `New ticket ${t.no}`, t.subject);
+      return t;
+    }
+    let { text, actions, outcome, priority } = a;
+    // A follow-up that lands on the same built-in answer again means it did not help: hand over.
+    if ((prev.replies || 0) > 0 && a.source === 'rules' && a.kb && a.kb === prev.kb && outcome === 'answered') {
+      text = HANDOFF; actions = []; outcome = 'escalate';
+    }
+    await addMessage(t, 'assistant', text, '', actions);
+    // Its first answer sets the priority; later ones can only raise it.
+    if (!prev.replies || PRIORITIES.indexOf(priority) > PRIORITIES.indexOf(t.priority)) t.priority = PRIORITIES.includes(priority) ? priority : t.priority;
+    if (outcome === 'answered') { t.status = 'waiting'; t.unreadAdmin = false; }
+    else { t.status = 'open'; t.unreadAdmin = true; }
+    t.unreadUser = true;
+    t.ai = {
+      state: outcome === 'answered' ? 'done' : 'human',
+      replies: (prev.replies || 0) + 1,
+      outcome, kb: a.kb || '', source: a.source, model: a.model || '', summary: a.summary || '',
+      aiError: a.aiError || '', findings: a.findings || [], at: Date.now(),
+    };
+    await save(t);
+    if (outcome !== 'answered') await notifyAdmin(t, outcome === 'ack' ? `Suggestion ${t.no}` : `${t.no} needs you`, a.summary || t.subject);
+    return t;
+  } finally {
+    await db.cmd(['DEL', `tkai:${t.id}`]);
+  }
+}
+
+// "Yes, it's solved" / "I still need help" under the assistant's answer.
+async function feedback(t, solved) {
+  const ai = t.ai || {};
+  if (solved) {
+    t.status = 'resolved';
+    t.unreadAdmin = false;
+    t.ai = { ...ai, state: ai.state === 'human' ? 'human' : 'done', feedback: 'solved' };
+    t.messages.push({ by: 'system', text: 'Marked as solved by the customer.', at: Date.now() });
+  } else {
+    t.status = 'open';
+    t.unreadAdmin = true;
+    t.priority = t.priority === 'low' || t.priority === 'normal' ? 'high' : t.priority;
+    t.ai = { ...ai, state: 'human', feedback: 'help' };
+    t.messages.push({ by: 'system', text: 'The customer asked for a person from our team.', at: Date.now() });
+  }
+  t.unreadUser = false;
+  t.updatedAt = Date.now();
+  await save(t);
+  if (!solved) await notifyAdmin(t, `${t.no} wants a person`, t.subject);
+  return forCustomer(t);
+}
+
+// When the admin approves or rejects a payment, answer the customer's open payment tickets
+// and tell them on their phone.
+async function onPaymentDecision(order, approved) {
+  const user = await core.getUser(order.phone);
+  const amount = assist.rupees(order.amount);
+  const text = approved
+    ? `Good news: your payment of ${amount} (UTR ${assist.tail(order.utr)}) is approved and PakkaBill Pro is active${user && user.paidUntil ? ` until ${assist.dateStr(user.paidUntil)}` : ''}. If the app still shows the free plan, tap "Refresh my plan" below. Thank you for choosing Pro!`
+    : `We checked your payment with UTR ${assist.tail(order.utr)} but could not find it in our bank statement, so it was not approved. Please check the 12-digit UTR in your payment app and submit it again on the Plan page. If money was debited, reply here with a screenshot of the payment.`;
+  const ids = await db.cmd(['ZREVRANGE', `tickets:u:${order.phone}`, 0, 19]);
+  const list = (await db.mgetJSON(ids.map(key))).filter((t) => t && t.account && OPEN.includes(t.status)
+    && (t.category === 'payment' || t.messages.some((m) => String(m.text).includes(order.utr))));
+  for (const t of list) {
+    await addMessage(t, 'assistant', text, '', approved ? ['refresh_plan'] : ['plan']);
+    t.status = approved ? 'resolved' : 'waiting';
+    t.unreadUser = true;
+    t.unreadAdmin = false;
+    t.ai = { ...(t.ai || {}), state: approved ? 'done' : (t.ai && t.ai.state) || 'human' };
+    await save(t);
+  }
+  await push.toUser(order.phone, approved
+    ? { title: 'PakkaBill Pro is active', body: `Your payment of ${amount} is approved.${user && user.paidUntil ? ` Pro is on until ${assist.dateStr(user.paidUntil)}.` : ''} Open PakkaBill to start using it.`, url: '/#/plan', tag: `pay-${order.id}` }
+    : { title: 'Payment not approved', body: `We could not find the payment with UTR ${assist.tail(order.utr)}. Please check the UTR and submit it again.`, url: '/#/plan', tag: `pay-${order.id}` });
+  return list.length;
+}
+
+// ---------- notifications ----------
+const notifyAdmin = (t, title, body) => push.toAdmin({ title, body: `${t.name || t.phone}: ${clip(body, 140)}`, url: `/admin#support/${t.id}`, tag: `tk-${t.id}` });
+const notifyCustomer = (t, body) => push.toTicket(t, { title: 'Reply from PakkaBill support', body: clip(body, 160), url: `/#/support?t=${t.id}`, tag: `tk-${t.id}` });
 
 async function image(t, n) {
   const i = Number(n);
@@ -151,7 +271,20 @@ async function image(t, n) {
 // ---------- admin ----------
 async function all() {
   const ids = await db.cmd(['ZREVRANGE', 'tickets', 0, 999]);
-  return (await db.mgetJSON(ids.map(key))).filter(Boolean);
+  const list = (await db.mgetJSON(ids.map(key))).filter(Boolean);
+  // An answered ticket the customer never came back to is resolved after 3 days.
+  for (const t of list) {
+    if (t.status === 'waiting' && t.ai && t.ai.state === 'done' && Date.now() - t.updatedAt > 3 * core.DAY) {
+      const last = t.messages[t.messages.length - 1];
+      if (last && last.by === 'assistant') {
+        t.status = 'resolved';
+        t.messages.push({ by: 'system', text: 'Resolved automatically: no reply for 3 days after the answer.', at: Date.now() });
+        t.updatedAt = Date.now();
+        await save(t);
+      }
+    }
+  }
+  return list;
 }
 async function adminList({ status = 'active', q = '' } = {}) {
   const needle = String(q).trim().toLowerCase();
@@ -169,26 +302,39 @@ async function counts() {
     active: list.filter((t) => OPEN.includes(t.status)).length,
     needsReply: list.filter((t) => t.unreadAdmin && OPEN.includes(t.status)).length,
     total: list.length,
+    autoAnswered: list.filter((t) => t.ai && t.ai.replies > 0).length,
+    autoSolved: list.filter((t) => t.ai && t.ai.replies > 0 && t.status === 'resolved' && !t.messages.some((m) => m.by === 'support')).length,
   };
 }
-async function adminGet(id) {
+async function adminGet(id, { peek = false } = {}) {
   const t = await db.getJSON(key(String(id)));
   if (!t) throw new core.HttpError(404, 'Ticket not found.');
-  if (t.unreadAdmin) { t.unreadAdmin = false; await db.setJSON(key(t.id), t); }
+  if (t.unreadAdmin && !peek) { t.unreadAdmin = false; await db.setJSON(key(t.id), t); }
   const out = { ...t, guest: !!t.gk };
   delete out.gk;
   return out;
 }
-async function adminReply(id, text, status, img) {
+async function adminReply(id, text, status, img, actions) {
   const t = await db.getJSON(key(String(id)));
   if (!t) throw new core.HttpError(404, 'Ticket not found.');
   if (clip(text, MAX_TEXT).length < 1) throw new core.HttpError(400, 'Write a reply first.');
-  await addMessage(t, 'support', text, cleanImage(img));
+  await addMessage(t, 'support', text, cleanImage(img), actions);
   t.status = STATUSES.includes(status) ? status : t.status === 'open' ? 'progress' : t.status;
   t.unreadUser = true;
   t.unreadAdmin = false;
+  t.ai = { ...(t.ai || {}), state: 'human' };
   await save(t);
-  return summary(t);
+  const sent = await notifyCustomer(t, text);
+  return { ...summary(t), pushed: sent };
+}
+// The assistant's findings and a suggested reply for the admin; nothing is sent to the customer.
+async function adminDraft(id) {
+  const t = await db.getJSON(key(String(id)));
+  if (!t) throw new core.HttpError(404, 'Ticket not found.');
+  const a = await assist.answer(t, { force: true });
+  t.ai = { ...(t.ai || { state: 'off' }), findings: a.findings, checkedAt: Date.now() };
+  await db.setJSON(key(t.id), t);
+  return { findings: a.findings, draft: { text: a.text, actions: a.actions, outcome: a.outcome, source: a.source, summary: a.summary || '', aiError: a.aiError || '' } };
 }
 async function adminSet(id, { status, priority }) {
   const t = await db.getJSON(key(String(id)));
@@ -197,6 +343,7 @@ async function adminSet(id, { status, priority }) {
     t.status = status;
     t.messages.push({ by: 'system', text: `Status changed to ${status}.`, at: Date.now() });
     if (status === 'resolved' || status === 'closed') t.unreadUser = true;
+    if (status === 'resolved') await notifyCustomer(t, `Ticket ${t.no} "${t.subject}" is marked resolved. Reply in PakkaBill if you still need help.`);
   }
   if (PRIORITIES.includes(priority)) t.priority = priority;
   t.updatedAt = Date.now();
@@ -206,5 +353,6 @@ async function adminSet(id, { status, priority }) {
 
 module.exports = {
   CATEGORIES, STATUSES, PRIORITIES, create, ownTicket, listForCustomer, customerReply, image, forCustomer,
-  adminList, adminGet, adminReply, adminSet, counts, save,
+  runAssistant, feedback, onPaymentDecision,
+  adminList, adminGet, adminReply, adminDraft, adminSet, counts, save,
 };

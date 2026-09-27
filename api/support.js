@@ -7,9 +7,25 @@
 //   reply   { id, key?, message, image? }        -> { ticket }
 //   image   { id, key?, n }                      -> { image }     (a data: URL)
 //   unread  { guests }                           -> { count }     (tickets with a reply not yet read)
+//   assist  { id, key? }                         -> { ticket }    (the assistant investigates and answers)
+//   feedback { id, key?, solved }                -> { ticket }    ("It's solved" / "I still need help")
+//   pushKey {}                                   -> { key }       (public key for phone notifications)
+//   push    { sub, guests }                      -> { ok }        (notify this device about replies)
+//   unpush  { endpoint, guests }                 -> { ok }
 const core = require('./_lib/core');
 const db = require('./_lib/db');
 const support = require('./_lib/support');
+const push = require('./_lib/push');
+
+// Only guest tickets this device can prove it owns.
+async function ownedGuests(guests) {
+  const out = [];
+  for (const g of (Array.isArray(guests) ? guests : []).slice(0, 30)) {
+    if (!g || !g.id || !g.key) continue;
+    try { out.push(await support.ownTicket(g.id, null, g.key)); } catch { /* not theirs or gone */ }
+  }
+  return out;
+}
 
 module.exports = core.handler(async (req, res) => {
   core.requireMethod(req, 'POST');
@@ -41,7 +57,36 @@ module.exports = core.handler(async (req, res) => {
     case 'reply': {
       await core.rateLimit(`tk:reply:${ip}`, 40, 3600);
       const t = await support.ownTicket(b.id, user, b.key);
-      return core.send(res, 200, { ticket: await support.customerReply(t, b.message, b.image) });
+      return core.send(res, 200, { ticket: await support.customerReply(t, b.message, b.image, b.diag) });
+    }
+    case 'assist': {
+      await core.rateLimit(`tk:ai:${ip}`, 40, 3600);
+      let t = await support.ownTicket(b.id, user, b.key);
+      t = await support.runAssistant(t);
+      // The answer goes straight back to the customer who is looking at the ticket.
+      if (t.unreadUser && t.ai && t.ai.state !== 'pending') { t.unreadUser = false; await db.setJSON(`ticket:${t.id}`, t); }
+      return core.send(res, 200, { ticket: support.forCustomer(t) });
+    }
+    case 'feedback': {
+      await core.rateLimit(`tk:reply:${ip}`, 40, 3600);
+      const t = await support.ownTicket(b.id, user, b.key);
+      return core.send(res, 200, { ticket: await support.feedback(t, !!b.solved) });
+    }
+    case 'pushKey':
+      return core.send(res, 200, { key: await push.publicKey() });
+    case 'push': {
+      await core.rateLimit(`tk:push:${ip}`, 30, 3600);
+      const tickets = await ownedGuests(b.guests);
+      if (!user && !tickets.length) throw new core.HttpError(400, 'Log in or raise a ticket first.');
+      if (user) await push.subscribe(push.userKey(user.phone), b.sub);
+      for (const t of tickets) await push.subscribe(push.ticketKey(t.id), b.sub);
+      return core.send(res, 200, { ok: true });
+    }
+    case 'unpush': {
+      await core.rateLimit(`tk:push:${ip}`, 30, 3600);
+      if (user) await push.unsubscribe(push.userKey(user.phone), b.endpoint);
+      for (const t of await ownedGuests(b.guests)) await push.unsubscribe(push.ticketKey(t.id), b.endpoint);
+      return core.send(res, 200, { ok: true });
     }
     case 'image': {
       const t = await support.ownTicket(b.id, user, b.key);

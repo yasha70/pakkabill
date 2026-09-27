@@ -116,3 +116,42 @@ and the Tools card until read. The Plan page links to a payment ticket.
   details, WhatsApp and call buttons, quick replies, status (Open, In progress, Waiting for customer,
   Resolved, Closed) and priority. Payment tickets start as High. The tab shows how many tickets wait
   for a reply, and the Overview shows open tickets.
+
+### Automatic answers (PakkaBill assistant)
+
+Every new ticket is investigated straight away (`api/_lib/assist.js`) and usually answered in a few
+seconds, with one-tap fixes under the answer (Update PakkaBill now, Refresh my plan, Open Plan page,
+Shop, GST summary, Parties, Items, Meesho tools). What it checks:
+
+- the account and Pro plan, the customer's payments, and any 12-digit UTR in the message
+  (pending, approved, rejected, not submitted, or submitted from another account);
+- whether the app on the phone is out of date (the ticket carries the installed and the latest version);
+- known problems: blank screen, PDF, printing, free-bill limit, designs, logo, lost bills, backup
+  and new phone, CGST/SGST vs IGST, GSTR-1, Meesho listing, P&L and Lens, login, installing.
+
+The customer answers "Yes, it's solved" (ticket resolved) or "I still need help" (goes to you, High).
+A follow-up the same answer can't fix, a payment waiting for approval, a refund, a UTR from another
+account or lost bills always go to a person. It never approves payments or changes accounts.
+Approving or rejecting a payment in **Payments** posts the result in the customer's open payment
+tickets automatically. Answered tickets with no reply for 3 days are resolved automatically.
+
+In the admin **Support** tab: turn auto-answers on or off, see "What the assistant found" on each
+ticket, **Re-check and suggest a reply** (fills your reply box, with the fix buttons), or
+**Let the assistant answer**.
+
+**Claude AI (optional).** Add `ANTHROPIC_API_KEY` in Vercel → Settings → Environment Variables and
+redeploy. Claude then writes the answers from the same findings, in the customer's language (English,
+Hindi or Hinglish), and reads attached screenshots. It uses `claude-opus-5` with adaptive thinking,
+structured JSON output and Anthropic's server-side fallback (`fallbacks: "default"`), and falls back
+to the built-in answers on any error. Optional: `PB_AI_MODEL` (another model) and `PB_AI_PER_DAY`
+(daily cap on AI answers, default 300). Money cases (payment waiting, refund, disputed UTR) always
+use the exact built-in answer.
+
+### Phone notifications
+
+Customers can turn on notifications on the Help page (and after submitting a UTR): support replies,
+"ticket resolved" and "payment approved / not approved" then reach the phone even when PakkaBill is
+closed (Web Push, `api/_lib/push.js`, handled in `sw.js`). The admin can turn on alerts for new
+payments and tickets that need a person from the Support tab. The signing keys are created
+automatically and kept in Redis (`push:vapid`); set `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` to use
+your own. On iPhone, notifications work once PakkaBill is added to the Home Screen.

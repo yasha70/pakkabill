@@ -4,6 +4,7 @@
 const core = require('./_lib/core');
 const orders = require('./_lib/orders');
 const promos = require('./_lib/promos');
+const push = require('./_lib/push');
 
 module.exports = core.handler(async (req, res) => {
   const user = await core.requireUser(req);
@@ -18,6 +19,7 @@ module.exports = core.handler(async (req, res) => {
     }
     await core.rateLimit(`pay:${user.phone}`, 10, 3600);
     const order = await orders.claim(user, plan, utr, coupon);
+    await push.toAdmin({ title: `New payment ₹${(order.amount / 100).toLocaleString('en-IN')} to check`, body: `${user.shopName || user.phone}: ${order.plan} plan, UTR ${order.utr}`, url: '/admin#payments', tag: `pay-${order.id}` });
     return core.send(res, 200, { order });
   }
   if (req.method === 'GET') return core.send(res, 200, { orders: await orders.mine(user.phone) });

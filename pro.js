@@ -252,9 +252,17 @@
             box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button><div class="pbp-badge">PRO</div>
             <h2 id="pbp-title">Payment submitted</h2>
             <p class="pbp-why">Thank you. We will match transaction <b>${esc(utr)}</b> for ${rupees(amount)} with our account and turn on Pro, usually within a few hours. You can keep using PakkaBill meanwhile.</p>
+            ${window.pbPushSupported && window.pbPushSupported() ? '<button type="button" class="pbp-btn pbp-btn--ghost" data-notify>🔔 Notify me when it is approved</button>' : ''}
             <button type="button" class="pbp-btn" data-done>OK</button>`;
             box.querySelector('.pbp-x').addEventListener('click', closeUpgrade);
             box.querySelector('[data-done]').addEventListener('click', closeUpgrade);
+            const nb = box.querySelector('[data-notify]');
+            if (nb) nb.addEventListener('click', () => {
+              nb.disabled = true;
+              window.pbPushEnable(true)
+                .then(() => { nb.textContent = '✓ We will notify you on this phone'; })
+                .catch((e) => { nb.disabled = false; toast(e.message, true); });
+            });
             rerender();
           } catch (e) {
             err.textContent = e.message;
@@ -513,6 +521,7 @@
 .pbp-tabs button.is-on{background:var(--paper,#fff);color:var(--carbon,#5b3fe6);box-shadow:0 2px 6px -2px #0003}
 .pbp-btn{font:inherit;font-weight:700;font-size:15.5px;border:0;border-radius:10px;padding:12px 18px;cursor:pointer;color:var(--btn-fg,#fff);background:var(--btn-bg,#6c4dff);background-image:var(--btn-grad,none)}
 .pbp-btn:disabled{opacity:.6;cursor:wait}
+.pbp-btn--ghost{display:block;width:100%;margin:0 0 8px;background:var(--carbon-tint,#efeaff);background-image:none;color:var(--carbon,#5b3fe6);border:1.5px solid var(--carbon,#5b3fe6)}
 .pbp-err{color:var(--red,#c8202a);margin:0;font-size:13.5px;min-height:0}
 .pbp-err:empty{display:none}
 .pbp-fine{font-size:12.5px;color:var(--ink-3,#777);margin:6px 0 0}
@@ -639,5 +648,5 @@
     return out;
   }
 
-  Object.assign(window, { pbPro, pbGate, pbCanAddBill, pbPlanMount, pbLocked, pbUpgrade: openUpgrade, pbUnzipFiles });
+  Object.assign(window, { pbPro, pbGate, pbCanAddBill, pbPlanMount, pbLocked, pbUpgrade: openUpgrade, pbUnzipFiles, pbRefreshAccount: refresh });
 })();

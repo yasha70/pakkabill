@@ -129,6 +129,23 @@
   .btn.wa{background:#1faa59;background-image:none;color:#fff}
   a.btn{text-decoration:none;display:inline-block}
   .tk-lb{position:fixed;inset:0;background:#0a0818d0;display:grid;place-items:center;padding:16px;z-index:20;cursor:zoom-out}.tk-lb img{max-width:100%;max-height:100%;border-radius:10px}
+  /* assistant */
+  .ai-bar{display:grid;gap:10px;padding:12px 14px;margin:0 0 14px;border-radius:12px;background:linear-gradient(135deg,rgba(108,77,255,.08),rgba(255,122,89,.08));border:1px solid var(--rule)}
+  .ai-bar .row{gap:8px 16px;align-items:center}
+  .ai-bar .check{margin:0}
+  .ai-stat{font-size:13px;color:var(--ink-2)}.ai-stat b{color:var(--ink)}
+  .ai-tag{font-size:11.5px;font-weight:700;border-radius:999px;padding:1px 8px;white-space:nowrap}
+  .ai-tag.auto{background:rgba(31,170,89,.14);color:#1f7a4d}.ai-tag.human{background:#ffe3dc;color:#b3401f}.ai-tag.wait{background:var(--tint);color:var(--violet)}
+  .tk-find{margin:0 0 12px;padding:10px 12px;border-radius:10px;border:1px dashed var(--violet);background:var(--paper)}
+  .tk-find h3{font-size:13.5px;margin:0 0 6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .tk-find ul{margin:0;padding-left:0;list-style:none;display:grid;gap:3px;font-size:13px}
+  .tk-find .sum{font-size:13px;margin:6px 0 0;color:var(--ink-2)}
+  .tk-find .row{margin-top:8px;gap:8px}
+  .tk-msg.bot{justify-self:end;justify-items:end}
+  .tk-msg.bot .b{background:var(--paper);border:1.5px solid var(--violet);color:var(--ink);border-bottom-right-radius:4px}
+  .tk-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .tk-chips span{font-size:12px;font-weight:700;border-radius:999px;padding:2px 9px;background:var(--tint);color:var(--violet)}
+  .tk-chips button{border:0;background:none;color:inherit;cursor:pointer;font-weight:800;padding:0 0 0 4px}
 </style>
 </head>
 <body>
@@ -190,7 +207,8 @@
       <div class="tk-wrap" id="tkWrap">
         <div class="card">
           <h2>Support tickets</h2>
-          <p class="sub">Problems and questions sent from the Help &amp; support page in PakkaBill. A red dot means the customer is waiting for your reply. Your replies show in their app with a badge.</p>
+          <p class="sub">Problems and questions sent from the Help &amp; support page in PakkaBill. The assistant checks each new ticket and answers it in seconds; a red dot means a ticket needs you. Your replies show in the customer's app and on their phone.</p>
+          <div class="ai-bar" id="aiBar"><span class="muted">Loading assistant settings…</span></div>
           <div class="tk-bar">
             <div class="seg" role="group" aria-label="Show tickets" id="tkFilter">
               <button type="button" data-f="active" aria-pressed="true">Active</button>
@@ -425,6 +443,55 @@
   let tkFilter = 'active', tkOpen = '', tkTimer = null;
   const tkPill = (s) => `<span class="pill st-${esc(s)}">${esc(TK_STATUS[s] || s)}</span>`;
   const prPill = (p) => (p && p !== 'normal' ? `<span class="pill pr-${esc(p)}">${esc(p[0].toUpperCase() + p.slice(1))}</span>` : '');
+  const ACT_LABEL = { update: 'Update PakkaBill now', refresh_plan: 'Refresh my plan', plan: 'Open Plan page', login: 'Log in', shop: 'Open Shop', reports: 'Open GST summary', new_bill: 'Make a new bill', items: 'Open Items', parties: 'Open Parties', listing: 'Open Meesho listing', lens: 'Open Meesho Lens', pnl: 'Open Meesho P&L' };
+  function aiTag(t) {
+    const a = t.ai;
+    if (!a || !a.state || a.state === 'off') return '';
+    if (a.feedback === 'solved' && t.status === 'resolved') return '<span class="ai-tag auto">✓ Solved by assistant</span>';
+    if (a.state === 'pending') return Date.now() - t.updatedAt < 120000 ? '<span class="ai-tag wait">Assistant checking…</span>' : '<span class="ai-tag human">Needs you</span>';
+    if (a.state === 'human' && ['open', 'progress', 'waiting'].includes(t.status) && t.unreadAdmin) return '<span class="ai-tag human">Needs you</span>';
+    if (a.state === 'done') return '<span class="ai-tag auto">🤖 Auto-answered</span>';
+    return '';
+  }
+
+  // ---------- assistant settings and phone alerts ----------
+  let aiSettings = null;
+  function pushOK() { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+  function b64(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); s += '==='.slice((s.length + 3) % 4); const r = atob(s); return Uint8Array.from(r, (c) => c.charCodeAt(0)); }
+  async function adminPush() {
+    if (!pushOK()) throw new Error('This browser cannot show notifications. Use Chrome on Android or a computer.');
+    const p = Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission;
+    if (p !== 'granted') throw new Error(p === 'denied' ? 'Notifications are blocked. Allow them for this site in the browser settings.' : 'Notifications were not turned on.');
+    const reg = (await navigator.serviceWorker.getRegistration('/')) || (await navigator.serviceWorker.register('/sw.js'));
+    await navigator.serviceWorker.ready;
+    const { key } = await api('pushKey');
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(key) });
+    await api('pushSub', { sub: sub.toJSON() });
+    try { localStorage.setItem('pb-admin-push', '1'); } catch {}
+  }
+  function renderAiBar(counts) {
+    const s = aiSettings; if (!s) return;
+    const alertsOn = pushOK() && Notification.permission === 'granted' && (() => { try { return localStorage.getItem('pb-admin-push') === '1'; } catch { return false; } })();
+    $('#aiBar').innerHTML = `<div class="row">
+        <label class="check"><input type="checkbox" id="aiAuto"${s.auto ? ' checked' : ''}><span><b>Auto-answer new tickets</b></span></label>
+        <label class="check"${s.aiReady ? '' : ' title="Add ANTHROPIC_API_KEY in Vercel to use Claude"'}><input type="checkbox" id="aiAi"${s.ai && s.aiReady ? ' checked' : ''}${s.aiReady ? '' : ' disabled'}><span><b>Claude AI answers</b> <span class="muted">${s.aiReady ? esc(s.model) : 'not connected'}</span></span></label>
+        <span class="row" style="gap:8px;margin-left:auto">${alertsOn ? '<span class="ai-tag auto">🔔 Phone alerts on</span><button class="btn sec sm" type="button" id="aiTest">Send test</button>' : '<button class="btn sm" type="button" id="aiPush">🔔 Alerts on this device</button>'}</span>
+      </div>
+      ${counts ? `<div class="ai-stat">Answered automatically: <b>${counts.autoAnswered || 0}</b> · Solved without you: <b>${counts.autoSolved || 0}</b> · Need you now: <b>${counts.needsReply || 0}</b></div>` : ''}
+      ${s.aiReady ? '' : '<div class="muted">Built-in answers are on. For smarter answers in Hindi, Hinglish or English that can also read screenshots, add <code>ANTHROPIC_API_KEY</code> in Vercel → Settings → Environment Variables, then redeploy.</div>'}`;
+    const save = async () => {
+      try { aiSettings = (await api('saveAssistSettings', { auto: $('#aiAuto').checked, ai: $('#aiAi').checked || (!s.aiReady && s.ai) })).settings; toast('Assistant settings saved.'); renderAiBar(counts); }
+      catch (e) { toast(e.message, true); }
+    };
+    $('#aiAuto').onchange = save;
+    $('#aiAi').onchange = save;
+    const pb = $('#aiPush');
+    if (pb) pb.onclick = async () => { pb.disabled = true; try { await adminPush(); toast('Alerts are on. You will get new payments and tickets that need you on this device.'); renderAiBar(counts); } catch (e) { toast(e.message, true); pb.disabled = false; } };
+    const tb = $('#aiTest');
+    if (tb) tb.onclick = async () => { try { const r = await api('pushTest'); toast(r.sent ? 'Test sent. It should pop up in a few seconds.' : 'No device got it. Tap "Alerts on this device" again.', !r.sent); if (!r.sent) { try { localStorage.removeItem('pb-admin-push'); } catch {} renderAiBar(counts); } } catch (e) { toast(e.message, true); } };
+  }
+
   function setTkBadge(c) {
     const b = $('#tkBadge'); if (!b || !c) return;
     b.hidden = !c.needsReply; b.textContent = c.needsReply || '';
@@ -433,11 +500,13 @@
     try {
       const { tickets, counts } = await api('tickets', { status: tkFilter, q: $('#tkQ').value });
       setTkBadge(counts);
+      if (!aiSettings) aiSettings = (await api('assistSettings')).settings;
+      renderAiBar(counts);
       $('#tkList').innerHTML = tickets.length ? `<ul class="tk-list">${tickets.map((t) => `<li><button type="button" class="tk-row${t.unreadAdmin ? ' is-new' : ''}${t.id === tkOpen ? ' is-on' : ''}" data-tk="${esc(t.id)}">
           <span class="no">${t.unreadAdmin ? '<i class="dot" title="Waiting for your reply"></i>' : ''}${esc(t.no)}</span>
           <span class="sub">${esc(t.subject)}</span>
-          <span class="row" style="gap:6px;justify-content:flex-end">${prPill(t.priority)}${tkPill(t.status)}</span>
-          <span class="meta">${esc(t.name || 'No name')} · ${esc(t.phone)}${t.guest ? ' · no account' : ''} · ${esc(TK_TOPIC[t.category] || t.category)} · ${ago(t.updatedAt)} · ${t.last.by === 'support' ? 'You: ' : ''}${esc(t.last.text || '')}</span>
+          <span class="row" style="gap:6px;justify-content:flex-end">${aiTag(t)}${prPill(t.priority)}${tkPill(t.status)}</span>
+          <span class="meta">${esc(t.name || 'No name')} · ${esc(t.phone)}${t.guest ? ' · no account' : ''} · ${esc(TK_TOPIC[t.category] || t.category)} · ${ago(t.updatedAt)} · ${t.last.by === 'support' ? 'You: ' : t.last.by === 'assistant' ? 'Assistant: ' : ''}${esc(t.last.text || '')}</span>
         </button></li>`).join('')}</ul>`
         : `<p class="empty">${tkFilter === 'active' ? 'No open tickets. All caught up!' : 'No tickets here.'}</p>`;
     } catch (e) { toast(e.message, true); }
@@ -460,7 +529,7 @@
       const { ticket: t } = await api('ticket', { id });
       const d = t.diag || {};
       const wa = `https://wa.me/91${t.phone}?text=${encodeURIComponent(`Namaste${t.name ? ' ' + t.name : ''}! This is PakkaBill support about your ticket ${t.no}: "${t.subject}".`)}`;
-      const diag = [['App version', d.app], ['Page', d.page], ['Plan', d.plan], ['Device', d.ua], ['Screen', d.screen], ['Installed app', d.installed], ['Online', d.online], ['Colours', d.theme], ['Language', d.lang]].filter(([, v]) => v);
+      const diag = [['App version', d.app], ['Latest version', d.latest], ['Page', d.page], ['Plan', d.plan], ['Device', d.ua], ['Screen', d.screen], ['Installed app', d.installed], ['Online', d.online], ['Colours', d.theme], ['Language', d.lang]].filter(([, v]) => v);
       box.innerHTML = `<div class="tk-head"><div><span class="muted">${esc(t.no)} · ${esc(TK_TOPIC[t.category] || t.category)} · raised ${when(t.createdAt)}</span><h2>${esc(t.subject)}</h2></div>
           <button class="btn sec sm" type="button" id="tkClose">Close</button></div>
         <div class="tk-who"><b>${esc(t.name || 'No name')}</b><span class="muted">${esc(t.phone)} · ${t.guest ? 'no account (guest)' : 'PakkaBill account'}</span>
@@ -469,13 +538,15 @@
           <label class="f" style="min-width:170px">Status<select id="tkStatus">${Object.entries(TK_STATUS).map(([k, v]) => `<option value="${k}"${k === t.status ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
           <label class="f" style="min-width:140px">Priority<select id="tkPrio">${['low', 'normal', 'high', 'urgent'].map((k) => `<option value="${k}"${k === t.priority ? ' selected' : ''}>${k[0].toUpperCase() + k.slice(1)}</option>`).join('')}</select></label>
         </div>
+        <div class="tk-find" id="tkFind">${findingsHtml(t.ai)}</div>
         ${diag.length ? `<details><summary class="muted" style="cursor:pointer;margin-bottom:6px">Customer's app details</summary><dl class="tk-diag">${diag.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl></details>` : ''}
         <ol class="tk-thread" id="tkThread">${t.messages.map((m) => m.by === 'system'
           ? `<li class="tk-sys">${esc(m.text)} · ${when(m.at)}</li>`
-          : `<li class="tk-msg ${m.by === 'support' ? 'sup' : 'cust'}"><div class="b">${esc(m.text)}${m.img ? `<img alt="Screenshot" data-img="${m.img}" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">` : ''}</div><span class="m">${m.by === 'support' ? 'You' : esc(t.name || 'Customer')} · ${when(m.at)}</span></li>`).join('')}</ol>
+          : `<li class="tk-msg ${m.by === 'support' ? 'sup' : m.by === 'assistant' ? 'bot' : 'cust'}"><div class="b">${esc(m.text)}${m.img ? `<img alt="Screenshot" data-img="${m.img}" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">` : ''}${m.actions ? `<div class="tk-chips">${m.actions.map((a) => `<span>${esc(ACT_LABEL[a] || a)}</span>`).join('')}</div>` : ''}</div><span class="m">${m.by === 'support' ? 'You' : m.by === 'assistant' ? '🤖 Assistant (automatic)' : esc(t.name || 'Customer')} · ${when(m.at)}</span></li>`).join('')}</ol>
         <form id="tkReply">
           <div class="tk-quick" aria-label="Quick replies">${TK_QUICK.map(([l], i) => `<button type="button" data-q="${i}">${esc(l)}</button>`).join('')}</div>
-          <textarea id="tkText" rows="4" maxlength="2000" placeholder="Write your reply. The customer sees it in PakkaBill with a badge." aria-label="Reply"></textarea>
+          <textarea id="tkText" rows="4" maxlength="2000" placeholder="Write your reply. The customer sees it in PakkaBill and gets a phone notification if they turned them on." aria-label="Reply"></textarea>
+          <div class="tk-chips" id="tkActs"></div>
           <div class="row" style="margin-top:10px">
             <label class="f" style="min-width:210px">After sending, mark as<select id="tkAfter"><option value="progress">In progress</option><option value="waiting">Waiting for customer</option><option value="resolved">Resolved</option></select></label>
             <button class="btn" type="submit" style="align-self:flex-end">Send reply</button>
@@ -491,15 +562,56 @@
       const set = async (patch) => { try { await api('ticketSet', { id: t.id, ...patch }); toast('Saved.'); openTicket(t.id); loadTickets(); } catch (e) { toast(e.message, true); } };
       $('#tkStatus').onchange = (e) => set({ status: e.target.value });
       $('#tkPrio').onchange = (e) => set({ priority: e.target.value });
+      // buttons to send with the reply (from the assistant's suggestion)
+      let acts = [];
+      const drawActs = () => {
+        $('#tkActs').innerHTML = acts.map((a, i) => `<span>${esc(ACT_LABEL[a] || a)}<button type="button" data-x="${i}" aria-label="Remove button">×</button></span>`).join('');
+      };
+      $('#tkActs').onclick = (e) => { const b = e.target.closest('[data-x]'); if (b) { acts.splice(+b.dataset.x, 1); drawActs(); } };
+      const bindFind = () => {
+        const sug = $('#tkSuggest'), run = $('#tkRun');
+        if (sug) sug.onclick = async () => {
+          sug.disabled = true; sug.textContent = 'Checking…';
+          try {
+            const r = await api('ticketDraft', { id: t.id });
+            $('#tkFind').innerHTML = findingsHtml({ ...(t.ai || {}), findings: r.findings, summary: r.draft.summary || (t.ai || {}).summary, source: r.draft.source, aiError: r.draft.aiError, outcome: r.draft.outcome }, true);
+            bindFind();
+            $('#tkText').value = r.draft.text; acts = r.draft.actions || []; drawActs();
+            $('#tkAfter').value = r.draft.outcome === 'answered' ? 'waiting' : 'progress';
+            $('#tkText').focus();
+            toast('Suggested reply added below. Edit it if you like, then send.');
+          } catch (err) { toast(err.message, true); sug.disabled = false; sug.textContent = 'Re-check and suggest a reply'; }
+        };
+        if (run) run.onclick = async () => {
+          run.disabled = true; run.textContent = 'Answering…';
+          try { await api('ticketAssist', { id: t.id }); toast('The assistant answered the customer.'); openTicket(t.id); loadTickets(); }
+          catch (err) { toast(err.message, true); run.disabled = false; run.textContent = 'Let the assistant answer'; }
+        };
+      };
+      bindFind();
       $('#tkReply').onsubmit = async (e) => {
         e.preventDefault();
         const text = $('#tkText').value.trim(); if (!text) { toast('Write a reply first.', true); return; }
         const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
-        try { await api('ticketReply', { id: t.id, message: text, status: $('#tkAfter').value }); toast('Reply sent. The customer sees it in PakkaBill.'); openTicket(t.id); loadTickets(); }
-        catch (err) { toast(err.message, true); btn.disabled = false; }
+        try {
+          const r = await api('ticketReply', { id: t.id, message: text, status: $('#tkAfter').value, actions: acts });
+          toast(r.ticket && r.ticket.pushed ? 'Reply sent to the app and to the customer\'s phone.' : 'Reply sent. The customer sees it in PakkaBill.');
+          openTicket(t.id); loadTickets();
+        } catch (err) { toast(err.message, true); btn.disabled = false; }
       };
       loadTickets();
     } catch (e) { box.innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
+  }
+
+  function findingsHtml(ai, fresh) {
+    const a = ai || {};
+    const src = a.source === 'ai' ? `Claude${a.model ? ' (' + esc(a.model) + ')' : ''}` : a.source === 'rules' ? 'built-in answers' : '';
+    const outcome = { answered: 'answered the customer', escalate: 'handed it to you', ack: 'thanked the customer' }[a.outcome] || '';
+    return `<h3>🤖 What the assistant found ${src ? `<span class="muted">· ${src}${outcome && !fresh ? ' · ' + outcome : ''}</span>` : ''}</h3>
+      ${a.findings && a.findings.length ? `<ul>${a.findings.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="muted" style="margin:0">Not checked yet. Tap "Re-check" to look at this customer\'s account, payments and app.</p>'}
+      ${a.summary ? `<p class="sum"><b>Summary:</b> ${esc(a.summary)}</p>` : ''}
+      ${a.aiError ? `<p class="sum">Claude was unavailable (${esc(a.aiError)}), so the built-in answer was used.</p>` : ''}
+      <div class="row"><button class="btn sec sm" type="button" id="tkSuggest">Re-check and suggest a reply</button><button class="btn sec sm" type="button" id="tkRun">Let the assistant answer</button></div>`;
   }
 
   function ago(t) {
@@ -785,8 +897,12 @@
   function start() {
     $('#login').classList.add('hidden');
     $('#app').classList.remove('hidden');
-    show('overview');
+    // links from phone alerts: /admin#support/<ticket id>, /admin#payments
+    const m = /^#(support|payments)(?:\/(T[0-9A-Z]+))?$/.exec(location.hash);
+    show(m ? m[1] : 'overview');
+    if (m && m[2]) openTicket(m[2]);
   }
+  window.addEventListener('hashchange', () => { if (token && !$('#app').classList.contains('hidden')) start(); });
   if (token) start();
 })();
 </script>
