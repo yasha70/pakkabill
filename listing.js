@@ -1895,6 +1895,26 @@ function renderTemplate() {
   return out;
 }
 
+/* A Meesho-style product name from the details already filled in, e.g.
+   "Women Lycra Solid Stretchable Blouse with Three-Quarter Sleeves (Pack of 5)". */
+function suggestName() {
+  const S = state.S, gen = state.tpl.schema.byRole.generic;
+  const get = re => { const c = gen.find(x => re.test(x.name)); const v = c ? String(S.details[c.name] || '').trim() : ''; return /^(na|none|not applicable|other|others)$/i.test(v) ? '' : v; };
+  const cat = state.tpl.info.category || '';
+  let item = get(/^generic\s*name$/i) || cat;
+  const pack = get(/net\s*quantity/i), n = +((pack.match(/(\d+)/) || [])[1] || 1);
+  if (n <= 1) item = item.replace(/(ies)$/i, 'y').replace(/([^s])s$/i, '$1');
+  const women = /blouse|saree|kurti|kurta set|lehenga|dupatta|legging|nighty|salwar|gown|women/i.test(cat + ' ' + item) && !/\bmen\b/i.test(cat);
+  const pattern = get(/print\s*or\s*pattern\s*type/i) || get(/^pattern$/i);
+  const type = get(/^type$/i), sleeve = get(/sleeve\s*length/i), fabric = get(/^fabric$/i);
+  const words = [women ? 'Women' : '', fabric, pattern, type && !/regular/i.test(type) ? type : '', item].filter(Boolean);
+  const seen = new Set(), dedup = words.join(' ').split(/\s+/).filter(w => { const k = w.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+  let name = dedup.join(' ');
+  if (sleeve && !/sleeveless/i.test(sleeve)) name += ' with ' + sleeve; else if (sleeve) name += ' ' + sleeve;
+  if (n > 1) name += ' (Pack of ' + n + ')';
+  return name.replace(/\s+/g, ' ').trim().slice(0, 150);
+}
+
 /* ---- step 2 */
 function renderDetails() {
   const S = state.S, R = state.tpl.schema.byRole;
@@ -1912,7 +1932,8 @@ function renderDetails() {
   const lessIn = input({ type: 'number', inputmode: 'decimal', min: 1, step: 1, value: S.returnsLess, oninput: e => { S.returnsLess = e.target.value; changed(); updateRet(); } });
   out.push(h('h3', { class: 'pbl-h3' }, 'Name and price'), h('div', { class: 'pbl-grid' },
     field('Product name', input({ type: 'text', value: S.productName, maxlength: 200, placeholder: 'Women Cotton Striped Blouse', autocomplete: 'off', oninput: e => { S.productName = e.target.value; changed(); updateName(); } }),
-      { required: true, wide: true, hint: h('span', null, nameEx, h('br'), checkbox('Add the colour name at the end', S.addColour, v => { S.addColour = v; changed(); updateName(); })) }),
+      { required: true, wide: true, hint: h('span', null, nameEx, h('br'), checkbox('Add the colour name at the end', S.addColour, v => { S.addColour = v; changed(); updateName(); }),
+        h('br'), btn('Suggest a name from the details', () => { const n = suggestName(); if (!n) { toast('Fill in the details below first.', 'error'); return; } S.productName = n; commit(); toast('Name suggested. Edit it if you like.'); }, 'pb-btn--ghost pb-btn--sm pbl-suggest')) }),
     field('Meesho price (₹)', input({ type: 'number', inputmode: 'decimal', min: 0, step: '0.01', value: S.price, placeholder: '349', oninput: e => { S.price = e.target.value; changed(); updateRet(); } }), { required: true }),
     field('MRP (₹)', input({ type: 'number', inputmode: 'decimal', min: 0, step: '0.01', value: S.mrp, placeholder: '999', oninput: e => { S.mrp = e.target.value; changed(); } }), { required: true }),
     R.returns ? field(R.returns.name, h('div', { class: 'pbl-inline' }, h('span', null, 'Price minus ₹'), lessIn), { forEl: lessIn, hint: retEx }) : null,

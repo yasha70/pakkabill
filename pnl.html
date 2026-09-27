@@ -995,6 +995,12 @@ details.more[open] > summary { margin-bottom: 10px; }
       x.pcs = (IX.PK && IX.PK[x.sku]) || 1;
       x.perUnit = x.units ? Math.round(x.contrib / x.units) : 0;
       x.perOrder = x.sold ? Math.round(x.contrib / x.sold) : 0;
+      /* Customer price per order now, and the price where this SKU's profit per order is zero.
+         Of each extra rupee the buyer pays, the seller keeps the part left after GST, and only on
+         orders that are not returned (their sale is reversed). Meesho takes no commission on it. */
+      x.avgPrice = x.sold ? Math.round(x.S / x.sold) : 0;
+      var keep = x.S > 0 ? Math.max(0.05, 1 + x.R / x.S) : 0, netShare = x.NS > 0 ? x.NR / x.NS : 1;
+      x.breakEven = x.sold && keep ? Math.max(0, Math.round(x.avgPrice - x.perOrder / (keep * netShare))) : 0;
       return x;
     }).sort(function (a, b) { return b.NS - a.NS || (a.sku < b.sku ? -1 : 1); });
     var unalloc = K.ADJ + K.REF + adsNet - EXP, skuSum = 0;
@@ -2027,6 +2033,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     if (rule === 'sku') return 'Automatic: your SKUs follow the letters rule (' + pk.agree + ' of ' + pk.stated + ' combo names agree). ' + sku;
     return 'Automatic: ' + name;
   }
+  A.packNote = packNote; // the Excel export (HX) prints it too
 
   function demoBar() {
     if (!S.demo) return '';
@@ -2122,12 +2129,13 @@ details.more[open] > summary { margin-bottom: 10px; }
 
     var sk = R.skus.map(function (x) {
       return '<tr><td><b>' + esc(x.sku) + '</b>' + (x.pcs > 1 ? ' <span class="tag">pack of ' + x.pcs + '</span>' : '') + (x.pn ? '<div class="small muted">' + esc(x.pn) + '</div>' : '') + '</td><td class="n">' + x.sold + '</td><td class="n">' + x.units + '</td><td class="n">' + (x.retU + x.rto) + '</td>' +
-        '<td class="n">' + mny(x.NS) + '</td><td class="n' + (x.contrib < 0 ? ' neg' : '') + '">' + mny(x.contrib) + '</td><td class="n' + (x.perOrder < 0 ? ' neg' : '') + '">' + (x.sold ? mny(x.perOrder) : '') + '</td></tr>';
+        '<td class="n">' + mny(x.NS) + '</td><td class="n' + (x.contrib < 0 ? ' neg' : '') + '">' + mny(x.contrib) + '</td><td class="n' + (x.perOrder < 0 ? ' neg' : '') + '">' + (x.sold ? mny(x.perOrder) : '') + '</td>' +
+        '<td class="n">' + (x.sold ? rs(x.avgPrice, true) : '') + '</td><td class="n' + (x.sold && x.breakEven > x.avgPrice ? ' neg' : '') + '">' + (x.sold ? rs(x.breakEven, true) : '') + '</td></tr>';
     }).join('');
-    h += '<details class="sheet more"><summary>Profit by SKU</summary><div class="tw"><table class="t"><thead><tr><th>SKU</th><th class="n">Orders</th><th class="n">Pieces</th><th class="n">Returns and RTO</th><th class="n">Net sales</th><th class="n">Profit</th><th class="n">Per order</th></tr></thead><tbody>' + sk +
-      '<tr class="tot"><td>Not tied to a SKU (ads, referral, account credits, expenses)</td><td></td><td></td><td></td><td></td><td class="n' + (R.unalloc < 0 ? ' neg' : '') + '">' + mny(R.unalloc) + '</td><td></td></tr>' +
-      '<tr class="np"><td>Net profit</td><td class="n">' + K.sales + '</td><td class="n">' + K.fu + '</td><td></td><td class="n">' + mny(R.NS) + '</td><td class="n' + (R.NP < 0 ? ' neg' : '') + '">' + mny(R.NP) + '</td><td></td></tr></tbody></table></div>' +
-      '<p class="small muted" style="margin:8px 0 0">SKU profit is after cost of goods, Meesho charges and packaging, before ads and other expenses.</p></details>';
+    h += '<details class="sheet more"><summary>Profit by SKU</summary><div class="tw"><table class="t"><thead><tr><th>SKU</th><th class="n">Orders</th><th class="n">Pieces</th><th class="n">Returns and RTO</th><th class="n">Net sales</th><th class="n">Profit</th><th class="n">Per order</th><th class="n">Price now</th><th class="n">Break-even price</th></tr></thead><tbody>' + sk +
+      '<tr class="tot"><td>Not tied to a SKU (ads, referral, account credits, expenses)</td><td></td><td></td><td></td><td></td><td class="n' + (R.unalloc < 0 ? ' neg' : '') + '">' + mny(R.unalloc) + '</td><td></td><td></td><td></td></tr>' +
+      '<tr class="np"><td>Net profit</td><td class="n">' + K.sales + '</td><td class="n">' + K.fu + '</td><td></td><td class="n">' + mny(R.NS) + '</td><td class="n' + (R.NP < 0 ? ' neg' : '') + '">' + mny(R.NP) + '</td><td></td><td></td><td></td></tr></tbody></table></div>' +
+      '<p class="small muted" style="margin:8px 0 0">SKU profit is after cost of goods, Meesho charges and packaging, before ads and other expenses. Price now is what buyers paid per order on average. Break-even price is the customer price where the SKU\u2019s profit per order would be zero, with the same returns, GST and charges; red means it is above today\u2019s price, so the SKU loses money.</p></details>';
 
     if (S.MO.length > 1) {
       var mo = S.MO.map(function (m) {
@@ -2457,13 +2465,13 @@ details.more[open] > summary { margin-bottom: 10px; }
     X.utils.book_append_sheet(wb, sheet(P, [58, 18], { xSplit: 0, ySplit: 8 }), 'P&L');
 
     /* SKU wise */
-    var SK = [heads(['SKU', 'Product', 'Pieces per order', 'Orders sold', 'Pieces sold', 'Pieces returned', 'RTO parcels', 'Gross sales', 'Returns', 'Net sales', 'Output GST', 'Net revenue', 'Cost of goods', 'Meesho charges', 'Claims and recoveries', 'TCS/TDS as expense', 'Packaging', 'Profit', 'Profit per order', 'Profit per piece'])];
+    var SK = [heads(['SKU', 'Product', 'Pieces per order', 'Orders sold', 'Pieces sold', 'Pieces returned', 'RTO parcels', 'Gross sales', 'Returns', 'Net sales', 'Output GST', 'Net revenue', 'Cost of goods', 'Meesho charges', 'Claims and recoveries', 'TCS/TDS as expense', 'Packaging', 'Profit', 'Profit per order', 'Profit per piece', 'Customer price per order', 'Break-even customer price'])];
     R.skus.forEach(function (x) {
-      SK.push([t(x.sku), t(x.pn), n(x.pcs), n(x.sold), n(x.units), n(x.retU), n(x.rto), m(x.S), m(x.R), m(x.NS), m(-x.OUT), m(x.NR), m(-x.COGS), m(x.MC), m(x.OCR), m(R.claim ? 0 : x.TX), m(-x.pack), m(x.contrib, ST.bold), m(x.perOrder), m(x.perUnit)]);
+      SK.push([t(x.sku), t(x.pn), n(x.pcs), n(x.sold), n(x.units), n(x.retU), n(x.rto), m(x.S), m(x.R), m(x.NS), m(-x.OUT), m(x.NR), m(-x.COGS), m(x.MC), m(x.OCR), m(R.claim ? 0 : x.TX), m(-x.pack), m(x.contrib, ST.bold), m(x.perOrder), m(x.perUnit), m(x.sold ? x.avgPrice : 0), m(x.sold ? x.breakEven : 0)]);
     });
     SK.push([t('Not tied to a SKU (ads, referral, account credits, expenses)', ST.tot)].concat(new Array(16).fill(t('', ST.tot))).concat([m(R.unalloc, ST.tot)]));
     SK.push([t('Net profit', ST.np), t('', ST.np), t('', ST.np), n(K.sales, ST.np), n(K.fu, ST.np)].concat(new Array(12).fill(t('', ST.np))).concat([m(R.NP, ST.np)]));
-    X.utils.book_append_sheet(wb, sheet(SK, [16, 40, 9, 10, 10, 10, 10, 13, 13, 13, 12, 13, 13, 14, 13, 12, 11, 13, 12, 12], { xSplit: 1, ySplit: 1 }), 'SKU wise');
+    X.utils.book_append_sheet(wb, sheet(SK, [16, 40, 9, 10, 10, 10, 10, 13, 13, 13, 12, 13, 13, 14, 13, 12, 11, 13, 12, 12, 14, 15], { xSplit: 1, ySplit: 1 }), 'SKU wise');
 
     /* Month wise */
     if (S.MO.length) {
@@ -2518,7 +2526,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       ['Sales', 'Total Sale Amount and Total Sale Return Amount columns. With GST registration on, output GST is taken out at each row\u2019s Product GST %.'],
       ['Meesho charges', 'Every fee column that makes up Final Settlement. Columns marked "incl. GST" have 18% GST taken out as input credit.'],
       ['Cost of goods', 'Your cost per piece times the pieces shipped. Returns marked back in stock are added back; RTO or lost parcels marked not resellable are written off.'],
-      ['Combo size', packNote(st) + ' Typed counts on the Costs tab take priority.'],
+      ['Combo size', window.HA.packNote(st) + ' Typed counts on the Costs tab take priority.'],
       ['TCS and TDS', R.claim ? 'Deducted by Meesho and claimable, so added back to profit.' : 'Counted as an expense, as chosen in Settings.'],
       ['Check', 'Settlement rows that add up exactly to Final Settlement: ' + mt + ' of ' + nt + '. Any difference is shown as "Unexplained difference" so totals still match Meesho.'],
       ['Payment dates covered', H.pd0 ? H.pd0 + ' to ' + H.pd1 : 'none'],
