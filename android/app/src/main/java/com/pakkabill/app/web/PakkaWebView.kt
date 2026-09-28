@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.JsResult
 import android.webkit.RenderProcessGoneDetail
@@ -41,6 +42,7 @@ interface WebEvents {
 @SuppressLint("SetJavaScriptEnabled")
 fun createPakkaWebView(context: Context, events: WebEvents, background: Int): WebView {
     val web = WebView(context)
+    web.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
     web.setBackgroundColor(background)
     WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 

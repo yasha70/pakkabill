@@ -49,7 +49,14 @@ fun AppScreen(
     Box(Modifier.fillMaxSize().background(pageColor)) {
         Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             AndroidView(
-                factory = { web.also { (it.parent as? ViewGroup)?.removeView(it) } },
+                factory = {
+                    web.also {
+                        (it.parent as? ViewGroup)?.removeView(it)
+                        // with the default "wrap content" size WebView reports 100vh as 0 to the page,
+                        // which collapsed full-height screens such as the Meesho P&L
+                        it.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                    }
+                },
                 modifier = Modifier.fillMaxSize(),
             )
             if (state.progress in 1..99) {
