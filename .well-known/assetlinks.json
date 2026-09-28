@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.pakkabill.app",
+      "sha256_cert_fingerprints": [
+        "A0:A6:8E:F1:B3:0E:C9:5D:33:7E:91:E5:AE:51:9A:41:38:BB:E4:72:94:A7:AE:09:B6:2C:FD:89:97:CC:D6:C3"
+      ]
+    }
+  }
+]

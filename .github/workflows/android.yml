@@ -1,0 +1,55 @@
+# Builds the PakkaBill Android app (android/) as an unsigned release APK. The signing key is kept
+# outside this public repo: the unsigned APK is pushed to the apk-build branch, signed with the
+# PakkaBill key, and the signed file is published at /download/PakkaBill.apk.
+name: Android app
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build unsigned release APK
+        working-directory: android
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Keep the APK as a run artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PakkaBill-unsigned
+          path: android/app/build/outputs/apk/release/*.apk
+
+      - name: Push the unsigned APK to the apk-build branch
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir /tmp/out
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk /tmp/out/PakkaBill-unsigned.apk
+          cd /tmp/out
+          echo "Built from ${GITHUB_SHA}" > README.txt
+          git init -q -b apk-build
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -q -m "Unsigned APK built from ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" apk-build
