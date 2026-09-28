@@ -143,7 +143,7 @@
   function deviceHtml(dev) {
     var rows = [['App version', dev.version || '…'], ['Saved on this device', dev.used == null ? '…' : size(dev.used)], ['Phone notifications', dev.push], ['Internet', navigator.onLine ? 'Online' : 'Offline']];
     return '<section class="pba-card"><h2>This device</h2><dl class="pba-kv">' + rows.map(function (r) { return '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>'; }).join('') + '</dl>' +
-      '<div class="pba-btns"><button type="button" class="pba-btn pri" data-pba="download">Download all my data</button></div>' +
+      '<div class="pba-btns"><button type="button" class="pba-btn pri" data-pba="download">Download all my data</button>' + (window.pbInApp && window.pbInApp() ? '' : '<a class="pba-btn" href="#/app">\ud83d\udcf2 Get the app</a>') + '</div>' +
       '<p class="pba-muted" style="margin-top:8px">One file with every shop’s bills, parties, items and settings. Keep it as your own backup.</p></section>';
   }
 
@@ -233,4 +233,100 @@
     load(el);
   };
   window.addEventListener('pb-account', function () { mounts.forEach(function (el) { if (el.isConnected) load(el); }); });
+})();
+
+// PakkaBill "Get the app" page (#/app): download the Android app, install from the browser, or
+// add it to an iPhone home screen. Also a small one-time "Get the app" nudge on Android phones.
+(function () {
+  'use strict';
+  var deferred = null;
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; redraw(); });
+  window.addEventListener('appinstalled', function () { deferred = null; try { localStorage.setItem('pb-app-installed', '1'); } catch (e) { /* ignore */ } redraw(); });
+
+  // opened from the Android app (its start address carries ?source=android)
+  try {
+    if (/[?&]source=android\b/.test(location.search) || /^android-app:\/\/com\.pakkabill\.app/.test(document.referrer)) sessionStorage.setItem('pb-in-app', '1');
+  } catch (e) { /* ignore */ }
+  function inApp() { try { return sessionStorage.getItem('pb-in-app') === '1'; } catch (e) { return false; } }
+  function standalone() { return inApp() || (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; }
+  var ua = navigator.userAgent || '';
+  var android = /Android/i.test(ua), ios = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && 'ontouchend' in document);
+
+  var CSS = '.pbg{display:grid;gap:14px;max-width:760px}' +
+    '.pbg-card{background:var(--paper-card,var(--card,#fff));border:1px solid var(--line,#e2daf2);border-radius:14px;padding:16px}' +
+    '.pbg-card h2{margin:0 0 6px;font-size:1.1rem;display:flex;gap:8px;align-items:center}.pbg-card p{margin:0 0 10px;color:var(--ink-2,#5c5776)}' +
+    '.pbg-hero{display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:linear-gradient(135deg,#5b3fe6,#ff7a59);color:#fff;border:0}' +
+    '.pbg-hero img{width:72px;height:72px;border-radius:18px;background:#fff;flex:none}.pbg-hero h2{color:#fff;font-size:1.3rem}.pbg-hero p{color:#fff;opacity:.92;margin:0}' +
+    '.pbg-btn{display:inline-flex;align-items:center;gap:8px;border-radius:12px;padding:12px 18px;font:inherit;font-weight:700;cursor:pointer;text-decoration:none;border:1px solid var(--line,#e2daf2);background:transparent;color:inherit}' +
+    '.pbg-btn.pri{background:var(--carbon,#5b3fe6);border-color:var(--carbon,#5b3fe6);color:#fff}' +
+    '.pbg-steps{margin:8px 0 0;padding-left:20px;color:var(--ink-2,#5c5776);font-size:.92rem}.pbg-steps li{margin:4px 0}' +
+    '.pbg-meta{font-size:.82rem;color:var(--ink-3,#736e8d);margin-top:8px}.pbg-ok{background:#e6f6ee;color:#12714b;border-radius:10px;padding:10px 12px;font-weight:600}' +
+    '.pbg-nudge{position:fixed;left:12px;right:12px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:60;display:flex;gap:10px;align-items:center;background:#1b1631;color:#fff;border-radius:14px;padding:10px 12px;box-shadow:0 8px 30px rgba(0,0,0,.25);max-width:460px;margin:0 auto}' +
+    '.pbg-nudge a{color:#fff;font-weight:700;flex:1;text-decoration:none}.pbg-nudge button{background:transparent;border:0;color:#fff;font-size:1.3rem;cursor:pointer;padding:0 4px}';
+  function css() { if (document.getElementById('pbg-css')) return; var s = document.createElement('style'); s.id = 'pbg-css'; s.textContent = CSS; document.head.appendChild(s); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+  var info = null;
+  function loadInfo() {
+    fetch('/download/app.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { info = j || {}; redraw(); }).catch(function () { info = {}; redraw(); });
+  }
+
+  var mounts = [];
+  function draw(el) {
+    var apk = info && info.apk;
+    var h = '<div class="page-head"><div><h1 class="page-title">Get the app</h1><p class="page-sub">PakkaBill on your phone’s home screen, full screen, with your bills always there.</p></div></div><div class="pbg">';
+    h += '<section class="pbg-card pbg-hero"><img src="icon-192.png" alt=""><div><h2>PakkaBill app</h2><p>Same PakkaBill, same login and data. Opens in one tap, works offline, sends notifications.</p></div></section>';
+    if (standalone()) h += '<div class="pbg-ok">✅ You are using the PakkaBill app. Nothing more to install.</div>';
+    // Android
+    h += '<section class="pbg-card"><h2>🤖 Android phone</h2>';
+    if (apk) {
+      h += '<p>Download the PakkaBill app and install it.</p><a class="pbg-btn pri" href="' + esc(apk) + '" download="PakkaBill.apk">⬇️ Download PakkaBill for Android</a>' +
+        '<div class="pbg-meta">Version ' + esc(info.version || '1.0') + (info.size ? ' · ' + (info.size / 1048576).toFixed(1) + ' MB' : '') + ' · Android 7 or newer</div>' +
+        '<ol class="pbg-steps"><li>Tap <b>Download</b>, then open <b>PakkaBill.apk</b> from the notification or Downloads.</li><li>If the phone asks, allow <b>Install unknown apps</b> for Chrome (or your file app). This is normal for apps from a website.</li><li>Tap <b>Install</b>, then <b>Open</b>. Log in with the same mobile number and your bills come back.</li></ol>';
+    } else {
+      h += '<p>The Android app download is being prepared. Meanwhile, install PakkaBill straight from Chrome below; it works the same way.</p>';
+    }
+    h += '</section>';
+    // install from the browser
+    h += '<section class="pbg-card"><h2>⚡ Install from your browser</h2><p>No download needed: Chrome and Edge can add PakkaBill as an app on Android phones and computers.</p>';
+    if (deferred) h += '<button type="button" class="pbg-btn' + (apk ? '' : ' pri') + '" data-pbg="install">📲 Install PakkaBill</button>';
+    else if (!standalone()) h += '<ol class="pbg-steps"><li><b>Android (Chrome):</b> tap ⋮ at the top right, then <b>Install app</b> or <b>Add to Home screen</b>.</li><li><b>Computer (Chrome or Edge):</b> click the install icon at the right end of the address bar, or ⋮ → <b>Install PakkaBill</b>.</li></ol>';
+    h += '</section>';
+    // iPhone
+    h += '<section class="pbg-card"><h2> iPhone and iPad</h2><p>Add PakkaBill to your home screen from Safari:</p>' +
+      '<ol class="pbg-steps"><li>Open <b>pakkabill1.vercel.app</b> in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Tap <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol></section>';
+    h += '<section class="pbg-card"><h2>🔒 Your data</h2><p>The app and the website are the same PakkaBill. Log in with your mobile number and turn on cloud backup (Shops &amp; cloud) to see the same bills on every device.</p></section>';
+    h += '</div>';
+    el.innerHTML = h;
+  }
+  function redraw() { mounts.forEach(function (el) { if (el.isConnected) draw(el); }); }
+  window.pbAppMount = function (el) {
+    if (el._pbg) return;
+    el._pbg = true; css(); mounts.push(el);
+    el.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-pbg="install"]');
+      if (!b || !deferred) return;
+      deferred.prompt();
+      deferred.userChoice.then(function () { deferred = null; redraw(); }).catch(function () {});
+    });
+    if (!info) loadInfo();
+    draw(el);
+  };
+  window.pbInApp = inApp;
+
+  // one gentle nudge on Android browsers, at most once a week, never inside the app
+  function nudge() {
+    if (!android || standalone() || /#\/app\b/.test(location.hash)) return;
+    var last = 0; try { last = Number(localStorage.getItem('pb-app-nudge') || 0); if (localStorage.getItem('pb-app-installed')) return; } catch (e) { return; }
+    if (Date.now() - last < 7 * 864e5) return;
+    css();
+    var n = document.createElement('div'); n.className = 'pbg-nudge'; n.setAttribute('role', 'status');
+    n.innerHTML = '<span aria-hidden="true">📲</span><a href="#/app">Get the PakkaBill app for your phone</a><button type="button" aria-label="Close">×</button>';
+    function done() { try { localStorage.setItem('pb-app-nudge', String(Date.now())); } catch (e) { /* ignore */ } n.remove(); }
+    n.querySelector('button').addEventListener('click', done);
+    n.querySelector('a').addEventListener('click', done);
+    document.body.appendChild(n);
+    setTimeout(function () { if (n.isConnected) n.remove(); }, 15000);
+  }
+  setTimeout(nudge, 20000);
 })();
