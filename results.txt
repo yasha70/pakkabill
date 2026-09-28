@@ -1,0 +1,32 @@
+== bridge
+"{\"app\":\"object\",\"version\":\"2.0\",\"ua\":true,\"print\":true,\"share\":\"function\",\"hash\":\"\"}"
+== download all my data
+"clicked"
+total 8
+-rwxrwx--- 1 u0_a190 media_rw 113 2026-09-28 10:58 PakkaBill-my-data-2026-09-28.json
+== share a PDF
+"shared"
+== confirm dialog
+"asked"
+"false"
+== print
+"printing"
+== UPI link without a UPI app
+"upi"
+== P&L frame
+"{\"src\":\"https://pakkabill1.vercel.app/pnl.html?embed=1\",\"h\":726,\"w\":412,\"css\":\"726.286px\",\"inner\":842,\"vv\":842.2857055664062,\"ready\":\"complete\",\"errors\":[],\"top\":[],\"ua\":\"9 Mobile Safari/537.36 PakkaBillApp/2.0 (Android; store=web)\"}"
+== P&L sample and Excel download
+"demo"
+"excel"
+total 208
+-rwxrwx--- 1 u0_a190 media_rw    113 2026-09-28 10:58 PakkaBill-my-data-2026-09-28.json
+-rwxrwx--- 1 u0_a190 media_rw 200634 2026-09-28 10:59 Sample-blouse-store_PnL_All-2026-08_to_2026-09.xlsx
+== native settings
+"opened"
+== release build (minified) smoke test
+Serving...
+All files should be loaded. Notifying the device.
+Performing Incremental Install
+Success
+Install command complete in 1514 ms
+release running: 4937
