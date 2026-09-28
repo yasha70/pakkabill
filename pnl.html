@@ -171,17 +171,28 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: .88rem; co
 @media (min-width: 620px) { .slip { grid-template-columns: repeat(4, 1fr); } }
 
 /* returns, RTO and exchanges */
-.rv-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; margin-bottom: 12px; }
-.rv-tiles > div { background: var(--sheet); padding: 10px 12px; min-width: 0; }
-.rv-tiles small { display: block; color: var(--ink-3); font-size: .82rem; font-weight: 600; }
-.rv-tiles strong { display: block; font-family: var(--f-head); font-weight: 600; font-size: 1.35rem; }
-.rv-tiles span { display: block; color: var(--ink-3); font-size: .78rem; line-height: 1.35; }
-@media (min-width: 620px) { .rv-tiles { grid-template-columns: repeat(4, 1fr); } }
-table.rv-t tr.tot td { border-top: 2px solid var(--rule); }
-table.rv-t td:first-child { min-width: 112px; }
-@media (max-width: 480px) { table.rv-t th, table.rv-t td { padding: 7px 6px; font-size: .86rem; } table.rv-t th { white-space: normal; } }
+.rv-total { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 12px; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; font-weight: 600; color: var(--ink-2); }
+.rv-total b { font-family: var(--f-head); font-size: 1.4rem; }
+.rv-cards { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 620px) { .rv-cards { grid-template-columns: repeat(3, 1fr); } }
+.rv-card { --acc: var(--carbon); border: 1px solid var(--rule); border-top: 4px solid var(--acc); border-radius: 6px; padding: 12px 14px; background: var(--sheet); min-width: 0; }
+.rv-rto { --acc: var(--warn); } .rv-ret { --acc: var(--neg); } .rv-exch { --acc: var(--carbon); } .rv-lost { --acc: var(--ink-3); }
+.rv-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.rv-top b { display: block; font-family: var(--f-head); font-size: 1.1rem; }
+.rv-top small { display: block; color: var(--ink-3); font-size: .8rem; }
+.rv-top strong { font-family: var(--f-head); font-size: 1.8rem; line-height: 1; color: var(--acc); }
+.rv-bar { height: 6px; background: var(--paper); border-radius: 99px; margin: 10px 0 6px; overflow: hidden; }
+.rv-bar i { display: block; height: 100%; background: var(--acc); border-radius: 99px; }
+.rv-of { margin: 0 0 10px; font-size: .85rem; color: var(--ink-2); }
+.rv-money { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px dashed var(--rule); padding-top: 10px; font-weight: 600; }
+.rv-money b { font-family: var(--f-head); font-size: 1.2rem; }
+.rv-per { margin: 2px 0 0; font-size: .8rem; color: var(--ink-3); text-align: right; }
+.rv-lines { list-style: none; margin: 8px 0 0; padding: 0; font-size: .85rem; }
+.rv-lines li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; color: var(--ink-2); }
 .rv-sub { margin-top: 12px; }
 .rv-sub > summary { cursor: pointer; font-weight: 600; }
+.rv-notes { margin: 8px 0 0; padding-left: 18px; font-size: .85rem; color: var(--ink-3); }
+.rv-notes li { margin: 3px 0; }
 
 /* the ledger */
 .ledger { position: relative; background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px; padding: 0 0 6px; overflow: hidden; }
@@ -2150,36 +2161,33 @@ details.more[open] > summary { margin-bottom: 10px; }
     var G = RV.G, ks = ['rto', 'ret', 'exch'], hasLost = G.lost.n > 0;
     if (hasLost) ks.push('lost');
     var HEAD = { rto: 'RTO', ret: 'Returns', exch: 'Exchanges', lost: 'Lost' };
-    function row(label, f, cls, help) {
-      return '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + esc(label) + (help ? '<div class="small muted">' + esc(help) + '</div>' : '') + '</td>' + ks.map(function (k) { return '<td class="n">' + f(G[k], k) + '</td>'; }).join('') + '</tr>';
+    var SUB = { rto: 'Came back undelivered', ret: 'Customer sent it back', exch: 'Swapped for size or colour', lost: 'Lost by the courier' };
+    var OF = { rto: [RV.rtoRate, RV.done, 'shipped'], ret: [RV.retRate, RV.delivered, 'delivered'], exch: [RV.exchRate, RV.delivered, 'delivered'], lost: [RV.lostRate, RV.done, 'shipped'] };
+    function rupee(v) { return rs(Math.round(v), true); }
+    function card(k) {
+      var g = G[k], o = OF[k], lines = [
+        ['Return shipping fee', g.retFee], ['Forward shipping', g.fwdShip], ['Meesho fees kept', g.fees],
+        ['Packing', g.pack], ['Stock not resellable', g.stock], ['Paid back by Meesho', -g.back]
+      ].filter(function (l) { return Math.round(l[1]); });
+      return '<div class="rv-card rv-' + k + '"><div class="rv-top"><div><b>' + HEAD[k] + '</b><small>' + SUB[k] + '</small></div><strong>' + pct(o[0]) + '</strong></div>' +
+        '<div class="rv-bar"><i style="width:' + Math.min(100, o[0] * 100).toFixed(1) + '%"></i></div>' +
+        '<p class="rv-of">' + g.n + ' of ' + o[1] + ' orders ' + o[2] + '</p>' +
+        '<div class="rv-money"><span>Money lost</span><b class="' + (g.loss > 0 ? 'neg' : '') + '">' + rupee(g.loss) + '</b></div>' +
+        (g.n && g.loss ? '<p class="rv-per">' + rupee(g.loss / g.n) + ' per order</p>' : '') +
+        (lines.length ? '<ul class="rv-lines">' + lines.map(function (l) { return '<li><span>' + l[0] + '</span><span class="' + (l[1] < 0 ? 'pos' : '') + '">' + (l[1] < 0 ? '+ ' : '') + rupee(Math.abs(l[1])) + '</span></li>'; }).join('') + '</ul>'
+          : '<p class="rv-per">' + (k === 'exch' ? 'Still a sale, no extra fee' : 'No fees charged') + '</p>') +
+        '</div>';
     }
-    function money(v) { return v ? mny(v) : '–'; }
-    function cost(v) { return v ? '<span class="neg">' + mny(-v) + '</span>' : '–'; }
-    var h = '<div class="rv-tiles">' +
-      '<div><small>RTO rate</small><strong>' + pct(RV.rtoRate) + '</strong><span>' + pl(G.rto.n, 'parcel') + ' of ' + RV.done + ' shipped came back undelivered</span></div>' +
-      '<div><small>Return rate</small><strong>' + pct(RV.retRate) + '</strong><span>' + pl(G.ret.n, 'order') + ' of ' + RV.delivered + ' delivered sent back by customers</span></div>' +
-      '<div><small>Exchange rate</small><strong>' + pct(RV.exchRate) + '</strong><span>' + pl(G.exch.n, 'order') + ' of ' + RV.delivered + ' delivered swapped for another size or colour</span></div>' +
-      '<div><small>Money lost on these</small><strong class="' + (RV.loss > 0 ? 'neg' : '') + '">' + rs(RV.loss, true) + '</strong><span>RTO ' + rs(G.rto.loss, true) + ' · returns ' + rs(G.ret.loss, true) + (G.exch.loss ? ' · exchanges ' + rs(G.exch.loss, true) : '') + '</span></div></div>';
-    h += '<div class="tw"><table class="t rv-t"><thead><tr><th></th>' + ks.map(function (k) { return '<th class="n">' + HEAD[k] + '</th>'; }).join('') + '</tr></thead><tbody>' +
-      row('Orders', function (g) { return String(g.n); }) +
-      row('Rate', function (g, k) { return pct(k === 'rto' ? RV.rtoRate : k === 'lost' ? RV.lostRate : k === 'ret' ? RV.retRate : RV.exchRate); }) +
-      row('Return shipping fee', function (g) { return cost(g.retFee); }) +
-      row('Forward shipping', function (g) { return cost(g.fwdShip); }) +
-      row('Commission and fees kept', function (g) { return cost(g.fees); }) +
-      row('Packing', function (g) { return cost(g.pack); }) +
-      row('Stock not resellable', function (g) { return g.stock ? cost(g.stock) + '<div class="small muted">' + pl(g.stockN, 'order') + '</div>' : '–'; }) +
-      row('Paid back by Meesho', function (g) { return g.back ? '<span class="pos">' + mny(g.back) + '</span>' : '–'; }) +
-      row('Total lost', function (g) { return '<b class="' + (g.loss > 0 ? 'neg' : '') + '">' + mny(-g.loss) + '</b>'; }, 'tot') +
-      row('Lost per order', function (g) { return g.n ? mny(-Math.round(g.loss / g.n)) : '–'; }) +
-      '</tbody></table></div>';
-    var notes = ['RTO' + (hasLost ? ' and lost' : '') + ' rates are of parcels shipped; return and exchange rates are of orders delivered. Return shipping fee is what Meesho charged to bring the item back. Paid back is fee refunds, claims and compensation on these orders.'];
-    if (G.ret.pending || G.rto.pending) notes.push(pl(G.ret.pending + G.rto.pending, 'order') + ' are marked returned or RTO, but Meesho has not taken the sale back in these files yet, so some fees may still come.');
+    var h = '<div class="rv-total"><span>Total money lost</span><b class="' + (RV.loss > 0 ? 'neg' : '') + '">' + rupee(RV.loss) + '</b></div>' +
+      '<div class="rv-cards">' + ks.map(card).join('') + '</div>';
+    var notes = ['RTO' + (hasLost ? ' and lost' : '') + ' rates are of parcels shipped; return and exchange rates are of orders delivered.', 'Money lost is what Meesho cut from your payout for these orders (including GST), plus packing and stock you could not resell, less what Meesho paid back.'];
+    if (G.exch.n) notes.push('Exchanges are still sales, so only extra return or exchange fees count as lost.');
+    if (G.ret.pending || G.rto.pending) notes.push(pl(G.ret.pending + G.rto.pending, 'order') + ' are marked returned or RTO but Meesho has not taken the sale back yet, so some fees may still come.');
     var np = G.rto.noPay + G.ret.noPay + G.exch.noPay;
     if (np) notes.push(pl(np, 'order') + ' have no payment row yet, so their fees are not counted.');
-    if (RV.transit) notes.push(pl(RV.transit, 'order') + ' still in transit are left out of the rates.');
-    if (G.exch.n) notes.push('Exchanges are still sales, so only the extra return or exchange fees on them count as lost.');
-    notes.push('Amounts are as Meesho cut them from your payout, including GST. Counted by ' + (per.basis === 'order' ? 'order date' : 'payment date') + '. Stock counts as lost only for items marked Not resellable (change it in Reconcile or Settings).');
-    h += '<p class="small muted" style="margin:8px 0 0">' + esc(notes.join(' ')) + '</p>';
+    if (RV.transit) notes.push(pl(RV.transit, 'order') + ' still in transit are left out.');
+    notes.push('RTO parcels and returns count as back in stock unless marked Not resellable in Reconcile or Settings. Counted by ' + (per.basis === 'order' ? 'order date' : 'payment date') + '.');
+    h += '<details class="rv-sub"><summary>How this is counted</summary><ul class="rv-notes">' + notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ul></details>';
     var cols = RV.cols.filter(function (c) { return c.rto || c.ret || c.exch || c.lost; });
     if (cols.length) {
       h += '<details class="rv-sub"><summary>Each Meesho fee on returns and RTO</summary><div class="tw"><table class="t"><thead><tr><th>Column in Meesho file</th>' + ks.map(function (k) { return '<th class="n">' + HEAD[k] + '</th>'; }).join('') + '</tr></thead><tbody>' +
