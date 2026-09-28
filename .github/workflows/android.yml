@@ -1,6 +1,6 @@
-# Builds the PakkaBill Android app (android/) as an unsigned release APK. The signing key is kept
-# outside this public repo: the unsigned APK is pushed to the apk-build branch, signed with the
-# PakkaBill key, and the signed file is published at /download/PakkaBill.apk.
+# Builds PakkaBill for Android (android/): the Play Store bundle (.aab) and the website APK, both
+# unsigned (the signing key stays outside this public repo), plus a debug APK that is tested on an
+# Android emulator with screenshots. Outputs go to the apk-build and apk-shots branches.
 name: Android app
 
 on:
@@ -14,6 +14,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: android-app
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,33 +27,85 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '9.8.0'
 
-      - name: Build unsigned release APK
+      - name: Build bundle, release APK and debug APK
         working-directory: android
-        run: gradle assembleRelease --no-daemon --stacktrace
+        run: gradle :app:bundleRelease :app:assembleRelease :app:assembleDebug --stacktrace
 
-      - name: Keep the APK as a run artifact
-        uses: actions/upload-artifact@v4
+      - name: Collect outputs
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/bundle/release/app-release.aab out/PakkaBill-unsigned.aab
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk out/PakkaBill-unsigned.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/PakkaBill-debug.apk
+          cp android/app/build/outputs/mapping/release/mapping.txt out/mapping.txt || true
+          echo "Built from ${GITHUB_SHA}" > out/README.txt
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: PakkaBill-unsigned
-          path: android/app/build/outputs/apk/release/*.apk
+          name: PakkaBill-android
+          path: out/
 
-      - name: Push the unsigned APK to the apk-build branch
+      - name: Push outputs to the apk-build branch
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir /tmp/out
-          cp android/app/build/outputs/apk/release/app-release-unsigned.apk /tmp/out/PakkaBill-unsigned.apk
-          cd /tmp/out
-          echo "Built from ${GITHUB_SHA}" > README.txt
+          cd out
           git init -q -b apk-build
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -q -m "Unsigned APK built from ${GITHUB_SHA}"
+          git commit -q -m "Android build from ${GITHUB_SHA}"
           git push -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" apk-build
+
+  emulator-test:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: PakkaBill-android
+          path: apk-all
+
+      - name: Keep only the debug APK
+        run: mkdir -p apk && cp apk-all/PakkaBill-debug.apk apk/ && pip install --quiet websocket-client
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run the app on an Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash android/ci/shots.sh
+
+      - name: Push screenshots to the apk-shots branch
+        if: always()
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p shots && cd shots
+          echo "Tested ${GITHUB_SHA}" > README.txt
+          git init -q -b apk-shots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -q -m "Emulator screenshots for ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" apk-shots

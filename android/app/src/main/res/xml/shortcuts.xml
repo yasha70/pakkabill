@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/shortcut_new"
+        android:shortcutId="new_bill"
+        android:shortcutLongLabel="@string/shortcut_new_bill_long"
+        android:shortcutShortLabel="@string/shortcut_new_bill">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://pakkabill1.vercel.app/#/new"
+            android:targetClass="com.pakkabill.app.MainActivity"
+            android:targetPackage="com.pakkabill.app" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/shortcut_bills"
+        android:shortcutId="bills"
+        android:shortcutLongLabel="@string/shortcut_bills_long"
+        android:shortcutShortLabel="@string/shortcut_bills">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://pakkabill1.vercel.app/#/bills"
+            android:targetClass="com.pakkabill.app.MainActivity"
+            android:targetPackage="com.pakkabill.app" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/shortcut_gst"
+        android:shortcutId="gst"
+        android:shortcutLongLabel="@string/shortcut_gst_long"
+        android:shortcutShortLabel="@string/shortcut_gst">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://pakkabill1.vercel.app/#/reports"
+            android:targetClass="com.pakkabill.app.MainActivity"
+            android:targetPackage="com.pakkabill.app" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/shortcut_pnl"
+        android:shortcutId="pnl"
+        android:shortcutLongLabel="@string/shortcut_pnl_long"
+        android:shortcutShortLabel="@string/shortcut_pnl">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://pakkabill1.vercel.app/#/pnl"
+            android:targetClass="com.pakkabill.app.MainActivity"
+            android:targetPackage="com.pakkabill.app" />
+    </shortcut>
+</shortcuts>

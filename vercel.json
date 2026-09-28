@@ -195,7 +195,8 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "apk-build": false
+      "apk-build": false,
+      "apk-shots": false
     }
   }
 }
