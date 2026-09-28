@@ -22,6 +22,35 @@ Open the deployed address once, then:
 After that it opens from the home screen with no internet. Bills stay on each device;
 move them with Shop > Download backup and Restore.
 
+## Android app
+
+PakkaBill for Android (`android/`, package `com.pakkabill.app`) is a native Kotlin app built with
+Jetpack Compose and Material 3 on the newest tools (Android Gradle Plugin 9.4, Kotlin 2.4, target
+Android 17 / API 37, minimum Android 7). It runs the PakkaBill web app in a WebView and adds native
+parts: splash screen, edge-to-edge screens whose status bar follows the page colour, adaptive and
+themed icons, launcher shortcuts (New bill, Bills, GST summary, Meesho P&L), fingerprint/face app
+lock, saving bills and reports into Downloads/PakkaBill, the Android share sheet (WhatsApp, Drive),
+printing, UPI/WhatsApp hand-off, file upload, Material dialogs, an offline screen, native settings,
+and Google Play in-app updates and reviews. `android/app/src/main/assets/pakkabill-android.js`
+connects the page to the app; the app is recognised by `PakkaBillApp/` in its user agent
+(`store=play` when installed from Google Play, where Pro is not sold because Play requires its own
+billing for that).
+
+Building: pushing `android/` to `main` runs `.github/workflows/android.yml`. It builds the Play
+Store bundle (.aab) and the website APK unsigned (branch `apk-build`), and tests a debug build on an
+Android emulator: it drives the app and saves screenshots and results (branch `apk-shots`). Check the
+newest library versions with the "Android versions" workflow.
+
+Signing: the upload key `pakkabill-release.p12` (alias `pakkabill`) is kept by the owner and never
+committed, because this repo is public. Sign the bundle with `jarsigner` and the APK with `apksigner`,
+then put the APK at `download/PakkaBill.apk` and update `download/app.json`. Every update needs a
+higher `versionCode` and the same key. `.well-known/assetlinks.json` lists the key fingerprints
+(add Google Play's app signing key after the first Play upload) so PakkaBill links open in the app.
+
+Publishing on Google Play: see `play-store/README.md` (listing text, data safety answers, images).
+Account deletion (`/delete-account` and in My account) and the privacy policy (`/privacy`) are
+required by Google Play.
+
 ## Meesho listing
 
 `#/listing` makes the Excel for Meesho's bulk catalog upload. The seller adds Meesho's category
