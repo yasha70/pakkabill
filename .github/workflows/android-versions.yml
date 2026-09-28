@@ -1,0 +1,26 @@
+# Manual check: prints the newest stable versions of the Android build tools and libraries the
+# app uses, so they can be kept current (Actions -> "Android versions" -> Run workflow).
+name: Android versions
+
+on:
+  workflow_dispatch:
+
+jobs:
+  versions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Newest stable versions
+        run: |
+          G=https://dl.google.com/dl/android/maven2
+          C=https://repo1.maven.org/maven2
+          stable() { curl -s "$1/maven-metadata.xml" | grep -o '<version>[^<]*</version>' | sed 's/<[^>]*>//g' | grep -Ev 'alpha|beta|rc|dev|-M|RC|Beta' | sort -V | tail -1; }
+          for a in com/android/tools/build/gradle androidx/compose/compose-bom androidx/core/core-ktx androidx/core/core-splashscreen \
+                   androidx/activity/activity-compose androidx/lifecycle/lifecycle-runtime-compose androidx/webkit/webkit androidx/biometric/biometric \
+                   androidx/browser/browser androidx/datastore/datastore-preferences com/google/android/play/app-update-ktx com/google/android/play/review-ktx \
+                   com/google/android/material/material; do
+            echo "$a $(stable $G/$a)"
+          done
+          echo "kotlin $(stable $C/org/jetbrains/kotlin/kotlin-gradle-plugin)"
+          echo "gradle $(curl -s https://services.gradle.org/versions/current | grep -o '"version" *: *"[^"]*"')"
+          echo "sdk platforms: $(ls $ANDROID_HOME/platforms | tr '\n' ' ')"
+          echo "build-tools: $(ls $ANDROID_HOME/build-tools | tr '\n' ' ')"
