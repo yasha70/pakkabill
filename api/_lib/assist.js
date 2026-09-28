@@ -20,7 +20,7 @@ const MAX_BOT_REPLIES = 3;
 const SETTINGS_KEY = 'assist:settings';
 
 // One-tap fixes the app knows how to run. Labels live in the app (support.js).
-const ACTIONS = ['update', 'refresh_plan', 'plan', 'login', 'shop', 'reports', 'gstr1', 'new_bill', 'items', 'parties', 'listing', 'lens', 'pnl'];
+const ACTIONS = ['update', 'refresh_plan', 'plan', 'login', 'shop', 'reports', 'gstr1', 'new_bill', 'items', 'parties', 'listing', 'lens', 'pnl', 'tickets', 'help_center'];
 const OUTCOMES = ['answered', 'escalate', 'ack'];
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const RANK = { low: 0, normal: 1, high: 2, urgent: 3 };

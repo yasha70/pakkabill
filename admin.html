@@ -149,7 +149,9 @@
   .ai-wa{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}.ai-wa .f{min-width:200px;margin:0}
   .ai-top{display:flex;gap:6px;flex-wrap:wrap}.ai-top span{font-size:12px;border-radius:999px;padding:2px 9px;background:var(--paper);border:1px solid var(--rule)}
   .ai-tag.late{background:var(--red);color:#fff}
-  .ai-unans{margin:6px 0 0;padding-left:18px;display:grid;gap:3px;font-size:13px}.ai-tag.tried{background:var(--amber-soft);color:var(--amber)}
+  .ai-unans{margin:6px 0 0;padding-left:18px;display:grid;gap:5px;font-size:13px}.ai-unans .btn{margin-left:6px;padding:2px 9px}
+  .ai-taught{list-style:none;margin:6px 0 8px;padding:0;display:grid;gap:6px}.ai-taught li{display:grid;gap:2px;padding:8px 10px;border-radius:10px;background:var(--paper);border:1px solid var(--rule)}.ai-taught .muted{font-size:12.5px}
+  .ai-teach{display:grid;gap:10px;padding:14px;border-radius:12px;background:var(--paper);border:1.5px dashed var(--violet)}.ai-teach h3{margin:0;font-size:15px}.ai-teach textarea{width:100%}.ai-tag.tried{background:var(--amber-soft);color:var(--amber)}
 </style>
 </head>
 <body>
@@ -447,7 +449,7 @@
   let tkFilter = 'active', tkOpen = '', tkTimer = null;
   const tkPill = (s) => `<span class="pill st-${esc(s)}">${esc(TK_STATUS[s] || s)}</span>`;
   const prPill = (p) => (p && p !== 'normal' ? `<span class="pill pr-${esc(p)}">${esc(p[0].toUpperCase() + p.slice(1))}</span>` : '');
-  const ACT_LABEL = { update: 'Update PakkaBill now', refresh_plan: 'Refresh my plan', plan: 'Open Plan page', login: 'Log in', shop: 'Open Shop', reports: 'Open GST summary', gstr1: 'Open GSTR-1 JSON', new_bill: 'Make a new bill', items: 'Open Items', parties: 'Open Parties', listing: 'Open Meesho listing', lens: 'Open Meesho Lens', pnl: 'Open Meesho P&L' };
+  const ACT_LABEL = { update: 'Update PakkaBill now', refresh_plan: 'Refresh my plan', plan: 'Open Plan page', login: 'Log in', shop: 'Open Shop', reports: 'Open GST summary', gstr1: 'Open GSTR-1 JSON', new_bill: 'Make a new bill', items: 'Open Items', parties: 'Open Parties', listing: 'Open Meesho listing', lens: 'Open Meesho Lens', pnl: 'Open Meesho P&L', tickets: 'Open my tickets', help_center: 'Browse help topics' };
   const PROB_LABEL = { pdf: 'PDF', print: 'Printing', limit: 'Bill limit', design: 'Design', logo: 'Logo', lost: 'Lost bills', paid_not_active: 'Paid, Pro not on', utr_error: 'UTR not accepted', renew: 'Renew', refund: 'Refund', tax_wrong: 'IGST/CGST', hsn: 'HSN/GST rate', gstr1: 'GSTR-1', listing: 'Meesho listing', pnl: 'Meesho P&L', lens: 'Meesho Lens', blank: "App won't open", slow: 'App slow', button: 'Button broken', error: 'Error message', login: 'Log in', forgot: 'Forgot password', newphone: 'New phone', install: 'Install' };
   const hrs = (min) => (min == null ? '' : min < 60 ? `${min} min` : `${Math.round(min / 60)} h`);
   function waitTag(t) {
@@ -466,13 +468,56 @@
   }
 
   // ---------- assistant settings and phone alerts ----------
-  let aiSettings = null, chatStats = null;
+  let aiSettings = null, chatStats = null, customAnswers = [];
   // The chat assistant on the Help page: how many questions, and the ones it could not answer.
   function chatHtml(c) {
     if (!c || !c.questions) return '<div class="ai-stat">Chat assistant: no questions yet.</div>';
     const un = c.unanswered || [];
     return `<div class="ai-stat">Chat assistant: <b>${c.questions}</b> questions · answered <b>${c.answered || 0}</b> · not sure <b>${c.unsure || 0}</b>${c.ai ? ` · by Claude <b>${c.ai}</b>` : ''} · 👍 <b>${c.helpful || 0}</b> 👎 <b>${c.notHelpful || 0}</b></div>
-      ${un.length ? `<details><summary class="muted" style="cursor:pointer">Questions it could not answer (${un.length})</summary><ul class="ai-unans">${un.map((x) => `<li>${esc(x.q)} <span class="muted">· ${ago(x.at)}</span></li>`).join('')}</ul></details>` : ''}`;
+      ${un.length ? `<details open><summary class="muted" style="cursor:pointer">Questions it could not answer (${un.length}): teach it the answer</summary><ul class="ai-unans">${un.map((x, i) => `<li>${esc(x.q)} <span class="muted">· ${ago(x.at)}</span> <button type="button" class="btn sec sm" data-teach="${i}">Answer this</button></li>`).join('')}</ul></details>` : ''}`;
+  }
+  // Answers the admin teaches the assistant; it uses them straight away.
+  function taughtHtml() {
+    const opts = Object.entries(ACT_LABEL).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
+    return `<details${customAnswers.length ? '' : ''}><summary class="muted" style="cursor:pointer">Answers you taught the assistant (${customAnswers.length})</summary>
+      <ul class="ai-taught">${customAnswers.map((a) => `<li><b>${esc(a.title)}</b><span class="muted">${esc(a.text.slice(0, 120))}${a.text.length > 120 ? '…' : ''}</span><span class="row" style="gap:6px"><button type="button" class="btn sec sm" data-edit="${esc(a.id)}">Edit</button><button type="button" class="btn danger sm" data-del="${esc(a.id)}">Delete</button></span></li>`).join('') || '<li class="muted">None yet. Use "Answer this" on a question above, or write one now.</li>'}</ul>
+      <button type="button" class="btn sec sm" data-new-answer>+ Teach a new answer</button></details>
+      <form class="ai-teach hidden" id="aiTeach">
+        <h3>Teach the assistant</h3>
+        <input type="hidden" name="aid">
+        <label class="f">Question<input name="atitle" maxlength="140" placeholder="Can I add two shops in one account?" required></label>
+        <label class="f"><span>Other ways people ask it <span class="muted">(one per line, optional)</span></span><textarea name="aq" rows="2" placeholder="two shops&#10;second shop"></textarea></label>
+        <label class="f">Answer<textarea name="atext" rows="4" maxlength="1500" placeholder="Write the answer the customer should see." required></textarea></label>
+        <label class="f">Button under the answer <span class="muted">(optional)</span><select name="aact"><option value="">No button</option>${opts}</select></label>
+        <div class="row"><button class="btn" type="submit">Save answer</button><button class="btn sec" type="button" data-cancel>Cancel</button></div>
+      </form>`;
+  }
+  function bindTeach(counts) {
+    const form = $('#aiTeach'); if (!form) return;
+    const open = (a) => {
+      form.classList.remove('hidden');
+      const f = form.elements;
+      f.aid.value = a.id || ''; f.atitle.value = a.title || ''; f.atext.value = a.text || '';
+      f.aq.value = (a.q || []).filter((x) => x !== String(a.title || '').toLowerCase()).join('\n');
+      f.aact.value = (a.actions || [])[0] || '';
+      form.scrollIntoView({ behavior: 'smooth', block: 'center' }); (a.title ? f.atext : f.atitle).focus();
+    };
+    $('#aiBar').onclick = async (e) => {
+      const t = e.target.closest('[data-teach],[data-edit],[data-del],[data-new-answer],[data-cancel]'); if (!t) return;
+      if (t.dataset.teach != null) open({ title: (chatStats.unanswered[+t.dataset.teach] || {}).q || '' });
+      else if (t.dataset.edit) open(customAnswers.find((a) => a.id === t.dataset.edit) || {});
+      else if ('newAnswer' in t.dataset) open({});
+      else if ('cancel' in t.dataset) form.classList.add('hidden');
+      else if (t.dataset.del && confirm('Delete this answer? The assistant will stop using it.')) {
+        try { await api('deleteCustomAnswer', { id: t.dataset.del }); toast('Answer deleted.'); loadTickets(); } catch (err) { toast(err.message, true); }
+      }
+    };
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const f = form.elements;
+      const answer = { id: f.aid.value || undefined, title: f.atitle.value, q: f.aq.value, text: f.atext.value, actions: f.aact.value ? [f.aact.value] : [] };
+      try { await api('saveCustomAnswer', { answer }); toast('Saved. The assistant uses this answer from now on.'); loadTickets(); } catch (err) { toast(err.message, true); }
+    };
   }
   function pushOK() { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
   function b64(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); s += '==='.slice((s.length + 3) % 4); const r = atob(s); return Uint8Array.from(r, (c) => c.charCodeAt(0)); }
@@ -507,6 +552,7 @@
       ${counts ? `<div class="ai-stat">Answered automatically: <b>${counts.autoAnswered || 0}</b> · Solved without you: <b>${counts.autoSolved || 0}</b> · Need you now: <b>${counts.needsReply || 0}</b>${counts.teamMinutes != null ? ` · Your usual first reply: <b>${hrs(counts.teamMinutes)}</b>` : ''}</div>` : ''}
       ${qfHtml(counts && counts.quickFix)}
       ${chatHtml(chatStats)}
+      ${taughtHtml()}
       <form class="ai-wa" id="aiWa"><label class="f">Support WhatsApp <span class="muted">(optional, shown on the Help page)</span><input type="tel" name="wa" inputmode="tel" maxlength="14" placeholder="98765 43210" value="${esc(s.whatsapp || '')}"></label><button class="btn sec sm" type="submit">Save</button></form>
       ${s.aiReady ? '' : '<div class="muted">Built-in answers are on. For smarter answers in Hindi, Hinglish or English that can also read screenshots, add <code>ANTHROPIC_API_KEY</code> in Vercel → Settings → Environment Variables, then redeploy.</div>'}`;
     const save = async (whatsapp) => {
@@ -514,6 +560,7 @@
       catch (e) { toast(e.message, true); }
     };
     $('#aiWa').onsubmit = (e) => { e.preventDefault(); save(e.target.wa.value); };
+    bindTeach(counts);
     $('#aiAuto').onchange = () => save();
     $('#aiAi').onchange = () => save();
     const pb = $('#aiPush');
@@ -528,7 +575,8 @@
   }
   async function loadTickets() {
     try {
-      const { tickets, counts, chat } = await api('tickets', { status: tkFilter, q: $('#tkQ').value });
+      const { tickets, counts, chat, custom } = await api('tickets', { status: tkFilter, q: $('#tkQ').value });
+      customAnswers = custom || [];
       setTkBadge(counts);
       if (!aiSettings) aiSettings = (await api('assistSettings')).settings;
       chatStats = chat || null;

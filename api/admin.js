@@ -76,7 +76,7 @@ const actions = {
 
   // ---------- support tickets ----------
   async tickets({ status = 'active', q = '' }) {
-    return { tickets: await support.adminList({ status: String(status), q }), counts: await support.counts(), chat: await chat.stats() };
+    return { tickets: await support.adminList({ status: String(status), q }), counts: await support.counts(), chat: await chat.stats(), custom: await chat.listCustom() };
   },
   async ticket({ id }) {
     return { ticket: await support.adminGet(id) };
@@ -93,6 +93,17 @@ const actions = {
     const t = await support.adminGet(id, { peek: true });
     await support.runAssistant(t, { force: true });
     return { ticket: await support.adminGet(id) };
+  },
+  // Answers the admin teaches the chat assistant (for questions it could not answer).
+  async customAnswers() {
+    return { answers: await chat.listCustom() };
+  },
+  async saveCustomAnswer({ answer }) {
+    return { answer: await chat.saveCustom(answer) };
+  },
+  async deleteCustomAnswer({ id }) {
+    await chat.deleteCustom(id);
+    return { ok: true };
   },
   async assistSettings() {
     return { settings: await assist.getSettings() };

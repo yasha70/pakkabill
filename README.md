@@ -139,6 +139,22 @@ replies) answers the chat from the whole guide plus the customer's facts, in any
 remembers the conversation. The guide sits in a cached system prompt, so repeat chats cost less.
 Greetings, payment approvals and refunds never go to the AI.
 
+### Free assistant upgrades (no AI key needed)
+
+- Understands Hindi in Devanagari ("बिल कैसे बनाएं"), Hinglish and spelling mistakes ("invoce",
+  "whatsap"); 112 of 112 test questions answered correctly.
+- 47 answers, including honest ones for what PakkaBill does not do yet (credit notes, e-invoice,
+  stock, purchases, staff logins, other languages) with what to do instead.
+- Answers from the customer's own records: "Am I on Pro?" (end date, days left, pending payment),
+  "Is my app up to date?", "Any reply on my ticket?".
+- Suggestions match the page the customer came from (New bill, Shop, GST summary, Plan…).
+- **Help Center** (`#/support?guide=1`, deep links `&a=<id>`): every answer by topic, with search,
+  buttons, related topics and "Ask a follow-up".
+- 🔊 Read aloud on answers (the phone's own voice, Hindi or English).
+- **Teach the assistant** (admin → Support): questions it could not answer have "Answer this";
+  your answer (with other wordings and an optional button) is used straight away in the chat and
+  the Help Center. Stored in Redis `guide:custom`.
+
 ### Guided help and finding it
 
 Help is one tap away everywhere: a **Help** button in the phone top bar (with a red dot when there

@@ -17,6 +17,7 @@
 //   quickfix { problem, solved }                 -> { ok }        (did the quick fix help?)
 //   chat    { messages: [{ role, text }], diag } -> { reply }     (the chat assistant)
 //   chatfb  { helpful }                          -> { ok }        (thumbs up / down on a reply)
+//   guide   {}                                   -> { topics, articles } (the Help Center)
 const core = require('./_lib/core');
 const db = require('./_lib/db');
 const support = require('./_lib/support');
@@ -94,6 +95,9 @@ module.exports = core.handler(async (req, res) => {
       await core.rateLimit(`tk:chat:${ip}`, 80, 3600);
       return core.send(res, 200, { reply: await chat.reply(b, user) });
     }
+    case 'guide':
+      await core.rateLimit(`tk:guide:${ip}`, 120, 3600);
+      return core.send(res, 200, await chat.helpCenter(user));
     case 'chatfb': {
       await core.rateLimit(`tk:qf:${ip}`, 80, 3600);
       await chat.feedback(!!b.helpful);

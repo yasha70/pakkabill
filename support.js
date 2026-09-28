@@ -17,9 +17,10 @@
   var ACTIONS = {
     update: ['⟳', 'Update PakkaBill now'], refresh_plan: ['✦', 'Refresh my plan'], plan: ['★', 'Open Plan page'], login: ['→', 'Log in'],
     shop: ['🏪', 'Open Shop (backup, logo)'], reports: ['₹', 'Open GST summary'], gstr1: ['📄', 'Open GSTR-1 JSON'], new_bill: ['+', 'Make a new bill'], items: ['▦', 'Open Items'],
-    parties: ['👥', 'Open Parties'], listing: ['📦', 'Open Meesho listing'], lens: ['🔍', 'Open Meesho Lens'], pnl: ['📊', 'Open Meesho P&L']
+    parties: ['👥', 'Open Parties'], listing: ['📦', 'Open Meesho listing'], lens: ['🔍', 'Open Meesho Lens'], pnl: ['📊', 'Open Meesho P&L'],
+    tickets: ['🎫', 'Open my tickets'], help_center: ['📚', 'Browse help topics']
   };
-  var PAGES = { plan: '#/plan', login: '#/plan', shop: '#/shop', reports: '#/reports', gstr1: '#/gstr1', new_bill: '#/new', items: '#/items', parties: '#/parties', listing: '#/listing', lens: '#/lens', pnl: '#/pnl' };
+  var PAGES = { plan: '#/plan', login: '#/plan', shop: '#/shop', reports: '#/reports', gstr1: '#/gstr1', new_bill: '#/new', items: '#/items', parties: '#/parties', listing: '#/listing', lens: '#/lens', pnl: '#/pnl', tickets: '#/support', help_center: '#/support?guide=1' };
 
   /* ---------------- storage and API ---------------- */
   function ls(k, v) {
@@ -613,7 +614,27 @@
   /* ---------------- chat with the assistant ---------------- */
   var CHAT = 'pb-chat', CHAT_DAYS = 3;
   var POPULAR = ['How do I make a bill?', 'Add my logo and signature', 'PDF is not downloading', 'Move PakkaBill to a new phone', 'How do I file GSTR-1?', 'What do I get with Pro?'];
-  var WELCOME = { role: 'assistant', text: 'Namaste! 👋 I\'m the PakkaBill assistant. Ask me how to do anything in PakkaBill, or tell me what is not working, and I\'ll check your account and app. English or Hindi is fine.', suggestions: POPULAR.slice(0, 4), welcome: true };
+  // What people usually ask on the page the customer came from.
+  var PAGE_HELP = [
+    [/^#\/(new|edit)/, 'New bill', ['How do I add items to a bill?', 'Give a discount on a bill', 'Rates including GST', 'Add e-way bill or vehicle number']],
+    [/^#\/bill\//, 'a bill', ['Send this bill on WhatsApp', 'Download a bill as PDF', 'Print duplicate copies', 'Edit or cancel a bill']],
+    [/^#\/items/, 'Items', ['Add a product with HSN', 'GST rate for clothes', 'Which HSN code should I use?']],
+    [/^#\/parties/, 'Parties', ['Add a customer', 'GSTIN and state', 'Edit or delete a party']],
+    [/^#\/shop/, 'Shop', ['Add my logo and signature', 'Add UPI QR on bills', 'Take a backup', 'Change invoice number']],
+    [/^#\/reports/, 'GST summary', ['GSTR-1 files for my CA', 'Why is IGST charged?', 'How do I file GSTR-1?']],
+    [/^#\/gstr1/, 'GSTR-1 JSON', ['How do I file GSTR-1 from Meesho?', 'Amazon GST report for GSTR-1']],
+    [/^#\/listing/, 'Meesho listing', ['How to use Meesho listing', 'Meesho bulk upload template']],
+    [/^#\/lens/, 'Meesho Lens', ['Install Meesho Lens', 'Use Meesho Lens on my phone']],
+    [/^#\/pnl/, 'Meesho P&L', ['How to use Meesho P&L', 'Combo pack pieces are wrong']],
+    [/^#\/plan/, 'Plan', ['Am I on Pro?', 'What do I get with Pro?', 'How do I pay for Pro?', 'I paid but Pro is not active']]
+  ];
+  function pageHelp() { var r = state.lastPage || ''; var m = PAGE_HELP.find(function (x) { return x[0].test(r); }); return m ? { name: m[1], qs: m[2] } : null; }
+  function welcome() {
+    var ph = pageHelp();
+    return { role: 'assistant', welcome: true,
+      text: 'Namaste! 👋 I\'m the PakkaBill assistant. Ask me how to do anything in PakkaBill, or tell me what is not working, and I\'ll check your account and app. English, Hindi or Hinglish is fine.' + (ph ? '\n\nYou came from ' + ph.name + '. People there often ask:' : ''),
+      suggestions: ph ? ph.qs : POPULAR.slice(0, 4) };
+  }
   function chatLoad() {
     var c = ls(CHAT);
     return c && Array.isArray(c.msgs) && Date.now() - (c.at || 0) < CHAT_DAYS * 864e5 ? c.msgs : [];
@@ -634,8 +655,10 @@
         h('div', null, h('h2', { id: 'sup-ask-h', class: 'sup-askcard__t' }, 'Ask the PakkaBill assistant'),
           h('span', { class: 'sup-askcard__s' }, h('i', { class: 'sup-live', 'aria-hidden': 'true' }), 'Online · answers in seconds · English or Hindi'))),
       form,
-      h('div', { class: 'sup-sugs' }, POPULAR.slice(0, 4).map(function (s) { return h('button', { type: 'button', class: 'sup-sug', onclick: function () { go2(s); } }, s); })),
-      saved.length ? h('a', { class: 'sup-continue', href: '#/support?chat=1' }, 'Continue your last chat →') : null);
+      h('div', { class: 'sup-sugs' }, ((pageHelp() || {}).qs || POPULAR).slice(0, 4).map(function (s) { return h('button', { type: 'button', class: 'sup-sug', onclick: function () { go2(s); } }, s); })),
+      h('div', { class: 'sup-askcard__links' },
+        saved.length ? h('a', { class: 'sup-continue', href: '#/support?chat=1' }, 'Continue your last chat →') : null,
+        h('a', { class: 'sup-continue', href: '#/support?guide=1' }, '📚 Browse all help topics')));
   }
 
   function micBtn(target, onDone) {
@@ -658,7 +681,7 @@
 
   function chatView(el) {
     var msgs = chatLoad();
-    if (!msgs.length) msgs = [WELCOME];
+    if (!msgs.length) msgs = [welcome()];
     var busy = false, dg = null;
     var list = h('ol', { class: 'sup-chat', 'aria-live': 'polite' });
     var ta = h('textarea', { class: 'pb-input sup-chat__in', rows: '1', maxlength: '1000', placeholder: 'Ask anything about PakkaBill…', 'aria-label': 'Your message', enterkeyhint: 'send' });
@@ -671,13 +694,14 @@
       h('div', { class: 'page-head sup-chathead' }, h('div', null,
         h('a', { class: 'back', href: '#/support' }, '← Help & support'),
         h('h1', { class: 'page-title' }, 'PakkaBill assistant'),
-        h('p', { class: 'page-sub' }, h('i', { class: 'sup-live', 'aria-hidden': 'true' }), ' Online · answers in seconds')), newBtn),
+        h('p', { class: 'page-sub' }, h('i', { class: 'sup-live', 'aria-hidden': 'true' }), ' Online · answers in seconds')),
+        h('div', { class: 'sup-chathead__act' }, h('a', { class: 'pb-btn pb-btn--ghost sup-newchat', href: '#/support?guide=1' }, '📚 Topics'), newBtn)),
       h('section', { class: 'paper sup-chatbox' }, list, handoffBox), composer));
     var autosize = function () { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 132) + 'px'; };
     ta.addEventListener('input', autosize);
     ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(ta.value); } });
     composer.addEventListener('submit', function (e) { e.preventDefault(); send(ta.value); });
-    newBtn.onclick = function () { msgs = [WELCOME]; chatSave([]); handoffBox.replaceChildren(); draw(); ta.focus(); };
+    newBtn.onclick = function () { msgs = [welcome()]; chatSave([]); handoffBox.replaceChildren(); draw(); ta.focus(); };
     person.onclick = function () { showHandoff(); };
 
     function bubble(m, i) {
@@ -693,7 +717,7 @@
       return h('li', { class: 'sup-cm is-bot' },
         h('span', { class: 'sup-avatar sup-avatar--sm', 'aria-hidden': 'true' }, '✦'),
         h('div', { class: 'sup-cm__col' },
-          h('div', { class: 'sup-cm__b' }, h('p', null, m.text), actionBar(m.actions),
+          h('div', { class: 'sup-cm__b' }, h('p', null, m.text), speakBtn(m.text), actionBar(m.actions),
             m.error ? h('button', { type: 'button', class: 'sup-act', onclick: function () { msgs.pop(); var q = msgs.pop(); draw(); send(q ? q.text : ''); } }, '⟳ Try again') : null,
             last && (m.handoff || m.fb === 'down') ? h('button', { type: 'button', class: 'sup-act is-main', onclick: showHandoff }, '👤 Talk to a person') : null),
           last && m.suggestions && m.suggestions.length ? h('div', { class: 'sup-sugs' }, m.suggestions.map(function (s) { return h('button', { type: 'button', class: 'sup-sug', onclick: function () { send(s); } }, s); })) : null,
@@ -782,11 +806,87 @@
     if (q) send(q);
   }
 
+
+  /* ---------------- read aloud ---------------- */
+  function speakBtn(text) {
+    if (!('speechSynthesis' in window) || !text) return null;
+    var b = h('button', { type: 'button', class: 'sup-speak', 'aria-label': 'Read this answer aloud', title: 'Read aloud' }, '🔊');
+    b.onclick = function () {
+      var synth = window.speechSynthesis;
+      if (synth.speaking) { synth.cancel(); if (b.classList.contains('is-on')) { b.classList.remove('is-on'); return; } }
+      document.querySelectorAll('.sup-speak.is-on').forEach(function (x) { x.classList.remove('is-on'); });
+      var u = new SpeechSynthesisUtterance(text.replace(/[•✓✦➤→]/g, ' '));
+      u.lang = /[ऀ-ॿ]/.test(text) ? 'hi-IN' : 'en-IN';
+      var v = synth.getVoices().find(function (x) { return x.lang && x.lang.replace('_', '-').toLowerCase() === u.lang.toLowerCase(); });
+      if (v) u.voice = v;
+      u.rate = 0.95;
+      u.onend = u.onerror = function () { b.classList.remove('is-on'); };
+      b.classList.add('is-on');
+      synth.speak(u);
+    };
+    return b;
+  }
+
+  /* ---------------- Help Center: every answer, searchable ---------------- */
+  function helpCenterView(el) {
+    var p = params(), openId = p.get('a') || '';
+    var q = h('input', { class: 'pb-input sup-hc__q', type: 'search', placeholder: 'Search help, e.g. logo, backup, GSTR-1', 'aria-label': 'Search help topics' });
+    var list = h('div', { class: 'sup-hc__list' }, h('p', { class: 'fine' }, 'Loading help topics…'));
+    el.replaceChildren(h('div', { class: 'sup' },
+      h('div', { class: 'page-head' }, h('div', null,
+        h('a', { class: 'back', href: '#/support' }, '← Help & support'),
+        h('h1', { class: 'page-title' }, 'Help Center'),
+        h('p', { class: 'page-sub' }, 'Every answer in one place. Tap a question to read it.'))),
+      h('div', { class: 'paper sup-hc__bar' }, q, h('a', { class: 'pb-btn pb-btn--primary sup-hc__ask', href: '#/support?chat=1' }, '✦ Ask the assistant')),
+      list));
+    var data = null;
+    var norm = function (x) { return String(x || '').toLowerCase(); };
+    function draw() {
+      var terms = norm(q.value).split(/\s+/).filter(function (w) { return w.length > 1; });
+      var arts = data.articles.filter(function (a) { var hay = norm(a.title + ' ' + a.text); return terms.every(function (w) { return hay.indexOf(w) >= 0; }); });
+      if (!arts.length) {
+        var ask = q.value.trim();
+        list.replaceChildren(h('div', { class: 'paper sup-empty' }, h('b', null, 'No topic matches "' + ask + '"'),
+          h('p', { class: 'fine' }, 'Ask the assistant in your own words; it also checks your account and app.'),
+          h('button', { type: 'button', class: 'pb-btn pb-btn--primary', onclick: function () { state.pendingQ = ask; go('chat=1'); } }, 'Ask: "' + ask.slice(0, 40) + '"')));
+        return;
+      }
+      var groups = {};
+      if (terms.length) {
+        // searching: one list, best match first (words in the question count most)
+        var rank = function (a) { var t = norm(a.title), x = norm(a.text); return terms.reduce(function (n, w) { return n + (t.indexOf(w) >= 0 ? 10 : 0) + Math.min(3, x.split(w).length - 1); }, 0); };
+        groups.results = arts.slice().sort(function (m, n) { return rank(n) - rank(m); });
+      } else arts.forEach(function (a) { (groups[a.topic] = groups[a.topic] || []).push(a); });
+      var names = terms.length ? { results: 'Results for "' + q.value.trim() + '"' } : data.topics;
+      var order = Object.keys(names).filter(function (k) { return groups[k]; });
+      list.replaceChildren.apply(list, order.map(function (k) {
+        return h('section', { class: 'sup-hc__sec' }, h('h2', { class: 'form-sec__title' }, names[k] + ' ', h('span', { class: 'sup-hc__n' }, String(groups[k].length))),
+          h('div', { class: 'paper sup-hc__items' }, groups[k].map(function (a) {
+            var d = h('details', { class: 'sup-hc__item', id: 'hc-' + a.id, open: a.id === openId || (terms.length > 0 && arts.length <= 2) },
+              h('summary', null, h('span', null, a.title)),
+              h('div', { class: 'sup-hc__body' }, h('p', null, a.text),
+                h('div', { class: 'sup-hc__tools' }, speakBtn(a.text), actionBar(a.actions)),
+                h('div', { class: 'sup-hc__foot' },
+                  h('button', { type: 'button', class: 'sup-person', onclick: function () { state.pendingQ = a.title; go('chat=1'); } }, '✦ Ask a follow-up'),
+                  a.related && a.related.length ? h('span', { class: 'fine' }, 'Related: ', a.related.map(function (r, i) { return h('button', { type: 'button', class: 'sup-hc__rel', onclick: function () { q.value = ''; openId = (data.articles.find(function (x) { return x.title === r; }) || {}).id || ''; draw(); var t2 = document.getElementById('hc-' + openId); if (t2) t2.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }, r + (i < a.related.length - 1 ? ',' : '')); })) : null)));
+            return d;
+          })));
+      }));
+      if (openId) { var t = document.getElementById('hc-' + openId); if (t) t.scrollIntoView({ block: 'center' }); openId = ''; }
+    }
+    var timer = null;
+    q.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { if (data) draw(); }, 120); });
+    // show the last copy straight away (works offline), then the latest from the server
+    if (state.hc) { data = state.hc; draw(); }
+    call('guide').then(function (j) { state.hc = j; data = j; if (list.isConnected) draw(); })
+      .catch(function (e) { if (!data) list.replaceChildren(banner(e.message, true)); });
+  }
+
   function render() {
     var el = state.el; if (!el || !el.isConnected) return;
     state.renderedHash = location.hash;
     var p = params();
-    if (p.get('t')) ticketView(el, p.get('t')); else if (p.get('chat')) chatView(el); else if (p.get('new')) newView(el); else listView(el);
+    if (p.get('t')) ticketView(el, p.get('t')); else if (p.get('chat')) chatView(el); else if (p.get('guide')) helpCenterView(el); else if (p.get('new')) newView(el); else listView(el);
   }
 
   var CSS = '.sup{min-width:0}.sup .page-title{font-size:clamp(30px,6vw,46px)}.sup-sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}'
@@ -889,6 +989,16 @@
     + '.sup-composer__foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.sup-composer__foot .fine{margin:0;font-size:12px}'
     + '.sup-person{border:0;background:none;font:inherit;font-size:13.5px;font-weight:700;color:var(--carbon);cursor:pointer;padding:2px 0}'
     + '.sup-handoff{display:grid;gap:8px;margin-top:14px;padding:14px;border-radius:14px;border:1.5px dashed var(--carbon);background:var(--carbon-tint)}.sup-handoff .fine{margin:0}.sup-handoff .sup-actions{margin-top:4px}'
+    + '.sup-askcard__links{display:flex;gap:8px 18px;flex-wrap:wrap}.sup-chathead__act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}'
+    + '.sup-speak{float:right;margin:-4px -6px 2px 8px;border:0;background:none;cursor:pointer;font-size:16px;line-height:1;padding:4px;border-radius:8px;opacity:.7}.sup-speak:hover,.sup-speak.is-on{opacity:1;background:var(--carbon-tint)}'
+    + '.sup-hc__bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px;border-radius:16px;margin-bottom:16px}.sup-hc__q{flex:1;min-width:200px;height:46px!important;border-radius:12px!important;padding:0 14px!important;border:1.5px solid var(--rule)!important;font-size:16px!important}.sup-hc__ask{display:inline-flex}'
+    + '.sup-hc__sec{margin-bottom:16px}.sup-hc__sec .form-sec__title{margin:0 0 8px;display:flex;align-items:center;gap:8px}.sup-hc__n{font-size:12px;font-weight:700;color:var(--carbon);background:var(--carbon-tint);border-radius:999px;padding:1px 8px}'
+    + '.sup-hc__items{padding:4px 6px;border-radius:14px}.sup-hc__item+.sup-hc__item{border-top:1px solid var(--rule-soft,var(--rule))}'
+    + '.sup-hc__item summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 10px;font-weight:700;font-size:15px;border-radius:10px}.sup-hc__item summary::-webkit-details-marker{display:none}'
+    + '.sup-hc__item summary:after{content:"+";font-size:20px;color:var(--carbon);flex:none}.sup-hc__item[open] summary:after{content:"−"}.sup-hc__item summary:hover{background:var(--carbon-tint)}'
+    + '.sup-hc__body{padding:0 10px 14px}.sup-hc__body>p{margin:0;white-space:pre-wrap;line-height:1.55;font-size:15px;color:var(--ink)}'
+    + '.sup-hc__tools{display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;margin-top:8px}.sup-hc__tools .sup-speak{float:none;margin:6px 0 0}.sup-hc__tools .sup-acts{margin-top:4px}'
+    + '.sup-hc__foot{display:flex;gap:6px 14px;align-items:center;flex-wrap:wrap;margin-top:10px}.sup-hc__foot .fine{margin:0}.sup-hc__rel{border:0;background:none;font:inherit;font-size:12.5px;color:var(--carbon);font-weight:600;cursor:pointer;padding:0 2px;text-decoration:underline;text-underline-offset:2px}'
     + '@media (width >= 900px){.sup-toast{bottom:28px}}'
     + '@media (width < 720px){.sup-form,.sup-reply,.sup-conv{padding:14px}.sup-msg{max-width:94%}.sup-ask,.sup-push{padding:12px 14px}}';
   function css() { if (!document.getElementById('sup-css')) { var s = document.createElement('style'); s.id = 'sup-css'; s.textContent = CSS; document.head.append(s); } }

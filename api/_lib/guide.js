@@ -183,7 +183,7 @@ const ARTICLES = [
   },
   {
     id: 'pro', related: ['pay_how', 'limit', 'account'], topic: 'plan', title: 'PakkaBill Pro: what you get and prices',
-    q: ['pro', 'premium', 'price', 'plan', 'subscription', 'kitne ka hai', 'kitne ka', 'kitna', 'how much', 'charges', 'fees', 'cost of pro', 'paid plan', 'upgrade', 'free plan', 'benefits', 'kya milta hai', 'monthly price', 'yearly price'],
+    q: ['pro', 'premium', 'price', 'plan', 'subscription', 'kitne ka hai', 'kitne ka', 'kitna', 'how much', 'charges', 'fees', 'is it free', 'free hai', 'free app', 'pakkabill free', 'free to use', 'free or paid', 'cost of pro', 'paid plan', 'upgrade', 'free plan', 'benefits', 'kya milta hai', 'monthly price', 'yearly price'],
     text: (ctx) => `PakkaBill Pro gives unlimited bills every month; Royal, Elegant and Boutique designs; your logo and signature; PDF download, share and WhatsApp; and GSTR-1 JSON from marketplace reports. It costs ₹${ctx.prices.monthly} a month or ₹${ctx.prices.yearly} a year. The free plan has ${ctx.freeBills} bills a month (estimates don't count), the other five designs and printing.\n\nTo buy: open the Plan page, log in or create an account, choose a plan, pay the UPI QR and enter the 12-digit UTR. We switch Pro on after checking it, usually within a few hours.`,
     actions: ['plan'],
   },
@@ -208,6 +208,84 @@ const ARTICLES = [
     actions: (ctx) => (ctx.pro || !ctx.locked ? ['refresh_plan'] : ['plan']),
   },
   {
+    id: 'search_bills', related: ['edit_bill', 'paid', 'gst_summary'], topic: 'bills', title: 'Find an old bill',
+    q: ['find bill', 'search bill', 'old bill', 'purana bill', 'bill dhundo', 'bill kaha hai', 'last month bill', 'previous month', 'find invoice', 'bill number search', 'customer bills'],
+    text: () => 'On the Bills page, type in the search box ("Search party, number or GSTIN"): it searches all your bills, not just this month. Or use the arrows next to the month to go back, and "Show" to see All, Unpaid, Paid or Estimates. The Parties page also shows how much each buyer has been billed.',
+    actions: [],
+  },
+  {
+    id: 'discount', related: ['make_bill', 'garment', 'inclusive'], topic: 'bills', title: 'Give a discount on a bill',
+    q: ['discount', 'disc', 'less', 'chhoot', 'chhut', 'kam karna', 'offer on bill', 'discount kaise de', 'reduce price'],
+    text: () => 'Each item row on the bill has a "Disc %" box: type the discount percentage and the taxable value, GST and total update straight away. GST is charged on the price after discount. For clothing with "Garment (auto)", the 5% or 18% rate is decided on the price after discount.',
+    actions: ['new_bill'],
+  },
+  {
+    id: 'terms', related: ['shop', 'make_bill', 'upi_bank'], topic: 'setup', title: 'Terms and notes on bills',
+    q: ['terms', 'terms and conditions', 'notes', 'note on bill', 'goods once sold', 'declaration', 'footer', 'message on bill'],
+    text: () => 'Set "Default terms and notes" on the Shop page (Bill settings); every new bill starts with them. To change them for one bill, edit "Terms and notes" under Details while making it.',
+    actions: ['shop'],
+  },
+  {
+    id: 'bill_date', related: ['make_bill', 'edit_bill', 'numbering'], topic: 'bills', title: 'Change the bill date or due date',
+    q: ['date', 'bill date', 'change date', 'old date', 'back date', 'tarikh', 'due date', 'invoice date'],
+    text: () => 'The Date box is at the top of the bill, next to No. Tap it to pick another date (for a saved bill, open it and tap "Edit"). The Due date is under Details. The bill lands in the month of its date in the Bills list and the GST summary.',
+    actions: [],
+  },
+  {
+    id: 'units', related: ['items', 'make_bill', 'gst_summary'], topic: 'bills', title: 'Units (PCS, MTR, KGS…)',
+    q: ['unit', 'units', 'uqc', 'pcs', 'meter', 'mtr', 'kg', 'kgs', 'dozen', 'set', 'box', 'nos'],
+    text: () => 'Pick the unit for each item: PCS, NOS, SET, PRS, MTR, KGS, DOZ, BOX, BDL or OTH. Set it once on the Items page, or change it in the item row of a bill. The GST summary uses these units (UQC) in the HSN table.',
+    actions: ['items'],
+  },
+  {
+    id: 'edit_item', related: ['items', 'parties', 'garment'], topic: 'bills', title: 'Edit or delete an item or party',
+    q: ['edit item', 'delete item', 'change price', 'update price', 'edit party', 'delete party', 'change customer details', 'remove product', 'item price change'],
+    text: () => 'Open Items (or Parties) and tap the item (or party) to edit it. The form has "Delete item" (or "Delete party") too. Bills you already made keep their old details; new bills use the changes.',
+    actions: ['items', 'parties'],
+  },
+  {
+    id: 'hsn_find', related: ['items', 'garment', 'gst_summary'], topic: 'gst', title: 'Which HSN code should I use?',
+    q: ['which hsn', 'hsn code for', 'find hsn', 'hsn kya hai', 'hsn number', 'sac code', 'hsn search', 'what is hsn'],
+    text: () => 'HSN is the government code for your goods. For readymade blouses PakkaBill suggests 6206 (6106 if knitted); "Add blouse presets" on the Items page adds common ones. For other products, look the code up on the GST portal\'s "Search HSN/SAC" page or ask your CA, then save it on the item once so every bill uses it.',
+    actions: ['items'],
+  },
+  {
+    id: 'gstin_state', related: ['igst', 'parties', 'shop'], topic: 'gst', title: 'GSTIN and state',
+    q: ['gstin', 'gst number', 'gst no', 'state code', 'unregistered', 'without gstin', 'b2c customer', 'gstin wrong', 'invalid gstin'],
+    text: () => 'When you type a buyer\'s GSTIN, PakkaBill fills their State from the first two digits (the state code). Leave GSTIN empty for an unregistered buyer (B2C) and pick their State. Your own GSTIN and State go on the Shop page. A GSTIN has 15 characters, for example 24AAXFR4821K1ZO.',
+    actions: ['parties', 'shop'],
+  },
+  {
+    id: 'credit_note', related: ['edit_bill', 'gstr1_json', 'support'], topic: 'gst', title: 'Credit note or sales return',
+    q: ['credit note', 'debit note', 'sales return', 'return bill', 'goods returned', 'refund bill', 'cn', 'return entry'],
+    text: () => 'PakkaBill does not make credit or debit notes yet. If a bill is wrong and not yet in a filed return, edit it or tap "Cancel bill". For goods returned after filing, issue the credit note through your CA or directly on the GST portal. Meesho returns are handled in the GSTR-1 JSON tool; B2B marketplace returns need Table 9B, which you enter on the portal.',
+    actions: [],
+  },
+  {
+    id: 'einvoice', related: ['dispatch', 'make_bill', 'gst_summary'], topic: 'gst', title: 'E-invoice (IRN) and e-way bill',
+    q: ['e-invoice', 'einvoice', 'e invoice', 'irn', 'irp', 'qr code irn', 'ack number', 'e-invoicing'],
+    text: () => 'PakkaBill does not generate e-invoices (IRN) or e-way bills. E-invoicing is needed only by businesses above the government\'s turnover limit; most small sellers don\'t need it (check with your CA). For an e-way bill made on the e-way bill portal, add its number under "Add dispatch details" so it prints on the bill.',
+    actions: [],
+  },
+  {
+    id: 'not_supported', related: ['items', 'backup', 'pnl'], topic: 'help', title: 'Stock, purchases and staff logins',
+    q: ['stock', 'inventory', 'purchase', 'purchase bill', 'expense', 'kharcha', 'supplier bill', 'staff', 'employee', 'multiple users', 'two users', 'multi user', 'godown', 'ledger account', 'khata'],
+    text: () => 'PakkaBill is a sales billing app: it does not track stock, purchase bills or staff logins yet. Items keep your price, HSN and GST; Parties show what each buyer was billed. Meesho sellers can add rent, packing and other costs in Meesho P&L → Expenses. To use the same bills on two devices, move them with Download backup / Restore from backup on the Shop page. Tell us which one you need most using "Talk to a person"; it helps us decide what to build next.',
+    actions: [],
+  },
+  {
+    id: 'language', related: ['install', 'dark', 'support'], topic: 'help', title: 'Hindi or other languages',
+    q: ['hindi', 'language', 'bhasha', 'gujarati', 'marathi', 'tamil', 'hindi me bill', 'app in hindi', 'change language'],
+    text: () => 'PakkaBill\'s screens and bills are in English for now. I (the assistant) understand Hindi and Hinglish, so ask me anything in the way you like. You can write Hindi in item names, addresses and terms, and it prints as typed.',
+    actions: [],
+  },
+  {
+    id: 'safety', related: ['backup', 'account', 'lost'], topic: 'data', title: 'Is my data safe and private?',
+    q: ['safe', 'secure', 'privacy', 'private', 'data safe', 'who can see', 'data share', 'hack', 'surakshit'],
+    text: () => 'Your bills, parties and items are saved only on your own device, inside the browser; they are not uploaded to our server. Your account keeps just your mobile number, shop name and plan. Meesho and marketplace reports are read on your device and never sent anywhere. Because bills live on the device, keep a backup from the Shop page every week.',
+    actions: ['shop'],
+  },
+  {
     id: 'support', related: [], topic: 'help', title: 'Talk to a person',
     q: ['talk to human', 'customer care', 'contact', 'call me', 'agent', 'support team', 'person', 'helpline', 'phone number', 'complaint'],
     text: () => 'Tap "Talk to a person" below and I will send this chat to our support team. They reply here on the Help page, and you get a notification if you turn them on.',
@@ -221,47 +299,102 @@ const SYN = {
   product: 'item', products: 'item', maal: 'item', items: 'item', kaise: 'how', kese: 'how', kaisa: 'how', banaye: 'make', banana: 'make', banau: 'make', banate: 'make', create: 'make', generate: 'make', nikale: 'download', nikalna: 'download',
   bhejna: 'send', bhejo: 'send', bheje: 'send', share: 'send', chhapna: 'print', printout: 'print', dastkhat: 'signature', sign: 'signature', colour: 'color', rang: 'color',
   paisa: 'payment', paise: 'payment', bhugtan: 'payment', naya: 'new', nayi: 'new', purana: 'old', mobile: 'phone', dukan: 'shop', company: 'shop', business: 'shop',
-  hatana: 'delete', mitana: 'delete', remove: 'delete', badalna: 'change', badle: 'change', galti: 'mistake', wapas: 'restore', recover: 'restore',
+  hatana: 'delete', mitana: 'delete', remove: 'delete', badalna: 'change', badle: 'change', galti: 'mistake', wapas: 'restore', recover: 'restore', dhundo: 'find', dhundna: 'find', dhunde: 'find', search: 'find', lagaye: 'add', lagana: 'add', lagaen: 'add', lagau: 'add', dale: 'add', daale: 'add', dalna: 'add', jode: 'add', jodna: 'add',
+  // Hindi (Devanagari)
+  'बिल': 'bill', 'इनवॉइस': 'bill', 'चालान': 'bill', 'कैसे': 'how', 'कैसा': 'how', 'बनाएं': 'make', 'बनाये': 'make', 'बनाए': 'make', 'बनाना': 'make', 'बनाऊं': 'make', 'बनता': 'make',
+  'लोगो': 'logo', 'सिग्नेचर': 'signature', 'हस्ताक्षर': 'signature', 'पीडीएफ': 'pdf', 'प्रिंट': 'print', 'व्हाट्सएप': 'whatsapp', 'व्हाट्सऐप': 'whatsapp', 'वॉट्सऐप': 'whatsapp',
+  'भेजें': 'send', 'भेजना': 'send', 'भेजे': 'send', 'बैकअप': 'backup', 'नया': 'new', 'नई': 'new', 'फोन': 'phone', 'मोबाइल': 'phone', 'जीएसटी': 'gst', 'आईजीएसटी': 'igst',
+  'सीजीएसटी': 'cgst', 'रिटर्न': 'return', 'भुगतान': 'payment', 'पेमेंट': 'payment', 'प्लान': 'plan', 'प्रो': 'pro', 'ग्राहक': 'party', 'पार्टी': 'party', 'सामान': 'item',
+  'आइटम': 'item', 'प्रोडक्ट': 'item', 'दुकान': 'shop', 'डिज़ाइन': 'design', 'डिजाइन': 'design', 'रंग': 'color', 'नंबर': 'number', 'डिलीट': 'delete', 'हटाएं': 'delete',
+  'गलती': 'mistake', 'मीशो': 'meesho', 'लिस्टिंग': 'listing', 'मुनाफा': 'profit', 'प्रॉफिट': 'profit', 'डेटा': 'data', 'गायब': 'gone', 'लॉगिन': 'login', 'पासवर्ड': 'password',
+  'अकाउंट': 'account', 'खाता': 'account', 'छूट': 'discount', 'डिस्काउंट': 'discount', 'स्टॉक': 'stock', 'एस्टिमेट': 'estimate', 'कोटेशन': 'estimate', 'यूपीआई': 'upi',
+  'बैंक': 'bank', 'डार्क': 'dark', 'इंस्टॉल': 'install', 'डाउनलोड': 'download', 'कीमत': 'price', 'दाम': 'price', 'मुफ्त': 'free', 'फ्री': 'free', 'तारीख': 'date',
+  'पुराना': 'old', 'ढूंढें': 'find', 'खोजें': 'find', 'हिंदी': 'hindi', 'भाषा': 'language', 'सुरक्षित': 'safe', 'यूनिट': 'unit', 'छापें': 'print', 'कितना': 'kitna', 'कितने': 'kitna',
+  'नहीं': 'nahi', 'नही': 'nahi', 'बन': 'ban', 'खुल': 'khul', 'चल': 'chal', 'दिख': 'dikh',
+  'लगाएं': 'add', 'लगाये': 'add', 'लगाए': 'add', 'लगाना': 'add', 'डालें': 'add', 'जोड़ें': 'add', 'जोड़ना': 'add', 'बदलें': 'change', 'बदलना': 'change', 'निकालें': 'download',
 };
-const STOP = new Set('a an the to i my me is are am do does can how what where why when which in on of for and or with it this that please pls plz ka ki ke ko se me mein hai hain kya kaise kese kar karna kare karu karo tha thi ho hoga raha rahi want need help about you your'.split(' '));
+const STOP = new Set(('a an the to i my me is are am do does can how what where why when which in on of for and or with it this that please pls plz ka ki ke ko se me mein hai hain kya kaise kese kar karna kare karu karo tha thi ho hoga raha rahi want need help about you your pakkabill pakka '
+  + 'का की के को से में है हैं क्या करें करना करे कर मेरा मेरी मुझे यह ये वह हो रहा रही था थी और या पर भी').split(' '));
+const clean = (s) => String(s || '').toLowerCase().normalize('NFC').replace(/[^a-z0-9₹&\-\sऀ-ॿ]/g, ' ').replace(/[।॥]/g, ' ');
 function words(s) {
-  return String(s || '').toLowerCase().replace(/[^a-z0-9₹&\-\s]/g, ' ').split(/\s+/).filter(Boolean)
-    .map((w) => SYN[w] || w).map((w) => (w.length > 4 ? w.replace(/(ing|es|s)$/, '') : w));
+  return clean(s).split(/\s+/).filter(Boolean)
+    .map((w) => SYN[w] || w).map((w) => (/^[a-z]/.test(w) && w.length > 4 ? w.replace(/(ing|es|s)$/, '') : w));
 }
 const keyWords = (s) => words(s).filter((w) => !STOP.has(w));
-const INDEX = ARTICLES.map((a) => ({
-  a,
-  title: new Set(keyWords(a.title)),
-  qs: a.q.map((q) => ({ raw: q.toLowerCase(), w: keyWords(q) })),
-  qw: new Set(a.q.flatMap(keyWords)),
-}));
+
+function indexOf(list) {
+  return list.map((a) => ({
+    a,
+    title: new Set(keyWords(a.title)),
+    qs: (a.q || []).map((q) => ({ raw: String(q).toLowerCase(), w: keyWords(q) })),
+    qw: new Set((a.q || []).flatMap(keyWords)),
+  }));
+}
+const INDEX = indexOf(ARTICLES);
 
 // Rare words count more than words that appear in many articles (like "bill").
 const DF = {};
 INDEX.forEach((x) => new Set([...x.title, ...x.qw]).forEach((w) => { DF[w] = (DF[w] || 0) + 1; }));
 const idf = (w) => Math.log(1 + INDEX.length / (DF[w] || 1)) / Math.log(1 + INDEX.length);
 
-// Returns the best matching articles with a score (higher is better).
-function search(query, limit = 4) {
-  const q = keyWords(query);
-  const lower = ` ${String(query || '').toLowerCase()} `;
+// Spelling mistakes: a word the guide doesn't know is matched to the closest known word
+// ("invoce" -> invoice, "signatur" -> signature, "whatsap" -> whatsapp).
+const VOCAB = [...new Set([...Object.keys(DF), ...Object.values(SYN), ...Object.keys(SYN).filter((w) => /^[a-z]+$/.test(w))])].filter((w) => w.length >= 4);
+function editDistance(a, b, max) {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i), prev2 = null;
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      let d = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (prev2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d = Math.min(d, prev2[j - 2] + 1);
+      cur.push(d);
+      best = Math.min(best, d);
+    }
+    if (best > max) return max + 1;
+    prev2 = prev; prev = cur;
+  }
+  return prev[b.length];
+}
+function fix(w) {
+  if (DF[w] || w.length < 4 || !/^[a-z]+$/.test(w)) return w;
+  const max = w.length >= 7 ? 2 : 1;
+  let best = w, bestD = max + 1;
+  for (const v of VOCAB) {
+    if (v[0] !== w[0] && max === 1) continue;
+    const d = editDistance(w, v, max);
+    if (d < bestD) { best = v; bestD = d; }
+  }
+  return SYN[best] || best;
+}
+
+// Returns the best matching articles with a score (higher is better). `extra` are the
+// answers the team added in the admin panel.
+function search(query, limit = 4, extra = []) {
+  const q = keyWords(query).map(fix);
+  const lower = ` ${clean(query).replace(/\s+/g, ' ')} `;
   if (!q.length) return [];
-  return INDEX.map((x) => {
+  const idx = extra.length ? INDEX.concat(indexOf(extra)) : INDEX;
+  return idx.map((x) => {
     let score = 0;
+    const hit = new Set();
     for (const w of q) {
-      if (x.title.has(w)) score += 2 * idf(w);
-      if (x.qw.has(w)) score += 1.5 * idf(w);
+      if (x.title.has(w)) { score += 2 * idf(w); hit.add(w); }
+      if (x.qw.has(w)) { score += 1.5 * idf(w); hit.add(w); }
     }
     for (const p of x.qs) {
       const weight = p.w.reduce((n, w) => n + idf(w), 0);
-      if (p.raw.length > 3 && lower.includes(` ${p.raw}`)) score += 2 + 1.5 * weight; // the whole phrase
+      if (p.raw.length > 3 && lower.includes(` ${p.raw}`)) { score += 2 + 1.5 * weight; p.w.forEach((w) => hit.add(w)); } // the whole phrase
       else if (p.w.length > 1 && p.w.every((w) => q.includes(w))) score += 1.2 * weight;
     }
-    return { a: x.a, score: score / Math.max(1, Math.sqrt(q.length) * 0.9) };
+    // coverage: how much of the question this answer is about (1 = every word)
+    return { a: x.a, score: score / Math.max(1, Math.sqrt(q.length) * 0.9), coverage: q.filter((w) => hit.has(w)).length / q.length };
   }).filter((r) => r.score > 0).sort((m, n) => n.score - m.score).slice(0, limit);
 }
 
 const byId = (id) => ARTICLES.find((a) => a.id === id);
+const TOPICS = { bills: 'Bills', setup: 'Shop and bill setup', gst: 'GST', data: 'Backup and data', meesho: 'Meesho tools', plan: 'Pro plan and account', help: 'Other questions', custom: 'From our team' };
 function render(a, ctx) {
   return {
     id: a.id, title: a.title, topic: a.topic,
@@ -279,4 +412,4 @@ function asText(ctx) {
 
 const POPULAR = ['How do I make a bill?', 'Add my logo and signature', 'PDF is not downloading', 'Move PakkaBill to a new phone', 'How do I file GSTR-1?', 'What do I get with Pro?'];
 
-module.exports = { ARTICLES, search, render, asText, POPULAR, keyWords };
+module.exports = { ARTICLES, TOPICS, search, render, asText, POPULAR, keyWords, byId };
