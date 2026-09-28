@@ -117,6 +117,28 @@ and the Tools card until read. The Plan page links to a payment ticket.
   Resolved, Closed) and priority. Payment tickets start as High. The tab shows how many tickets wait
   for a reply, and the Overview shows open tickets.
 
+### Chat assistant
+
+The top of the Help page is a chat with the PakkaBill assistant (`#/support?chat=1`,
+`api/_lib/chat.js`). Customers ask in their own words, in English or Hinglish (voice input in
+Chrome), and get an answer in seconds with one-tap buttons and follow-up suggestions:
+
+- **How to use**: `api/_lib/guide.js` has 34 how-to articles written from the app's real screens
+  (making bills, estimates, WhatsApp, PDF, printing, items, parties, shop details, logo, designs,
+  UPI and bank, numbering, GST rules, GST summary, GSTR-1 JSON, backup, install, Meesho tools,
+  Pro and payments…). The built-in search understands common Hinglish and answers 76 of 76 test
+  questions correctly.
+- **Problems**: the same checks as tickets (account, plan, payments, UTR, app version) run first,
+  so "paid but Pro not active" gets that customer's real payment status.
+- **Talk to a person** sends the chat to the team as a ticket (straight to a person).
+- Chats stay on the device for 3 days; 👍/👎 and questions it could not answer show in the admin
+  Support tab, so you can see what to add.
+
+With `ANTHROPIC_API_KEY` set, Claude (`claude-opus-5`, adaptive thinking, low effort for fast
+replies) answers the chat from the whole guide plus the customer's facts, in any language, and
+remembers the conversation. The guide sits in a cached system prompt, so repeat chats cost less.
+Greetings, payment approvals and refunds never go to the AI.
+
 ### Guided help and finding it
 
 Help is one tap away everywhere: a **Help** button in the phone top bar (with a red dot when there

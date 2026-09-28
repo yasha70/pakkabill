@@ -15,11 +15,14 @@
 //   info    {}                                   -> { whatsapp, teamText, ... } (for the Help page)
 //   preview { category, problem, subject, message, diag } -> { answer }  (quick fix before a ticket)
 //   quickfix { problem, solved }                 -> { ok }        (did the quick fix help?)
+//   chat    { messages: [{ role, text }], diag } -> { reply }     (the chat assistant)
+//   chatfb  { helpful }                          -> { ok }        (thumbs up / down on a reply)
 const core = require('./_lib/core');
 const db = require('./_lib/db');
 const support = require('./_lib/support');
 const push = require('./_lib/push');
 const assist = require('./_lib/assist');
+const chat = require('./_lib/chat');
 
 // Only guest tickets this device can prove it owns.
 async function ownedGuests(guests) {
@@ -85,6 +88,15 @@ module.exports = core.handler(async (req, res) => {
     case 'quickfix': {
       await core.rateLimit(`tk:qf:${ip}`, 80, 3600);
       await assist.quickFixStat(String(b.problem || ''), b.solved ? 'solved' : 'help');
+      return core.send(res, 200, { ok: true });
+    }
+    case 'chat': {
+      await core.rateLimit(`tk:chat:${ip}`, 80, 3600);
+      return core.send(res, 200, { reply: await chat.reply(b, user) });
+    }
+    case 'chatfb': {
+      await core.rateLimit(`tk:qf:${ip}`, 80, 3600);
+      await chat.feedback(!!b.helpful);
       return core.send(res, 200, { ok: true });
     }
     case 'pushKey':

@@ -16,10 +16,10 @@
   // One-tap fixes the assistant (or support) can attach to a reply.
   var ACTIONS = {
     update: ['⟳', 'Update PakkaBill now'], refresh_plan: ['✦', 'Refresh my plan'], plan: ['★', 'Open Plan page'], login: ['→', 'Log in'],
-    shop: ['🏪', 'Open Shop (backup, logo)'], reports: ['₹', 'Open GST summary'], new_bill: ['+', 'Make a new bill'], items: ['▦', 'Open Items'],
+    shop: ['🏪', 'Open Shop (backup, logo)'], reports: ['₹', 'Open GST summary'], gstr1: ['📄', 'Open GSTR-1 JSON'], new_bill: ['+', 'Make a new bill'], items: ['▦', 'Open Items'],
     parties: ['👥', 'Open Parties'], listing: ['📦', 'Open Meesho listing'], lens: ['🔍', 'Open Meesho Lens'], pnl: ['📊', 'Open Meesho P&L']
   };
-  var PAGES = { plan: '#/plan', login: '#/plan', shop: '#/shop', reports: '#/reports', new_bill: '#/new', items: '#/items', parties: '#/parties', listing: '#/listing', lens: '#/lens', pnl: '#/pnl' };
+  var PAGES = { plan: '#/plan', login: '#/plan', shop: '#/shop', reports: '#/reports', gstr1: '#/gstr1', new_bill: '#/new', items: '#/items', parties: '#/parties', listing: '#/listing', lens: '#/lens', pnl: '#/pnl' };
 
   /* ---------------- storage and API ---------------- */
   function ls(k, v) {
@@ -327,10 +327,10 @@
     var a = acct(), box = h('div', { class: 'sup-list' }, h('p', { class: 'fine' }, 'Loading your tickets…'));
     var fresh = h('div');
     el.replaceChildren(h('div', { class: 'sup' },
-      head('Help & support', 'Pick what you need help with. Most answers are instant.'),
-      statusStrip(), fresh,
+      head('Help & support', 'Ask the assistant, or pick a topic. Most answers are instant.'),
+      fresh, askCard(), statusStrip(),
       h('section', { class: 'sup-sec', 'aria-labelledby': 'sup-topics-h' },
-        h('h2', { id: 'sup-topics-h', class: 'form-sec__title' }, 'What do you need help with?'), topicGrid()),
+        h('h2', { id: 'sup-topics-h', class: 'form-sec__title' }, 'Or pick a topic'), topicGrid()),
       h('section', { class: 'sup-sec', 'aria-labelledby': 'sup-h' }, h('h2', { id: 'sup-h', class: 'form-sec__title' }, 'Your tickets'), box),
       !a ? h('p', { class: 'fine sup-foot' }, 'Tickets you raise without an account are kept on this device. Log in on the Plan page to see them on every device.') : null));
     call('list', { guests: guests() }).then(function (j) {
@@ -610,11 +610,183 @@
     }).catch(function (e) { body.replaceChildren(banner(e.message, true)); if (preloaded) el.replaceChildren(h('div', { class: 'sup' }, head('Ticket', '', true), body)); });
   }
 
+  /* ---------------- chat with the assistant ---------------- */
+  var CHAT = 'pb-chat', CHAT_DAYS = 3;
+  var POPULAR = ['How do I make a bill?', 'Add my logo and signature', 'PDF is not downloading', 'Move PakkaBill to a new phone', 'How do I file GSTR-1?', 'What do I get with Pro?'];
+  var WELCOME = { role: 'assistant', text: 'Namaste! 👋 I\'m the PakkaBill assistant. Ask me how to do anything in PakkaBill, or tell me what is not working, and I\'ll check your account and app. English or Hindi is fine.', suggestions: POPULAR.slice(0, 4), welcome: true };
+  function chatLoad() {
+    var c = ls(CHAT);
+    return c && Array.isArray(c.msgs) && Date.now() - (c.at || 0) < CHAT_DAYS * 864e5 ? c.msgs : [];
+  }
+  function chatSave(msgs) { ls(CHAT, { at: Date.now(), msgs: msgs.slice(-40) }); }
+  var Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  // The "Ask the assistant" box at the top of the Help page.
+  function askCard() {
+    var inp = h('input', { class: 'pb-input sup-ask__in', type: 'text', maxlength: '500', placeholder: 'Type your question…', 'aria-label': 'Your question', enterkeyhint: 'send' });
+    var go2 = function (q) { q = String(q || '').trim(); if (!q) { inp.focus(); return; } state.pendingQ = q; go('chat=1'); };
+    var form = h('form', { class: 'sup-ask__row', onsubmit: function (e) { e.preventDefault(); go2(inp.value); } },
+      inp, micBtn(inp), h('button', { type: 'submit', class: 'sup-send', 'aria-label': 'Ask' }, '➤'));
+    var saved = chatLoad().filter(function (m) { return !m.welcome; });
+    return h('section', { class: 'paper sup-askcard', 'aria-labelledby': 'sup-ask-h' },
+      h('div', { class: 'sup-askcard__top' },
+        h('span', { class: 'sup-avatar', 'aria-hidden': 'true' }, '✦'),
+        h('div', null, h('h2', { id: 'sup-ask-h', class: 'sup-askcard__t' }, 'Ask the PakkaBill assistant'),
+          h('span', { class: 'sup-askcard__s' }, h('i', { class: 'sup-live', 'aria-hidden': 'true' }), 'Online · answers in seconds · English or Hindi'))),
+      form,
+      h('div', { class: 'sup-sugs' }, POPULAR.slice(0, 4).map(function (s) { return h('button', { type: 'button', class: 'sup-sug', onclick: function () { go2(s); } }, s); })),
+      saved.length ? h('a', { class: 'sup-continue', href: '#/support?chat=1' }, 'Continue your last chat →') : null);
+  }
+
+  function micBtn(target, onDone) {
+    if (!Speech) return null;
+    var b = h('button', { type: 'button', class: 'sup-mic', 'aria-label': 'Speak your question', title: 'Speak (English or Hindi)' });
+    b.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+    var rec = null;
+    b.onclick = function () {
+      if (rec) { rec.stop(); return; }
+      try { rec = new Speech(); } catch (e) { return; }
+      rec.lang = /^hi/.test(navigator.language || '') ? 'hi-IN' : 'en-IN';
+      rec.interimResults = true;
+      rec.onresult = function (ev) { var t = ''; for (var i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript; target.value = t; };
+      rec.onend = function () { rec = null; b.classList.remove('is-on'); if (onDone && target.value.trim()) onDone(); };
+      rec.onerror = function () { rec = null; b.classList.remove('is-on'); };
+      b.classList.add('is-on'); rec.start();
+    };
+    return b;
+  }
+
+  function chatView(el) {
+    var msgs = chatLoad();
+    if (!msgs.length) msgs = [WELCOME];
+    var busy = false, dg = null;
+    var list = h('ol', { class: 'sup-chat', 'aria-live': 'polite' });
+    var ta = h('textarea', { class: 'pb-input sup-chat__in', rows: '1', maxlength: '1000', placeholder: 'Ask anything about PakkaBill…', 'aria-label': 'Your message', enterkeyhint: 'send' });
+    var sendBtn = h('button', { type: 'submit', class: 'sup-send', 'aria-label': 'Send' }, '➤');
+    var person = h('button', { type: 'button', class: 'sup-person' }, '👤 Talk to a person');
+    var handoffBox = h('div');
+    var composer = h('form', { class: 'sup-composer' }, h('div', { class: 'sup-composer__row' }, ta, micBtn(ta, function () { send(ta.value); }), sendBtn), h('div', { class: 'sup-composer__foot' }, person, h('span', { class: 'fine' }, 'Answers come from PakkaBill\'s guide and your account.')));
+    var newBtn = h('button', { type: 'button', class: 'pb-btn pb-btn--ghost sup-newchat' }, '+ New chat');
+    el.replaceChildren(h('div', { class: 'sup sup-chatpage' },
+      h('div', { class: 'page-head sup-chathead' }, h('div', null,
+        h('a', { class: 'back', href: '#/support' }, '← Help & support'),
+        h('h1', { class: 'page-title' }, 'PakkaBill assistant'),
+        h('p', { class: 'page-sub' }, h('i', { class: 'sup-live', 'aria-hidden': 'true' }), ' Online · answers in seconds')), newBtn),
+      h('section', { class: 'paper sup-chatbox' }, list, handoffBox), composer));
+    var autosize = function () { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 132) + 'px'; };
+    ta.addEventListener('input', autosize);
+    ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(ta.value); } });
+    composer.addEventListener('submit', function (e) { e.preventDefault(); send(ta.value); });
+    newBtn.onclick = function () { msgs = [WELCOME]; chatSave([]); handoffBox.replaceChildren(); draw(); ta.focus(); };
+    person.onclick = function () { showHandoff(); };
+
+    function bubble(m, i) {
+      var last = i === msgs.length - 1;
+      if (m.role === 'user') return h('li', { class: 'sup-cm is-me' }, h('div', { class: 'sup-cm__b' }, m.text));
+      var fb = null;
+      if (last && !m.welcome && !m.error) {
+        fb = h('div', { class: 'sup-fb' }, m.fb ? h('span', { class: 'fine' }, m.fb === 'up' ? 'Thanks for the feedback! 🙏' : 'Sorry about that. Try asking another way, or talk to a person.')
+          : [h('span', { class: 'fine' }, 'Helpful?'),
+            h('button', { type: 'button', class: 'sup-fbb', 'aria-label': 'Yes, helpful', onclick: function () { rate(m, true); } }, '👍'),
+            h('button', { type: 'button', class: 'sup-fbb', 'aria-label': 'Not helpful', onclick: function () { rate(m, false); } }, '👎')]);
+      }
+      return h('li', { class: 'sup-cm is-bot' },
+        h('span', { class: 'sup-avatar sup-avatar--sm', 'aria-hidden': 'true' }, '✦'),
+        h('div', { class: 'sup-cm__col' },
+          h('div', { class: 'sup-cm__b' }, h('p', null, m.text), actionBar(m.actions),
+            m.error ? h('button', { type: 'button', class: 'sup-act', onclick: function () { msgs.pop(); var q = msgs.pop(); draw(); send(q ? q.text : ''); } }, '⟳ Try again') : null,
+            last && (m.handoff || m.fb === 'down') ? h('button', { type: 'button', class: 'sup-act is-main', onclick: showHandoff }, '👤 Talk to a person') : null),
+          last && m.suggestions && m.suggestions.length ? h('div', { class: 'sup-sugs' }, m.suggestions.map(function (s) { return h('button', { type: 'button', class: 'sup-sug', onclick: function () { send(s); } }, s); })) : null,
+          fb));
+    }
+    function draw(typing) {
+      list.replaceChildren.apply(list, msgs.map(bubble));
+      if (typing) list.append(h('li', { class: 'sup-cm is-bot' }, h('span', { class: 'sup-avatar sup-avatar--sm', 'aria-hidden': 'true' }, '✦'),
+        h('div', { class: 'sup-cm__b sup-typing', role: 'status' }, h('span', { class: 'sup-dots', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')), 'Checking…')));
+      var tail = list.lastElementChild;
+      if (tail && msgs.length > 1) tail.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    function rate(m, up) {
+      m.fb = up ? 'up' : 'down'; chatSave(msgs); draw();
+      call('chatfb', { helpful: up }).catch(function () {});
+    }
+    function send(text) {
+      text = String(text || '').trim();
+      if (!text || busy) return;
+      busy = true; busyBtn(sendBtn, true);
+      ta.value = ''; autosize();
+      handoffBox.replaceChildren();
+      msgs = msgs.filter(function (m) { return !m.error; });
+      msgs.push({ role: 'user', text: text });
+      chatSave(msgs); draw(true);
+      (dg ? Promise.resolve(dg) : diag().then(function (d) { dg = d; return d; })).then(function (d) {
+        var hist = msgs.filter(function (m) { return !m.welcome; }).map(function (m) { return { role: m.role, text: m.text }; }).slice(-12);
+        return call('chat', { messages: hist, diag: d });
+      }).then(function (j) {
+        var r = j.reply;
+        msgs.push({ role: 'assistant', text: r.text, actions: r.actions, suggestions: r.suggestions, handoff: r.handoff, source: r.source });
+      }).catch(function (e) {
+        msgs.push({ role: 'assistant', text: 'I could not reach PakkaBill just now (' + e.message.replace(/\.$/, '') + '). Check your internet and try again.', error: true });
+      }).then(function () {
+        busy = false; busyBtn(sendBtn, false);
+        chatSave(msgs); draw();
+        if (matchMedia('(pointer: fine)').matches) ta.focus();
+      });
+    }
+    // Sends this chat to the support team as a ticket (they reply on the Help page).
+    function showHandoff() {
+      if (handoffBox.firstChild) { handoffBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
+      var a = acct();
+      var asked = msgs.filter(function (m) { return m.role === 'user'; });
+      var extra = h('textarea', { class: 'pb-input sup-ta', rows: '2', maxlength: '600', placeholder: asked.length ? 'Anything to add? (optional)' : 'What do you need help with?' });
+      var phone = a ? null : h('input', { class: 'pb-input', inputmode: 'tel', maxlength: '14', placeholder: 'Your 10-digit mobile number', autocomplete: 'tel', 'aria-label': 'Mobile number' });
+      var ok2 = h('button', { type: 'submit', class: 'pb-btn pb-btn--primary' }, 'Send to our team');
+      var note = h('div');
+      var form = h('form', { class: 'sup-handoff' },
+        h('b', null, 'Send this chat to our support team'),
+        h('p', { class: 'fine' }, 'A person reads your chat and replies on the Help page, usually within a few hours. Your app details go with it.'),
+        extra, phone, note,
+        h('div', { class: 'sup-actions' }, ok2, h('button', { type: 'button', class: 'pb-btn pb-btn--ghost', onclick: function () { handoffBox.replaceChildren(); } }, 'Cancel')));
+      getInfo().then(function (inf) { var p2 = form.querySelector('p'); if (p2) p2.textContent = 'A person reads your chat and replies on the Help page, ' + (inf.teamText || 'usually within a few hours') + '. Your app details go with it.'; });
+      form.addEventListener('submit', function (e) {
+        e.preventDefault(); note.replaceChildren();
+        if (!asked.length && extra.value.trim().length < 5) { note.append(banner('Tell us a little about what you need.', true)); extra.focus(); return; }
+        if (phone && phone.value.replace(/\D/g, '').length < 10) { note.append(banner('Enter your 10-digit mobile number so we can reply.', true)); phone.focus(); return; }
+        busyBtn(ok2, true, 'Sending…');
+        // the customer's words in full, the assistant's answers shortened; oldest lines go first if it is long
+        var lines = msgs.filter(function (m) { return !m.welcome && !m.error; }).map(function (m) {
+          var t2 = m.text.replace(/\s+/g, ' ');
+          return m.role === 'user' ? 'You: ' + t2 : 'Assistant: ' + (t2.length > 140 ? t2.slice(0, 140) + '…' : t2);
+        });
+        while (lines.length > 1 && lines.join('\n').length > 1700) lines.shift();
+        var transcript = lines.join('\n');
+        var first = asked.length ? asked[0].text : extra.value;
+        var message = (extra.value.trim() ? extra.value.trim() + '\n\n' : '') + (lines.length ? 'Chat with the assistant:\n' + transcript : '');
+        (dg ? Promise.resolve(dg) : diag()).then(function (d) {
+          return call('create', { category: 'other', subject: first.slice(0, 110), message: message || first, tried: lines.length > 0, phone: phone ? phone.value : undefined, diag: d });
+        }).then(function (j) {
+          if (j.key) { var g = guests(); g.unshift({ id: j.ticket.id, key: j.key, no: j.ticket.no }); ls(GUEST, g.slice(0, 30)); }
+          try { sessionStorage.setItem('pb-support-sent', j.ticket.no); } catch (err) { /* ignore */ }
+          msgs.push({ role: 'assistant', text: 'I have sent this chat to our support team as ticket ' + j.ticket.no + '. They will reply on the Help page.', welcome: true });
+          chatSave(msgs);
+          syncPush();
+          go('t=' + encodeURIComponent(j.ticket.id));
+        }).catch(function (err) { busyBtn(ok2, false, 'Send to our team'); note.append(banner(err.message, true)); });
+      });
+      handoffBox.append(form);
+      form.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      (phone || extra).focus({ preventScroll: true });
+    }
+    draw();
+    var q = state.pendingQ; state.pendingQ = '';
+    if (q) send(q);
+  }
+
   function render() {
     var el = state.el; if (!el || !el.isConnected) return;
     state.renderedHash = location.hash;
     var p = params();
-    if (p.get('t')) ticketView(el, p.get('t')); else if (p.get('new')) newView(el); else listView(el);
+    if (p.get('t')) ticketView(el, p.get('t')); else if (p.get('chat')) chatView(el); else if (p.get('new')) newView(el); else listView(el);
   }
 
   var CSS = '.sup{min-width:0}.sup .page-title{font-size:clamp(30px,6vw,46px)}.sup-sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}'
@@ -656,7 +828,7 @@
     + '.sup-act__i{font-size:14px;line-height:1}'
     + '.sup-typing{display:flex;align-items:center;gap:10px;color:var(--ink-2)}.sup-dots{display:inline-flex;gap:4px}.sup-dots i{width:7px;height:7px;border-radius:50%;background:var(--carbon);opacity:.35;animation:sup-dot 1.2s infinite}'
     + '.sup-dots i:nth-child(2){animation-delay:.2s}.sup-dots i:nth-child(3){animation-delay:.4s}@keyframes sup-dot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}'
-    + '@media (prefers-reduced-motion:reduce){.sup-dots i,.sup-live{animation:none;opacity:.7}}'
+    + '@media (prefers-reduced-motion:reduce){.sup-dots i,.sup-live,.sup-mic.is-on{animation:none;opacity:.7}}'
     + '.sup-wa--inline{margin:10px 0 0}'
     + '.sup-ask{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 18px;border-radius:14px;margin-bottom:14px;border:1.5px solid rgba(108,77,255,.3)}.sup-ask .sup-actions{margin:0}'
     + '.sup-human{margin:12px 0 0;text-align:center}'
@@ -694,6 +866,29 @@
     + '.sup-newreply__dot{flex:none;width:11px;height:11px;border-radius:50%;background:#e0603f}.sup-newreply__go{margin-left:auto;font-weight:700;color:var(--carbon);white-space:nowrap}'
     + '.sup-urgent{display:flex;gap:10px;align-items:flex-start;margin:12px 0 4px;padding:10px 12px;border-radius:12px;border:1.5px dashed var(--rule);cursor:pointer}.sup-urgent input{margin-top:3px;width:18px;height:18px;accent-color:#e0603f}.sup-urgent span{display:grid}.sup-urgent .fine{margin:0}'
     + '.sup-eta{margin:10px 0 0}.sup-form .form-sec__title{margin:0 0 6px}'
+    /* chat with the assistant */
+    + '.sup-avatar{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#6c4dff,#d946ef 55%,#ff7a59);color:#fff;font-size:20px;box-shadow:0 8px 18px -10px rgba(108,77,255,.8)}.sup-avatar--sm{width:30px;height:30px;border-radius:10px;font-size:14px;box-shadow:none}'
+    + '.sup-askcard{padding:18px 20px;border-radius:18px;margin:0 0 16px;display:grid;gap:12px;border:1.5px solid rgba(108,77,255,.35);background:linear-gradient(135deg,rgba(108,77,255,.08),rgba(255,122,89,.07)),var(--paper)}'
+    + '.sup-askcard__top{display:flex;gap:12px;align-items:center}.sup-askcard__t{margin:0;font-size:19px;line-height:1.2;font-weight:800}.sup-askcard__s{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2)}'
+    + '.sup-ask__row,.sup-composer__row{display:flex;gap:8px;align-items:flex-end}.sup-ask__in{flex:1;min-width:0;height:48px!important;border-radius:14px!important;padding:0 14px!important;border:1.5px solid var(--rule)!important;background:var(--paper)!important;font-size:16px!important}'
+    + '.sup-send{flex:none;width:48px;height:48px;border-radius:14px;border:0;cursor:pointer;font-size:19px;color:var(--btn-fg);background:var(--btn-bg);background-image:var(--btn-grad,none)}.sup-send:disabled{opacity:.55;cursor:wait}'
+    + '.sup-mic{flex:none;width:48px;height:48px;border-radius:14px;border:1.5px solid var(--rule);background:var(--paper);color:var(--carbon);display:grid;place-items:center;cursor:pointer}.sup-mic.is-on{background:#e0603f;border-color:#e0603f;color:#fff;animation:sup-live 1.4s infinite}'
+    + '.sup-sugs{display:flex;flex-wrap:wrap;gap:7px}.sup-sug{font:inherit;font-size:13.5px;font-weight:600;padding:7px 12px;border-radius:999px;border:1.5px solid rgba(108,77,255,.35);background:var(--paper);color:var(--carbon);cursor:pointer;text-align:left;line-height:1.25}.sup-sug:hover{background:var(--carbon-tint)}'
+    + '.sup-continue{font-weight:700;color:var(--carbon);text-decoration:none;justify-self:start}'
+    + '.sup-chathead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}.sup-chathead .page-sub{display:flex;align-items:center;gap:6px}.sup-newchat{display:inline-flex;flex:none}'
+    + '.sup-chatbox{padding:16px;border-radius:18px;min-height:40vh}.sup-chat{list-style:none;margin:0;padding:0;display:grid;gap:14px}'
+    + '.sup-cm{display:flex;gap:9px;align-items:flex-start;max-width:min(640px,94%)}.sup-cm.is-me{justify-self:end}.sup-cm__col{display:grid;gap:7px;min-width:0}'
+    + '.sup-cm__b{padding:10px 14px;border-radius:16px;font-size:15px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}.sup-cm__b p{margin:0}'
+    + '.sup-cm.is-me .sup-cm__b{background:var(--btn-bg);background-image:var(--btn-grad,none);color:var(--btn-fg);border-bottom-right-radius:5px}'
+    + '.sup-cm.is-bot .sup-cm__b{background:var(--paper);border:1px solid rgba(108,77,255,.28);border-top-left-radius:5px;background-image:linear-gradient(135deg,rgba(108,77,255,.06),rgba(255,122,89,.05))}'
+    + '.sup-cm .sup-acts{margin-top:10px}.sup-cm .sup-sugs{margin-left:2px}'
+    + '.sup-fb{display:flex;align-items:center;gap:6px}.sup-fb .fine{margin:0}.sup-fbb{border:1px solid var(--rule);background:var(--paper);border-radius:999px;width:34px;height:30px;cursor:pointer;font-size:15px}.sup-fbb:hover{border-color:var(--carbon)}'
+    + '.sup-composer{position:sticky;bottom:calc(80px + env(safe-area-inset-bottom,0px));z-index:5;margin-top:12px;padding:10px;border-radius:18px;background:var(--paper);border:1.5px solid var(--rule);box-shadow:0 14px 34px -18px rgba(40,20,120,.55);display:grid;gap:6px}'
+    + '@media (width >= 1024px){.sup-composer{bottom:16px}}'
+    + '.sup-chat__in{flex:1;min-width:0;min-height:48px;max-height:132px;resize:none;border-radius:14px!important;padding:12px 14px!important;border:1.5px solid var(--rule)!important;line-height:1.4!important;font-size:16px!important;background:var(--paper)!important}'
+    + '.sup-composer__foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.sup-composer__foot .fine{margin:0;font-size:12px}'
+    + '.sup-person{border:0;background:none;font:inherit;font-size:13.5px;font-weight:700;color:var(--carbon);cursor:pointer;padding:2px 0}'
+    + '.sup-handoff{display:grid;gap:8px;margin-top:14px;padding:14px;border-radius:14px;border:1.5px dashed var(--carbon);background:var(--carbon-tint)}.sup-handoff .fine{margin:0}.sup-handoff .sup-actions{margin-top:4px}'
     + '@media (width >= 900px){.sup-toast{bottom:28px}}'
     + '@media (width < 720px){.sup-form,.sup-reply,.sup-conv{padding:14px}.sup-msg{max-width:94%}.sup-ask,.sup-push{padding:12px 14px}}';
   function css() { if (!document.getElementById('sup-css')) { var s = document.createElement('style'); s.id = 'sup-css'; s.textContent = CSS; document.head.append(s); } }

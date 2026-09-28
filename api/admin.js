@@ -6,6 +6,7 @@ const orders = require('./_lib/orders');
 const promos = require('./_lib/promos');
 const support = require('./_lib/support');
 const assist = require('./_lib/assist');
+const chat = require('./_lib/chat');
 const push = require('./_lib/push');
 
 const OWNER = 'owner';
@@ -75,7 +76,7 @@ const actions = {
 
   // ---------- support tickets ----------
   async tickets({ status = 'active', q = '' }) {
-    return { tickets: await support.adminList({ status: String(status), q }), counts: await support.counts() };
+    return { tickets: await support.adminList({ status: String(status), q }), counts: await support.counts(), chat: await chat.stats() };
   },
   async ticket({ id }) {
     return { ticket: await support.adminGet(id) };

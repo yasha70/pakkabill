@@ -20,7 +20,7 @@ const MAX_BOT_REPLIES = 3;
 const SETTINGS_KEY = 'assist:settings';
 
 // One-tap fixes the app knows how to run. Labels live in the app (support.js).
-const ACTIONS = ['update', 'refresh_plan', 'plan', 'login', 'shop', 'reports', 'new_bill', 'items', 'parties', 'listing', 'lens', 'pnl'];
+const ACTIONS = ['update', 'refresh_plan', 'plan', 'login', 'shop', 'reports', 'gstr1', 'new_bill', 'items', 'parties', 'listing', 'lens', 'pnl'];
 const OUTCOMES = ['answered', 'escalate', 'ack'];
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const RANK = { low: 0, normal: 1, high: 2, urgent: 3 };
@@ -199,16 +199,16 @@ const KB = [
       ? 'Downloading bills as PDF and sharing them on WhatsApp are part of PakkaBill Pro. On the free plan you can still make bills and print them. Tap "Open Plan page" to see the Pro plans.'
       : f.plan && f.plan.pro && /asks me to upgrade/i.test(f.said)
       ? `Your Pro plan is active until ${dateStr(f.plan.paidUntil)}, so PDF should work. The app on this phone has not caught up yet: tap "Refresh my plan" below and try the PDF again.`
-      : 'To download a bill: open the bill and tap "PDF". If nothing happens:\n1. Tap "Update PakkaBill now" below so you have the latest version.\n2. Open PakkaBill in Chrome (not inside another app\'s browser), and allow downloads if Chrome asks.\n3. Look in your phone\'s Downloads folder or the Files app.\n\nIf it still fails, reply with a screenshot of the screen.',
+      : 'To download a bill: open the bill and tap "Download PDF". If nothing happens:\n1. Tap "Update PakkaBill now" below so you have the latest version.\n2. Open PakkaBill in Chrome (not inside another app\'s browser), and allow downloads if Chrome asks.\n3. Look in your phone\'s Downloads folder or the Files app.\n\nIf it still fails, reply with a screenshot of the screen.',
     actions: (f) => ((f.locked && f.plan && !f.plan.pro) || (f.locked && !f.account && /asks me to upgrade/i.test(f.said)) ? ['plan'] : f.plan && f.plan.pro && /asks me to upgrade/i.test(f.said) ? ['refresh_plan'] : ['update']), outcome: 'answered',
   },
   {
     id: 'print', cats: ['bills'],
     re: /print|printer|thermal|a4|a5|page size|cut off|cutting/i,
     text: (f) => /thermal/i.test(f.said)
-      ? 'For a small thermal printer:\n1. Change the bill to the Plain design (Design picker when you make or edit the bill); it is made for narrow paper.\n2. Tap "Print", choose your printer, and set the paper size to your roll width (58 mm or 80 mm) with margins "None".\n3. If the printer app only accepts PDFs, tap "PDF" first and print the file from the printer app.\n\nIf it still cuts off, reply with a photo of the printout and your printer model.'
+      ? 'For a small thermal printer:\n1. Change the bill to the Plain design (Design picker when you make or edit the bill); it is made for narrow paper.\n2. Tap "Print", choose your printer, and set the paper size to your roll width (58 mm or 80 mm) with margins "None".\n3. If the printer app only accepts PDFs, tap "Download PDF" first and print the file from the printer app.\n\nIf it still cuts off, reply with a photo of the printout and your printer model.'
       : /save as pdf/i.test(f.said)
-      ? 'To save a bill as a PDF, open the bill and tap "PDF": it keeps the exact layout. The browser\'s "Save as PDF" in the print screen can shrink or cut the page; if you use it, set paper size to A4, margins "Default", scale 100% and turn on "Background graphics".'
+      ? 'To save a bill as a PDF, open the bill and tap "Download PDF": it keeps the exact layout. The browser\'s "Save as PDF" in the print screen can shrink or cut the page; if you use it, set paper size to A4, margins "Default", scale 100% and turn on "Background graphics".'
       : 'To print: open the bill and tap "Print". In the print screen choose your printer, set paper size to A4 (or A5 if your paper is half size), margins "Default", scale 100%, and turn on "Background graphics" so colours and the logo print.\n\nIf part of the bill is cut off, reply with a photo of the printout and your printer model.',
     actions: [], outcome: 'answered',
   },
@@ -241,7 +241,7 @@ const KB = [
   {
     id: 'backup', cats: ['bills', 'account', 'other'],
     re: /backup|back up|restore|new (phone|mobile)|another (phone|mobile|device)|change (phone|mobile)|transfer|laptop|computer|pc\b|sync/i,
-    text: () => 'To move PakkaBill to another phone or computer:\n1. On the old device, open the Shop page and tap "Save backup". A PakkaBill-backup file is saved.\n2. Send that file to the new device (WhatsApp to yourself, email or Drive).\n3. On the new device, open PakkaBill, go to the Shop page and tap "Restore from backup", then pick the file.\n\nYour Pro plan follows your account: just log in on the Plan page with the same mobile number.',
+    text: () => 'To move PakkaBill to another phone or computer:\n1. On the old device, open the Shop page and tap "Download backup" (under Offline and backup). A PakkaBill-backup file is saved.\n2. Send that file to the new device (WhatsApp to yourself, email or Drive).\n3. On the new device, open PakkaBill, go to the Shop page and tap "Restore from backup", then pick the file.\n\nYour Pro plan follows your account: just log in on the Plan page with the same mobile number.',
     actions: ['shop'], outcome: 'answered',
   },
   {
@@ -451,7 +451,7 @@ function rulesAnswer(t, f) {
 const SYSTEM = `You are the PakkaBill support assistant. PakkaBill is a GST billing app (a web app that installs on the phone) for small Indian sellers and Meesho/Amazon sellers. You answer support tickets inside the app, right after the customer writes.
 
 What PakkaBill does:
-- Bills: GST invoices, estimates, credit notes. Tax is CGST+SGST when the buyer's state equals the shop's state, IGST otherwise. Items page holds products with HSN and GST rate; Parties page holds customers with state/GSTIN; Shop page holds shop details, logo, signature, brand colour, and "Save backup" / "Restore from backup".
+- Bills: GST tax invoices and estimates. Tax is CGST+SGST when the buyer's state equals the shop's state, IGST otherwise. Items page holds products with HSN and GST rate; Parties page holds customers with state/GSTIN; Shop page holds shop details, logo, signature, brand colour, and "Download backup" / "Restore from backup".
 - Bills are stored only on the customer's device (in the browser). PakkaBill has no server copy of bills. Lost data can only come back from a backup file or from another browser/device where it still exists.
 - Designs: Carbon, Modern, Classic, Ledger and Plain are free; Royal, Elegant and Boutique are Pro (when Pro is enforced).
 - Free plan: a monthly number of bills (given in the findings), estimates don't count, resets on the 1st. Pro adds unlimited bills, PDF download, WhatsApp sharing, logo and signature, GSTR-1 JSON export, Pro designs.
@@ -533,7 +533,8 @@ async function aiAnswer(t, f, draft) {
     max_tokens: 4000,
     thinking: { type: 'adaptive' },
     output_config: { effort: 'medium', format: { type: 'json_schema', schema: SCHEMA } },
-    system: SYSTEM,
+    // the how-to guide is the same for every ticket, so it is cached between requests
+    system: [{ type: 'text', text: `${SYSTEM}\n\n# PakkaBill guide (exact page and button names)\n\n${require('./guide').asText({ freeBills: f.freeBills, prices: f.prices, locked: true, pro: false })}`, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content }],
   };
   // Server-side fallback: if the model declines, the API re-runs the request on Anthropic's
@@ -591,5 +592,5 @@ async function answer(t, { force = false, rulesOnly = false } = {}) {
 
 module.exports = {
   ACTIONS, PROBLEM_KB, MAX_BOT_REPLIES, getSettings, saveSettings, investigate, rulesAnswer, answer, findUtrs, dateStr, rupees, tail,
-  recordReplyTime, teamReplyMinutes, replyText, quickFixStat, quickFixStats,
+  recordReplyTime, teamReplyMinutes, replyText, quickFixStat, quickFixStats, aiAllowed,
 };

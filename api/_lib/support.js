@@ -197,7 +197,7 @@ async function runAssistant(t, { force = false } = {}) {
     }
     // The customer already tried this quick fix on the Help page: don't repeat it, go to the team.
     if (!prev.replies && t.tried && a.source === 'rules' && !a.hard) {
-      text = `Thank you. Since the quick fix did not solve it, I have sent your ticket straight to our support team with your answers and app details. They will reply here, ${a.teamText || 'usually within a few hours'}, and you will get a notification.`;
+      text = `Thank you. Our support team has your ticket with everything you told me and your app details, so there is no need to explain again. They will reply here, ${a.teamText || 'usually within a few hours'}, and you will get a notification.`;
       actions = []; outcome = 'escalate';
       if (priority === 'low' || priority === 'normal') priority = t.priority === 'urgent' ? 'urgent' : 'high';
     }
