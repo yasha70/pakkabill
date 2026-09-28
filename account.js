@@ -58,6 +58,10 @@
     '.pba-muted{color:var(--ink-3,#736e8d);font-size:.88rem;margin:0}' +
     '.pba-kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:.9rem;margin:0}.pba-kv dt{color:var(--ink-3,#736e8d)}.pba-kv dd{margin:0;text-align:right;overflow-wrap:anywhere}' +
     '.pba-who .pba-pill{display:inline-block}.pba-shopc header .pba-l{min-width:0}.pba-shopc .pba-l b{display:block;font-size:1rem;overflow-wrap:anywhere}.pba-shopc .pba-l span{display:block}.pba-shopc header>div:last-child{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex:none}' +
+    '.pba-danger{border-color:#f3c4c7}.pba-danger summary{cursor:pointer;font-weight:700;color:#c8202a}.pba-lbl{display:block;font-size:.85rem;font-weight:600;margin:6px 0}' +
+    '.pba-in{display:block;width:100%;max-width:320px;margin-top:4px;padding:9px 11px;border:1px solid var(--line,#e2daf2);border-radius:10px;font:inherit;background:transparent;color:inherit}' +
+    '.pba-chk{display:flex;gap:8px;align-items:center;font-size:.88rem;margin:10px 0}.pba-err{color:#c8202a;font-weight:600;margin:8px 0 0}' +
+    '.pba-btn-danger{background:#c8202a;border-color:#c8202a;color:#fff}.pba-btn[disabled]{opacity:.6;cursor:wait}' +
     '@media(max-width:420px){.pba-shop{grid-template-columns:repeat(2,1fr)}}';
   function css() {
     if (document.getElementById('pba-css')) return;
@@ -143,8 +147,22 @@
   function deviceHtml(dev) {
     var rows = [['App version', dev.version || '…'], ['Saved on this device', dev.used == null ? '…' : size(dev.used)], ['Phone notifications', dev.push], ['Internet', navigator.onLine ? 'Online' : 'Offline']];
     return '<section class="pba-card"><h2>This device</h2><dl class="pba-kv">' + rows.map(function (r) { return '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>'; }).join('') + '</dl>' +
-      '<div class="pba-btns"><button type="button" class="pba-btn pri" data-pba="download">Download all my data</button>' + (window.pbInApp && window.pbInApp() ? '' : '<a class="pba-btn" href="#/app">\ud83d\udcf2 Get the app</a>') + '</div>' +
+      '<div class="pba-btns"><button type="button" class="pba-btn pri" data-pba="download">Download all my data</button>' +
+      (window.PakkaBillApp ? '<button type="button" class="pba-btn" data-pba="appsettings">\u2699\ufe0f App settings</button>' : window.pbInApp && window.pbInApp() ? '' : '<a class="pba-btn" href="#/app">\ud83d\udcf2 Get the app</a>') + '</div>' +
       '<p class="pba-muted" style="margin-top:8px">One file with every shop’s bills, parties, items and settings. Keep it as your own backup.</p></section>';
+  }
+
+  // Google Play asks every app with sign-up to let people delete their account from inside the app.
+  function deleteHtml(st) {
+    var d = st.del || {};
+    return '<section class="pba-card pba-danger" id="pba-delete"><details' + (d.open ? ' open' : '') + ' data-pba-deldetails><summary>Delete my account</summary>' +
+      '<p class="pba-muted" style="margin:10px 0">This removes your PakkaBill login, your plan and every shop saved in the cloud backup, for good. It cannot be undone. ' +
+      'Payment records are kept for as long as tax law needs them. If you have Pro time left, it is lost.</p>' +
+      '<label class="pba-lbl">Your password<input type="password" class="pba-in" data-pba-delpw autocomplete="current-password" value="' + esc(d.pw || '') + '"></label>' +
+      '<label class="pba-chk"><input type="checkbox" data-pba-delwipe' + (d.wipe ? ' checked' : '') + '> Also delete the bills saved on this device</label>' +
+      (d.err ? '<p class="pba-err">' + esc(d.err) + '</p>' : '') +
+      '<div class="pba-btns"><button type="button" class="pba-btn pba-btn-danger" data-pba="delete"' + (d.busy ? ' disabled' : '') + '>' + (d.busy ? 'Deleting\u2026' : 'Delete my account permanently') + '</button></div>' +
+      '<p class="pba-muted" style="margin-top:8px">Forgot your password? <a href="#/support?new=1">Ask us</a> and we will delete it for you.</p></details></section>';
   }
 
   /* ---------------- the page ---------------- */
@@ -176,6 +194,9 @@
   function draw(el) {
     var st = el._pba, a = acct();
     if (!st) return;
+    var pwIn = el.querySelector('[data-pba-delpw]'), wipeIn = el.querySelector('[data-pba-delwipe]'), det = el.querySelector('[data-pba-deldetails]');
+    if (pwIn || det) st.del = Object.assign(st.del || {}, { pw: pwIn ? pwIn.value : '', wipe: wipeIn ? wipeIn.checked : false, open: det ? det.open : false });
+    if (!st.delAsked && /[?&]delete=1/.test(location.hash) && a) { st.delAsked = true; st.del = Object.assign(st.del || {}, { open: true }); st.scrollDel = true; }
     var main = st.shops && st.shops.filter(function (s) { return s.id === st.active; })[0];
     var h = '<div class="page-head"><div><h1 class="page-title">My account</h1><p class="page-sub">Your login, plan, shops, bills, payments and help requests in one place.</p></div></div><div class="pba">';
     h += profileHtml(a, main && main.data);
@@ -187,6 +208,7 @@
       h += ticketsHtml(st.tickets);
     }
     h += deviceHtml(st.dev);
+    if (a && a.user.phone !== 'owner') h += deleteHtml(st);
     h += '</div>';
     var keepSync = el.querySelector('[data-pba-sync]');
     el.innerHTML = h;
@@ -196,6 +218,25 @@
       else if (window.pbSyncCard) window.pbSyncCard(slot);
       else slot.innerHTML = '<a class="pba-btn" href="#/shops">Open cloud backup</a>';
     }
+    if (st.scrollDel) { st.scrollDel = false; var box = el.querySelector('#pba-delete'); if (box) setTimeout(function () { box.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 200); }
+  }
+  function deleteAccount(el) {
+    var st = el._pba, pw = (el.querySelector('[data-pba-delpw]') || {}).value || '', wipe = !!(el.querySelector('[data-pba-delwipe]') || {}).checked;
+    st.del = { open: true, pw: pw, wipe: wipe };
+    if (!pw) { st.del.err = 'Type your password to confirm.'; draw(el); return; }
+    if (!confirm('Delete your PakkaBill account and cloud backups for good? This cannot be undone.')) return;
+    st.del.busy = true; draw(el);
+    api('auth', { action: 'delete', password: pw }).then(function () {
+      ['pb-acct', 'pb-sync'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } });
+      var P = window.pbShops, wipeAll = wipe && P ? Promise.all(P.list().map(function (s) { return P.drop(s.id); })).then(function () {
+        ['pb-shops', 'pb-shop'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } });
+      }) : Promise.resolve();
+      return wipeAll.then(function () {
+        try { window.dispatchEvent(new Event('pb-account')); } catch (e) { /* ignore */ }
+        alert('Your PakkaBill account has been deleted.' + (wipe ? ' The bills on this device were removed too.' : ' Bills saved on this device are still here.'));
+        location.hash = '#/bills'; location.reload();
+      });
+    }).catch(function (e) { st.del = { open: true, pw: '', wipe: wipe, err: e.message || 'Could not delete the account. Try again.' }; draw(el); });
   }
   function download(el) {
     var st = el._pba;
@@ -214,6 +255,8 @@
       if (!b) return;
       var act = b.getAttribute('data-pba');
       if (act === 'download') download(el);
+      else if (act === 'delete') deleteAccount(el);
+      else if (act === 'appsettings' && window.PakkaBillApp) window.PakkaBillApp.settings();
       else if (act === 'switch' && window.pbShops) window.pbShops.switchTo(b.getAttribute('data-id'), '#/account');
       else if (act === 'logout') {
         if (!confirm('Log out of PakkaBill on this device? Your bills stay on this device.')) return;
@@ -247,7 +290,10 @@
   try {
     if (/[?&]source=android\b/.test(location.search) || /^android-app:\/\/com\.pakkabill\.app/.test(document.referrer)) sessionStorage.setItem('pb-in-app', '1');
   } catch (e) { /* ignore */ }
-  function inApp() { try { return sessionStorage.getItem('pb-in-app') === '1'; } catch (e) { return false; } }
+  function inApp() {
+    if (window.PakkaBillApp || /PakkaBillApp\//.test(navigator.userAgent)) return true;
+    try { return sessionStorage.getItem('pb-in-app') === '1'; } catch (e) { return false; }
+  }
   function standalone() { return inApp() || (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; }
   var ua = navigator.userAgent || '';
   var android = /Android/i.test(ua), ios = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && 'ontouchend' in document);
@@ -293,7 +339,7 @@
     else if (!standalone()) h += '<ol class="pbg-steps"><li><b>Android (Chrome):</b> tap ⋮ at the top right, then <b>Install app</b> or <b>Add to Home screen</b>.</li><li><b>Computer (Chrome or Edge):</b> click the install icon at the right end of the address bar, or ⋮ → <b>Install PakkaBill</b>.</li></ol>';
     h += '</section>';
     // iPhone
-    h += '<section class="pbg-card"><h2> iPhone and iPad</h2><p>Add PakkaBill to your home screen from Safari:</p>' +
+    h += '<section class="pbg-card"><h2>📱 iPhone and iPad</h2><p>Add PakkaBill to your home screen from Safari:</p>' +
       '<ol class="pbg-steps"><li>Open <b>pakkabill1.vercel.app</b> in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Tap <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol></section>';
     h += '<section class="pbg-card"><h2>🔒 Your data</h2><p>The app and the website are the same PakkaBill. Log in with your mobile number and turn on cloud backup (Shops &amp; cloud) to see the same bills on every device.</p></section>';
     h += '</div>';

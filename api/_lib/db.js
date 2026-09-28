@@ -64,6 +64,19 @@ async function memory([op, ...a]) {
       mem.z.set(a[0], z);
       return 1;
     }
+    case 'ZREM': {
+      const z = mem.z.get(a[0]);
+      return z ? a.slice(1).reduce((n, m) => n + (z.delete(m) ? 1 : 0), 0) : 0;
+    }
+    case 'SADD': {
+      const s = mem.z.get('set:' + a[0]) || new Map();
+      const before = s.size;
+      a.slice(1).forEach((m) => s.set(String(m), 1));
+      mem.z.set('set:' + a[0], s);
+      return s.size - before;
+    }
+    case 'SISMEMBER':
+      return (mem.z.get('set:' + a[0]) || new Map()).has(String(a[1])) ? 1 : 0;
     case 'ZCARD':
       return (mem.z.get(a[0]) || new Map()).size;
     case 'ZREVRANGE': {

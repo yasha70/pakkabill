@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delete your account · PakkaBill</title>
+<meta name="description" content="Delete your PakkaBill account and cloud backups.">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="legal.css">
+</head>
+<body>
+<main>
+<header><img src="icon-192.png" alt=""><a href="/">PakkaBill</a></header>
+<h1>Delete your PakkaBill account</h1>
+<p>You can delete your account in the app (PakkaBill → <b>My account</b> → <b>Delete my account</b>) or right here.</p>
+
+<div class="card">
+<h2 style="margin-top:0">What is deleted</h2>
+<ul>
+<li>Your login (mobile number and password) and your plan, including any Pro time left.</li>
+<li>Every shop saved in cloud backup: bills, parties, items and settings.</li>
+<li>Phone notification settings for your account.</li>
+</ul>
+<h2>What is kept</h2>
+<ul>
+<li>Payment records (amount, date, UPI transaction number), for as long as Indian tax law requires.</li>
+<li>Help requests you sent us (ask us in Help &amp; support and we will delete them too).</li>
+<li>Bills saved on your own phone or computer stay there until you delete them in the app or uninstall it.</li>
+</ul>
+</div>
+
+<form class="card" id="f" autocomplete="on">
+<h2 style="margin-top:0">Delete now</h2>
+<label for="phone">Mobile number</label>
+<input type="tel" id="phone" inputmode="numeric" maxlength="14" autocomplete="username" placeholder="10-digit number" required>
+<label for="pw">Password</label>
+<input type="password" id="pw" autocomplete="current-password" required>
+<button type="submit" id="go">Delete my account permanently</button>
+<p class="msg" id="msg" role="status"></p>
+</form>
+<p class="muted">Forgot your password? Open Help &amp; support in PakkaBill and ask us to delete your account; we will check it is your number and delete it within 7 days. See also our <a href="privacy.html">privacy policy</a>.</p>
+</main>
+<script>
+(function () {
+  var f = document.getElementById('f'), msg = document.getElementById('msg'), go = document.getElementById('go');
+  function say(t, ok) { msg.textContent = t; msg.className = 'msg ' + (ok ? 'ok' : 'bad'); }
+  function post(body, token) {
+    var h = { 'Content-Type': 'application/json' };
+    if (token) h.Authorization = 'Bearer ' + token;
+    return fetch('/api/auth', { method: 'POST', headers: h, body: JSON.stringify(body) }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.error || 'Something went wrong. Try again.'); return j; });
+    });
+  }
+  f.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var phone = document.getElementById('phone').value.trim(), pw = document.getElementById('pw').value;
+    if (!confirm('Delete this PakkaBill account and its cloud backups for good? This cannot be undone.')) return;
+    go.disabled = true; say('Deleting…', true);
+    post({ action: 'login', phone: phone, password: pw }).then(function (j) {
+      return post({ action: 'delete', password: pw }, j.token);
+    }).then(function () {
+      try { var a = JSON.parse(localStorage.getItem('pb-acct') || 'null'); if (a && a.user && String(phone).replace(/\D/g, '').slice(-10) === a.user.phone) { localStorage.removeItem('pb-acct'); localStorage.removeItem('pb-sync'); } } catch (x) { /* ignore */ }
+      f.reset(); say('Your PakkaBill account has been deleted.', true);
+    }).catch(function (err) { say(err.message, false); }).then(function () { go.disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>
