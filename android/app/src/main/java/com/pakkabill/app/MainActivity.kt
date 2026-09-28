@@ -4,6 +4,8 @@ import android.app.DownloadManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Color
+import android.net.ConnectivityManager
+import android.net.Network
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -71,6 +73,19 @@ class MainActivity : FragmentActivity(), WebEvents {
     private var backgroundAt = 0L
     private var leftForOwnIntentAt = 0L
     private val startedAt = SystemClock.elapsedRealtime()
+    private var firstLoadDone = false
+
+    // back online after "You are offline": load PakkaBill again by itself
+    private val network = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            runOnUiThread {
+                if (state.failed) {
+                    state.failed = false
+                    web.reload()
+                }
+            }
+        }
+    }
 
     private enum class Auth { UNLOCK, ENABLE, DISABLE }
 
@@ -143,7 +158,9 @@ class MainActivity : FragmentActivity(), WebEvents {
 
         // load once the WebView has its real size: pages that measure the screen height (100vh),
         // like the Meesho P&L frame, would otherwise start at zero height
-        web.doOnLayout { load(intent, first = true) }
+        web.doOnLayout { firstLoad() }
+        web.postDelayed({ firstLoad() }, 1500)
+        runCatching { getSystemService(ConnectivityManager::class.java).registerDefaultNetworkCallback(network) }
 
         setContent {
             PakkaBillTheme {
@@ -188,6 +205,7 @@ class MainActivity : FragmentActivity(), WebEvents {
 
     override fun onDestroy() {
         runCatching { appUpdates.unregisterListener(installListener) }
+        runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(network) }
         super.onDestroy()
     }
 
@@ -196,6 +214,12 @@ class MainActivity : FragmentActivity(), WebEvents {
     private fun pakkaUrl(intent: Intent?): String? {
         val d = intent?.data ?: return null
         return if (d.scheme == "https" && d.host == HOST) d.toString() else null
+    }
+
+    private fun firstLoad() {
+        if (firstLoadDone) return
+        firstLoadDone = true
+        load(intent, first = true)
     }
 
     private fun load(intent: Intent?, first: Boolean) {

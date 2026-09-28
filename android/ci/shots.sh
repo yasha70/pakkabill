@@ -13,6 +13,9 @@ cap() { sleep "$2"; adb exec-out screencap -p > "$OUT/$1.png"; }
 js() { python3 android/ci/cdp.py "$1" | tee -a "$OUT/results.txt"; }
 open_url() { adb shell am start -W -a android.intent.action.VIEW -d "$1" com.pakkabill.app; }
 
+adb shell svc wifi enable
+adb shell svc data enable
+for i in $(seq 1 30); do adb shell ping -c 1 -W 2 pakkabill1.vercel.app >/dev/null 2>&1 && { echo "online after $i tries" >> "$OUT/results.txt"; break; }; sleep 3; done
 adb shell am start -W -n com.pakkabill.app/.MainActivity
 cap 01-start 35
 PID=$(adb shell pidof com.pakkabill.app | tr -d '\r')
@@ -80,6 +83,22 @@ sleep 3
 
 adb shell input keyevent KEYCODE_BACK
 cap 14-back-history 3
+
+echo "== release build (minified) smoke test" >> "$OUT/results.txt"
+adb logcat -d > "$OUT/logcat-debug.txt"
+adb uninstall com.pakkabill.app
+adb logcat -c
+adb install -r rel/PakkaBill-release-test.apk 2>&1 | tee -a "$OUT/results.txt"
+adb shell am start -W -n com.pakkabill.app/.MainActivity
+cap 20-release-start 30
+open_url "https://pakkabill1.vercel.app/#/pnl"
+cap 21-release-pnl 15
+adb shell am start -W -n com.pakkabill.app/.MainActivity --ez com.pakkabill.app.SETTINGS true
+cap 22-release-settings 4
+adb shell input keyevent KEYCODE_BACK
+sleep 2
+echo "release running: $(adb shell pidof com.pakkabill.app | tr -d '\r')" >> "$OUT/results.txt"
+adb logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime" | head -20 >> "$OUT/results.txt"
 
 adb shell dumpsys activity activities | grep -E "ResumedActivity" > "$OUT/activity.txt"
 adb logcat -d > "$OUT/logcat-full.txt"

@@ -77,8 +77,14 @@ jobs:
           name: PakkaBill-android
           path: apk-all
 
-      - name: Keep only the debug APK
-        run: mkdir -p apk && cp apk-all/PakkaBill-debug.apk apk/ && pip install --quiet websocket-client
+      - name: Debug APK, and the release APK signed with a throwaway test key
+        run: |
+          mkdir -p apk rel
+          cp apk-all/PakkaBill-debug.apk apk/
+          pip install --quiet websocket-client
+          keytool -genkeypair -keystore ci.jks -storepass android -keypass android -alias ci -keyalg RSA -keysize 2048 -validity 30 -dname "CN=CI test"
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          "$BT/apksigner" sign --ks ci.jks --ks-pass pass:android --out rel/PakkaBill-release-test.apk apk-all/PakkaBill-unsigned.apk
 
       - name: Enable KVM
         run: |
