@@ -33,6 +33,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.view.doOnLayout
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
@@ -140,7 +141,9 @@ class MainActivity : FragmentActivity(), WebEvents {
             snapshotFlow { state.barColor }.collect { c -> if (c != null) tintSystemBars(c) }
         }
 
-        load(intent, first = true)
+        // load once the WebView has its real size: pages that measure the screen height (100vh),
+        // like the Meesho P&L frame, would otherwise start at zero height
+        web.doOnLayout { load(intent, first = true) }
 
         setContent {
             PakkaBillTheme {

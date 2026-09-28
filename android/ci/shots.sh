@@ -57,7 +57,7 @@ cap 08-upi 3
 open_url "https://pakkabill1.vercel.app/#/pnl"
 cap 09-pnl 15
 echo "== P&L frame" >> "$OUT/results.txt"
-js '(function(){var f=document.querySelector(".pnl-frame"); if(!f) return "no frame"; var d=f.contentDocument, w=f.contentWindow; return JSON.stringify({src:f.src, h:f.clientHeight, w:f.clientWidth, ready:d&&d.readyState, text:d&&d.body?d.body.innerText.slice(0,200):null, errors:w&&w.__pbErrors, top:window.__pbErrors, ua:navigator.userAgent.slice(-60)});})()'
+js '(function(){var f=document.querySelector(".pnl-frame"); if(!f) return "no frame"; var d=f.contentDocument, w=f.contentWindow; return JSON.stringify({src:f.src, h:f.clientHeight, w:f.clientWidth, css:getComputedStyle(f).height, inner:innerHeight, vv:visualViewport&&visualViewport.height, ready:d&&d.readyState, errors:w&&w.__pbErrors, top:window.__pbErrors, ua:navigator.userAgent.slice(-60)});})()'
 echo "== P&L sample and Excel download" >> "$OUT/results.txt"
 js '(function(){var d=document.querySelector(".pnl-frame").contentDocument; var b=d.querySelector("[data-act=demo]"); if(!b) return "no demo button"; b.click(); return "demo";})()'
 sleep 6
