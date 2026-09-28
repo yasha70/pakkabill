@@ -55,7 +55,15 @@ js 'setTimeout(function(){ location.href = "upi://pay?pa=test@upi&pn=Test&am=1";
 cap 08-upi 3
 
 open_url "https://pakkabill1.vercel.app/#/pnl"
-cap 09-pnl 12
+cap 09-pnl 15
+echo "== P&L frame" >> "$OUT/results.txt"
+js '(function(){var f=document.querySelector(".pnl-frame"); if(!f) return "no frame"; var d=f.contentDocument, w=f.contentWindow; return JSON.stringify({src:f.src, h:f.clientHeight, w:f.clientWidth, ready:d&&d.readyState, text:d&&d.body?d.body.innerText.slice(0,200):null, errors:w&&w.__pbErrors, top:window.__pbErrors, ua:navigator.userAgent.slice(-60)});})()'
+echo "== P&L sample and Excel download" >> "$OUT/results.txt"
+js '(function(){var d=document.querySelector(".pnl-frame").contentDocument; var b=d.querySelector("[data-act=demo]"); if(!b) return "no demo button"; b.click(); return "demo";})()'
+sleep 6
+js '(function(){var d=document.querySelector(".pnl-frame").contentDocument; var b=d.querySelector("[data-act=xlsx]"); if(!b) return "no excel button"; b.click(); return "excel";})()'
+cap 09b-pnl-excel 8
+adb shell ls -la /sdcard/Download/PakkaBill/ 2>&1 | tee -a "$OUT/results.txt"
 open_url "https://pakkabill1.vercel.app/#/app"
 cap 10-get-app 8
 

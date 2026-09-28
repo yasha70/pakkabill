@@ -37,7 +37,7 @@
 
   /* ---------------- drawing ---------------- */
   var CSS = '.pba{display:grid;gap:14px;max-width:980px}' +
-    '.pba-card{background:var(--paper-card,var(--card,#fff));border:1px solid var(--line,#e2daf2);border-radius:14px;padding:16px}' +
+    '.pba-card{background:var(--paper,#fff);border:1px solid var(--rule,#e2daf2);border-radius:14px;padding:16px}' +
     '.pba-card h2{margin:0 0 12px;font-size:1.05rem}' +
     '.pba-me{display:flex;gap:14px;align-items:center;flex-wrap:wrap}' +
     '.pba-av{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:1.2rem;color:#fff;background:linear-gradient(135deg,#5b3fe6,#ff7a59);flex:none}' +
@@ -45,21 +45,21 @@
     '.pba-pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:.8rem;font-weight:700;margin-top:6px}' +
     '.pba-pill.is-pro{background:#e6f6ee;color:#12714b}.pba-pill.is-trial{background:#ece6ff;color:#5b3fe6}.pba-pill.is-free{background:#f1eff7;color:#5c5776}.pba-pill.is-soon{background:#fff4df;color:#9a5a00}' +
     '.pba-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}' +
-    '.pba-btn{border:1px solid var(--line,#e2daf2);background:transparent;color:inherit;border-radius:10px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block}' +
+    '.pba-btn{border:1px solid var(--rule,#e2daf2);background:transparent;color:inherit;border-radius:10px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block}' +
     '.pba-btn.pri{background:var(--carbon,#5b3fe6);border-color:var(--carbon,#5b3fe6);color:#fff}' +
     '.pba-tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}@media(min-width:700px){.pba-tiles{grid-template-columns:repeat(3,1fr)}}' +
-    '.pba-tile{border:1px solid var(--line,#e2daf2);border-radius:12px;padding:10px 12px;min-width:0}.pba-tile small{display:block;color:var(--ink-3,#736e8d);font-size:.8rem;font-weight:600}.pba-tile b{display:block;font-size:1.35rem;margin-top:2px;overflow-wrap:anywhere}.pba-tile span{display:block;font-size:.78rem;color:var(--ink-3,#736e8d)}' +
-    '.pba-list{list-style:none;margin:0;padding:0}.pba-list li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line,#e2daf2)}.pba-list li:first-child{border-top:0}' +
+    '.pba-tile{border:1px solid var(--rule,#e2daf2);border-radius:12px;padding:10px 12px;min-width:0}.pba-tile small{display:block;color:var(--ink-3,#736e8d);font-size:.8rem;font-weight:600}.pba-tile b{display:block;font-size:1.35rem;margin-top:2px;overflow-wrap:anywhere}.pba-tile span{display:block;font-size:.78rem;color:var(--ink-3,#736e8d)}' +
+    '.pba-list{list-style:none;margin:0;padding:0}.pba-list li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--rule,#e2daf2)}.pba-list li:first-child{border-top:0}' +
     '.pba-list .pba-l{min-width:0}.pba-list .pba-l b{display:block;overflow-wrap:anywhere}.pba-list .pba-l span{display:block;font-size:.82rem;color:var(--ink-3,#736e8d)}.pba-list .pba-r{text-align:right;flex:none;font-size:.88rem}' +
-    '.pba-shop{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px;font-size:.82rem}.pba-shop div{background:var(--soft,#f6f3fd);border-radius:8px;padding:6px 8px;min-width:0}.pba-shop b{display:block;font-size:.95rem}' +
-    '.pba-shopc{border:1px solid var(--line,#e2daf2);border-radius:12px;padding:12px;margin-top:10px}.pba-shopc:first-of-type{margin-top:0}.pba-shopc.is-on{border-color:var(--carbon,#5b3fe6)}.pba-shopc header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}' +
+    '.pba-shop{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px;font-size:.82rem}.pba-shop div{background:var(--desk-2,#f6f3fd);border-radius:8px;padding:6px 8px;min-width:0}.pba-shop b{display:block;font-size:.95rem}' +
+    '.pba-shopc{border:1px solid var(--rule,#e2daf2);border-radius:12px;padding:12px;margin-top:10px}.pba-shopc:first-of-type{margin-top:0}.pba-shopc.is-on{border-color:var(--carbon,#5b3fe6)}.pba-shopc header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}' +
     '.pba-tag{font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:99px;background:#ece6ff;color:#5b3fe6;white-space:nowrap}' +
     '.pba-st{font-weight:700;font-size:.8rem}.pba-st.ok{color:#12714b}.pba-st.wait{color:#9a5a00}.pba-st.bad{color:#c8202a}' +
     '.pba-muted{color:var(--ink-3,#736e8d);font-size:.88rem;margin:0}' +
     '.pba-kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:.9rem;margin:0}.pba-kv dt{color:var(--ink-3,#736e8d)}.pba-kv dd{margin:0;text-align:right;overflow-wrap:anywhere}' +
     '.pba-who .pba-pill{display:inline-block}.pba-shopc header .pba-l{min-width:0}.pba-shopc .pba-l b{display:block;font-size:1rem;overflow-wrap:anywhere}.pba-shopc .pba-l span{display:block}.pba-shopc header>div:last-child{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex:none}' +
     '.pba-danger{border-color:#f3c4c7}.pba-danger summary{cursor:pointer;font-weight:700;color:#c8202a}.pba-lbl{display:block;font-size:.85rem;font-weight:600;margin:6px 0}' +
-    '.pba-in{display:block;width:100%;max-width:320px;margin-top:4px;padding:9px 11px;border:1px solid var(--line,#e2daf2);border-radius:10px;font:inherit;background:transparent;color:inherit}' +
+    '.pba-in{display:block;width:100%;max-width:320px;margin-top:4px;padding:9px 11px;border:1px solid var(--rule,#e2daf2);border-radius:10px;font:inherit;background:transparent;color:inherit}' +
     '.pba-chk{display:flex;gap:8px;align-items:center;font-size:.88rem;margin:10px 0}.pba-err{color:#c8202a;font-weight:600;margin:8px 0 0}' +
     '.pba-btn-danger{background:#c8202a;border-color:#c8202a;color:#fff}.pba-btn[disabled]{opacity:.6;cursor:wait}' +
     '@media(max-width:420px){.pba-shop{grid-template-columns:repeat(2,1fr)}}';
@@ -299,11 +299,11 @@
   var android = /Android/i.test(ua), ios = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && 'ontouchend' in document);
 
   var CSS = '.pbg{display:grid;gap:14px;max-width:760px}' +
-    '.pbg-card{background:var(--paper-card,var(--card,#fff));border:1px solid var(--line,#e2daf2);border-radius:14px;padding:16px}' +
+    '.pbg-card{background:var(--paper,#fff);border:1px solid var(--rule,#e2daf2);border-radius:14px;padding:16px}' +
     '.pbg-card h2{margin:0 0 6px;font-size:1.1rem;display:flex;gap:8px;align-items:center}.pbg-card p{margin:0 0 10px;color:var(--ink-2,#5c5776)}' +
     '.pbg-hero{display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:linear-gradient(135deg,#5b3fe6,#ff7a59);color:#fff;border:0}' +
     '.pbg-hero img{width:72px;height:72px;border-radius:18px;background:#fff;flex:none}.pbg-hero h2{color:#fff;font-size:1.3rem}.pbg-hero p{color:#fff;opacity:.92;margin:0}' +
-    '.pbg-btn{display:inline-flex;align-items:center;gap:8px;border-radius:12px;padding:12px 18px;font:inherit;font-weight:700;cursor:pointer;text-decoration:none;border:1px solid var(--line,#e2daf2);background:transparent;color:inherit}' +
+    '.pbg-btn{display:inline-flex;align-items:center;gap:8px;border-radius:12px;padding:12px 18px;font:inherit;font-weight:700;cursor:pointer;text-decoration:none;border:1px solid var(--rule,#e2daf2);background:transparent;color:inherit}' +
     '.pbg-btn.pri{background:var(--carbon,#5b3fe6);border-color:var(--carbon,#5b3fe6);color:#fff}' +
     '.pbg-steps{margin:8px 0 0;padding-left:20px;color:var(--ink-2,#5c5776);font-size:.92rem}.pbg-steps li{margin:4px 0}' +
     '.pbg-meta{font-size:.82rem;color:var(--ink-3,#736e8d);margin-top:8px}.pbg-ok{background:#e6f6ee;color:#12714b;border-radius:10px;padding:10px 12px;font-weight:600}' +
@@ -323,24 +323,29 @@
     var h = '<div class="page-head"><div><h1 class="page-title">Get the app</h1><p class="page-sub">PakkaBill on your phone’s home screen, full screen, with your bills always there.</p></div></div><div class="pbg">';
     h += '<section class="pbg-card pbg-hero"><img src="icon-192.png" alt=""><div><h2>PakkaBill app</h2><p>Same PakkaBill, same login and data. Opens in one tap, works offline, sends notifications.</p></div></section>';
     if (standalone()) h += '<div class="pbg-ok">✅ You are using the PakkaBill app. Nothing more to install.</div>';
-    // Android
-    h += '<section class="pbg-card"><h2>🤖 Android phone</h2>';
-    if (apk) {
-      h += '<p>Download the PakkaBill app and install it.</p><a class="pbg-btn pri" href="' + esc(apk) + '" download="PakkaBill.apk">⬇️ Download PakkaBill for Android</a>' +
-        '<div class="pbg-meta">Version ' + esc(info.version || '1.0') + (info.size ? ' · ' + (info.size / 1048576).toFixed(1) + ' MB' : '') + ' · Android 7 or newer</div>' +
-        '<ol class="pbg-steps"><li>Tap <b>Download</b>, then open <b>PakkaBill.apk</b> from the notification or Downloads.</li><li>If the phone asks, allow <b>Install unknown apps</b> for Chrome (or your file app). This is normal for apps from a website.</li><li>Tap <b>Install</b>, then <b>Open</b>. Log in with the same mobile number and your bills come back.</li></ol>';
-    } else {
-      h += '<p>The Android app download is being prepared. Meanwhile, install PakkaBill straight from Chrome below; it works the same way.</p>';
+    if (!inApp()) {
+      // Android
+      h += '<section class="pbg-card"><h2>🤖 Android phone</h2>';
+      if (info && info.play) {
+        h += '<p>Install PakkaBill from Google Play. It updates by itself.</p><a class="pbg-btn pri" href="' + esc(info.play) + '" target="_blank" rel="noopener">▶ Get it on Google Play</a>' +
+          (apk ? '<div class="pbg-meta">No Play Store? <a href="' + esc(apk) + '" download="PakkaBill.apk">Download the app file</a> (' + (info.size ? (info.size / 1048576).toFixed(1) + ' MB, ' : '') + 'Android 7 or newer).</div>' : '');
+      } else if (apk) {
+        h += '<p>Download the PakkaBill app and install it.</p><a class="pbg-btn pri" href="' + esc(apk) + '" download="PakkaBill.apk">⬇️ Download PakkaBill for Android</a>' +
+          '<div class="pbg-meta">Version ' + esc(info.version || '1.0') + (info.size ? ' · ' + (info.size / 1048576).toFixed(1) + ' MB' : '') + ' · Android 7 or newer</div>' +
+          '<ol class="pbg-steps"><li>Tap <b>Download</b>, then open <b>PakkaBill.apk</b> from the notification or Downloads.</li><li>If the phone asks, allow <b>Install unknown apps</b> for Chrome (or your file app). This is normal for apps from a website.</li><li>Tap <b>Install</b>, then <b>Open</b>. Log in with the same mobile number and your bills come back.</li></ol>';
+      } else {
+        h += '<p>The Android app download is being prepared. Meanwhile, install PakkaBill straight from Chrome below; it works the same way.</p>';
+      }
+      h += '</section>';
+      // install from the browser
+      h += '<section class="pbg-card"><h2>⚡ Install from your browser</h2><p>No download needed: Chrome and Edge can add PakkaBill as an app on Android phones and computers.</p>';
+      if (deferred) h += '<button type="button" class="pbg-btn' + (apk ? '' : ' pri') + '" data-pbg="install">📲 Install PakkaBill</button>';
+      else if (!standalone()) h += '<ol class="pbg-steps"><li><b>Android (Chrome):</b> tap ⋮ at the top right, then <b>Install app</b> or <b>Add to Home screen</b>.</li><li><b>Computer (Chrome or Edge):</b> click the install icon at the right end of the address bar, or ⋮ → <b>Install PakkaBill</b>.</li></ol>';
+      h += '</section>';
+      // iPhone
+      h += '<section class="pbg-card"><h2>📱 iPhone and iPad</h2><p>Add PakkaBill to your home screen from Safari:</p>' +
+        '<ol class="pbg-steps"><li>Open <b>pakkabill1.vercel.app</b> in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Tap <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol></section>';
     }
-    h += '</section>';
-    // install from the browser
-    h += '<section class="pbg-card"><h2>⚡ Install from your browser</h2><p>No download needed: Chrome and Edge can add PakkaBill as an app on Android phones and computers.</p>';
-    if (deferred) h += '<button type="button" class="pbg-btn' + (apk ? '' : ' pri') + '" data-pbg="install">📲 Install PakkaBill</button>';
-    else if (!standalone()) h += '<ol class="pbg-steps"><li><b>Android (Chrome):</b> tap ⋮ at the top right, then <b>Install app</b> or <b>Add to Home screen</b>.</li><li><b>Computer (Chrome or Edge):</b> click the install icon at the right end of the address bar, or ⋮ → <b>Install PakkaBill</b>.</li></ol>';
-    h += '</section>';
-    // iPhone
-    h += '<section class="pbg-card"><h2>📱 iPhone and iPad</h2><p>Add PakkaBill to your home screen from Safari:</p>' +
-      '<ol class="pbg-steps"><li>Open <b>pakkabill1.vercel.app</b> in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Tap <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol></section>';
     h += '<section class="pbg-card"><h2>🔒 Your data</h2><p>The app and the website are the same PakkaBill. Log in with your mobile number and turn on cloud backup (Shops &amp; cloud) to see the same bills on every device.</p></section>';
     h += '</div>';
     el.innerHTML = h;

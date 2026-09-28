@@ -93,13 +93,23 @@
   };
 
   /* ---------- status bar colour follows the page ---------- */
-  var lastBars = '';
+  var lastBars = '', pen = null;
+  // any CSS colour (rgb, hex, color(srgb ...), oklch ...) as "rgb(r, g, b)"; '' when mostly transparent
+  function toRgb(c) {
+    try {
+      if (!pen) { var cv = document.createElement('canvas'); cv.width = cv.height = 1; pen = cv.getContext('2d', { willReadFrequently: true }); }
+      pen.clearRect(0, 0, 1, 1);
+      pen.fillStyle = '#000'; pen.fillStyle = c; pen.fillRect(0, 0, 1, 1);
+      var d = pen.getImageData(0, 0, 1, 1).data;
+      return d[3] < 128 ? '' : 'rgb(' + d[0] + ', ' + d[1] + ', ' + d[2] + ')';
+    } catch (e) { return ''; }
+  }
   function barColour() {
     var els = [document.querySelector('.topbar'), document.body, document.documentElement];
     for (var i = 0; i < els.length; i++) {
       if (!els[i]) continue;
-      var c = getComputedStyle(els[i]).backgroundColor;
-      if (c && !/rgba\(0, 0, 0, 0\)|transparent/.test(c)) return c;
+      var c = toRgb(getComputedStyle(els[i]).backgroundColor);
+      if (c) return c;
     }
     return '';
   }
@@ -118,6 +128,14 @@
     window.addEventListener('hashchange', function () { setTimeout(bars, 150); });
     setTimeout(bars, 800);
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch); else watch();
-  send({ t: 'ready' });
+  // page errors, kept for the emulator test and for support
+  window.__pbErrors = [];
+  window.addEventListener('error', function (e) { if (window.__pbErrors.length < 20) window.__pbErrors.push(String(e.message) + ' @ ' + String(e.filename).split('/').pop() + ':' + e.lineno); });
+  window.addEventListener('unhandledrejection', function (e) { if (window.__pbErrors.length < 20) window.__pbErrors.push('promise: ' + String(e.reason && (e.reason.message || e.reason))); });
+
+  // the Meesho P&L runs in a frame: only the main page sets the status bar
+  if (window.top === window) {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch); else watch();
+    send({ t: 'ready' });
+  }
 })();

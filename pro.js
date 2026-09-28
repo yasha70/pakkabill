@@ -22,6 +22,10 @@
   let cfg = read(CFG); // { enabled, enforce, monthly, yearly, freeBills }
 
   const enforced = () => !!(cfg && cfg.enabled && cfg.enforce);
+  // The Android app installed from Google Play reports "store=play" in its user agent. Google Play
+  // only allows digital upgrades to be sold there through Play Billing, so Pro is not sold in it.
+  const playApp = () => /PakkaBillApp\/[^)]*store=play/.test(navigator.userAgent);
+  const NO_SALE = '<p class="pbp-fine pbp-noapp">Buying Pro is not available in this app. If your account already has Pro, it works here too: log in with the same mobile number.</p>';
   const isPro = () => !!(acct && acct.user && acct.user.paidUntil > Date.now());
   const pbPro = () => !enforced() || isPro();
 
@@ -79,7 +83,7 @@
   }
   // Once a day in the last 3 days of Pro (or the trial): a small reminder to renew.
   function renewNudge() {
-    if (!enforced() || !isPro() || daysLeft() > 3) return;
+    if (!enforced() || !isPro() || daysLeft() > 3 || playApp()) return;
     const key = 'pb-renew-' + new Date().toISOString().slice(0, 10);
     if (read(key)) return;
     write(key, 1);
@@ -135,6 +139,7 @@
   const daysLeft = () => (acct && acct.user ? Math.ceil(((acct.user.paidUntil || 0) - Date.now()) / 864e5) : 0);
 
   function plansHtml() {
+    if (playApp()) return NO_SALE;
     const m = cfg ? cfg.monthly : 99;
     const y = cfg ? cfg.yearly : 999;
     const save = m * 12 - y;
@@ -219,6 +224,7 @@
     return `upi://pay?pa=${cfg.upiId.trim()}&` + p.toString().replace(/\+/g, '%20');
   }
   function openPay(plan, presetCoupon = '') {
+    if (playApp()) return toast('Buying Pro is not available in this app.', true);
     if (!cfg || !cfg.upiId) return toast('Payments are not set up yet.', true);
     const listPrice = plan === 'yearly' ? cfg.yearly : cfg.monthly;
     const mobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -453,7 +459,7 @@
         <h2 id="pbp-title">Upgrade to PakkaBill Pro</h2>
         <p class="pbp-why">${esc((WHY[feature] || WHY.pdf)(arg))}</p>
         <ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>
-        ${acct && acct.token ? accountHtml() + plansHtml() + '<p class="pbp-fine">Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.</p>' : authHtml(mode)}`;
+        ${acct && acct.token ? accountHtml() + plansHtml() + (playApp() ? '' : '<p class="pbp-fine">Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.</p>') : authHtml(mode)}`;
       box.querySelector('.pbp-x').addEventListener('click', closeUpgrade);
       wire(box, draw);
     };
@@ -496,7 +502,7 @@
         ${cfg && cfg.enabled ? `<section class="paper pbp-card"><h2 class="form-sec__title">PakkaBill Pro</h2>
           <ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>
           <details class="pbp-cmp"><summary>Compare Free and Pro</summary>${compareHtml()}</details>
-          ${acct && acct.token ? plansHtml() + '<p class="pbp-fine">Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.</p>' : authHtml(mode)}</section>` : ''}
+          ${acct && acct.token ? plansHtml() + (playApp() ? '' : '<p class="pbp-fine">Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.</p>') : authHtml(mode)}</section>` : ''}
       </div>`;
     wire(el, (m) => drawPlan(el, m));
     wireNews(el);

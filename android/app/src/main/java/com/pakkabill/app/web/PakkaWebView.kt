@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.webkit.CookieManager
 import android.webkit.JsResult
 import android.webkit.RenderProcessGoneDetail
@@ -56,7 +57,8 @@ fun createPakkaWebView(context: Context, events: WebEvents, background: Int): We
         builtInZoomControls = false
         displayZoomControls = false
         cacheMode = WebSettings.LOAD_DEFAULT
-        userAgentString = "$userAgentString PakkaBillApp/${BuildConfig.VERSION_NAME} (Android)"
+        // "store=play" tells the web app it runs in the Google Play install (Pro is not sold there)
+        userAgentString = "$userAgentString PakkaBillApp/${BuildConfig.VERSION_NAME} (Android; store=${installSource(context)})"
     }
     if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
         // the page has its own dark theme
@@ -69,10 +71,9 @@ fun createPakkaWebView(context: Context, events: WebEvents, background: Int): We
         .replace("__BUILD__", BuildConfig.VERSION_CODE.toString())
     val origins = setOf(ORIGIN)
     if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
-        // only pages from PakkaBill's own address can talk to the app
-        WebViewCompat.addWebMessageListener(web, "PakkaBillAndroid", origins) { _, message, _, isMainFrame, _ ->
-            val data = message.data
-            if (isMainFrame && data != null) events.onMessage(data)
+        // only PakkaBill's own pages (and its own frames, such as the Meesho P&L) can talk to the app
+        WebViewCompat.addWebMessageListener(web, "PakkaBillAndroid", origins) { _, message, _, _, _ ->
+            message.data?.let(events::onMessage)
         }
     } else {
         web.addJavascriptInterface(JsBridge(events::onMessage), "PakkaBillAndroid")
@@ -154,6 +155,20 @@ fun createPakkaWebView(context: Context, events: WebEvents, background: Int): We
         events.onDownload(url, userAgent, contentDisposition, mimetype)
     }
     return web
+}
+
+/** "play" when Google Play installed the app, "web" for the APK from the website. */
+fun installSource(context: Context): String {
+    val pm = context.packageManager
+    val installer = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            pm.getInstallSourceInfo(context.packageName).installingPackageName
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getInstallerPackageName(context.packageName)
+        }
+    }.getOrNull()
+    return if (installer == "com.android.vending") "play" else "web"
 }
 
 /** Reads a CSS colour such as "rgb(253, 248, 243)" or "#fdf8f3". */
