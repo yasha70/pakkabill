@@ -204,7 +204,7 @@
   function accountHtml() {
     if (!acct || !acct.user) return '';
     const u = acct.user;
-    return `<div class="pbp-acct"><span>${u.phone === 'owner' ? 'Owner account' : 'Logged in as ' + esc(u.phone)}${u.shopName && u.phone !== 'owner' ? ' · ' + esc(u.shopName) : ''}</span><button type="button" class="pbp-link" data-logout>Log out</button></div>`;
+    return `<div class="pbp-acct"><span>${u.phone === 'owner' ? 'Owner account' : 'Logged in as ' + esc(u.phone)}${u.shopName && u.phone !== 'owner' ? ' · ' + esc(u.shopName) : ''}</span><span><a class="pbp-link" href="#/account">My account</a> · <button type="button" class="pbp-link" data-logout>Log out</button></span></div>`;
   }
 
   // ---------- UPI payment screen ----------
