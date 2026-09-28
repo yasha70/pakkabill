@@ -170,6 +170,19 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: .88rem; co
 .slip .np strong { font-size: 1.9rem; line-height: 1.1; }
 @media (min-width: 620px) { .slip { grid-template-columns: repeat(4, 1fr); } }
 
+/* returns, RTO and exchanges */
+.rv-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; margin-bottom: 12px; }
+.rv-tiles > div { background: var(--sheet); padding: 10px 12px; min-width: 0; }
+.rv-tiles small { display: block; color: var(--ink-3); font-size: .82rem; font-weight: 600; }
+.rv-tiles strong { display: block; font-family: var(--f-head); font-weight: 600; font-size: 1.35rem; }
+.rv-tiles span { display: block; color: var(--ink-3); font-size: .78rem; line-height: 1.35; }
+@media (min-width: 620px) { .rv-tiles { grid-template-columns: repeat(4, 1fr); } }
+table.rv-t tr.tot td { border-top: 2px solid var(--rule); }
+table.rv-t td:first-child { min-width: 112px; }
+@media (max-width: 480px) { table.rv-t th, table.rv-t td { padding: 7px 6px; font-size: .86rem; } table.rv-t th { white-space: normal; } }
+.rv-sub { margin-top: 12px; }
+.rv-sub > summary { cursor: pointer; font-weight: 600; }
+
 /* the ledger */
 .ledger { position: relative; background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px; padding: 0 0 6px; overflow: hidden; }
 .ledger::before { content: ""; position: absolute; top: 0; bottom: 0; left: 22px; width: 0; border-left: 1.5px solid var(--margin); opacity: .85; }
@@ -853,7 +866,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       var cost = e && e.c != null && e.c !== '' ? +e.c * pcs : null;
       var pk = e && e.p != null && e.p !== '' ? +e.p : (+cfg.pack || 0);
       var q = x.q || 1, qp = q * pcs;
-      x.cost = cost; x.pcs = pcs;
+      x.cost = cost; x.pcs = pcs; x.pk = pk;
       if (x.sku) PK[x.sku] = pcs;
       if (x.sale >= 0) {
         var s = x.sale;
@@ -1086,6 +1099,79 @@ details.more[open] > summary { margin-bottom: 10px; }
     });
   }
 
+  /* ---------------- returns, RTO and exchanges, each on its own ----------------
+     RTO: the courier brought the parcel back undelivered. Customer return: delivered, then sent back.
+     Exchange: delivered, then swapped for another size or colour. Rates use orders whose outcome is
+     known: RTO against parcels that finished their trip (delivered, returned, exchanged, RTO or lost),
+     returns and exchanges against delivered orders. Money is what Meesho cut from the payout for
+     those orders (including GST, as in Meesho's file), plus packing and stock that could not be resold,
+     less what Meesho paid back (claims, compensation, fee refunds). */
+  function returnsView(M, IX, cfg, per) {
+    var P = M.pay, reg = M.reg;
+    function inP(d) { return !!d && d >= per.from && d <= per.to; }
+    function grp() { return { n: 0, pcs: 0, retFee: 0, fwdShip: 0, fees: 0, back: 0, pack: 0, stock: 0, stockN: 0, pending: 0, noPay: 0, loss: 0, cols: {} }; }
+    var G = { rto: grp(), ret: grp(), exch: grp(), lost: grp() }, SK = {}, COLK = {};
+    var done = 0, delivered = 0, transit = 0, cancelled = 0;
+    IX.list.forEach(function (x) {
+      var first = x.legs.length ? P[x.legs[0]].pd : '', last = x.legs.length ? P[x.legs[x.legs.length - 1]].pd : '';
+      var d = per.basis === 'order' ? (x.od || first) : (last || x.od);
+      if (!inP(d)) return;
+      if (x.st === 'CANCELLED') { cancelled++; return; }
+      if (x.st === 'TRANSIT') { transit++; return; }
+      var kind = x.st === 'RTO' ? 'rto' : x.st === 'RETURN' ? 'ret' : x.st === 'EXCHANGE' ? 'exch' : x.st === 'LOST' ? 'lost' : x.st === 'DELIVERED' ? 'ok' : '';
+      if (!kind) return;
+      var dl = kind === 'ok' || kind === 'ret' || kind === 'exch';
+      done++; if (dl) delivered++;
+      var sk = x.sku || '(no SKU)';
+      var s = SK[sk] || (SK[sk] = { sku: sk, pn: x.pn || '', done: 0, delivered: 0, rto: 0, ret: 0, exch: 0, lost: 0, loss: 0, retFee: 0 });
+      if (!s.pn && x.pn) s.pn = x.pn;
+      s.done++; if (dl) s.delivered++;
+      if (kind === 'ok') return;
+      var g = G[kind], q = x.q || 1, ro = { retFee: 0, fwdShip: 0, fees: 0, back: 0 };
+      g.n++; g.pcs += q * (x.pcs || 1); s[kind]++;
+      if (!x.legs.length) g.noPay++;
+      if ((kind === 'ret' || kind === 'rto') && x.sale >= 0 && x.ret < 0) g.pending++;
+      x.legs.forEach(function (i) {
+        var p = P[i];
+        for (var k in p.a) {
+          var v = p.a[k], cat = (reg[k] || {}).cat || 'other';
+          if (cat === 'sale' || cat === 'ret' || cat === 'tcs' || cat === 'tds' || !v) continue;
+          // an exchanged order is still a sale: its forward shipping and commission are normal sale costs
+          if (kind === 'exch' && cat !== 'shipret' && !/return|exchange|reverse/i.test((reg[k] || {}).label || k)) continue;
+          g.cols[k] = (g.cols[k] || 0) + v; COLK[k] = 1;
+          if (cat === 'shipret') ro.retFee -= v;
+          else if (cat === 'shipfwd' || cat === 'shipadj') ro.fwdShip -= v;
+          else if (cat === 'claims' || cat === 'comp' || cat === 'recovery' || v > 0) ro.back += v;
+          else ro.fees -= v;
+        }
+        if (Math.abs(p.o) > 0 && kind !== 'exch') ro.fees -= p.o;
+      });
+      var stock = x.cond === 'loss' && kind !== 'exch' ? (x.cost || 0) * q : 0;
+      var pk = kind === 'exch' ? 0 : (x.pk || 0);
+      var loss = ro.retFee + ro.fwdShip + ro.fees + pk + stock - ro.back;
+      g.retFee += ro.retFee; g.fwdShip += ro.fwdShip; g.fees += ro.fees; g.back += ro.back;
+      g.pack += pk; g.stock += stock; if (stock || (x.cond === 'loss' && kind !== 'exch')) g.stockN++;
+      g.loss += loss; s.loss += loss; s.retFee += ro.retFee;
+    });
+    function rate(a, b) { return b ? a / b : 0; }
+    var cols = Object.keys(COLK).map(function (k) {
+      return { key: k, label: (reg[k] || {}).label || k, cat: (reg[k] || {}).cat || 'other', rto: G.rto.cols[k] || 0, ret: G.ret.cols[k] || 0, exch: G.exch.cols[k] || 0, lost: G.lost.cols[k] || 0 };
+    });
+    var order = Object.keys(reg);
+    cols.sort(function (a, b) { return order.indexOf(a.key) - order.indexOf(b.key); });
+    var skus = Object.keys(SK).map(function (k) {
+      var x = SK[k];
+      x.rtoRate = rate(x.rto + x.lost, x.done); x.retRate = rate(x.ret, x.delivered); x.exchRate = rate(x.exch, x.delivered);
+      return x;
+    }).filter(function (x) { return x.rto || x.ret || x.exch || x.lost; })
+      .sort(function (a, b) { return b.loss - a.loss || (b.rto + b.ret + b.exch) - (a.rto + a.ret + a.exch) || (a.sku < b.sku ? -1 : 1); });
+    return {
+      G: G, done: done, delivered: delivered, transit: transit, cancelled: cancelled, cols: cols, skus: skus,
+      rtoRate: rate(G.rto.n, done), lostRate: rate(G.lost.n, done), retRate: rate(G.ret.n, delivered), exchRate: rate(G.exch.n, delivered),
+      loss: G.rto.loss + G.ret.loss + G.exch.loss + G.lost.loss
+    };
+  }
+
   /* ---------------- reconciliation ---------------- */
   var BUCKETS = ['settled', 'awaiting', 'overdue', 'transit', 'returned', 'rto', 'cancelled', 'adjust', 'older', 'other'];
   function reconcile(M, IX, cfg) {
@@ -1230,6 +1316,7 @@ details.more[open] > summary { margin-bottom: 10px; }
           if (o.dd > CUT) ordStatus = 'READY_TO_SHIP';
           else if (dl > CUT) ordStatus = 'SHIPPED';
           else ordStatus = 'DELIVERED';
+          if (fate === 'deliver' && ordStatus === 'DELIVERED' && seqN % 17 === 0) ordStatus = 'EXCHANGE';
           var pd1 = nextWed(addDays(dl, 7));
           var skipPay = false;
           if (fate === 'deliver' && missingPaid < 3 && d >= '2026-08-03' && d <= '2026-08-08' && rnd() < 0.5) { skipPay = true; missingPaid++; expect.overdue++; }
@@ -1308,7 +1395,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     monthStart: monthStart, monthEnd: monthEnd, nextMonth: nextMonth, fmtDate: fmtDate, fmtMonth: fmtMonth, money: money,
     skuLetters: skuLetters, nameCount: nameCount, packRule: packRule, piecesOf: piecesOf, normSt: normSt, classify: classify, detect: detect, parsePay: parsePay, parseAds: parseAds, parseAmt: parseAmt, parseOrd: parseOrd,
     calibrate: calibrate, ingest: ingest, merge: merge, index: index, dataMonths: dataMonths, periodFor: periodFor, expFor: expFor,
-    compute: compute, monthly: monthly, reconcile: reconcile, payouts: payouts, health: health, demo: demo, uid: uid
+    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, payouts: payouts, health: health, demo: demo, uid: uid
   };
 });
 
@@ -1532,6 +1619,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     S.per = E.periodFor(S.sel, S.M, S.IX);
     S.R = E.compute(S.M, S.IX, cfg(), w.expenses, S.per);
     S.REC = E.reconcile(S.M, S.IX, cfg());
+    S.RV = E.returnsView(S.M, S.IX, cfg(), S.per);
     S.PO = E.payouts(S.M);
     S.MO = E.monthly(S.M, S.IX, cfg(), w.expenses, S.sel.basis);
     if (!S.R.checks.bridge || !S.R.checks.sku) console.error('Hisaab identity check failed', S.R.checks);
@@ -2019,6 +2107,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   function amt(p) { return '<span class="amt' + (p < 0 ? ' neg' : '') + '">' + mny(p) + '</span>'; }
   function rs(p, np) { return E.money(p, { sym: '\u20b9', noPaise: !!np }); }
   function pct(x) { return (x * 100).toFixed(1) + '%'; }
+  function pct0(x) { var v = x * 100; return (v >= 10 || v === 0 ? Math.round(v) : v.toFixed(1)) + '%'; }
   function fd(d) { return d ? E.fmtDate(d) : ''; }
   function pl(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
   function condWord(c) { return c === 'ok' ? 'back in stock' : 'not resellable'; }
@@ -2054,6 +2143,61 @@ details.more[open] > summary { margin-bottom: 10px; }
     }).join('') + '</div>';
   }
 
+  /* ---------------- Returns, RTO and exchanges ---------------- */
+  function returnsHtml() {
+    var RV = S.RV, per = S.per;
+    if (!RV || !RV.done) return '';
+    var G = RV.G, ks = ['rto', 'ret', 'exch'], hasLost = G.lost.n > 0;
+    if (hasLost) ks.push('lost');
+    var HEAD = { rto: 'RTO', ret: 'Returns', exch: 'Exchanges', lost: 'Lost' };
+    function row(label, f, cls, help) {
+      return '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + esc(label) + (help ? '<div class="small muted">' + esc(help) + '</div>' : '') + '</td>' + ks.map(function (k) { return '<td class="n">' + f(G[k], k) + '</td>'; }).join('') + '</tr>';
+    }
+    function money(v) { return v ? mny(v) : '–'; }
+    function cost(v) { return v ? '<span class="neg">' + mny(-v) + '</span>' : '–'; }
+    var h = '<div class="rv-tiles">' +
+      '<div><small>RTO rate</small><strong>' + pct(RV.rtoRate) + '</strong><span>' + pl(G.rto.n, 'parcel') + ' of ' + RV.done + ' shipped came back undelivered</span></div>' +
+      '<div><small>Return rate</small><strong>' + pct(RV.retRate) + '</strong><span>' + pl(G.ret.n, 'order') + ' of ' + RV.delivered + ' delivered sent back by customers</span></div>' +
+      '<div><small>Exchange rate</small><strong>' + pct(RV.exchRate) + '</strong><span>' + pl(G.exch.n, 'order') + ' of ' + RV.delivered + ' delivered swapped for another size or colour</span></div>' +
+      '<div><small>Money lost on these</small><strong class="' + (RV.loss > 0 ? 'neg' : '') + '">' + rs(RV.loss, true) + '</strong><span>RTO ' + rs(G.rto.loss, true) + ' · returns ' + rs(G.ret.loss, true) + (G.exch.loss ? ' · exchanges ' + rs(G.exch.loss, true) : '') + '</span></div></div>';
+    h += '<div class="tw"><table class="t rv-t"><thead><tr><th></th>' + ks.map(function (k) { return '<th class="n">' + HEAD[k] + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      row('Orders', function (g) { return String(g.n); }) +
+      row('Rate', function (g, k) { return pct(k === 'rto' ? RV.rtoRate : k === 'lost' ? RV.lostRate : k === 'ret' ? RV.retRate : RV.exchRate); }) +
+      row('Return shipping fee', function (g) { return cost(g.retFee); }) +
+      row('Forward shipping', function (g) { return cost(g.fwdShip); }) +
+      row('Commission and fees kept', function (g) { return cost(g.fees); }) +
+      row('Packing', function (g) { return cost(g.pack); }) +
+      row('Stock not resellable', function (g) { return g.stock ? cost(g.stock) + '<div class="small muted">' + pl(g.stockN, 'order') + '</div>' : '–'; }) +
+      row('Paid back by Meesho', function (g) { return g.back ? '<span class="pos">' + mny(g.back) + '</span>' : '–'; }) +
+      row('Total lost', function (g) { return '<b class="' + (g.loss > 0 ? 'neg' : '') + '">' + mny(-g.loss) + '</b>'; }, 'tot') +
+      row('Lost per order', function (g) { return g.n ? mny(-Math.round(g.loss / g.n)) : '–'; }) +
+      '</tbody></table></div>';
+    var notes = ['RTO' + (hasLost ? ' and lost' : '') + ' rates are of parcels shipped; return and exchange rates are of orders delivered. Return shipping fee is what Meesho charged to bring the item back. Paid back is fee refunds, claims and compensation on these orders.'];
+    if (G.ret.pending || G.rto.pending) notes.push(pl(G.ret.pending + G.rto.pending, 'order') + ' are marked returned or RTO, but Meesho has not taken the sale back in these files yet, so some fees may still come.');
+    var np = G.rto.noPay + G.ret.noPay + G.exch.noPay;
+    if (np) notes.push(pl(np, 'order') + ' have no payment row yet, so their fees are not counted.');
+    if (RV.transit) notes.push(pl(RV.transit, 'order') + ' still in transit are left out of the rates.');
+    if (G.exch.n) notes.push('Exchanges are still sales, so only the extra return or exchange fees on them count as lost.');
+    notes.push('Amounts are as Meesho cut them from your payout, including GST. Counted by ' + (per.basis === 'order' ? 'order date' : 'payment date') + '. Stock counts as lost only for items marked Not resellable (change it in Reconcile or Settings).');
+    h += '<p class="small muted" style="margin:8px 0 0">' + esc(notes.join(' ')) + '</p>';
+    var cols = RV.cols.filter(function (c) { return c.rto || c.ret || c.exch || c.lost; });
+    if (cols.length) {
+      h += '<details class="rv-sub"><summary>Each Meesho fee on returns and RTO</summary><div class="tw"><table class="t"><thead><tr><th>Column in Meesho file</th>' + ks.map(function (k) { return '<th class="n">' + HEAD[k] + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        cols.map(function (c) { return '<tr><td>' + esc(c.label) + '</td>' + ks.map(function (k) { return '<td class="n">' + (c[k] ? amt(c[k]) : '–') + '</td>'; }).join('') + '</tr>'; }).join('') +
+        '</tbody></table></div><p class="small muted" style="margin:6px 0 0">Minus is money Meesho took; plus is money it gave back on these orders.</p></details>';
+    }
+    if (RV.skus.length) {
+      var more = RV.skus.length > 25;
+      h += '<details class="rv-sub"><summary>RTO, returns and exchanges by SKU</summary><div class="tw"><table class="t"><thead><tr><th>SKU</th><th class="n">Shipped</th><th class="n">RTO</th><th class="n">Returns</th><th class="n">Exchanges</th><th class="n">Money lost</th></tr></thead><tbody>' +
+        RV.skus.slice(0, 25).map(function (x) {
+          function c(n, r) { return n ? n + ' <span class="small muted">(' + pct0(r) + ')</span>' : '–'; }
+          return '<tr><td><b>' + esc(x.sku) + '</b>' + (x.pn ? '<div class="small muted">' + esc(x.pn) + '</div>' : '') + '</td><td class="n">' + x.done + '</td><td class="n' + (x.rtoRate >= 0.25 ? ' neg' : '') + '">' + c(x.rto + x.lost, x.rtoRate) + '</td><td class="n' + (x.retRate >= 0.25 ? ' neg' : '') + '">' + c(x.ret, x.retRate) + '</td><td class="n">' + c(x.exch, x.exchRate) + '</td><td class="n">' + (x.loss ? '<span class="neg">' + mny(-x.loss) + '</span>' : '–') + '</td></tr>';
+        }).join('') + '</tbody></table></div><p class="small muted" style="margin:6px 0 0">Red is 25% or more. ' + (more ? 'Showing the 25 SKUs that lose the most; the Excel download has all of them. ' : '') + 'A high RTO rate often means buyers change their mind before delivery (try fewer COD orders to far pincodes); a high return rate usually points to size, colour or quality not matching the photos.</p></details>';
+    }
+    return '<details class="sheet more" open><summary>Returns, RTO and exchanges</summary>' + h + '</details>';
+  }
+  A.returnsHtml = returnsHtml;
+
   /* ---------------- P&L ---------------- */
   V.pl = function () {
     if (!A.hasData()) return empty();
@@ -2078,7 +2222,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<div><small>Net sales</small><strong>' + rs(R.NS, true) + '</strong></div>' +
       '<div><small>Received from Meesho</small><strong>' + rs(R.payout, true) + '</strong></div>' +
       '<div><small>Orders sold</small><strong>' + K.sales + '</strong></div>' +
-      '<div><small>Returns and RTO</small><strong>' + (K.parcels ? pct(R.returnRate) : '0%') + '</strong></div></div>';
+      '<div><small>RTO \u00b7 Return \u00b7 Exchange</small><strong>' + (S.RV ? pct(S.RV.rtoRate) + ' \u00b7 ' + pct(S.RV.retRate) + ' \u00b7 ' + pct(S.RV.exchRate) : (K.parcels ? pct(R.returnRate) : '0%')) + '</strong></div></div>';
 
     var notes = '';
     if (R.missing.length) {
@@ -2114,6 +2258,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<div class="lg-head"><span>Particulars</span><span>Amount (\u20b9)</span></div>' + lines +
       '<div class="lg-foot">' + esc(foot.join(' ')) + '</div></section>';
 
+    h += returnsHtml();
     h += '<details class="sheet more" open><summary>How profit ties to money received</summary>' +
       kv(R.bridge.map(function (b) { return [b.l, b.v, !!b.k]; })) +
       '<p class="small muted" style="margin:10px 0 0">Money received is the sum of Final Settlement Amount plus ads, referral and compensation entries. It should match the Meesho credits in your bank for the same payment dates.</p></details>';
@@ -2475,6 +2620,33 @@ details.more[open] > summary { margin-bottom: 10px; }
     SK.push([t('Not tied to a SKU (ads, referral, account credits, expenses)', ST.tot)].concat(new Array(16).fill(t('', ST.tot))).concat([m(R.unalloc, ST.tot)]));
     SK.push([t('Net profit', ST.np), t('', ST.np), t('', ST.np), n(K.sales, ST.np), n(K.fu, ST.np)].concat(new Array(12).fill(t('', ST.np))).concat([m(R.NP, ST.np)]));
     X.utils.book_append_sheet(wb, sheet(SK, [16, 40, 9, 10, 10, 10, 10, 13, 13, 13, 12, 13, 13, 14, 13, 12, 11, 13, 12, 12, 14, 15], { xSplit: 1, ySplit: 1 }), 'SKU wise');
+
+    /* Returns, RTO and exchanges */
+    var RV = S.RV;
+    if (RV && RV.done) {
+      var G = RV.G, pc = function (x) { return t((x * 100).toFixed(1) + '%'); };
+      var RT = [heads(['', 'RTO', 'Customer returns', 'Exchanges', 'Lost'])];
+      var rrow = function (l, f, st) { RT.push([t(l, st || ST.row)].concat(['rto', 'ret', 'exch', 'lost'].map(function (k) { return f(G[k], k); }))); };
+      rrow('Orders', function (g) { return n(g.n); });
+      rrow('Rate', function (g, k) { return pc(k === 'rto' ? RV.rtoRate : k === 'lost' ? RV.lostRate : k === 'ret' ? RV.retRate : RV.exchRate); });
+      rrow('Return shipping fee', function (g) { return m(-g.retFee); });
+      rrow('Forward shipping', function (g) { return m(-g.fwdShip); });
+      rrow('Commission and other fees kept', function (g) { return m(-g.fees); });
+      rrow('Packing', function (g) { return m(-g.pack); });
+      rrow('Stock not resellable', function (g) { return m(-g.stock); });
+      rrow('Paid back by Meesho', function (g) { return m(g.back); });
+      rrow('Total lost', function (g) { return m(-g.loss, ST.tot); }, ST.tot);
+      rrow('Lost per order', function (g) { return m(g.n ? -Math.round(g.loss / g.n) : 0); });
+      RT.push([]);
+      RT.push([t('RTO and lost rates are of ' + RV.done + ' parcels shipped; return and exchange rates are of ' + RV.delivered + ' orders delivered. Amounts include GST, as in Meesho\u2019s file.', ST.note)]);
+      RT.push([]);
+      RT.push([t('Each Meesho fee', ST.sec), t('', ST.sec), t('', ST.sec), t('', ST.sec), t('', ST.sec)]);
+      RV.cols.forEach(function (c) { if (c.rto || c.ret || c.exch || c.lost) RT.push([t(c.label), m(c.rto), m(c.ret), m(c.exch), m(c.lost)]); });
+      RT.push([]);
+      RT.push([t('SKU', ST.sec), t('Shipped', ST.sec), t('Delivered', ST.sec), t('RTO and lost', ST.sec), t('RTO %', ST.sec), t('Returns', ST.sec), t('Return %', ST.sec), t('Exchanges', ST.sec), t('Exchange %', ST.sec), t('Money lost', ST.sec)]);
+      RV.skus.forEach(function (x) { RT.push([t(x.sku), n(x.done), n(x.delivered), n(x.rto + x.lost), pc(x.rtoRate), n(x.ret), pc(x.retRate), n(x.exch), pc(x.exchRate), m(-x.loss)]); });
+      X.utils.book_append_sheet(wb, sheet(RT, [40, 14, 16, 14, 12, 11, 11, 11, 11, 13], { xSplit: 1, ySplit: 1 }), 'Returns & RTO');
+    }
 
     /* Month wise */
     if (S.MO.length) {
