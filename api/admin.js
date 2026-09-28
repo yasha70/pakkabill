@@ -173,7 +173,14 @@ const actions = {
     const users = (await allUsers()).filter(
       (u) => !needle || u.phone.includes(needle) || (u.shopName || '').toLowerCase().includes(needle),
     );
-    return { users: users.slice(0, 500).map(core.publicUser) };
+    const list = users.slice(0, 500);
+    // cloud backup use per customer (one read for all)
+    const cloud = list.length ? await db.cmd(['MGET', ...list.map((u) => `sync:${u.phone}`)]) : [];
+    return { users: list.map((u, i) => {
+      let c = null;
+      try { const ix = cloud[i] ? JSON.parse(cloud[i]) : null; if (ix && ix.shops) { const sh = Object.values(ix.shops); c = { shops: sh.length, bytes: sh.reduce((n, x) => n + (x.bytes || 0), 0) }; } } catch { /* ignore */ }
+      return { ...core.publicUser(u), cloud: c };
+    }) };
   },
 
   async payments() {
@@ -225,7 +232,8 @@ const actions = {
     return { settings: await core.getSettings() };
   },
 
-  async saveSettings({ monthly, yearly, freeBills, enforce, upiId, payeeName }) {
+  async saveSettings({ monthly, yearly, freeBills, enforce, upiId, payeeName, trialDays, syncFree }) {
+    const prev = await core.getSettings();
     const s = {
       monthly: Math.round(Number(monthly)),
       yearly: Math.round(Number(yearly)),
@@ -233,7 +241,10 @@ const actions = {
       enforce: !!enforce,
       upiId: String(upiId || '').trim(),
       payeeName: String(payeeName || '').trim().slice(0, 50),
+      trialDays: trialDays === undefined ? prev.trialDays : Math.round(Number(trialDays)),
+      syncFree: syncFree === undefined ? !!prev.syncFree : !!syncFree,
     };
+    if (!(s.trialDays >= 0 && s.trialDays <= 90)) throw new core.HttpError(400, 'Free trial days must be 0 to 90.');
     if (s.upiId && !core.UPI_ID.test(s.upiId)) throw new core.HttpError(400, 'That does not look like a UPI ID (name@bank).');
     if (!(s.monthly >= 1 && s.yearly >= 1)) throw new core.HttpError(400, 'Prices must be at least ₹1.');
     if (!(s.freeBills >= 0 && s.freeBills <= 1000)) throw new core.HttpError(400, 'Free bills must be 0 to 1000.');

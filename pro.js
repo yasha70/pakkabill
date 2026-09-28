@@ -48,9 +48,14 @@
   // Pro status changes what the bill renders, so reload the app when it flips.
   function setAcct(next, reloadOnChange = true) {
     const before = pbPro();
+    const was = acct && acct.user ? acct.user.phone : '';
     acct = next;
     write(ACCT, next);
     rerender();
+    // cloud backup (sync.js) starts or stops with the login
+    if ((next && next.user ? next.user.phone : '') !== was) {
+      try { window.dispatchEvent(new Event('pb-account')); } catch {}
+    }
     if (reloadOnChange && before !== pbPro()) setTimeout(() => location.reload(), 600);
   }
 
@@ -66,10 +71,28 @@
       }
       rerender();
       if (before !== pbPro()) location.reload();
+      renewNudge();
     } catch {
       /* offline or server not deployed: keep the last known state */
     }
     loadNews();
+  }
+  // Once a day in the last 3 days of Pro (or the trial): a small reminder to renew.
+  function renewNudge() {
+    if (!enforced() || !isPro() || daysLeft() > 3) return;
+    const key = 'pb-renew-' + new Date().toISOString().slice(0, 10);
+    if (read(key)) return;
+    write(key, 1);
+    setTimeout(() => {
+      const n = daysLeft();
+      const el = document.createElement('aside');
+      el.className = 'pbp-news tone-warn';
+      el.setAttribute('aria-label', 'Pro plan ending');
+      el.innerHTML = `<button type="button" class="pbp-x" aria-label="Hide">×</button><b class="pbp-news__title">${acct.user.lastPlan === 'trial' ? 'Your free Pro trial' : 'Your Pro plan'} ends in ${n} day${n === 1 ? '' : 's'}</b><p class="pbp-news__msg">Renew to keep unlimited bills, all your shops and cloud backup. The new time adds on top.</p><div class="pbp-news__row"><button type="button" class="pbp-btn pbp-btn--sm" data-renew>Renew Pro</button></div>`;
+      el.querySelector('.pbp-x').onclick = () => el.remove();
+      el.querySelector('[data-renew]').onclick = () => { el.remove(); openUpgrade('renew'); };
+      document.body.appendChild(el);
+    }, 2500);
   }
 
   const WHY = {
@@ -81,13 +104,35 @@
     share: () => 'WhatsApp sharing is part of PakkaBill Pro.',
     offer: () => 'Everything in PakkaBill, without limits.',
     claim: () => 'Log in or create a free account to claim your free Pro days.',
+    shops: () => 'More than one shop (GSTIN) in PakkaBill is part of Pro. Your first shop stays free.',
+    sync: () => 'Cloud backup on every phone and laptop you log in on is part of PakkaBill Pro.',
+    renew: () => (acct && acct.user && acct.user.paidUntil ? `Your Pro plan ends on ${dateStr(acct.user.paidUntil)}. Renew now; the new time adds on top of what is left.` : 'Renew PakkaBill Pro.'),
   };
   const PERKS = [
     'Unlimited bills every month',
+    'Up to 10 shops (GSTINs) in one app',
+    'Cloud backup: your bills on every phone and laptop you log in on',
     'Royal, Elegant and Boutique designs, your logo and signature',
     'PDF download, share and WhatsApp',
-    'GSTR-1 JSON from Meesho reports',
+    'GSTR-1 JSON from Meesho, Amazon and Flipkart reports',
   ];
+  // Free vs Pro, for the Plan page.
+  function compareHtml() {
+    const free = cfg ? cfg.freeBills : 15;
+    const rows = [
+      ['Bills every month', `${free}`, 'Unlimited'],
+      ['Shops (GSTINs)', '1', 'Up to 10'],
+      ['Cloud backup and sync', '–', '✓'],
+      ['Bill designs', '5', 'All 8'],
+      ['Logo and signature on bills', '–', '✓'],
+      ['PDF, share and WhatsApp', 'Print only', '✓'],
+      ['GSTR-1 JSON from marketplace reports', '–', '✓'],
+      ['GST summary, parties, items, estimates', '✓', '✓'],
+    ];
+    return `<table class="pbp-compare"><thead><tr><th></th><th>Free</th><th>Pro</th></tr></thead><tbody>${rows
+      .map((r) => `<tr><td>${r[0]}</td><td>${r[1]}</td><td><b>${r[2]}</b></td></tr>`).join('')}</tbody></table>`;
+  }
+  const daysLeft = () => (acct && acct.user ? Math.ceil(((acct.user.paidUntil || 0) - Date.now()) / 864e5) : 0);
 
   function plansHtml() {
     const m = cfg ? cfg.monthly : 99;
@@ -106,8 +151,8 @@
       ${mode === 'signup' ? '<label>Shop name<input name="shopName" autocomplete="organization" placeholder="As on your bills"></label>' : ''}
       <label>Password<input name="password" type="password" autocomplete="${mode === 'signup' ? 'new-password' : 'current-password'}" minlength="6" required></label>
       <p class="pbp-err" role="alert"></p>
-      <button class="pbp-btn" type="submit">${mode === 'signup' ? 'Create account' : 'Log in'}</button>
-      <p class="pbp-fine">${mode === 'login' ? 'Forgot your password? Ask PakkaBill support to reset it.' : 'Your account lets Pro work on every phone and laptop you log in on.'}</p>
+      <button class="pbp-btn" type="submit">${mode === 'signup' ? (cfg && cfg.trialDays ? `Create account: ${cfg.trialDays} days of Pro free` : 'Create account') : 'Log in'}</button>
+      <p class="pbp-fine">${mode === 'login' ? 'Log in and your shops and bills from your other devices download here. Forgot your password? Ask PakkaBill support to reset it.' : `${cfg && cfg.trialDays ? `Every new account gets ${cfg.trialDays} days of Pro free, no payment needed. ` : ''}Your account keeps your Pro plan and cloud backup on every phone and laptop you log in on.`}</p>
     </form>`;
   }
 
@@ -200,7 +245,7 @@
             ${mobile ? `<a class="pbp-btn pbp-open" href="${esc(link)}">Open UPI app</a>` : ''}
           </li>
           <li><b>Enter the 12-digit transaction number</b> from the payment receipt. PhonePe calls it <i>UTR</i>, Google Pay <i>UPI transaction ID</i>, Paytm <i>UPI Ref No</i>.
-            <form class="pbp-auth pbp-utr"><input name="utr" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="12-digit number" aria-label="UPI transaction number" value="${esc(typed)}" required>
+            <form class="pbp-auth pbp-utr"><div class="pbp-utr__row"><input name="utr" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="12-digit number" aria-label="UPI transaction number" value="${esc(typed)}" required>${navigator.clipboard && navigator.clipboard.readText ? '<button type="button" class="pbp-btn pbp-btn--sm pbp-paste" data-paste>Paste</button>' : ''}</div>
             <p class="pbp-err" role="alert"></p><button class="pbp-btn" type="submit">Submit payment</button></form>
           </li>
         </ol>
@@ -238,6 +283,16 @@
           }
         });
         const form = box.querySelector('.pbp-utr');
+        // Paste: finds the 12-digit UTR in whatever was copied from the payment app
+        const pasteBtn = box.querySelector('[data-paste]');
+        if (pasteBtn) pasteBtn.addEventListener('click', async () => {
+          try {
+            const text = await navigator.clipboard.readText();
+            const m = String(text).replace(/(\d)[ -](?=\d)/g, '$1').match(/(?<!\d)\d{12}(?!\d)/);
+            if (m) { form.utr.value = m[0]; toast('UTR pasted. Check it matches your payment app.'); }
+            else toast('No 12-digit number found in what you copied. Copy the UTR in your payment app first.', true);
+          } catch { toast('Allow PakkaBill to paste, or type the 12-digit number.', true); }
+        });
         form.addEventListener('submit', async (ev) => {
           ev.preventDefault();
           const err = form.querySelector('.pbp-err');
@@ -273,6 +328,9 @@
       draw();
       box.querySelector('.pbp-utr input').focus();
       if (presetCoupon) box.querySelector('.pbp-coupon').requestSubmit();
+      // back from the UPI app: ready for the UTR
+      const back = () => { if (!document.hidden && box.isConnected) { const i = box.querySelector('.pbp-utr input'); if (i && !i.value) i.focus(); } else if (!box.isConnected) document.removeEventListener('visibilitychange', back); };
+      document.addEventListener('visibilitychange', back);
     });
   }
 
@@ -426,15 +484,18 @@
     el._pbMode = mode;
     let status;
     if (!cfg || !cfg.enabled) status = '<div class="pbp-status is-free"><b>Everything is free right now.</b><span>Paid plans are not switched on yet.</span></div>';
+    else if (isPro() && acct.user.lastPlan === 'trial') status = `<div class="pbp-status is-pro${daysLeft() <= 3 ? ' is-soon' : ''}"><b>Free Pro trial: ${daysLeft()} day${daysLeft() === 1 ? '' : 's'} left</b><span>Till ${dateStr(acct.user.paidUntil)}. Take Pro before it ends to keep unlimited bills, your shops and cloud backup.</span></div>`;
+    else if (isPro() && daysLeft() <= 5) status = `<div class="pbp-status is-pro is-soon"><b>Your Pro plan ends in ${daysLeft()} day${daysLeft() === 1 ? '' : 's'}</b><span>On ${dateStr(acct.user.paidUntil)}. Renew now; the new time adds on top of what is left.</span></div>`;
     else if (isPro()) status = `<div class="pbp-status is-pro"><b>PakkaBill Pro is active</b><span>Till ${dateStr(acct.user.paidUntil)}. Paying again adds time on top.</span></div>`;
     else if (acct && acct.user && acct.user.paidUntil) status = `<div class="pbp-status is-free"><b>Your Pro plan ended on ${dateStr(acct.user.paidUntil)}</b><span>You are on the free plan: ${cfg.freeBills} bills a month.</span></div>`;
     else status = `<div class="pbp-status is-free"><b>You are on the free plan</b><span>${cfg.freeBills} bills a month, Carbon, Modern, Classic, Ledger and Plain designs, printing.</span></div>`;
     el.innerHTML = `<div class="page-head"><div><h1 class="page-title">Plan</h1><p class="page-sub">Your PakkaBill account and Pro plan.</p></div></div>
       <div class="pbp-page">
-        <section class="paper pbp-card">${status}${ordersHtml()}${accountHtml()}<p class="pbp-fine pbp-help">Paid but Pro is not on yet, or a question about your plan? <a href="#/support?new=1&amp;topic=payment">Raise a support ticket</a>.</p></section>
+        <section class="paper pbp-card">${status}${ordersHtml()}${accountHtml()}<p class="pbp-fine pbp-help">Paid but Pro is not on yet, or a question about your plan? <a href="#/support?new=1&amp;topic=payment">Raise a support ticket</a>.</p>${acct && acct.token ? '<p class="pbp-fine pbp-help">☁️ <a href="#/shops">Your shops and cloud backup →</a></p>' : ''}</section>
         ${newsListHtml()}
         ${cfg && cfg.enabled ? `<section class="paper pbp-card"><h2 class="form-sec__title">PakkaBill Pro</h2>
           <ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>
+          <details class="pbp-cmp"><summary>Compare Free and Pro</summary>${compareHtml()}</details>
           ${acct && acct.token ? plansHtml() + '<p class="pbp-fine">Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.</p>' : authHtml(mode)}</section>` : ''}
       </div>`;
     wire(el, (m) => drawPlan(el, m));
@@ -521,6 +582,11 @@
 .pbp-tabs button.is-on{background:var(--paper,#fff);color:var(--carbon,#5b3fe6);box-shadow:0 2px 6px -2px #0003}
 .pbp-btn{font:inherit;font-weight:700;font-size:15.5px;border:0;border-radius:10px;padding:12px 18px;cursor:pointer;color:var(--btn-fg,#fff);background:var(--btn-bg,#6c4dff);background-image:var(--btn-grad,none)}
 .pbp-btn:disabled{opacity:.6;cursor:wait}
+.pbp-utr__row{display:flex;gap:8px;align-items:center}.pbp-utr__row input{flex:1;min-width:0}.pbp-paste{flex:none}
+.pbp-cmp{margin:4px 0 14px}.pbp-cmp summary{cursor:pointer;font-weight:700;color:var(--carbon,#5b3fe6);margin-bottom:8px}
+.pbp-compare{width:100%;border-collapse:collapse;font-size:14px}.pbp-compare th,.pbp-compare td{padding:8px 6px;border-bottom:1px solid var(--rule,#ddd);text-align:center}.pbp-compare td:first-child,.pbp-compare th:first-child{text-align:left}
+.pbp-compare th{font-size:12.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3,#777)}.pbp-compare td:last-child{color:var(--carbon,#5b3fe6)}
+.pbp-status.is-soon{border-color:#f59e0b;background:#fff7e6}
 .pbp-btn--ghost{display:block;width:100%;margin:0 0 8px;background:var(--carbon-tint,#efeaff);background-image:none;color:var(--carbon,#5b3fe6);border:1.5px solid var(--carbon,#5b3fe6)}
 .pbp-err{color:var(--red,#c8202a);margin:0;font-size:13.5px;min-height:0}
 .pbp-err:empty{display:none}

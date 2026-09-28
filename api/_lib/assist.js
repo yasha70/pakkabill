@@ -20,7 +20,7 @@ const MAX_BOT_REPLIES = 3;
 const SETTINGS_KEY = 'assist:settings';
 
 // One-tap fixes the app knows how to run. Labels live in the app (support.js).
-const ACTIONS = ['update', 'refresh_plan', 'plan', 'login', 'shop', 'reports', 'gstr1', 'new_bill', 'items', 'parties', 'listing', 'lens', 'pnl', 'tickets', 'help_center'];
+const ACTIONS = ['update', 'refresh_plan', 'plan', 'login', 'shop', 'reports', 'gstr1', 'new_bill', 'items', 'parties', 'listing', 'lens', 'pnl', 'tickets', 'help_center', 'shops'];
 const OUTCOMES = ['answered', 'escalate', 'ack'];
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const RANK = { low: 0, normal: 1, high: 2, urgent: 3 };
@@ -131,6 +131,7 @@ async function investigate(t) {
   f.paymentsOn = core.paymentsReady(settings);
   f.locked = f.paymentsOn && !!settings.enforce;
   f.prices = { monthly: settings.monthly, yearly: settings.yearly };
+  f.trialDays = f.locked ? Number(settings.trialDays) || 0 : 0;
 
   if (ver(d.app) && ver(d.latest)) {
     f.app = { version: d.app, latest: d.latest, outdated: ver(d.app) < ver(d.latest) };

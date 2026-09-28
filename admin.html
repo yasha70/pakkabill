@@ -308,6 +308,11 @@
           <label class="f">Free bills per month<input type="number" name="freeBills" min="0" max="1000" step="1" required></label>
         </div>
         <label class="check" style="margin-top:14px"><input type="checkbox" name="enforce"><span><b>Lock Pro features for free users</b><br><span class="muted">Turn off to make everything free for everyone.</span></span></label>
+        <h2 style="margin-top:20px">Trial and cloud backup</h2>
+        <div class="grid2">
+          <label class="f"><span>Free Pro days for new accounts <span class="muted">(0 = no trial)</span></span><input type="number" name="trialDays" min="0" max="90" step="1"></label>
+        </div>
+        <label class="check" style="margin-top:12px"><input type="checkbox" name="syncFree"><span><b>Let free users use cloud backup</b><br><span class="muted">Their first shop only, up to 3 MB. Pro always has cloud backup for every shop (up to 30 MB).</span></span></label>
         <div class="row" style="margin-top:16px"><button class="btn" type="submit">Save settings</button></div>
       </form>
     </section>
@@ -449,7 +454,7 @@
   let tkFilter = 'active', tkOpen = '', tkTimer = null;
   const tkPill = (s) => `<span class="pill st-${esc(s)}">${esc(TK_STATUS[s] || s)}</span>`;
   const prPill = (p) => (p && p !== 'normal' ? `<span class="pill pr-${esc(p)}">${esc(p[0].toUpperCase() + p.slice(1))}</span>` : '');
-  const ACT_LABEL = { update: 'Update PakkaBill now', refresh_plan: 'Refresh my plan', plan: 'Open Plan page', login: 'Log in', shop: 'Open Shop', reports: 'Open GST summary', gstr1: 'Open GSTR-1 JSON', new_bill: 'Make a new bill', items: 'Open Items', parties: 'Open Parties', listing: 'Open Meesho listing', lens: 'Open Meesho Lens', pnl: 'Open Meesho P&L', tickets: 'Open my tickets', help_center: 'Browse help topics' };
+  const ACT_LABEL = { update: 'Update PakkaBill now', refresh_plan: 'Refresh my plan', plan: 'Open Plan page', login: 'Log in', shop: 'Open Shop', reports: 'Open GST summary', gstr1: 'Open GSTR-1 JSON', new_bill: 'Make a new bill', items: 'Open Items', parties: 'Open Parties', listing: 'Open Meesho listing', lens: 'Open Meesho Lens', pnl: 'Open Meesho P&L', tickets: 'Open my tickets', help_center: 'Browse help topics', shops: 'Open Shops & cloud' };
   const PROB_LABEL = { pdf: 'PDF', print: 'Printing', limit: 'Bill limit', design: 'Design', logo: 'Logo', lost: 'Lost bills', paid_not_active: 'Paid, Pro not on', utr_error: 'UTR not accepted', renew: 'Renew', refund: 'Refund', tax_wrong: 'IGST/CGST', hsn: 'HSN/GST rate', gstr1: 'GSTR-1', listing: 'Meesho listing', pnl: 'Meesho P&L', lens: 'Meesho Lens', blank: "App won't open", slow: 'App slow', button: 'Button broken', error: 'Error message', login: 'Log in', forgot: 'Forgot password', newphone: 'New phone', install: 'Install' };
   const hrs = (min) => (min == null ? '' : min < 60 ? `${min} min` : `${Math.round(min / 60)} h`);
   function waitTag(t) {
@@ -723,8 +728,8 @@
       const { users } = await api('users', { q: $('#q').value });
       const now = Date.now();
       $('#users').innerHTML = users.length
-        ? `<table><thead><tr><th>Mobile</th><th>Shop</th><th>Plan</th><th>Pro until</th><th>Last seen</th><th>Joined</th><th>Actions</th></tr></thead><tbody>${users
-            .map((u) => `<tr><td>${esc(u.phone)}</td><td>${esc(u.shopName) || '<span class="muted">—</span>'}</td><td>${u.paidUntil > now ? '<span class="pill pro">Pro</span>' : '<span class="pill free">Free</span>'}</td><td>${u.paidUntil ? day(u.paidUntil) : '—'}</td><td>${u.lastSeen ? ago(u.lastSeen) : '—'}</td><td>${day(u.createdAt)}</td>
+        ? `<table><thead><tr><th>Mobile</th><th>Shop</th><th>Plan</th><th>Pro until</th><th>Cloud</th><th>Last seen</th><th>Joined</th><th>Actions</th></tr></thead><tbody>${users
+            .map((u) => `<tr><td>${esc(u.phone)}</td><td>${esc(u.shopName) || '<span class="muted">—</span>'}</td><td>${u.paidUntil > now ? (u.trial ? '<span class="pill wait">Trial</span>' : '<span class="pill pro">Pro</span>') : '<span class="pill free">Free</span>'}</td><td>${u.paidUntil ? day(u.paidUntil) : '—'}</td><td>${u.cloud ? `${u.cloud.shops} shop${u.cloud.shops > 1 ? 's' : ''} · ${(u.cloud.bytes / 1048576).toFixed(1)} MB` : '<span class="muted">—</span>'}</td><td>${u.lastSeen ? ago(u.lastSeen) : '—'}</td><td>${day(u.createdAt)}</td>
               <td><div class="actions"><button class="btn sec sm" data-grant="30" data-phone="${esc(u.phone)}">+1 month</button><button class="btn sec sm" data-grant="365" data-phone="${esc(u.phone)}">+1 year</button><button class="btn sec sm" data-grant="?" data-phone="${esc(u.phone)}">+ days…</button>${u.paidUntil > now ? `<button class="btn danger sm" data-revoke="${esc(u.phone)}">Remove Pro</button>` : ''}<button class="btn sec sm" data-reset="${esc(u.phone)}">Reset password</button></div></td></tr>`)
             .join('')}</tbody></table>`
         : '<p class="empty">No customers found.</p>';
@@ -780,12 +785,14 @@
       form.enforce.checked = !!settings.enforce;
       form.upiId.value = settings.upiId || '';
       form.payeeName.value = settings.payeeName || '';
+      form.trialDays.value = settings.trialDays == null ? 7 : settings.trialDays;
+      form.syncFree.checked = !!settings.syncFree;
     } catch (e) { toast(e.message, true); }
   }
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-      await api('saveSettings', { monthly: form.monthly.value, yearly: form.yearly.value, freeBills: form.freeBills.value, enforce: form.enforce.checked, upiId: form.upiId.value, payeeName: form.payeeName.value });
+      await api('saveSettings', { monthly: form.monthly.value, yearly: form.yearly.value, freeBills: form.freeBills.value, enforce: form.enforce.checked, upiId: form.upiId.value, payeeName: form.payeeName.value, trialDays: form.trialDays.value, syncFree: form.syncFree.checked });
       toast('Settings saved.');
     } catch (err) { toast(err.message, true); }
   });

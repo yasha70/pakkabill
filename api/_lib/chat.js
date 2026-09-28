@@ -77,7 +77,7 @@ async function facts(user, diag, question) {
     messages: [{ by: 'customer', text: /[\u0900-\u097F]/.test(question) ? `${question}\n${guide.keyWords(question).join(' ')}` : question, at: Date.now() }],
   };
   const f = await assist.investigate(t);
-  const ctx = { freeBills: f.freeBills, prices: f.prices, locked: f.locked, pro: !!(f.plan && f.plan.pro) };
+  const ctx = { freeBills: f.freeBills, prices: f.prices, locked: f.locked, pro: !!(f.plan && f.plan.pro), trialDays: f.trialDays };
   return { t, f, ctx };
 }
 
@@ -168,7 +168,7 @@ function accountAnswer(q, info) {
     const wait = pending.length ? ` We also have your payment of ${assist.rupees(pending[0].amount)} (UTR ${assist.tail(pending[0].utr)}) waiting for our check; Pro is added as soon as it is approved.` : '';
     if (f.plan && f.plan.pro) {
       const days = Math.max(1, Math.ceil((f.plan.paidUntil - Date.now()) / 864e5));
-      return { kind: 'mine', text: `You are on PakkaBill Pro until ${assist.dateStr(f.plan.paidUntil)}${f.plan.lastPlan ? ` (${f.plan.lastPlan} plan)` : ''}: ${days} day${days === 1 ? '' : 's'} left. Unlimited bills, PDF, WhatsApp sharing, logo and all designs are on.${wait}`, actions: f.appPlan === 'free' ? ['refresh_plan'] : [], suggestions: ['How do I renew Pro?', 'Add my logo and signature'] };
+      return { kind: 'mine', text: `You are on PakkaBill Pro until ${assist.dateStr(f.plan.paidUntil)}${f.plan.lastPlan ? ` (${f.plan.lastPlan} plan)` : ''}: ${days} day${days === 1 ? '' : 's'} left. Unlimited bills, all your shops, cloud backup, PDF, WhatsApp sharing, logo and all designs are on.${wait}`, actions: f.appPlan === 'free' ? ['refresh_plan'] : [], suggestions: ['How do I renew Pro?', 'Add my logo and signature'] };
     }
     if (f.plan && f.plan.paidUntil) return { kind: 'mine', text: `Your Pro plan ended on ${assist.dateStr(f.plan.paidUntil)}, so you are on the free plan now (${ctx.freeBills} bills a month). Renew from the Plan page: ₹${ctx.prices.monthly} a month or ₹${ctx.prices.yearly} a year.${wait}`, actions: ['plan'], suggestions: ['How do I pay for Pro?'] };
     return { kind: 'mine', text: `You are on the free plan: ${ctx.freeBills} bills a month, printing and the Carbon, Modern, Classic, Ledger and Plain designs. Pro costs ₹${ctx.prices.monthly} a month or ₹${ctx.prices.yearly} a year.${wait}`, actions: ['plan'], suggestions: ['What do I get with Pro?', 'How do I pay for Pro?'] };
@@ -320,7 +320,8 @@ async function reply(input, user) {
 // Every answer for the Help Center page, written for this customer (their plan and prices).
 async function helpCenter(user) {
   const settings = await core.getSettings();
-  const ctx = { freeBills: Number(settings.freeBills), prices: { monthly: settings.monthly, yearly: settings.yearly }, locked: core.paymentsReady(settings) && !!settings.enforce, pro: !!(user && (user.paidUntil || 0) > Date.now()) };
+  const locked = core.paymentsReady(settings) && !!settings.enforce;
+  const ctx = { freeBills: Number(settings.freeBills), prices: { monthly: settings.monthly, yearly: settings.yearly }, locked, pro: !!(user && (user.paidUntil || 0) > Date.now()), trialDays: locked ? Number(settings.trialDays) || 0 : 0 };
   const custom = await listCustom();
   const articles = guide.ARTICLES.filter((a) => a.id !== 'support').map((a) => guide.render(a, ctx)).concat(custom.map((a) => guide.render(a, ctx)));
   return { topics: guide.TOPICS, articles: articles.map((a) => ({ id: a.id, topic: a.topic, title: a.title, text: a.text, actions: a.actions, related: a.related })) };

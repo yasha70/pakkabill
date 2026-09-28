@@ -27,6 +27,10 @@ module.exports = core.handler(async (req, res) => {
       lastSeen: Date.now(),
       paidUntil: 0,
     };
+    // new accounts start with a free Pro trial (set in the admin panel; 0 turns it off)
+    const s = await core.getSettings();
+    const trial = core.paymentsReady(s) && s.enforce ? Math.max(0, Math.min(90, Number(s.trialDays) || 0)) : 0;
+    if (trial) { user.paidUntil = Date.now() + trial * core.DAY; user.lastPlan = 'trial'; }
     const created = await db.cmd(['SET', `user:${phone}`, JSON.stringify(user), 'NX']);
     if (!created) throw new core.HttpError(409, 'This number already has an account. Log in instead.');
     await db.cmd(['ZADD', 'users', user.createdAt, phone]);

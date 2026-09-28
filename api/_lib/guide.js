@@ -136,13 +136,25 @@ const ARTICLES = [
   {
     id: 'backup', related: ['install', 'account', 'lost'], topic: 'data', title: 'Backup, restore and move to a new phone',
     q: ['backup', 'restore', 'new phone', 'change phone', 'transfer data', 'laptop', 'computer', 'another device', 'data save', 'sync', 'data kaise wapas', 'mobile change'],
-    text: () => 'Your bills are saved on this device only. To keep them safe or move them:\n1. On the Shop page, under "Offline and backup", tap "Download backup". A PakkaBill-backup file is saved.\n2. Send the file to the other device (WhatsApp to yourself, email or Drive).\n3. On the new device open PakkaBill → Shop → "Restore from backup" and pick the file.\n\nYour Pro plan follows your account: log in on the Plan page with the same mobile number. Take a backup every week.',
-    actions: ['shop'],
+    text: (ctx) => `Easiest: log in on the Plan page${ctx.locked && !ctx.pro ? ' with PakkaBill Pro' : ''} and cloud backup saves your shops by themselves; on the new phone just log in with the same number and everything downloads.\n\nWith a file instead:\n1. On the Shop page, under "Offline and backup", tap "Download backup" (it saves the open shop).\n2. Send the file to the other device (WhatsApp to yourself, email or Drive).\n3. On the new device open PakkaBill → Shop → "Restore from backup" and pick the file.`,
+    actions: ['shops', 'shop'],
+  },
+  {
+    id: 'shops', related: ['cloud', 'shop', 'numbering'], topic: 'setup', title: 'More than one shop or GSTIN',
+    q: ['multiple shops', 'two shops', 'second shop', 'another shop', 'second gstin', 'two gstin', 'multiple gstin', 'another gstin', 'switch shop', 'change shop', 'add shop', 'different business', 'dusri dukan', 'do gst number', 'branch'],
+    text: (ctx) => `PakkaBill keeps several shops in one app, one per GSTIN${ctx.locked && !ctx.pro ? ' (more than one shop is part of PakkaBill Pro)' : ''}. Tap your shop name at the top (in the side menu on a computer) and choose "+ Add another shop (GSTIN)", or open Tools → "Shops & cloud". Give its name, GSTIN and state; you can copy your items, parties, bank, UPI, logo and design from the current shop.\n\nEach shop has its own bills, numbering, GST summary and backup, so GST figures never mix. Switch any time from the shop button.`,
+    actions: ['shops'],
+  },
+  {
+    id: 'cloud', related: ['backup', 'shops', 'account'], topic: 'data', title: 'Cloud backup: your bills on every device',
+    q: ['cloud', 'cloud backup', 'sync', 'other device', 'another phone', 'new phone data', 'login other device', 'data automatically', 'online backup', 'auto backup', 'data kaise aayega', 'laptop and phone same data'],
+    text: (ctx) => `Log in on the Plan page and ${ctx.locked && !ctx.pro ? 'with PakkaBill Pro ' : ''}your shops are backed up to your account by themselves whenever something changes. On another phone or laptop, open PakkaBill and log in with the same mobile number: your shops and bills download automatically. If you work on two devices, changes from both are merged.\n\nSee what is saved, and back up on demand, on the "Shops & cloud" page. You can still download a backup file from the Shop page too.`,
+    actions: (ctx) => (ctx.locked && !ctx.pro ? ['shops', 'plan'] : ['shops']),
   },
   {
     id: 'lost', related: ['backup', 'install', 'support'], topic: 'data', title: 'My bills disappeared',
     q: ['bills gone', 'data lost', 'bills missing', 'data delete', 'sab gayab', 'bill nahi dikh raha', 'everything gone', 'data chala gaya'],
-    text: () => 'PakkaBill keeps bills inside this browser on this device. They disappear if the browser\'s data or storage was cleared, or when you open PakkaBill in a different browser or on another phone.\n\nTo get them back: if you have a backup file, open Shop → "Restore from backup". If PakkaBill still has them in another browser or on the installed app, open it there, tap "Download backup" on the Shop page and restore it here. We do not keep a copy of bills on our server.',
+    text: () => 'PakkaBill keeps bills inside the browser on each device. They disappear if the browser\'s data was cleared, or when you open PakkaBill in a different browser or on another phone. Also check the shop button at the top: you may have another shop open.\n\nTo get them back: if cloud backup was on, log in on the Plan page and they download by themselves. If you have a backup file, open Shop → "Restore from backup". If they are still in another browser or the installed app, open it there, tap "Download backup" and restore the file here.',
     actions: ['shop'],
   },
   {
@@ -183,8 +195,8 @@ const ARTICLES = [
   },
   {
     id: 'pro', related: ['pay_how', 'limit', 'account'], topic: 'plan', title: 'PakkaBill Pro: what you get and prices',
-    q: ['pro', 'premium', 'price', 'plan', 'subscription', 'kitne ka hai', 'kitne ka', 'kitna', 'how much', 'charges', 'fees', 'is it free', 'free hai', 'free app', 'pakkabill free', 'free to use', 'free or paid', 'cost of pro', 'paid plan', 'upgrade', 'free plan', 'benefits', 'kya milta hai', 'monthly price', 'yearly price'],
-    text: (ctx) => `PakkaBill Pro gives unlimited bills every month; Royal, Elegant and Boutique designs; your logo and signature; PDF download, share and WhatsApp; and GSTR-1 JSON from marketplace reports. It costs ₹${ctx.prices.monthly} a month or ₹${ctx.prices.yearly} a year. The free plan has ${ctx.freeBills} bills a month (estimates don't count), the other five designs and printing.\n\nTo buy: open the Plan page, log in or create an account, choose a plan, pay the UPI QR and enter the 12-digit UTR. We switch Pro on after checking it, usually within a few hours.`,
+    q: ['pro', 'premium', 'price', 'plan', 'subscription', 'kitne ka hai', 'kitne ka', 'pro kitne', 'how much', 'charges', 'fees', 'is it free', 'free hai', 'free app', 'pakkabill free', 'free to use', 'free or paid', 'cost of pro', 'paid plan', 'upgrade', 'free plan', 'benefits', 'kya milta hai', 'monthly price', 'yearly price'],
+    text: (ctx) => `PakkaBill Pro gives unlimited bills every month; up to 10 shops (GSTINs); cloud backup on every device you log in on; Royal, Elegant and Boutique designs; your logo and signature; PDF download, share and WhatsApp; and GSTR-1 JSON from marketplace reports. It costs ₹${ctx.prices.monthly} a month or ₹${ctx.prices.yearly} a year${ctx.trialDays ? `, and every new account gets ${ctx.trialDays} days of Pro free` : ''}. The free plan has ${ctx.freeBills} bills a month (estimates don't count), one shop, the other five designs and printing.\n\nTo buy: open the Plan page, log in or create an account, choose a plan, pay the UPI QR and enter the 12-digit UTR. We switch Pro on after checking it, usually within a few hours.`,
     actions: ['plan'],
   },
   {
@@ -196,7 +208,7 @@ const ARTICLES = [
   {
     id: 'account', related: ['backup', 'pro', 'pay_how'], topic: 'plan', title: 'Create an account or log in',
     q: ['login', 'log in', 'sign up', 'create account', 'account', 'register', 'password', 'logout', 'log out', 'multiple devices'],
-    text: () => 'Open the Plan page and choose "Create account" (Mobile number, Shop name, Password) or "Log in". Your account lets Pro work on every phone and laptop you log in on. Bills stay on each device; move them with a backup from the Shop page. Forgot your password? Ask here and our team will help you reset it.',
+    text: () => 'Open the Plan page and choose "Create account" (Mobile number, Shop name, Password) or "Log in". Your account carries your Pro plan and cloud backup to every phone and laptop you log in on: log in on a new device and your shops download by themselves. Forgot your password? Ask here and our team will help you reset it.',
     actions: ['login'],
   },
   {
@@ -282,7 +294,7 @@ const ARTICLES = [
   {
     id: 'safety', related: ['backup', 'account', 'lost'], topic: 'data', title: 'Is my data safe and private?',
     q: ['safe', 'secure', 'privacy', 'private', 'data safe', 'who can see', 'data share', 'hack', 'surakshit'],
-    text: () => 'Your bills, parties and items are saved only on your own device, inside the browser; they are not uploaded to our server. Your account keeps just your mobile number, shop name and plan. Meesho and marketplace reports are read on your device and never sent anywhere. Because bills live on the device, keep a backup from the Shop page every week.',
+    text: () => 'Your bills, parties and items are saved on your own device, inside the browser. If you are logged in with cloud backup on, a compressed copy is also kept in your account so it can come back on any device you log in on; only you can open it with your login. Meesho and marketplace reports are read on your device and never sent anywhere. Without cloud backup, keep a backup file from the Shop page every week.',
     actions: ['shop'],
   },
   {

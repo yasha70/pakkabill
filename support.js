@@ -18,9 +18,9 @@
     update: ['⟳', 'Update PakkaBill now'], refresh_plan: ['✦', 'Refresh my plan'], plan: ['★', 'Open Plan page'], login: ['→', 'Log in'],
     shop: ['🏪', 'Open Shop (backup, logo)'], reports: ['₹', 'Open GST summary'], gstr1: ['📄', 'Open GSTR-1 JSON'], new_bill: ['+', 'Make a new bill'], items: ['▦', 'Open Items'],
     parties: ['👥', 'Open Parties'], listing: ['📦', 'Open Meesho listing'], lens: ['🔍', 'Open Meesho Lens'], pnl: ['📊', 'Open Meesho P&L'],
-    tickets: ['🎫', 'Open my tickets'], help_center: ['📚', 'Browse help topics']
+    tickets: ['🎫', 'Open my tickets'], help_center: ['📚', 'Browse help topics'], shops: ['🏪', 'Open Shops & cloud']
   };
-  var PAGES = { plan: '#/plan', login: '#/plan', shop: '#/shop', reports: '#/reports', gstr1: '#/gstr1', new_bill: '#/new', items: '#/items', parties: '#/parties', listing: '#/listing', lens: '#/lens', pnl: '#/pnl', tickets: '#/support', help_center: '#/support?guide=1' };
+  var PAGES = { plan: '#/plan', login: '#/plan', shop: '#/shop', reports: '#/reports', gstr1: '#/gstr1', new_bill: '#/new', items: '#/items', parties: '#/parties', listing: '#/listing', lens: '#/lens', pnl: '#/pnl', tickets: '#/support', help_center: '#/support?guide=1', shops: '#/shops' };
 
   /* ---------------- storage and API ---------------- */
   function ls(k, v) {
@@ -626,7 +626,8 @@
     [/^#\/listing/, 'Meesho listing', ['How to use Meesho listing', 'Meesho bulk upload template']],
     [/^#\/lens/, 'Meesho Lens', ['Install Meesho Lens', 'Use Meesho Lens on my phone']],
     [/^#\/pnl/, 'Meesho P&L', ['How to use Meesho P&L', 'Combo pack pieces are wrong']],
-    [/^#\/plan/, 'Plan', ['Am I on Pro?', 'What do I get with Pro?', 'How do I pay for Pro?', 'I paid but Pro is not active']]
+    [/^#\/plan/, 'Plan', ['Am I on Pro?', 'What do I get with Pro?', 'How do I pay for Pro?', 'I paid but Pro is not active']],
+    [/^#\/shops/, 'Shops & cloud', ['Add a second GSTIN', 'How does cloud backup work?', 'Get my bills on a new phone']]
   ];
   function pageHelp() { var r = state.lastPage || ''; var m = PAGE_HELP.find(function (x) { return x[0].test(r); }); return m ? { name: m[1], qs: m[2] } : null; }
   function welcome() {

@@ -11,5 +11,6 @@ module.exports = core.handler(async (req, res) => {
     freeBills: s.freeBills,
     upiId: s.upiId,
     payeeName: s.payeeName,
+    trialDays: core.paymentsReady(s) && s.enforce ? Number(s.trialDays) || 0 : 0,
   });
 });

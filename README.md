@@ -54,8 +54,21 @@ Excel and PDF.
 
 ## PakkaBill Pro (paid plans)
 
-Free users get a monthly bill limit and the Carbon, Ledger and Plain designs. Pro (monthly or yearly)
-unlocks unlimited bills, the Royal design, logo and signature, PDF / share / WhatsApp and GSTR-1 JSON.
+| | Free | Pro (monthly or yearly) |
+|---|---|---|
+| Bills a month | set in admin (15) | unlimited |
+| Shops (GSTINs) | 1 | up to 10 |
+| Cloud backup and sync | only if the admin allows (first shop, 3 MB) | every shop, 30 MB |
+| Designs | Carbon, Modern, Classic, Ledger, Plain | + Royal, Elegant, Boutique |
+| Logo and signature, PDF / share / WhatsApp, GSTR-1 JSON | – | ✓ |
+
+- **Free trial:** every new account gets Pro free for `trialDays` (admin → Settings, default 7, 0 turns
+  it off). The Plan page shows the days left.
+- **Renewals:** the last 3 days of Pro show a reminder in the app once a day, and a daily job
+  (`api/cron.js`, Vercel Cron at 09:00 IST) sends a phone notification 3 days before and on the day
+  Pro ends. Set `CRON_SECRET` in Vercel to lock that endpoint to the scheduler.
+- **Paying:** after paying in the UPI app, "Paste" finds the 12-digit UTR in whatever was copied.
+  Renewing adds the new time on top of what is left.
 
 Payment is by UPI QR: the customer scans the shop owner's UPI QR (amount filled in), pays from any UPI
 app and submits the 12-digit transaction number (UTR). The owner finds that UTR in their bank or UPI
@@ -82,6 +95,39 @@ is saved in `/admin` > Settings, everything stays free.
 
 Plan checks run in the browser, so a technical user could get around them. Payments are only counted
 after the owner approves them.
+
+## Multiple shops (GSTINs)
+
+`shops.js` (loaded before the app) keeps several shops in one browser. Each shop has its own database
+(`pakkabill` for the first, `pakkabill-<id>` for others; localStorage prefix to match), so bills,
+parties, items, numbering, GST summary and backup files never mix. The app asks `pbShopDb()` /
+`pbShopPrefix()` which one to open; switching sets the active shop and reopens the app.
+
+- Switcher: the shop button in the phone top bar (when there are 2+ shops) and the shop card in the
+  desktop side menu. `#/shops` ("Shops & cloud" in the menu and Tools) lists shops, adds one (name,
+  GSTIN → state filled in, copy items / parties / bank, UPI, logo, design, terms; bill prefix from the
+  initials) and deletes one (not the first shop, and not the open one).
+- More than one shop is a Pro feature (`pbGate('shops')`). If Pro ends, every shop stays usable.
+
+## Cloud backup and sync
+
+`sync.js` + `api/sync.js` (`api/_lib/sync.js`). When a customer is logged in and backup is part of
+their plan, each shop is gzip-compressed on the device and uploaded in 500 KB parts whenever it
+changes (checked every 30 s, when the app is hidden, and before switching shops).
+
+- Redis: `sync:<phone>` index (per shop: version, parts, size, name, GSTIN, device, time) and
+  `sync:<phone>:<shop>:<a|b>:<n>` parts; uploads alternate between two slots so the last good copy is
+  never half-overwritten, and `synclock:` allows one upload per shop at a time.
+- Versions: an upload names the version it started from; if another device saved first, it gets a
+  conflict, downloads, merges and uploads again. Merge is per record (bills, parties, items): the
+  newer edit wins, records deleted on one device stay deleted, new records from both are kept; shop
+  settings take the side that changed.
+- New device: logging in on the Plan page downloads every shop straight away ("Restored N bills").
+  If that device already had a different business in its first shop, it is kept as a separate shop.
+- The open shop is only replaced when it is safe (not while a bill is being made); otherwise a
+  "Changes from your other device are ready" bar waits for the customer.
+- Restoring always works, even after Pro ends; only uploads need Pro (or the admin's free setting).
+- The admin sees each customer's cloud use (shops, MB) in Customers.
 
 ## Meesho Lens (competitor insights)
 
