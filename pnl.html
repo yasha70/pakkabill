@@ -194,6 +194,21 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: .88rem; co
 .rv-notes { margin: 8px 0 0; padding-left: 18px; font-size: .85rem; color: var(--ink-3); }
 .rv-notes li { margin: 3px 0; }
 
+/* "Know your real profit" banner */
+.hero { position: relative; overflow: hidden; border-radius: 14px; padding: 18px 18px 16px; color: #fff; background: linear-gradient(120deg, #2b3494 0%, #5b3fe6 60%, #8a5cf0 100%); display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: flex-end; justify-content: space-between; }
+.hero::after { content: ""; position: absolute; right: -60px; top: -80px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(255,122,89,.55), rgba(255,122,89,0) 70%); pointer-events: none; }
+.hero-t { position: relative; z-index: 1; max-width: 560px; }
+.hero-k { margin: 0 0 4px; font-size: .74rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .85; }
+.hero h1 { margin: 0; font-family: var(--f-head); font-size: 1.7rem; line-height: 1.1; color: #fff; }
+.hero.big h1 { font-size: 2.1rem; }
+.hero-s { margin: 6px 0 0; font-size: .92rem; opacity: .92; }
+.hero-kpi { position: relative; z-index: 1; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); border-radius: 12px; padding: 10px 14px; min-width: 170px; }
+.hero-kpi span { display: block; font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; opacity: .85; }
+.hero-kpi b { display: block; font-family: var(--f-head); font-size: 1.6rem; line-height: 1.15; color: #fff; }
+.hero-kpi b.neg { color: #ffd0d3; }
+.hero-kpi small { display: block; font-size: .78rem; opacity: .9; }
+@media print { .hero { display: none; } }
+
 /* the ledger */
 .ledger { position: relative; background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px; padding: 0 0 6px; overflow: hidden; }
 .ledger::before { content: ""; position: absolute; top: 0; bottom: 0; left: 22px; width: 0; border-left: 1.5px solid var(--margin); opacity: .85; }
@@ -2300,9 +2315,19 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<button class="btn sm" data-act="endDemo">Close sample</button></div>';
   }
   function empty() {
-    return '<section class="sheet empty"><h2>No Meesho data yet</h2><p class="muted">Upload your payment report to see your profit, or look around with sample data first.</p>' +
+    return hero(true) + '<section class="sheet empty"><h2>See your real profit in 2 minutes</h2><p class="muted">Upload the payment report from the Meesho Supplier Panel. PakkaBill takes out every fee, return, RTO, GST and product cost, and shows what you really earned. Or look around with sample data first.</p>' +
       '<div class="row" style="justify-content:center"><button class="btn pri" data-act="tab" data-tab="data">Upload files</button><button class="btn" data-act="demo">Try with sample data</button></div></section>';
   }
+  /* PakkaBill's promise, at the top of the P&L */
+  function hero(big) {
+    var R = A.hasData() ? S.R : null, line = '';
+    if (R && !big) {
+      line = '<div class="hero-kpi"><span>Real profit</span><b class="' + (R.NP < 0 ? 'neg' : '') + '">' + rs(R.NP, true) + '</b><small>' + (R.NR ? pct(R.margin) + ' of what you sold' : '') + ' \u00b7 ' + esc(S.per.label) + '</small></div>';
+    }
+    return '<section class="hero' + (big ? ' big' : '') + '"><div class="hero-t"><p class="hero-k">PakkaBill Profit &amp; Loss</p><h1>Know your real profit</h1>' +
+      '<p class="hero-s">Not just sales. Every Meesho fee, return, RTO, GST and product cost taken out, reconciled to the paisa.</p></div>' + line + '</section>';
+  }
+
   function kv(pairs) {
     return '<div class="kv">' + pairs.map(function (p) {
       var b = p[2] ? ' class="b"' : '';
@@ -2390,7 +2415,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   /* ---------------- P&L ---------------- */
   V.pl = function () {
     if (!A.hasData()) return empty();
-    var R = S.R, K = R.K, st = A.cfg(), per = S.per, h = demoBar();
+    var R = S.R, K = R.K, st = A.cfg(), per = S.per, h = hero(false) + demoBar();
     var opts = '<option value="all"' + (S.sel.mode === 'all' ? ' selected' : '') + '>All data</option>';
     S.months.forEach(function (m) { opts += '<option value="m:' + m + '"' + (S.sel.mode === 'month' && S.sel.m === m ? ' selected' : '') + '>' + E.fmtMonth(m) + '</option>'; });
     opts += '<option value="custom"' + (S.sel.mode === 'custom' ? ' selected' : '') + '>Custom dates</option>';
@@ -2581,7 +2606,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     var w = A.W(), H = S.H, files = w.files, skus = A.skuList();
     var sold = skus.filter(function (x) { return x.units > 0; });
     var costDone = sold.length > 0 && sold.every(function (x) { return w.costs[x.sku] && w.costs[x.sku].c != null; });
-    var h = demoBar() + '<section class="sheet"><div class="sheet-h"><h2>Add your Meesho reports</h2></div><ol class="steps">' +
+    var h = (A.hasData() ? '' : hero(true)) + demoBar() + '<section class="sheet"><div class="sheet-h"><h2>Add your Meesho reports</h2></div><ol class="steps">' +
       step(H.legs > 0, 'Payment report', 'In the Meesho Supplier Panel, open <strong>Payments</strong> and download the payment report for the dates you want. It is an Excel file with sheets such as Order Payments and Ads Cost. Add every payment file you have; rows that repeat across files are counted once.') +
       step(H.ordRows > 0, 'Orders report (optional)', 'From <strong>Orders</strong>, download the orders CSV. It adds orders that are not paid yet, so pending and overdue payments show up.') +
       step(costDone, 'Product costs', 'Enter what one unit of each SKU costs you. <button class="btn link" data-act="tab" data-tab="costs">Open Costs</button>') +

@@ -13,15 +13,16 @@ Package name: `com.pakkabill.app` (cannot change after the first upload).
 
 ## Store listing
 
-**App name** (26/30): `PakkaBill: GST Billing App`
+**App name** (27/30): `PakkaBill: Know Real Profit`
 
-**Short description** (76/80):
-`GST bills, GSTR-1 JSON and Meesho profit, RTO and returns. Free for sellers.`
+**Short description** (78/80):
+`Know your real Meesho profit after fees, returns, RTO and GST. Plus GST bills.`
 
 **Full description:**
 
 ```
-PakkaBill makes GST billing simple for Indian sellers, shop owners and online sellers on Meesho, Amazon and Flipkart.
+KNOW YOUR REAL PROFIT.
+Sales are not profit. PakkaBill takes your Meesho payment report and shows what you really earned, after every Meesho fee, return, RTO, GST and product cost, reconciled to the paisa. And it makes GST bills that work offline.
 
 MAKE GST BILLS IN SECONDS
 • Tax invoices and estimates with CGST, SGST and IGST worked out for you

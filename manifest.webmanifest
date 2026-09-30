@@ -1,7 +1,7 @@
 {
-  "name": "PakkaBill: GST bills",
+  "name": "PakkaBill: Know your real profit",
   "short_name": "PakkaBill",
-  "description": "GST tax invoices that work offline.",
+  "description": "Know your real profit on Meesho: every fee, return, RTO and GST taken out. Plus GST bills that work offline.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
