@@ -259,13 +259,16 @@ details.more[open] > summary { margin-bottom: 10px; }
 .clist .crow:last-child { border-bottom: 0; }
 .clist .crow.miss { box-shadow: inset 3px 0 0 var(--margin); padding-left: 10px; }
 .clist .crow .info { grid-column: 1 / -1; min-width: 0; }
+.clist .crow .ccat { grid-column: 1 / -1; }
+.fill-seg { flex-wrap: wrap; }
 .clist .crow .sku { font-weight: 700; word-break: break-all; }
 .clist .crow .sub { font-size: .84rem; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .clist .crow label { display: flex; flex-direction: column; gap: 3px; font-size: .76rem; font-weight: 600; color: var(--ink-3); min-width: 0; }
 .clist .crow .inp { min-height: 38px; padding: 6px 8px; min-width: 0; width: 100%; }
 @media (min-width: 620px) {
-  .clist .crow { grid-template-columns: minmax(0, 1fr) 130px 80px 110px; }
+  .clist .crow { grid-template-columns: minmax(0, 1fr) 120px 70px 100px 170px; }
   .clist .crow .info { grid-column: auto; align-self: center; }
+  .clist .crow .ccat { grid-column: auto; }
 }
 
 /* expenses */
@@ -337,6 +340,9 @@ details.more[open] > summary { margin-bottom: 10px; }
     s = s.replace(/[\u2212\u2012\u2013\u2014]/g, '-');
     var neg = false;
     if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1).trim(); }
+    // bank-style "12.50 Dr" is money out, "12.50 Cr" money in
+    var dc = /^(.*?)\s*(dr|cr)\.?$/i.exec(s);
+    if (dc && /\d/.test(dc[1])) { if (dc[2].toLowerCase() === 'dr') neg = !neg; s = dc[1]; }
     s = s.replace(/\u20b9|rs\.?|inr/gi, '').replace(/[,\s\u00a0]/g, '').replace(/%$/, '');
     if (/^[0-9.]+-$/.test(s)) { neg = !neg; s = s.slice(0, -1); }
     if (!/^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i.test(s)) return null;
@@ -774,6 +780,38 @@ details.more[open] > summary { margin-bottom: 10px; }
     M.pk = packInfo(M);
     return M;
   }
+
+  /* ---------------- product categories ----------------
+     Read from Meesho's product name (the SKU is the seller's own code, so it rarely says what the
+     product is). The first matching group wins, so the specific groups come first. Sellers can
+     change any SKU's category in the Costs tab. */
+  var CATS = [
+    ['Kids', /\b(kids?|baby|babies|infant|toddler|new ?born|boys?|girls?)\b|\d+\s*-\s*\d+\s*(years?|yrs?|months?)\b/],
+    ['Sarees', /\b(sarees?|saris?)\b/],
+    ['Lehengas', /\b(lehengas?|lehnga|ghagra|chaniya)\b/],
+    ['Kurtis & suits', /\b(kurtis?|kurtas?|salwar|suit sets?|dress material|anarkali|churidar|co-?ord|kaftan)\b/],
+    ['Blouses', /\bblouses?\b/],
+    ['Dupattas & stoles', /\b(dupattas?|stoles?|shawls?)\b/],
+    ['Nightwear & innerwear', /\b(nighty|nighties|night ?suits?|nightwear|pyjama sets?|bras?|panty|panties|briefs?|innerwear|lingerie|camisoles?|shapewear|vests?)\b/],
+    ['Jewellery', /\b(earrings?|necklaces?|jewell?e?ry|bangles?|bracelets?|rings?|anklets?|payal|mangalsutra|pendants?|chains?|jhumkas?|maang tikka|nose ?pins?|kada)\b/],
+    ['Footwear', /\b(shoes?|sandals?|slippers?|chappals?|flip ?flops?|heels?|sneakers?|juttis?|mojaris?|footwear|bellies)\b/],
+    ['Bags & wallets', /\b(bags?|wallets?|purses?|clutch(es)?|backpacks?|handbags?|sling)\b/],
+    ['Beauty & personal care', /\b(lipsticks?|makeup|make-up|creams?|serums?|shampoo|hair oil|soaps?|perfumes?|nail|kajal|face ?wash|lotion|sunscreen|trimmer)\b/],
+    ['Home & kitchen', /\b(bed ?sheets?|pillows?|cushions?|curtains?|towels?|door ?mats?|mats?|blankets?|quilts?|comforters?|dohar|kitchen|containers?|bottles?|organi[sz]ers?|storage|decor|lamps?|mugs?|plates?|bowls?|cookware|spoons?|tawa|pans?)\b/],
+    ['Electronics & accessories', /\b(earphones?|earbuds?|headphones?|chargers?|cables?|mobile covers?|phone cases?|back covers?|power ?banks?|speakers?|smart ?watch(es)?|neckband|usb|led)\b/],
+    ['Toys & stationery', /\b(toys?|puzzles?|dolls?|pens?|pencils?|notebooks?|diary|diaries|stationery|school)\b/],
+    ['Fashion accessories', /\b(watch(es)?|sunglass(es)?|belts?|caps?|hats?|hair ?clips?|clips?|scrunchies?|socks|gloves?|masks?|hair ?bands?|brooch)\b/],
+    ['Men’s clothing', /\b(men'?s?|male|gents|sherwani|kurta pyjama)\b/],
+    ['Bottoms', /\b(palazzos?|leggings?|jeggings?|jeans|trousers?|pants?|track ?pants?|joggers?|shorts|skirts?|capris?|pyjamas?|lowers?)\b/],
+    ['Dresses & tops', /\b(dress(es)?|gowns?|tops?|tunics?|t-?shirts?|tshirts?|shirts?|jackets?|shrugs?|sweaters?|sweatshirts?|hoodies?|cardigans?|frocks?)\b/]
+  ];
+  var CAT_OTHER = 'Other';
+  function categoryOf(pn) {
+    var n = ' ' + h(pn).replace(/[_/|+]/g, ' ') + ' ';
+    for (var i = 0; i < CATS.length; i++) if (CATS[i][1].test(n)) return CATS[i][0];
+    return CAT_OTHER;
+  }
+  function catNames() { return CATS.map(function (c) { return c[0]; }).concat([CAT_OTHER]); }
 
   /* ---------------- costs & conditions ---------------- */
   function costFn(costs) {
@@ -1406,7 +1444,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     monthStart: monthStart, monthEnd: monthEnd, nextMonth: nextMonth, fmtDate: fmtDate, fmtMonth: fmtMonth, money: money,
     skuLetters: skuLetters, nameCount: nameCount, packRule: packRule, piecesOf: piecesOf, normSt: normSt, classify: classify, detect: detect, parsePay: parsePay, parseAds: parseAds, parseAmt: parseAmt, parseOrd: parseOrd,
     calibrate: calibrate, ingest: ingest, merge: merge, index: index, dataMonths: dataMonths, periodFor: periodFor, expFor: expFor,
-    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, payouts: payouts, health: health, demo: demo, uid: uid
+    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, payouts: payouts, health: health, demo: demo, uid: uid
   };
 });
 
@@ -1445,7 +1483,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     tab: '',
     sel: { mode: 'all', basis: 'pay', m: '', from: '', to: '' },
     rc: { b: 'all', q: '', n: 60 },
-    cf: { q: '', miss: false },
+    cf: { q: '', miss: false, cat: '', mode: 'same' },
     db: null, uid: null, local: true
   };
   function W() { return S.demo || S.real; }
@@ -1458,7 +1496,7 @@ details.more[open] > summary { margin-bottom: 10px; }
 
   function toDoc(name, w) {
     if (name === 'settings') { var s = {}; for (var k in E.DEFAULTS) s[k] = w.settings[k]; return s; }
-    if (name === 'costs') return { list: Object.keys(w.costs).map(function (k) { var c = w.costs[k]; return { s: k, c: c.c == null ? null : c.c, p: c.p == null ? null : c.p, n: c.n == null ? null : c.n }; }) };
+    if (name === 'costs') return { list: Object.keys(w.costs).map(function (k) { var c = w.costs[k]; return { s: k, c: c.c == null ? null : c.c, p: c.p == null ? null : c.p, n: c.n == null ? null : c.n, k: c.k || null }; }) };
     if (name === 'expenses') return { list: w.expenses.map(function (e) { return { id: e.id, name: e.name, amt: e.amt, when: e.when }; }) };
     return { list: Object.keys(w.marks).map(function (k) { return { i: k, c: w.marks[k] }; }) };
   }
@@ -1472,7 +1510,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       w.settings = s;
     } else if (name === 'costs') {
       var c = {};
-      (d.list || []).forEach(function (r) { if (r && r.s) c[r.s] = { c: r.c == null ? null : +r.c, p: r.p == null ? null : +r.p, n: r.n == null ? null : +r.n }; });
+      (d.list || []).forEach(function (r) { if (r && r.s) c[r.s] = { c: r.c == null ? null : +r.c, p: r.p == null ? null : +r.p, n: r.n == null ? null : +r.n, k: r.k ? String(r.k) : null }; });
       w.costs = c;
     } else if (name === 'expenses') {
       w.expenses = (d.list || []).filter(function (e) { return e && e.id && e.when; }).map(function (e) { return { id: String(e.id), name: String(e.name || 'Expense'), amt: +e.amt || 0, when: String(e.when) }; });
@@ -1807,9 +1845,10 @@ details.more[open] > summary { margin-bottom: 10px; }
   async function importCosts(file) {
     try {
       await libs(['XLSX']);
-      var buf = await file.arrayBuffer(), sheets = readBook(file.name, buf), n = 0, w = W();
+      var buf = await file.arrayBuffer(), sheets = readBook(file.name, buf), n = 0, w = W(), autoCats = {};
+      A.skuList().forEach(function (x) { autoCats[x.sku] = x.autoCat; });
       sheets.forEach(function (sh) {
-        var rows = sh.rows, hr = -1, cs = -1, cc = -1, cp = -1, cn = -1;
+        var rows = sh.rows, hr = -1, cs = -1, cc = -1, cp = -1, cn = -1, ck = -1;
         for (var i = 0; i < Math.min(rows.length, 15) && hr < 0; i++) {
           var H = (rows[i] || []).map(E.h);
           var a = H.findIndex(function (x) { return /sku/.test(x); }), b = H.findIndex(function (x) { return /cost|price|rate/.test(x) && !/packag/.test(x); });
@@ -1817,6 +1856,7 @@ details.more[open] > summary { margin-bottom: 10px; }
             hr = i; cs = a; cc = b;
             cp = H.findIndex(function (x) { return /packag/.test(x); });
             cn = H.findIndex(function (x) { return /piece|pcs|combo/.test(x) && !/cost|price|rate/.test(x); });
+            ck = H.findIndex(function (x) { return /categor/.test(x); });
           }
         }
         if (hr < 0) return;
@@ -1824,11 +1864,13 @@ details.more[open] > summary { margin-bottom: 10px; }
           var sku = E.txt(rows[r][cs]); if (!sku) continue;
           var c = toPaise(rows[r][cc]), p = cp >= 0 ? toPaise(rows[r][cp]) : null, pc = cn >= 0 ? E.cleanNum(rows[r][cn]) : null;
           if (pc !== null && !(pc >= 1 && pc <= 50)) pc = null;
-          if (c === null && p === null && pc === null) continue;
+          var kk = ck >= 0 ? E.txt(rows[r][ck]) : '';
+          if (c === null && p === null && pc === null && !kk) continue;
           var cur = w.costs[sku] || {};
           var nn = cur.n == null ? null : cur.n;
           if (pc !== null) nn = Math.round(pc) === E.piecesOf(sku, w.settings, null, S.M) ? null : Math.round(pc);
-          w.costs[sku] = { c: c !== null ? c : (cur.c == null ? null : cur.c), p: p !== null ? p : (cur.p == null ? null : cur.p), n: nn }; n++;
+          var autoK = autoCats[sku] || E.categoryOf(sku);
+          w.costs[sku] = { c: c !== null ? c : (cur.c == null ? null : cur.c), p: p !== null ? p : (cur.p == null ? null : cur.p), n: nn, k: kk ? (kk === autoK ? null : kk) : (cur.k || null) }; n++;
         }
       });
       if (!n) { toast('No rows found. The sheet needs an SKU column and a Cost column.', 6000); return; }
@@ -1836,10 +1878,10 @@ details.more[open] > summary { margin-bottom: 10px; }
     } catch (e) { console.error(e); toast('Could not read that cost sheet.', 5000); }
   }
   function exportCosts() {
-    var rows = [['SKU', 'Product', 'Pieces in combo', 'Cost per piece (Rs)', 'Packaging per parcel (Rs, optional)']];
+    var rows = [['SKU', 'Product', 'Category', 'Buyer price per order (Rs)', 'Pieces in combo', 'Cost per piece (Rs)', 'Packaging per parcel (Rs, optional)']];
     A.skuList().forEach(function (x) {
       var c = W().costs[x.sku] || {};
-      rows.push([x.sku, x.pn, x.pcs, c.c == null ? '' : rupeeInput(c.c), c.p == null ? '' : rupeeInput(c.p)]);
+      rows.push([x.sku, x.pn, x.cat, x.price ? rupeeInput(x.price) : '', x.pcs, c.c == null ? '' : rupeeInput(c.c), c.p == null ? '' : rupeeInput(c.p)]);
     });
     var csv = rows.map(function (r) { return r.map(function (v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }).join('\r\n');
     saveBlob('Hisaab_costs.csv', new Blob(['\uFEFF' + csv], { type: 'text/csv' }));
@@ -1869,14 +1911,92 @@ details.more[open] > summary { margin-bottom: 10px; }
       if (!e.pn && x.pn) e.pn = x.pn;
     });
     Object.keys(w.costs).forEach(function (k) { if (!map[k]) map[k] = { sku: k, pn: '', orders: 0, units: 0 }; });
-    Object.keys(map).forEach(function (k) { map[k].pcs = E.piecesOf(k, w.settings, w.costs[k], S.M); map[k].auto = E.piecesOf(k, w.settings, null, S.M); });
+    var price = {};
+    (S.IX ? S.IX.list : []).forEach(function (x) {
+      if (!x.sku) return;
+      var v = x.s > 0 ? x.s / (x.q || 1) : x.ord && x.ord.price ? x.ord.price : 0; // buyer price per order, incl. GST
+      if (v > 0) { var e = price[x.sku] || (price[x.sku] = { t: 0, n: 0 }); e.t += v; e.n++; }
+    });
+    Object.keys(map).forEach(function (k) {
+      var e = map[k];
+      e.pcs = E.piecesOf(k, w.settings, w.costs[k], S.M); e.auto = E.piecesOf(k, w.settings, null, S.M);
+      e.autoCat = E.categoryOf(e.pn || k); e.cat = (w.costs[k] && w.costs[k].k) || e.autoCat;
+      e.price = price[k] ? Math.round(price[k].t / price[k].n) : 0;
+    });
     return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) { return b.orders - a.orders || (a.sku < b.sku ? -1 : 1); });
   };
 
+  A.catOf = function (sku, pn) { var c = W().costs[sku]; return (c && c.k) || E.categoryOf(pn || sku); };
+
+  /* SKU "family": the same product in another size or colour. Size words and trailing numbers are
+     dropped, so KURTI-RED-XL, KURTI-RED-M and KURTI-RED-2XL are one family, and so are BG32 and BG34. */
+  var SIZE = /^(xxs|xs|s|m|l|xl|xxl|xxxl|[2-6]xl|free|freesize|fs|small|medium|large|std|\d+(\.\d+)?|\d+[a-z]{0,2})$/;
+  function familyOf(sku) {
+    var parts = String(sku).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+    while (parts.length > 1 && SIZE.test(parts[parts.length - 1])) parts.pop();
+    var key = parts.join('-');
+    if (parts.length === 1) key = key.replace(/\d+$/, '');
+    return key.length >= 2 ? key : String(sku).toLowerCase();
+  }
+  A.familyOf = familyOf;
+
+  /* Bulk cost filling, with one step of undo. */
+  var lastFill = null;
+  function groupMatch(x, g, q) {
+    if (g === 'cat') return x.cat === q;
+    if (g === 'text') return !q || x.sku.toUpperCase().indexOf(q.toUpperCase()) >= 0 || x.pn.toUpperCase().indexOf(q.toUpperCase()) >= 0;
+    return true;
+  }
+  function fillCosts(label, plan) {
+    // plan: [{ sku, c?, n?, p?, k? }]; fields left out keep their value
+    if (!plan.length) return 0;
+    var w = W();
+    lastFill = { label: label, before: JSON.parse(JSON.stringify(w.costs)) };
+    plan.forEach(function (x) {
+      var cur = costEntry(x.sku);
+      ['c', 'p', 'n', 'k'].forEach(function (f) { if (x[f] !== undefined) cur[f] = x[f]; });
+      w.costs[x.sku] = cur;
+    });
+    persist('costs'); refresh();
+    return plan.length;
+  }
+  A.undoLabel = function () { return lastFill ? lastFill.label : ''; };
+  function median(a) { a = a.slice().sort(function (x, y) { return x - y; }); var m = a.length >> 1; return a.length % 2 ? a[m] : Math.round((a[m - 1] + a[m]) / 2); }
+  /* Rows pasted from Excel or typed: SKU, cost per piece, [pieces], [packaging], separated by
+     tabs, commas or spaces. A header row is skipped. */
+  function parsePasted(text) {
+    var out = [], bad = 0;
+    String(text || '').split(/\r?\n/).forEach(function (line, i) {
+      line = line.trim(); if (!line) return;
+      var cells = line.indexOf('\t') >= 0 ? line.split('\t') : line.indexOf(',') >= 0 && !/\d,\d{3}/.test(line) ? line.split(',') : line.split(/\s+/);
+      cells = cells.map(function (c) { return c.trim(); });
+      if (i === 0 && /sku/i.test(cells[0])) return;
+      var c = toPaise(cells[1]), n = cells[2] ? E.cleanNum(cells[2]) : null, pk = cells[3] ? toPaise(cells[3]) : null;
+      if (!cells[0] || c === null || c < 0) { bad++; return; }
+      var row = { sku: cells[0], c: c };
+      if (n !== null && n >= 1 && n <= 50) row.n = Math.round(n);
+      if (pk !== null && pk >= 0) row.p = pk;
+      out.push(row);
+    });
+    return { rows: out, bad: bad };
+  }
+  A.parsePasted = parsePasted;
+  function fillGroup() {
+    var g = $('#fl-g') ? $('#fl-g').value : 'all';
+    if (g.indexOf('cat:') === 0) return { g: 'cat', q: g.slice(4) };
+    return { g: g, q: g === 'text' ? E.txt(($('#fl-q') || {}).value) : '' };
+  }
+
   /* ---------------- actions ---------------- */
+  function costEntry(sku) {
+    var cur = W().costs[sku] || {};
+    return { c: cur.c == null ? null : cur.c, p: cur.p == null ? null : cur.p, n: cur.n == null ? null : cur.n, k: cur.k || null };
+  }
   function setCost(sku, field, raw) {
     var w = W(), empty = String(raw).trim() === '', v;
-    if (field === 'n') {
+    if (field === 'k') {
+      v = empty ? null : String(raw);
+    } else if (field === 'n') {
       v = empty ? null : E.cleanNum(raw);
       if (v !== null && !(v >= 1 && v <= 50 && Math.round(v) === v)) { toast('Pieces must be a whole number from 1 to 50'); return false; }
     } else {
@@ -1884,9 +2004,8 @@ details.more[open] > summary { margin-bottom: 10px; }
       if (v !== null && v < 0) { toast('Cost cannot be negative'); return false; }
       if (!empty && v === null) { toast('Enter a number, like 128 or 128.50'); return false; }
     }
-    var cur = w.costs[sku] || {};
-    cur = { c: cur.c == null ? null : cur.c, p: cur.p == null ? null : cur.p, n: cur.n == null ? null : cur.n }; cur[field] = v;
-    if (cur.c == null && cur.p == null && cur.n == null) delete w.costs[sku]; else w.costs[sku] = cur;
+    var cur = costEntry(sku); cur[field] = v;
+    if (cur.c == null && cur.p == null && cur.n == null && !cur.k) delete w.costs[sku]; else w.costs[sku] = cur;
     persist('costs'); recompute(); renderChrome();
     return true;
   }
@@ -1925,18 +2044,51 @@ details.more[open] > summary { margin-bottom: 10px; }
     rcb: function (el) { S.rc.b = el.getAttribute('data-b'); S.rc.n = 60; render(); },
     rcgo: function (el) { S.rc.b = el.getAttribute('data-b'); S.rc.n = 60; S.rc.q = ''; setTab('rc'); },
     rcMore: function () { S.rc.n += 60; render(); },
-    bulk: function () {
-      var q = E.txt($('#bulk-q').value).toUpperCase(), c = toPaise($('#bulk-c').value), onlyEmpty = $('#bulk-e').checked;
+    fillSame: function () {
+      var gr = fillGroup(), c = toPaise($('#fl-c').value), onlyEmpty = $('#fl-e').checked, w = W();
       if (c === null || c < 0) { toast('Enter the cost per piece in rupees'); return; }
-      var n = 0, w = W();
+      var plan = A.skuList().filter(function (x) { return groupMatch(x, gr.g, gr.q) && !(onlyEmpty && w.costs[x.sku] && w.costs[x.sku].c != null); })
+        .map(function (x) { return { sku: x.sku, c: c }; });
+      var n = fillCosts('same cost', plan);
+      toast(n ? 'Cost set for ' + n + ' SKU' + (n > 1 ? 's' : '') : 'No SKU to fill in this group');
+    },
+    fillPct: function () {
+      var gr = fillGroup(), pct = E.cleanNum($('#fl-pct').value), onlyEmpty = $('#fl-e').checked, w = W(), noPrice = 0, plan = [];
+      if (pct === null || pct <= 0 || pct >= 100) { toast('Enter a percentage between 1 and 99'); return; }
       A.skuList().forEach(function (x) {
-        if (q && x.sku.toUpperCase().indexOf(q) < 0) return;
-        var cur = w.costs[x.sku] || {};
-        if (onlyEmpty && cur.c != null) return;
-        w.costs[x.sku] = { c: c, p: cur.p == null ? null : cur.p, n: cur.n == null ? null : cur.n }; n++;
+        if (!groupMatch(x, gr.g, gr.q) || (onlyEmpty && w.costs[x.sku] && w.costs[x.sku].c != null)) return;
+        if (!x.price) { noPrice++; return; }
+        plan.push({ sku: x.sku, c: Math.round(x.price * pct / 100 / (x.pcs || 1)) });
       });
-      if (!n) { toast(q ? 'No SKU matches "' + q + '"' : 'Every SKU already has a cost'); return; }
-      persist('costs'); refresh(); toast('Cost set for ' + n + ' SKU' + (n > 1 ? 's' : ''));
+      var n = fillCosts(pct + '% of the buyer price', plan);
+      toast(n ? 'Cost set for ' + n + ' SKU' + (n > 1 ? 's' : '') + (noPrice ? '. ' + noPrice + ' have no sale price yet' : '') : 'No SKU with a sale price to fill', 5000);
+    },
+    fillSimilar: function () {
+      var w = W(), list = A.skuList(), fam = {}, name = {}, plan = [];
+      list.forEach(function (x) {
+        var c = w.costs[x.sku]; if (!c || c.c == null) return;
+        var f = familyOf(x.sku); (fam[f] = fam[f] || []).push(c.c);
+        if (x.pn) { var k = x.pn.toLowerCase(); (name[k] = name[k] || []).push(c.c); }
+      });
+      list.forEach(function (x) {
+        var c = w.costs[x.sku]; if (c && c.c != null) return;
+        var from = (x.pn && name[x.pn.toLowerCase()]) || fam[familyOf(x.sku)];
+        if (from && from.length) plan.push({ sku: x.sku, c: median(from) });
+      });
+      var n = fillCosts('copy from similar SKUs', plan);
+      toast(n ? 'Copied costs to ' + n + ' similar SKU' + (n > 1 ? 's' : '') : 'No similar SKUs found. Give one size or colour a cost first.', 5000);
+    },
+    fillPaste: function () {
+      var r = parsePasted($('#fl-paste').value);
+      if (!r.rows.length) { toast('Paste rows like: SKU, cost per piece (copied from Excel)'); return; }
+      var n = fillCosts('pasted list', r.rows);
+      toast(n + ' cost' + (n > 1 ? 's' : '') + ' saved' + (r.bad ? '. ' + r.bad + ' line' + (r.bad > 1 ? 's' : '') + ' skipped (no cost)' : ''), 5000);
+    },
+    fillMode: function (el) { S.cf.mode = el.getAttribute('data-v'); render(); },
+    fillUndo: function () {
+      if (!lastFill) return;
+      W().costs = lastFill.before; var l = lastFill.label; lastFill = null;
+      persist('costs'); refresh(); toast('Undone: ' + l);
     },
     costExport: exportCosts,
     addExp: function () {
@@ -1977,6 +2129,9 @@ details.more[open] > summary { margin-bottom: 10px; }
       W().settings.pack = v; persist('settings'); recompute(); renderChrome(); toast('Packaging cost saved');
     },
     cmiss: function (el) { S.cf.miss = el.checked; render(); },
+    ccatf: function (el) { S.cf.cat = el.value; var box = $('#c-list'); if (box) box.innerHTML = A.V.costRows(); },
+    ccat: function (el) { var sku = el.getAttribute('data-sku'), x = A.skuList().filter(function (s) { return s.sku === sku; })[0]; setCost(sku, 'k', x && el.value === x.autoCat ? '' : el.value); },
+    flg: function () { var g = $('#fl-g'), q = $('#fl-q'); if (g && q) q.hidden = g.value !== 'text'; },
     cond: function (el) {
       var id = el.getAttribute('data-id'), w = W();
       w.marks[id] = el.value; persist('marks'); recompute(); renderChrome();
@@ -2019,7 +2174,8 @@ details.more[open] > summary { margin-bottom: 10px; }
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && e.target.matches && e.target.matches('#ex-n, #ex-a')) { e.preventDefault(); ACT.addExp(); }
-    if (e.key === 'Enter' && e.target.matches && e.target.matches('#bulk-q, #bulk-c')) { e.preventDefault(); ACT.bulk(); }
+    if (e.key === 'Enter' && e.target.matches && e.target.matches('#fl-q, #fl-c')) { e.preventDefault(); ACT.fillSame(); }
+    if (e.key === 'Enter' && e.target.matches && e.target.matches('#fl-pct')) { e.preventDefault(); ACT.fillPct(); }
     if (e.key === 'Enter' && e.target.matches && e.target.matches('.clist .inp')) { e.target.blur(); }
   });
   ['dragenter', 'dragover'].forEach(function (t) {
@@ -2206,6 +2362,31 @@ details.more[open] > summary { margin-bottom: 10px; }
   }
   A.returnsHtml = returnsHtml;
 
+  /* ---------------- Profit by category ---------------- */
+  function categoryRows() {
+    var R = S.R, RV = S.RV, m = {};
+    function row(k) { return m[k] || (m[k] = { cat: k, skus: 0, sold: 0, NS: 0, profit: 0, done: 0, delivered: 0, rto: 0, ret: 0, loss: 0 }); }
+    R.skus.forEach(function (x) { var r = row(A.catOf(x.sku, x.pn)); r.skus++; r.sold += x.sold; r.NS += x.NS; r.profit += x.contrib; });
+    (RV ? RV.skus : []).forEach(function (x) { var r = row(A.catOf(x.sku, x.pn)); r.rto += x.rto + x.lost; r.ret += x.ret; r.loss += x.loss; });
+    return Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return b.NS - a.NS; });
+  }
+  A.categoryRows = categoryRows;
+  function categoryHtml() {
+    var rows = categoryRows();
+    if (!rows.length) return '';
+    var tot = { NS: 0, profit: 0 }; rows.forEach(function (r) { tot.NS += r.NS; tot.profit += r.profit; });
+    var body = rows.map(function (r) {
+      var margin = r.NS > 0 ? r.profit / r.NS : 0;
+      return '<tr><td><b>' + esc(r.cat) + '</b><div class="small muted">' + pl(r.skus, 'SKU') + '</div></td>' +
+        '<td class="n' + (r.profit < 0 ? ' neg' : '') + '"><b>' + mny(r.profit) + '</b></td><td class="n' + (margin < 0 ? ' neg' : '') + '">' + (r.NS > 0 ? pct(margin) : '\u2013') + '</td>' +
+        '<td class="n">' + mny(r.NS) + '</td><td class="n">' + r.sold + '</td>' +
+        '<td class="n">' + (r.rto + r.ret) + '</td><td class="n">' + (r.loss ? '<span class="neg">' + mny(-r.loss) + '</span>' : '\u2013') + '</td></tr>';
+    }).join('');
+    return '<details class="sheet more"' + (rows.length > 1 ? ' open' : '') + '><summary>Profit by category</summary><div class="tw"><table class="t"><thead><tr><th>Category</th><th class="n">Profit</th><th class="n">Margin</th><th class="n">Net sales</th><th class="n">Orders</th><th class="n">RTO + returns</th><th class="n">Lost on them</th></tr></thead><tbody>' + body +
+      '<tr class="tot"><td>All categories</td><td class="n"><b>' + mny(tot.profit) + '</b></td><td class="n">' + (tot.NS > 0 ? pct(tot.profit / tot.NS) : '') + '</td><td class="n">' + mny(tot.NS) + '</td><td></td><td></td><td></td></tr></tbody></table></div>' +
+      '<p class="small muted" style="margin:8px 0 0">Categories are read from Meesho\u2019s product names. Change any SKU\u2019s category in the Costs tab. Profit is before ads and other expenses, like Profit by SKU.</p></details>';
+  }
+
   /* ---------------- P&L ---------------- */
   V.pl = function () {
     if (!A.hasData()) return empty();
@@ -2267,6 +2448,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<div class="lg-foot">' + esc(foot.join(' ')) + '</div></section>';
 
     h += returnsHtml();
+    h += categoryHtml();
     h += '<details class="sheet more" open><summary>How profit ties to money received</summary>' +
       kv(R.bridge.map(function (b) { return [b.l, b.v, !!b.k]; })) +
       '<p class="small muted" style="margin:10px 0 0">Money received is the sum of Final Settlement Amount plus ads, referral and compensation entries. It should match the Meesho credits in your bank for the same payment dates.</p></details>';
@@ -2432,7 +2614,9 @@ details.more[open] > summary { margin-bottom: 10px; }
   V.costSummary = function () { var el = document.getElementById('c-sum'); if (el) el.textContent = costSummaryText(); };
   V.costInfo = function (x) {
     var c = A.W().costs[x.sku] || {}, bits = [x.units + ' sold'];
+    if (x.price) bits.push('buyer pays ' + rs(x.price, true));
     if (c.c != null && x.pcs > 1) bits.push(rs(c.c * x.pcs) + ' cost per order');
+    if (c.c != null && x.price) bits.push(Math.round(c.c * (x.pcs || 1) * 100 / x.price) + '% of price');
     return '<span class="sku">' + esc(x.sku) + '</span>' + (x.pcs > 1 ? ' <span class="tag">pack of ' + x.pcs + '</span>' : '') +
       '<div class="sub">' + bits.join(', ') + (x.pn ? '. ' + esc(x.pn) : '') + '</div>';
   };
@@ -2440,6 +2624,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     var w = A.W(), st = w.settings, q = S.cf.q.trim().toUpperCase();
     var list = A.skuList().filter(function (x) {
       if (S.cf.miss && w.costs[x.sku] && w.costs[x.sku].c != null) return false;
+      if (S.cf.cat && x.cat !== S.cf.cat) return false;
       return !q || x.sku.toUpperCase().indexOf(q) >= 0 || x.pn.toUpperCase().indexOf(q) >= 0;
     });
     if (!list.length) return '<p class="small muted" style="padding:10px 0">' + (A.hasData() ? 'No SKUs match.' : 'Upload a payment report to list your SKUs here.') + '</p>';
@@ -2448,9 +2633,47 @@ details.more[open] > summary { margin-bottom: 10px; }
       return '<div class="crow' + (miss ? ' miss' : '') + '"><div class="info">' + V.costInfo(x) + '</div>' +
         '<label>Per piece (\u20b9)<input class="inp money" data-ch="cost" data-sku="' + sk + '" inputmode="decimal" value="' + A.rupeeInput(c.c) + '" placeholder="Cost"></label>' +
         '<label>Pieces<input class="inp money" data-ch="cpcs" data-sku="' + sk + '" inputmode="numeric" value="' + (c.n != null ? c.n : '') + '" placeholder="' + x.auto + '"></label>' +
-        '<label>Packaging (\u20b9)<input class="inp money" data-ch="cpack" data-sku="' + sk + '" inputmode="decimal" value="' + A.rupeeInput(c.p) + '" placeholder="' + A.rupeeInput(st.pack || 0) + '"></label></div>';
+        '<label>Packaging (\u20b9)<input class="inp money" data-ch="cpack" data-sku="' + sk + '" inputmode="decimal" value="' + A.rupeeInput(c.p) + '" placeholder="' + A.rupeeInput(st.pack || 0) + '"></label>' +
+        '<label class="ccat">Category<select class="inp" data-ch="ccat" data-sku="' + sk + '">' + catOptions(x.cat, x.autoCat) + '</select></label></div>';
     }).join('') + (list.length > 400 ? '<p class="small muted">Showing 400 of ' + list.length + '. Search to find the rest.</p>' : '');
   };
+  function catOptions(cur, auto) {
+    return E.catNames().map(function (n) { return '<option value="' + esc(n) + '"' + (n === cur ? ' selected' : '') + '>' + esc(n) + (n === auto ? ' (auto)' : '') + '</option>'; }).join('');
+  }
+  function catCounts() {
+    var m = {}; A.skuList().forEach(function (x) { m[x.cat] = (m[x.cat] || 0) + 1; });
+    return E.catNames().filter(function (n) { return m[n]; }).map(function (n) { return [n, m[n]]; });
+  }
+  function fillHtml() {
+    var mode = S.cf.mode || 'same', cats = catCounts(), total = A.skuList().length, undo = A.undoLabel();
+    var modes = [['same', 'Same cost'], ['pct', '% of price'], ['similar', 'Copy similar'], ['paste', 'Paste list']];
+    var group = '<select class="inp" id="fl-g" data-ch="flg" aria-label="Which SKUs" style="flex:1 1 180px"><option value="all">All SKUs (' + total + ')</option>' +
+      cats.map(function (c) { return '<option value="cat:' + esc(c[0]) + '">' + esc(c[0]) + ' (' + c[1] + ')</option>'; }).join('') +
+      '<option value="text">SKUs with this text\u2026</option></select>' +
+      '<input class="inp" id="fl-q" placeholder="Part of SKU or product name" aria-label="Text in the SKU or product name" style="flex:1 1 160px" hidden>';
+    var only = '<label class="check small" style="margin-top:8px"><input type="checkbox" id="fl-e" checked> Only SKUs that have no cost yet</label>';
+    var body = '';
+    if (mode === 'same') {
+      body = '<p class="small muted">One cost per piece for a whole group: a category, or every SKU with the same word in it.</p><div class="row">' + group +
+        '<input class="inp money" id="fl-c" inputmode="decimal" placeholder="\u20b9 per piece" aria-label="Cost per piece in rupees" style="flex:0 1 120px">' +
+        '<button class="btn pri" data-act="fillSame">Fill</button></div>' + only;
+    } else if (mode === 'pct') {
+      body = '<p class="small muted">When different SKUs cost different amounts but your margin is similar: cost per piece = this share of what the buyer paid per order, divided by the pieces in the pack. Fine-tune any SKU afterwards.</p><div class="row">' + group +
+        '<input class="inp money" id="fl-pct" inputmode="decimal" placeholder="45" aria-label="Percent of the buyer price" style="flex:0 1 80px"><span class="small">% of buyer price</span>' +
+        '<button class="btn pri" data-act="fillPct">Fill</button></div>' + only;
+    } else if (mode === 'similar') {
+      body = '<p class="small muted">Give one size or colour a cost, and every other size and colour of it gets the same cost per piece. SKUs count as the same product when they share the product name, or only differ by size or number at the end (KURTI-RED-M and KURTI-RED-XL, BG32 and BG34). Only SKUs without a cost are filled.</p>' +
+        '<div class="row"><button class="btn pri" data-act="fillSimilar">Copy costs to similar SKUs</button></div>';
+    } else {
+      body = '<p class="small muted">Copy two columns from Excel or your purchase register and paste them here: SKU and cost per piece. Optional third and fourth columns: pieces in the pack, packaging per parcel.</p>' +
+        '<textarea class="inp" id="fl-paste" rows="6" placeholder="BPYG05\t90\nRGB12\t85\t3\nKURTI-RED-M\t240" aria-label="SKU and cost rows" style="width:100%;font-family:monospace"></textarea>' +
+        '<div class="row" style="margin-top:8px"><button class="btn pri" data-act="fillPaste">Save these costs</button></div>';
+    }
+    return '<section class="sheet"><div class="sheet-h"><h3>Fill costs automatically</h3>' + (undo ? '<button class="btn sm" data-act="fillUndo">Undo: ' + esc(undo) + '</button>' : '') + '</div>' +
+      '<div class="seg fill-seg" role="group" aria-label="How to fill" style="margin:6px 0 10px">' + modes.map(function (m) { return '<button data-act="fillMode" data-v="' + m[0] + '" aria-pressed="' + (mode === m[0]) + '">' + m[1] + '</button>'; }).join('') + '</div>' +
+      body + '</section>';
+  }
+
   V.costs = function () {
     var st = A.W().settings;
     var h = demoBar() + '<section class="sheet stack"><h2>Product costs</h2>' +
@@ -2458,19 +2681,15 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<div class="fgrid"><label class="f">Pieces in a combo' + packSel(st) + '</label></div>' +
       '<p class="small muted" style="margin:0">' + esc(packNote(st)) + ' For any SKU that is different, type the right count under Pieces.</p>' +
       '<div class="fgrid"><label class="f">Packaging per parcel (\u20b9)<input class="inp money" data-ch="pack" inputmode="decimal" value="' + A.rupeeInput(st.pack || 0) + '"></label></div>' +
-      '<p class="small muted" style="margin:0">Poly bag, label and tape for one parcel. Counted once per shipped parcel, RTO parcels included.</p></section>' +
-      '<section class="sheet"><h3 style="margin-bottom:8px">Same cost per piece for many SKUs</h3><div class="row">' +
-      '<input class="inp" id="bulk-q" placeholder="Part of SKU, blank for all" aria-label="Part of the SKU, or leave empty for all SKUs" style="flex:1 1 180px">' +
-      '<input class="inp money" id="bulk-c" inputmode="decimal" placeholder="\u20b9 per piece" aria-label="Cost per piece in rupees" style="flex:0 1 120px">' +
-      '<button class="btn" data-act="bulk">Apply</button></div>' +
-      '<label class="check small" style="margin-top:8px"><input type="checkbox" id="bulk-e" checked> Only fill SKUs that have no cost yet</label></section>' +
+      '<p class="small muted" style="margin:0">Poly bag, label and tape for one parcel. Counted once per shipped parcel, RTO parcels included.</p></section>' + fillHtml() +
       '<section class="sheet"><div class="sheet-h"><h3>Your SKUs</h3><span class="small muted" id="c-sum">' + costSummaryText() + '</span></div>' +
       '<div class="row" style="margin-bottom:4px"><input class="inp" type="search" data-in="cq" placeholder="Search SKU" value="' + esc(S.cf.q) + '" aria-label="Search SKU" style="flex:1 1 200px">' +
+      '<select class="inp" data-ch="ccatf" aria-label="Category" style="flex:0 1 190px"><option value="">All categories</option>' + catCounts().map(function (c) { return '<option value="' + esc(c[0]) + '"' + (S.cf.cat === c[0] ? ' selected' : '') + '>' + esc(c[0]) + ' (' + c[1] + ')</option>'; }).join('') + '</select>' +
       '<label class="check small"><input type="checkbox" data-ch="cmiss"' + (S.cf.miss ? ' checked' : '') + '> Only missing</label></div>' +
       '<div class="clist" id="c-list">' + V.costRows() + '</div>' +
       '<div class="row" style="margin-top:12px"><button class="btn sm" data-act="costExport">Download cost sheet</button>' +
       '<label class="btn sm">Upload cost sheet<input type="file" class="sr" data-file="costs" accept=".csv,.xlsx,.xls"></label></div>' +
-      '<p class="small muted" style="margin:8px 0 0">The cost sheet has SKU, pieces and cost per piece columns. Fill it in Excel and upload it back.</p></section>';
+      '<p class="small muted" style="margin:8px 0 0">The cost sheet lists every SKU with its category, the buyer price, pieces and cost per piece. Fill it in Excel and upload it back; a changed category is saved too.</p></section>';
     return '<div class="stack">' + h + '</div>';
   };
 
@@ -2628,6 +2847,20 @@ details.more[open] > summary { margin-bottom: 10px; }
     SK.push([t('Not tied to a SKU (ads, referral, account credits, expenses)', ST.tot)].concat(new Array(16).fill(t('', ST.tot))).concat([m(R.unalloc, ST.tot)]));
     SK.push([t('Net profit', ST.np), t('', ST.np), t('', ST.np), n(K.sales, ST.np), n(K.fu, ST.np)].concat(new Array(12).fill(t('', ST.np))).concat([m(R.NP, ST.np)]));
     X.utils.book_append_sheet(wb, sheet(SK, [16, 40, 9, 10, 10, 10, 10, 13, 13, 13, 12, 13, 13, 14, 13, 12, 11, 13, 12, 12, 14, 15], { xSplit: 1, ySplit: 1 }), 'SKU wise');
+
+    /* Category wise */
+    if (A.categoryRows) {
+      var CR = [heads(['Category', 'SKUs', 'Orders sold', 'Net sales', 'Profit', 'Margin', 'RTO and returns', 'Lost on RTO and returns'])];
+      A.categoryRows().forEach(function (r) {
+        CR.push([t(r.cat), n(r.skus), n(r.sold), m(r.NS), m(r.profit, ST.bold), t(r.NS > 0 ? (r.profit * 100 / r.NS).toFixed(1) + '%' : ''), n(r.rto + r.ret), m(-r.loss)]);
+      });
+      var catOfSku = {};
+      R.skus.forEach(function (x) { catOfSku[x.sku] = A.catOf(x.sku, x.pn); });
+      CR.push([]);
+      CR.push([t('SKU', ST.sec), t('Category', ST.sec), t('Product', ST.sec)]);
+      R.skus.forEach(function (x) { CR.push([t(x.sku), t(catOfSku[x.sku]), t(x.pn)]); });
+      X.utils.book_append_sheet(wb, sheet(CR, [28, 22, 40, 14, 14, 10, 14, 18], { xSplit: 1, ySplit: 1 }), 'Category wise');
+    }
 
     /* Returns, RTO and exchanges */
     var RV = S.RV;
