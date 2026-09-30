@@ -121,7 +121,17 @@ async function memory([op, ...a]) {
 
 const cmd = (c) => (MEMORY ? memory(c) : redis(c));
 async function pipe(cmds) {
-  if (!MEMORY) return redisPipe(cmds);
+  if (!MEMORY) {
+    try {
+      return await redisPipe(cmds);
+    } catch (e) {
+      // if the pipeline endpoint is ever unavailable, send the commands one by one instead
+      console.error('pipeline failed, running commands one by one:', e.message);
+      const out = [];
+      for (const c of cmds) out.push(await redis(c));
+      return out;
+    }
+  }
   const out = [];
   for (const c of cmds) out.push(await memory(c));
   return out;
