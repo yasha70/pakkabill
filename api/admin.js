@@ -282,10 +282,14 @@ const actions = {
   async resetPassword({ phone }) {
     const user = await core.getUser(String(phone));
     if (!user) throw new core.HttpError(404, 'No such account.');
-    const temp = core.token().replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
+    // 6 digits: easy to read out and type on a phone keyboard (no capital letters or look-alikes
+    // like O/0 and l/1). Logins are rate limited, and the customer is asked to set their own.
+    const temp = String(require('crypto').randomInt(100000, 1000000));
     user.pass = await core.hashPassword(temp);
     user.pwAt = Date.now(); // logs the account out on every device
+    user.tempPw = true;
     await core.saveUser(user);
+    await db.cmd(['DEL', `rl:login:${user.phone}`]); // earlier wrong tries no longer block the login
     return { password: temp };
   },
 

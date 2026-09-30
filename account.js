@@ -156,6 +156,7 @@
     var d = st.pw || {};
     return '<section class="pba-card"><details' + (d.open ? ' open' : '') + ' data-pba-pwdetails><summary><b>Change password</b></summary>' +
       '<p class="pba-muted" style="margin:10px 0">After you change it, PakkaBill logs out on every other phone and computer. This one stays logged in.</p>' +
+      (acct() && acct().user.tempPw ? '<p class="pba-ok" style="margin:0 0 8px">You are using a temporary password from PakkaBill support. Type it as the current password, then choose your own.</p>' : '') +
       '<label class="pba-lbl">Current password<input type="password" class="pba-in" data-pba-pwold autocomplete="current-password" value="' + esc(d.old || '') + '"></label>' +
       '<label class="pba-lbl">New password (6 or more characters)<input type="password" class="pba-in" data-pba-pwnew autocomplete="new-password" value="' + esc(d.nw || '') + '"></label>' +
       (d.err ? '<p class="pba-err">' + esc(d.err) + '</p>' : '') + (d.ok ? '<p class="pba-ok">\u2713 Password changed.</p>' : '') +
@@ -213,6 +214,7 @@
     var po = el.querySelector('[data-pba-pwold]'), pn = el.querySelector('[data-pba-pwnew]'), pd = el.querySelector('[data-pba-pwdetails]');
     if (po) st.pw = Object.assign(st.pw || {}, { old: po.value, nw: pn.value, open: pd.open });
     if (pwIn || det) st.del = Object.assign(st.del || {}, { pw: pwIn ? pwIn.value : '', wipe: wipeIn ? wipeIn.checked : false, open: det ? det.open : false });
+    if (!st.pwAsked && /[?&]pw=1/.test(location.hash) && a) { st.pwAsked = true; st.pw = Object.assign(st.pw || {}, { open: true }); st.scrollPw = true; }
     if (!st.delAsked && /[?&]delete=1/.test(location.hash) && a) { st.delAsked = true; st.del = Object.assign(st.del || {}, { open: true }); st.scrollDel = true; }
     var main = st.shops && st.shops.filter(function (s) { return s.id === st.active; })[0];
     var h = '<div class="page-head"><div><h1 class="page-title">My account</h1><p class="page-sub">Your login, plan, shops, bills, payments and help requests in one place.</p></div></div><div class="pba">';
@@ -237,6 +239,7 @@
       else if (window.pbSyncCard) window.pbSyncCard(slot);
       else slot.innerHTML = '<a class="pba-btn" href="#/shops">Open cloud backup</a>';
     }
+    if (st.scrollPw) { st.scrollPw = false; var pbx = el.querySelector('[data-pba-pwdetails]'); if (pbx) setTimeout(function () { pbx.scrollIntoView({ behavior: 'smooth', block: 'center' }); var i = pbx.querySelector('[data-pba-pwold]'); if (i) i.focus(); }, 200); }
     if (st.scrollDel) { st.scrollDel = false; var box = el.querySelector('#pba-delete'); if (box) setTimeout(function () { box.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 200); }
   }
   function deleteAccount(el) {

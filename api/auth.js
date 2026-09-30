@@ -43,6 +43,7 @@ module.exports = core.handler(async (req, res) => {
     if (next.length < 6) throw new core.HttpError(400, 'Use a new password of at least 6 characters.');
     user.pass = await core.hashPassword(next);
     user.pwAt = Date.now();
+    delete user.tempPw;
     await core.saveUser(user);
     const t = core.bearer(req);
     if (t) await db.cmd(['DEL', `sess:${core.sha256(t)}`]);
@@ -77,8 +78,11 @@ module.exports = core.handler(async (req, res) => {
   if (action === 'login') {
     await core.rateLimit(`login:${phone}`, 10, 900);
     const user = await core.getUser(phone);
-    if (!user || !(await core.checkPassword(String(password), user.pass))) {
-      throw new core.HttpError(401, 'Mobile number or password is wrong.');
+    const pw = String(password);
+    // a space added by the phone keyboard or by copy-paste should not make the password wrong
+    const ok = user && ((await core.checkPassword(pw, user.pass)) || (pw.trim() !== pw && (await core.checkPassword(pw.trim(), user.pass))));
+    if (!ok) {
+      throw new core.HttpError(401, user ? 'The password is wrong. Check capital letters, or tap Show to see what you typed. Forgot it? Ask PakkaBill support to reset it.' : 'No account with this mobile number. Check the number, or create an account.');
     }
     if (user.blocked) throw new core.HttpError(403, 'This account has been stopped. Please contact PakkaBill support.');
     user.lastSeen = Date.now();

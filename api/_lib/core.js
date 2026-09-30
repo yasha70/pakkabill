@@ -122,6 +122,7 @@ function publicUser(u) {
     trial: u.lastPlan === 'trial' && (u.paidUntil || 0) > Date.now(),
     createdAt: u.createdAt,
     lastSeen: u.lastSeen || 0,
+    tempPw: !!u.tempPw,
   };
 }
 

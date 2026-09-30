@@ -160,7 +160,7 @@
       <div class="pbp-tabs"><button type="button" data-mode="login" class="${mode === 'login' ? 'is-on' : ''}">Log in</button><button type="button" data-mode="signup" class="${mode === 'signup' ? 'is-on' : ''}">Create account</button></div>
       <label>Mobile number<input name="phone" inputmode="numeric" autocomplete="tel" placeholder="10-digit mobile" required></label>
       ${mode === 'signup' ? '<label>Shop name<input name="shopName" autocomplete="organization" placeholder="As on your bills"></label>' : ''}
-      <label>Password<input name="password" type="password" autocomplete="${mode === 'signup' ? 'new-password' : 'current-password'}" minlength="6" required></label>
+      <label>Password<span class="pbp-pw"><input name="password" type="password" autocomplete="${mode === 'signup' ? 'new-password' : 'current-password'}" autocapitalize="none" autocorrect="off" spellcheck="false" minlength="6" required><button type="button" class="pbp-show" aria-label="Show password">Show</button></span></label>
       <p class="pbp-err" role="alert"></p>
       <button class="pbp-btn" type="submit">${mode === 'signup' ? (cfg && cfg.trialDays ? `Create account: ${cfg.trialDays} days of Pro free` : 'Create account') : 'Log in'}</button>
       <p class="pbp-fine">${mode === 'login' ? 'Log in and your shops and bills from your other devices download here. Forgot your password? Ask PakkaBill support to reset it.' : `${cfg && cfg.trialDays ? `Every new account gets ${cfg.trialDays} days of Pro free, no payment needed. ` : ''}Your account keeps your Pro plan and cloud backup on every phone and laptop you log in on. By creating an account you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.`}</p>
@@ -181,6 +181,13 @@
     root.querySelectorAll('.pbp-tabs button').forEach((b) => b.addEventListener('click', () => redraw(b.dataset.mode)));
     const form = root.querySelector('.pbp-auth');
     if (form)
+      form.querySelectorAll('.pbp-show').forEach((b) => b.addEventListener('click', () => {
+        const inp = b.previousElementSibling, show = inp.type === 'password';
+        inp.type = show ? 'text' : 'password';
+        b.textContent = show ? 'Hide' : 'Show';
+        b.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      }));
+    if (form)
       form.addEventListener('submit', async (ev) => {
         ev.preventDefault();
         const f = new FormData(form);
@@ -192,6 +199,8 @@
           const r = await api('auth', {
             body: { action: form.dataset.mode, phone: f.get('phone'), password: f.get('password'), shopName: f.get('shopName') || '' },
           });
+          // logged in with a password PakkaBill support made: ask them to set their own
+          if (r.user && r.user.tempPw) setTimeout(() => { if (confirm('You logged in with a temporary password from PakkaBill support. Set your own password now?')) location.hash = '#/account?pw=1'; }, 900);
           const claimId = pendingClaim;
           pendingClaim = '';
           setAcct({ token: r.token, user: r.user }, !claimId);
@@ -587,6 +596,7 @@
 .pbp-plan.is-busy b:after{content:"…"}
 .pbp-auth{display:grid;gap:10px}
 .pbp-auth label{display:grid;gap:4px;font-size:13px;font-weight:600;color:var(--ink-2,#555)}
+.pbp-pw{position:relative;display:block}.pbp-pw input{width:100%;box-sizing:border-box;padding-right:64px!important}.pbp-show{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--brand,#5b3fe6);font:inherit;font-size:13px;font-weight:700;padding:6px 8px;cursor:pointer}
 .pbp-auth input{font:inherit;font-size:16px;padding:10px 12px;border-radius:var(--r-ctl,9px);border:1.5px solid var(--rule,#ddd);background:var(--paper,#fff);color:var(--ink,#222)}
 .pbp-auth input:focus{outline:2px solid var(--focus,#ff7a59);outline-offset:1px}
 .pbp-tabs{display:flex;gap:4px;padding:4px;background:var(--carbon-tint,#f6f2ff);border-radius:999px}
