@@ -209,6 +209,28 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: .88rem; co
 .hero-kpi small { display: block; font-size: .78rem; opacity: .9; }
 @media print { .hero { display: none; } }
 
+/* How to use */
+.hero-hi { margin: 4px 0 0; font-weight: 700; font-size: .95rem; opacity: .95; }
+.hero-btn { margin-top: 12px; border: 1px solid rgba(255,255,255,.5); background: rgba(255,255,255,.15); color: #fff; border-radius: 999px; padding: 8px 14px; font: inherit; font-weight: 700; font-size: .88rem; cursor: pointer; }
+.hero-btn:hover { background: rgba(255,255,255,.25); }
+.g-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; }
+.g-card { display: grid; gap: 14px; }
+@media (min-width: 720px) { .g-card { grid-template-columns: 340px 1fr; } .g-bar { grid-column: 1 / -1; } }
+.g-art svg { width: 100%; height: auto; display: block; border-radius: 12px; background: var(--paper); }
+.g-num { margin: 0; font-size: .78rem; font-weight: 700; color: var(--carbon); text-transform: uppercase; letter-spacing: .06em; }
+.g-body h3 { margin: 4px 0 8px; font-size: 1.2rem; }
+.g-body p { margin: 0; line-height: 1.6; }
+.g-prog { height: 5px; border-radius: 99px; background: var(--rule); overflow: hidden; margin-bottom: 10px; }
+.g-prog i { display: block; height: 100%; background: linear-gradient(90deg, #2b3494, #5b3fe6, #ff7a59); transition: width .3s; }
+.g-ctl { display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
+.g-dots { display: flex; gap: 6px; justify-content: center; margin-top: 10px; }
+.g-dot { width: 9px; height: 9px; border-radius: 50%; border: 0; padding: 0; background: var(--rule); cursor: pointer; }
+.g-dot.on { background: var(--carbon); width: 22px; border-radius: 99px; }
+.g-terms { margin: 10px 0 0; display: grid; gap: 4px 16px; }
+.g-terms dt { font-weight: 700; margin-top: 8px; }
+.g-terms dd { margin: 0; color: var(--ink-2); }
+@media (min-width: 720px) { .g-terms { grid-template-columns: 240px 1fr; } .g-terms dt { margin-top: 0; } }
+
 /* the ledger */
 .ledger { position: relative; background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px; padding: 0 0 6px; overflow: hidden; }
 .ledger::before { content: ""; position: absolute; top: 0; bottom: 0; left: 22px; width: 0; border-left: 1.5px solid var(--margin); opacity: .85; }
@@ -326,6 +348,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   <section class="panel" id="p-costs" role="tabpanel" aria-labelledby="t-costs" hidden></section>
   <section class="panel" id="p-exp" role="tabpanel" aria-labelledby="t-exp" hidden></section>
   <section class="panel" id="p-set" role="tabpanel" aria-labelledby="t-set" hidden></section>
+  <section class="panel" id="p-guide" role="tabpanel" aria-labelledby="t-guide" hidden></section>
 </main>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <div class="busy" id="busy" hidden><div id="busy-t" role="status">Working</div></div>
@@ -1693,7 +1716,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   A.hasData = hasData;
 
   /* ---------------- rendering hooks (views.js fills A.V) ---------------- */
-  var TABS = [['pl', 'P&L'], ['rc', 'Reconcile'], ['data', 'Upload'], ['costs', 'Costs'], ['exp', 'Expenses'], ['set', 'Settings']];
+  var TABS = [['pl', 'P&L'], ['rc', 'Reconcile'], ['data', 'Upload'], ['costs', 'Costs'], ['exp', 'Expenses'], ['set', 'Settings'], ['guide', 'How to use']];
   A.TABS = TABS;
   function renderChrome() {
     var st = cfg();
@@ -2325,7 +2348,9 @@ details.more[open] > summary { margin-bottom: 10px; }
       line = '<div class="hero-kpi"><span>Real profit</span><b class="' + (R.NP < 0 ? 'neg' : '') + '">' + rs(R.NP, true) + '</b><small>' + (R.NR ? pct(R.margin) + ' of what you sold' : '') + ' \u00b7 ' + esc(S.per.label) + '</small></div>';
     }
     return '<section class="hero' + (big ? ' big' : '') + '"><div class="hero-t"><p class="hero-k">PakkaBill Profit &amp; Loss</p><h1>Know your real profit</h1>' +
-      '<p class="hero-s">Not just sales. Every Meesho fee, return, RTO, GST and product cost taken out, reconciled to the paisa.</p></div>' + line + '</section>';
+      '<p class="hero-s">Not just sales. Every Meesho fee, return, RTO, GST and product cost taken out, reconciled to the paisa.</p>' +
+      '<p class="hero-hi">\u0905\u092a\u0928\u093e \u0905\u0938\u0932\u0940 \u092e\u0941\u0928\u093e\u095e\u093e \u091c\u093e\u0928\u093f\u090f</p>' +
+      '<button class="hero-btn" data-act="tab" data-tab="guide">\u25b6 How to use \u00b7 \u0915\u0948\u0938\u0947 \u0907\u0938\u094d\u0924\u0947\u092e\u093e\u0932 \u0915\u0930\u0947\u0902</button></div>' + line + '</section>';
   }
 
   function kv(pairs) {
@@ -3213,6 +3238,146 @@ details.more[open] > summary { margin-bottom: 10px; }
   };
 })();
 
+</script>
+<script>
+/* "How to use": a step-by-step guide to the P&L in English and Hindi, with pictures, that can
+   play like a video (one step after another, read aloud by the phone's voice). */
+(function () {
+  'use strict';
+  var A = window.HA, S = A.S, V = A.V, esc = A.esc;
+  var G = { lang: 'en', i: 0, playing: false, timer: null };
+  try { G.lang = localStorage.getItem('hisaab:glang') || ((navigator.language || '').indexOf('hi') === 0 ? 'hi' : 'en'); } catch (e) { /* ignore */ }
+
+  /* ---------- pictures (simple drawings of the screens) ---------- */
+  var C = 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+  var ART = {
+    welcome: '<svg viewBox="0 0 320 170" role="img" aria-label="Profit"><rect x="20" y="20" width="280" height="130" rx="14" fill="#ece6ff"/><text x="40" y="58" font-size="15" font-weight="700" fill="#2b3494">Sales  ₹1,15,741</text><text x="40" y="84" font-size="13" fill="#c8202a">− fees, returns, RTO, GST, cost</text><line x1="40" y1="96" x2="280" y2="96" stroke="#b3a1ff" stroke-width="2"/><text x="40" y="128" font-size="22" font-weight="800" fill="#12714b">Real profit ₹17,951</text></svg>',
+    meesho: '<svg viewBox="0 0 320 170" role="img" aria-label="Meesho Supplier Panel"><rect x="10" y="10" width="300" height="150" rx="12" fill="#fff" stroke="#e2daf2"/><rect x="10" y="10" width="92" height="150" rx="12" fill="#f4eefe"/><text x="22" y="36" font-size="11" font-weight="700" fill="#9c27b0">meesho</text><text x="22" y="62" font-size="10" fill="#5c5776">Orders</text><text x="22" y="82" font-size="10" fill="#5c5776">Catalogs</text><rect x="16" y="92" width="80" height="22" rx="6" fill="#9c27b0"/><text x="24" y="107" font-size="10" font-weight="700" fill="#fff">Payments</text><text x="22" y="132" font-size="10" fill="#5c5776">Ads</text><text x="118" y="38" font-size="12" font-weight="700" fill="#2a2540">Payments</text><rect x="118" y="52" width="100" height="22" rx="6" fill="#f1ecf8"/><text x="126" y="67" font-size="9" fill="#5c5776">01 Aug – 30 Sep</text><rect x="226" y="52" width="74" height="22" rx="6" fill="#5b3fe6"/><text x="236" y="67" font-size="9.5" font-weight="700" fill="#fff">⬇ Download</text><rect x="118" y="88" width="182" height="58" rx="8" fill="#fdf8f3" stroke="#e2daf2"/><text x="128" y="110" font-size="9.5" fill="#2a2540">Order Payments.xlsx</text><text x="128" y="128" font-size="9" fill="#12714b">✓ Saved to phone / PC</text></svg>',
+    orders: '<svg viewBox="0 0 320 170" role="img" aria-label="Orders report"><rect x="10" y="10" width="300" height="150" rx="12" fill="#fff" stroke="#e2daf2"/><text x="24" y="38" font-size="12" font-weight="700" fill="#2a2540">Orders</text><g font-size="9.5" fill="#5c5776"><rect x="24" y="50" width="62" height="20" rx="10" fill="#f1ecf8"/><text x="34" y="64">Pending</text><rect x="92" y="50" width="62" height="20" rx="10" fill="#f1ecf8"/><text x="100" y="64">Shipped</text><rect x="160" y="50" width="70" height="20" rx="10" fill="#f1ecf8"/><text x="168" y="64">Delivered</text></g><rect x="236" y="48" width="64" height="24" rx="6" fill="#5b3fe6"/><text x="244" y="64" font-size="9.5" font-weight="700" fill="#fff">⬇ CSV</text><rect x="24" y="86" width="276" height="60" rx="8" fill="#fdf8f3" stroke="#e2daf2"/><text x="36" y="110" font-size="9.5" fill="#2a2540">Orders_2026-08-01_2026-09-30.csv</text><text x="36" y="128" font-size="9" fill="#736e8d">Optional: shows orders not paid yet</text></svg>',
+    upload: '<svg viewBox="0 0 320 170" role="img" aria-label="Upload"><rect x="30" y="20" width="260" height="130" rx="14" fill="#fff" stroke="#b3a1ff" stroke-width="2" stroke-dasharray="7 6"/><g transform="translate(142 44)" color="#5b3fe6"><path ' + C + ' d="M18 30V4M8 14 18 4l10 10M2 34v6h32v-6"/></g><text x="160" y="104" font-size="13" font-weight="700" fill="#2a2540" text-anchor="middle">Drop Meesho files here</text><text x="160" y="124" font-size="10" fill="#736e8d" text-anchor="middle">.xlsx  .csv  .zip  • many files at once</text></svg>',
+    costs: '<svg viewBox="0 0 320 170" role="img" aria-label="Costs"><rect x="10" y="12" width="300" height="146" rx="12" fill="#fff" stroke="#e2daf2"/><text x="24" y="36" font-size="11" font-weight="700" fill="#2a2540">BPYG05  <tspan fill="#5b3fe6">pack of 4</tspan></text><g font-size="8.5" fill="#736e8d"><text x="24" y="56">Per piece ₹</text><text x="116" y="56">Pieces</text><text x="182" y="56">Packing ₹</text></g><g fill="#f6f3fd" stroke="#e2daf2"><rect x="24" y="62" width="80" height="24" rx="6"/><rect x="116" y="62" width="56" height="24" rx="6"/><rect x="182" y="62" width="70" height="24" rx="6"/></g><g font-size="11" font-weight="700" fill="#2a2540"><text x="80" y="79">90</text><text x="150" y="79">4</text><text x="228" y="79">12</text></g><rect x="24" y="100" width="272" height="44" rx="8" fill="#ece6ff"/><text x="34" y="118" font-size="9.5" font-weight="700" fill="#2b3494">Fill automatically:</text><text x="34" y="134" font-size="9" fill="#5c5776">Same cost • % of price • Copy similar • Paste list</text></svg>',
+    settings: '<svg viewBox="0 0 320 170" role="img" aria-label="Settings"><rect x="10" y="12" width="300" height="146" rx="12" fill="#fff" stroke="#e2daf2"/><g font-size="10" fill="#2a2540"><text x="24" y="40">GST registered</text><text x="24" y="70">Tax credits (TCS/TDS)</text><text x="24" y="100">Customer returns are</text><text x="24" y="130">RTO parcels are</text></g><g font-size="9.5" font-weight="700"><rect x="190" y="26" width="100" height="22" rx="6" fill="#ece6ff"/><text x="200" y="41" fill="#2b3494">Yes</text><rect x="190" y="56" width="100" height="22" rx="6" fill="#ece6ff"/><text x="200" y="71" fill="#2b3494">I claim them</text><rect x="190" y="86" width="100" height="22" rx="6" fill="#ece6ff"/><text x="200" y="101" fill="#2b3494">Back in stock</text><rect x="190" y="116" width="100" height="22" rx="6" fill="#ece6ff"/><text x="200" y="131" fill="#2b3494">Back in stock</text></g></svg>',
+    read: '<svg viewBox="0 0 320 170" role="img" aria-label="P&amp;L"><rect x="10" y="12" width="300" height="146" rx="12" fill="#fff" stroke="#e2daf2"/><rect x="22" y="24" width="276" height="44" rx="10" fill="#2b3494"/><text x="34" y="44" font-size="9" fill="#d9d2ff">REAL PROFIT</text><text x="34" y="61" font-size="15" font-weight="800" fill="#fff">₹17,951 • 16.3%</text><g font-size="9.5" fill="#2a2540"><text x="24" y="90">Net sales</text><text x="296" y="90" text-anchor="end">1,15,741</text><text x="24" y="108">Cost of goods</text><text x="296" y="108" text-anchor="end" fill="#c8202a">(57,400)</text><text x="24" y="126">Meesho charges</text><text x="296" y="126" text-anchor="end" fill="#c8202a">(19,542)</text></g><line x1="180" y1="134" x2="296" y2="134" stroke="#2a2540"/><text x="24" y="150" font-size="10" font-weight="800" fill="#2a2540">Net profit</text><text x="296" y="150" font-size="10" font-weight="800" text-anchor="end" fill="#12714b">17,951</text></svg>',
+    returns: '<svg viewBox="0 0 320 170" role="img" aria-label="Returns and RTO"><g font-size="9" font-weight="700"><rect x="12" y="20" width="94" height="130" rx="10" fill="#fff" stroke="#e2daf2"/><rect x="12" y="20" width="94" height="5" rx="2" fill="#b26a00"/><text x="22" y="46" fill="#2a2540">RTO</text><text x="22" y="74" font-size="17" fill="#b26a00">13.6%</text><rect x="113" y="20" width="94" height="130" rx="10" fill="#fff" stroke="#e2daf2"/><rect x="113" y="20" width="94" height="5" rx="2" fill="#c8202a"/><text x="123" y="46" fill="#2a2540">Returns</text><text x="123" y="74" font-size="17" fill="#c8202a">14.5%</text><rect x="214" y="20" width="94" height="130" rx="10" fill="#fff" stroke="#e2daf2"/><rect x="214" y="20" width="94" height="5" rx="2" fill="#5b3fe6"/><text x="224" y="46" fill="#2a2540">Exchanges</text><text x="224" y="74" font-size="17" fill="#5b3fe6">4.9%</text></g><g font-size="8.5" fill="#736e8d"><text x="22" y="104">Lost ₹1,021</text><text x="123" y="104">Lost ₹6,318</text><text x="224" y="104">Lost ₹0</text></g></svg>',
+    reconcile: '<svg viewBox="0 0 320 170" role="img" aria-label="Reconcile"><rect x="10" y="12" width="300" height="146" rx="12" fill="#fff" stroke="#e2daf2"/><g font-size="9.5" font-weight="700"><rect x="22" y="26" width="64" height="22" rx="11" fill="#e6f6ee"/><text x="34" y="41" fill="#12714b">Paid</text><rect x="92" y="26" width="84" height="22" rx="11" fill="#fff4df"/><text x="102" y="41" fill="#9a5a00">Awaiting</text><rect x="182" y="26" width="84" height="22" rx="11" fill="#fde8ea"/><text x="192" y="41" fill="#c8202a">Overdue</text></g><g font-size="9.5" fill="#2a2540"><text x="22" y="76">Order 1755…_1  • RTO</text><text x="22" y="96" fill="#736e8d">Item came back:</text></g><rect x="22" y="104" width="100" height="24" rx="6" fill="#e6f6ee"/><text x="32" y="120" font-size="9.5" font-weight="700" fill="#12714b">Back in stock</text><rect x="130" y="104" width="110" height="24" rx="6" fill="#fde8ea"/><text x="140" y="120" font-size="9.5" font-weight="700" fill="#c8202a">Not resellable</text></svg>',
+    download: '<svg viewBox="0 0 320 170" role="img" aria-label="Download"><rect x="36" y="20" width="110" height="134" rx="10" fill="#fff" stroke="#e2daf2"/><rect x="36" y="20" width="110" height="30" rx="10" fill="#2b3494"/><text x="48" y="40" font-size="10" font-weight="800" fill="#fff">PakkaBill</text><g fill="#ece6ff"><rect x="48" y="62" width="86" height="10" rx="3"/><rect x="48" y="80" width="66" height="10" rx="3"/><rect x="48" y="98" width="76" height="10" rx="3"/></g><text x="56" y="140" font-size="11" font-weight="800" fill="#c8202a">PDF</text><rect x="174" y="20" width="110" height="134" rx="10" fill="#fff" stroke="#e2daf2"/><rect x="174" y="20" width="110" height="30" rx="10" fill="#12714b"/><text x="186" y="40" font-size="10" font-weight="800" fill="#fff">Excel</text><g stroke="#e2daf2"><line x1="186" y1="66" x2="272" y2="66"/><line x1="186" y1="84" x2="272" y2="84"/><line x1="186" y1="102" x2="272" y2="102"/><line x1="216" y1="56" x2="216" y2="112"/><line x1="246" y1="56" x2="246" y2="112"/></g><text x="186" y="140" font-size="9" fill="#736e8d">12 sheets</text></svg>'
+  };
+
+  /* ---------- the steps ---------- */
+  var STEPS = [
+    { art: 'welcome',
+      en: ['What this tool does', 'Meesho shows you sales. PakkaBill shows your real profit: it takes the Meesho payment report and subtracts every fee, return, RTO, GST and your product cost. It takes about 2 minutes. Your files stay on your phone or computer.'],
+      hi: ['यह टूल क्या करता है', 'Meesho आपको बिक्री दिखाता है। PakkaBill आपका असली मुनाफ़ा दिखाता है: Meesho की payment report से हर फ़ीस, रिटर्न, RTO, GST और आपके प्रोडक्ट की लागत घटाकर। इसमें लगभग 2 मिनट लगते हैं। आपकी फ़ाइलें आपके फ़ोन या कंप्यूटर पर ही रहती हैं।'] },
+    { art: 'meesho',
+      en: ['Step 1: Download the payment report from Meesho', 'Open the Meesho Supplier Panel (supplier.meesho.com) and log in. In the left menu open Payments. Choose the dates you want, for example the last 2 or 3 months, and tap Download. You get an Excel file with sheets like Order Payments and Ads Cost. Download every month you need; the same row in two files is counted only once.'],
+      hi: ['स्टेप 1: Meesho से payment report डाउनलोड करें', 'Meesho Supplier Panel (supplier.meesho.com) खोलें और लॉग इन करें। बाईं ओर के मेन्यू में Payments खोलें। तारीखें चुनें, जैसे पिछले 2 या 3 महीने, और Download दबाएँ। आपको एक Excel फ़ाइल मिलेगी जिसमें Order Payments और Ads Cost जैसी शीट होती हैं। जितने महीने चाहिए सब डाउनलोड करें; एक ही लाइन दो फ़ाइलों में हो तो भी एक बार ही गिनी जाती है।'] },
+    { art: 'orders',
+      en: ['Step 2 (optional): Download the orders report', 'In the Supplier Panel open Orders and download the orders file (CSV). It is optional, but it adds orders that Meesho has not paid for yet, so you can see pending and overdue payments in Reconcile.'],
+      hi: ['स्टेप 2 (ज़रूरी नहीं): orders report डाउनलोड करें', 'Supplier Panel में Orders खोलें और orders फ़ाइल (CSV) डाउनलोड करें। यह ज़रूरी नहीं है, पर इससे वे ऑर्डर भी जुड़ जाते हैं जिनका पैसा Meesho ने अभी नहीं दिया, ताकि Reconcile में बाकी और देर वाले भुगतान दिख सकें।'] },
+    { art: 'upload',
+      en: ['Step 3: Upload the files here', 'Open the Upload tab and drop the files, or tap to choose them. You can add many files at once, even a zip. PakkaBill reads them on your device and checks that every row adds up to what Meesho paid.'],
+      hi: ['स्टेप 3: फ़ाइलें यहाँ अपलोड करें', 'Upload टैब खोलें और फ़ाइलें डालें, या टैप करके चुनें। एक साथ कई फ़ाइलें, zip भी, डाल सकते हैं। PakkaBill इन्हें आपके डिवाइस पर ही पढ़ता है और जाँचता है कि हर लाइन Meesho के दिए पैसे से मिलती है।'] },
+    { art: 'costs',
+      en: ['Step 4: Enter your product costs', 'Open Costs. For each SKU type what ONE piece costs you (Per piece), how many pieces are in the pack (Pieces; a combo of 4 is 4) and the packing cost per parcel. Many SKUs? Use Fill automatically: the same cost for a category, a % of the selling price, copy from other sizes and colours, or paste SKU and cost from Excel. Without costs, profit looks higher than it really is.'],
+      hi: ['स्टेप 4: प्रोडक्ट की लागत भरें', 'Costs खोलें। हर SKU के लिए एक पीस की लागत (Per piece), पैक में कितने पीस हैं (Pieces; 4 का combo = 4) और एक पार्सल की पैकिंग लागत भरें। बहुत सारे SKU हैं? Fill automatically इस्तेमाल करें: एक category के लिए एक ही लागत, बिक्री कीमत का %, दूसरे साइज़ और रंग से कॉपी, या Excel से SKU और लागत पेस्ट करें। लागत के बिना मुनाफ़ा असल से ज़्यादा दिखता है।'] },
+    { art: 'settings',
+      en: ['Step 5: Check expenses and settings', 'In Expenses add costs outside Meesho, like rent, salary or internet. In Settings: GST registered (yes if you have a GSTIN), Tax credits (claim TCS and TDS in your returns), and whether returned and RTO items usually go back into stock. Change these once; they apply to every report.'],
+      hi: ['स्टेप 5: खर्चे और सेटिंग देखें', 'Expenses में Meesho के बाहर के खर्चे जोड़ें, जैसे किराया, सैलरी या इंटरनेट। Settings में: GST registered (GSTIN है तो हाँ), Tax credits (TCS और TDS आप रिटर्न में क्लेम करते हैं) और रिटर्न व RTO का माल आम तौर पर वापस स्टॉक में जाता है या नहीं। इन्हें एक बार सेट करें; हर रिपोर्ट पर लागू होंगे।'] },
+    { art: 'read',
+      en: ['Step 6: Read your P&L', 'Open P&L. At the top you see your real profit and margin. Choose the Period (all data, a month or your own dates). Count by payment date matches your bank; count by order date shows when you sold. The statement lists sales, returns, GST, cost of goods, every Meesho charge, ads and expenses down to net profit.'],
+      hi: ['स्टेप 6: अपना P&L पढ़ें', 'P&L खोलें। ऊपर आपका असली मुनाफ़ा और मार्जिन दिखता है। Period चुनें (सारा डेटा, एक महीना या अपनी तारीखें)। Payment date से गिनती बैंक से मिलती है; Order date से गिनती बताती है कि आपने कब बेचा। स्टेटमेंट में बिक्री, रिटर्न, GST, माल की लागत, Meesho के सारे चार्ज, ads और खर्चे से लेकर शुद्ध मुनाफ़े तक सब है।'] },
+    { art: 'returns',
+      en: ['Step 7: Returns, RTO and best products', 'Below the statement: RTO, customer returns and exchanges, each with its rate and the money lost on it. Profit by category and Profit by SKU show which products earn and which lose. Break-even price is the lowest selling price where a SKU still makes no loss.'],
+      hi: ['स्टेप 7: रिटर्न, RTO और सबसे अच्छे प्रोडक्ट', 'स्टेटमेंट के नीचे: RTO, कस्टमर रिटर्न और एक्सचेंज, हर एक की दर और उस पर हुआ नुकसान। Category और SKU के हिसाब से मुनाफ़ा बताता है कि कौन से प्रोडक्ट कमाते हैं और कौन से नुकसान करते हैं। Break-even price वह सबसे कम कीमत है जिस पर SKU में नुकसान नहीं होता।'] },
+    { art: 'reconcile',
+      en: ['Step 8: Reconcile every order', 'Reconcile lists every order: paid, awaiting payment, overdue, returned, RTO or cancelled. Raise a ticket with Meesho for overdue ones. When a returned or RTO item comes back damaged, mark it Not resellable so its cost counts as a loss.'],
+      hi: ['स्टेप 8: हर ऑर्डर मिलाएँ', 'Reconcile में हर ऑर्डर दिखता है: पैसा मिला, बाकी है, देर हो गई, रिटर्न, RTO या कैंसल। देर वाले ऑर्डर के लिए Meesho पर टिकट डालें। रिटर्न या RTO का माल खराब लौटे तो उसे Not resellable मार्क करें, ताकि उसकी लागत नुकसान में गिनी जाए।'] },
+    { art: 'download',
+      en: ['Step 9: Download your report', 'On the P&L tab tap Download PDF for a clean PakkaBill report to share with your partner or accountant, or Download Excel for every detail in 12 sheets. Next month, just upload the new payment report; your costs and settings are remembered.'],
+      hi: ['स्टेप 9: अपनी रिपोर्ट डाउनलोड करें', 'P&L टैब पर Download PDF दबाएँ, पार्टनर या CA को भेजने के लिए साफ़ PakkaBill रिपोर्ट मिलेगी; या Download Excel से 12 शीट में हर डिटेल। अगले महीने बस नई payment report अपलोड करें; आपकी लागत और सेटिंग याद रहती हैं।'] }
+  ];
+
+  /* ---------- what each option means ---------- */
+  var TERMS = [
+    ['Period', 'पीरियड', 'Which dates the P&L covers: all data, one month, or your own dates.', 'P&L कौन सी तारीखों का है: सारा डेटा, एक महीना या अपनी तारीखें।'],
+    ['Count by payment date / order date', 'Payment date / Order date से गिनती', 'Payment date matches the money in your bank. Order date shows profit for orders placed in that period.', 'Payment date आपके बैंक में आए पैसे से मिलती है। Order date उस समय में आए ऑर्डर का मुनाफ़ा दिखाती है।'],
+    ['Net sales', 'शुद्ध बिक्री', 'What buyers paid, less customer returns (includes GST).', 'ग्राहकों ने जो दिया, उसमें से रिटर्न घटाकर (GST सहित)।'],
+    ['Net revenue', 'शुद्ध आय', 'Net sales without the GST you owe the government.', 'शुद्ध बिक्री में से सरकार को जाने वाला GST हटाकर।'],
+    ['Cost of goods', 'माल की लागत', 'Your cost per piece × pieces shipped. Items back in stock are added back.', 'एक पीस की लागत × भेजे गए पीस। स्टॉक में लौटा माल वापस जोड़ा जाता है।'],
+    ['Meesho charges', 'Meesho के चार्ज', 'Commission, shipping, return shipping, platform and other fees Meesho cut from your payout.', 'कमीशन, शिपिंग, रिटर्न शिपिंग, प्लेटफ़ॉर्म और बाकी फ़ीस जो Meesho ने भुगतान से काटी।'],
+    ['TCS / TDS', 'TCS / TDS', 'Tax Meesho deducts: TCS under GST (0.5%), TDS under income tax (0.1%). You can claim both back.', 'Meesho जो टैक्स काटता है: GST में TCS (0.5%), इनकम टैक्स में TDS (0.1%)। दोनों वापस क्लेम कर सकते हैं।'],
+    ['RTO', 'RTO', 'Return to origin: the parcel came back without being delivered.', 'Return to origin: पार्सल डिलीवर हुए बिना वापस आ गया।'],
+    ['Customer return', 'कस्टमर रिटर्न', 'Delivered, then sent back by the buyer. Meesho takes the sale back and charges return shipping.', 'डिलीवर होने के बाद ग्राहक ने लौटाया। Meesho बिक्री वापस लेता है और रिटर्न शिपिंग चार्ज करता है।'],
+    ['Exchange', 'एक्सचेंज', 'Delivered and swapped for another size or colour. It stays a sale.', 'डिलीवर होकर दूसरे साइज़ या रंग से बदला गया। यह बिक्री ही रहती है।'],
+    ['Per piece / Pieces / Packing', 'Per piece / Pieces / Packing', 'Cost of one piece; pieces in one pack (combo); packing cost for one parcel.', 'एक पीस की लागत; एक पैक में पीस (combo); एक पार्सल की पैकिंग लागत।'],
+    ['Category', 'कैटेगरी', 'Read from the Meesho product name. Change it in Costs if it is wrong.', 'Meesho के प्रोडक्ट नाम से पढ़ी जाती है। गलत हो तो Costs में बदलें।'],
+    ['Break-even price', 'ब्रेक-ईवन कीमत', 'The selling price where a SKU makes zero profit. Red means you sell below it.', 'वह बिक्री कीमत जिस पर SKU में मुनाफ़ा शून्य है। लाल मतलब आप उससे कम में बेच रहे हैं।'],
+    ['Not resellable', 'दोबारा बिकने लायक नहीं', 'A returned or RTO item that is damaged, used or wrong: its cost counts as a loss.', 'रिटर्न या RTO का माल जो खराब, इस्तेमाल हुआ या गलत है: उसकी लागत नुकसान में गिनी जाती है।']
+  ];
+
+  var UI = {
+    en: { title: 'How to use Meesho P&L', sub: 'From Meesho download to your real profit, step by step.', play: '▶ Play guide', pause: '⏸ Pause', prev: '‹ Back', next: 'Next ›', of: 'of', terms: 'What each option means', try: 'Try with sample data', upload: 'Go to Upload', voice: 'Read aloud' },
+    hi: { title: 'Meesho P&L कैसे इस्तेमाल करें', sub: 'Meesho से डाउनलोड से लेकर असली मुनाफ़े तक, स्टेप बाय स्टेप।', play: '▶ गाइड चलाएँ', pause: '⏸ रोकें', prev: '‹ पीछे', next: 'आगे ›', of: '/', terms: 'हर ऑप्शन का मतलब', try: 'सैंपल डेटा से देखें', upload: 'Upload पर जाएँ', voice: 'पढ़कर सुनाएँ' }
+  };
+
+  function speak(text) {
+    try {
+      if (!window.speechSynthesis) return false;
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = G.lang === 'hi' ? 'hi-IN' : 'en-IN'; u.rate = G.lang === 'hi' ? 0.95 : 1;
+      var vs = speechSynthesis.getVoices().filter(function (v) { return v.lang && v.lang.toLowerCase().indexOf(G.lang === 'hi' ? 'hi' : 'en-in') === 0; });
+      if (vs[0]) u.voice = vs[0];
+      u.onend = function () { if (G.playing) G.timer = setTimeout(advance, 900); };
+      speechSynthesis.speak(u);
+      return true;
+    } catch (e) { return false; }
+  }
+  function stopVoice() { try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) { /* ignore */ } }
+  function advance() {
+    if (!G.playing) return;
+    if (G.i >= STEPS.length - 1) { G.playing = false; draw(); return; }
+    G.i++; draw(); sayStep();
+  }
+  function sayStep() {
+    clearTimeout(G.timer);
+    var s = STEPS[G.i][G.lang];
+    if (!speak(s[0] + '. ' + s[1])) G.timer = setTimeout(advance, Math.max(6000, s[1].length * 55)); // no voice: move on after reading time
+  }
+
+  V.guide = function () {
+    var u = UI[G.lang], s = STEPS[G.i], t = s[G.lang];
+    var dots = STEPS.map(function (x, i) { return '<button class="g-dot' + (i === G.i ? ' on' : '') + '" data-g="go" data-i="' + i + '" aria-label="' + (i + 1) + '"></button>'; }).join('');
+    var h = '<section class="sheet g-top"><div class="g-head"><div><h2>' + esc(u.title) + '</h2><p class="muted" style="margin:2px 0 0">' + esc(u.sub) + '</p></div>' +
+      '<div class="seg" role="group" aria-label="Language"><button data-g="lang" data-v="en" aria-pressed="' + (G.lang === 'en') + '">English</button><button data-g="lang" data-v="hi" aria-pressed="' + (G.lang === 'hi') + '">हिंदी</button></div></div></section>';
+    h += '<section class="sheet g-card"><div class="g-art">' + ART[s.art] + '</div><div class="g-body"><p class="g-num">' + (G.i + 1) + ' ' + u.of + ' ' + STEPS.length + '</p><h3>' + esc(t[0]) + '</h3><p>' + esc(t[1]) + '</p></div>' +
+      '<div class="g-bar"><div class="g-prog"><i style="width:' + ((G.i + 1) * 100 / STEPS.length).toFixed(1) + '%"></i></div>' +
+      '<div class="g-ctl"><button class="btn sm" data-g="prev"' + (G.i === 0 ? ' disabled' : '') + '>' + esc(u.prev) + '</button>' +
+      '<button class="btn pri" data-g="play">' + esc(G.playing ? u.pause : u.play) + '</button>' +
+      '<button class="btn sm" data-g="next"' + (G.i === STEPS.length - 1 ? ' disabled' : '') + '>' + esc(u.next) + '</button></div><div class="g-dots">' + dots + '</div></div></section>';
+    h += '<section class="sheet"><div class="row"><button class="btn" data-act="tab" data-tab="data">' + esc(u.upload) + '</button>' + (A.hasData() ? '' : '<button class="btn" data-act="demo">' + esc(u.try) + '</button>') + '</div></section>';
+    h += '<details class="sheet more"' + (G.i === STEPS.length - 1 ? ' open' : '') + '><summary>' + esc(u.terms) + '</summary><dl class="g-terms">' + TERMS.map(function (x) {
+      return '<dt>' + esc(G.lang === 'hi' ? x[1] : x[0]) + '</dt><dd>' + esc(G.lang === 'hi' ? x[3] : x[2]) + '</dd>';
+    }).join('') + '</dl></details>';
+    return '<div class="stack">' + h + '</div>';
+  };
+  function draw() { if (S.tab === 'guide') A.render(); }
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-g]'); if (!b) return;
+    var k = b.getAttribute('data-g');
+    if (k === 'lang') { G.lang = b.getAttribute('data-v'); try { localStorage.setItem('hisaab:glang', G.lang); } catch (x) { /* ignore */ } if (G.playing) sayStep(); draw(); return; }
+    if (k === 'play') { G.playing = !G.playing; if (G.playing) { if (G.i === STEPS.length - 1) G.i = 0; draw(); sayStep(); } else { clearTimeout(G.timer); stopVoice(); draw(); } return; }
+    clearTimeout(G.timer); stopVoice();
+    if (k === 'next' && G.i < STEPS.length - 1) G.i++;
+    else if (k === 'prev' && G.i > 0) G.i--;
+    else if (k === 'go') G.i = +b.getAttribute('data-i') || 0;
+    draw(); if (G.playing) sayStep();
+  });
+  // leaving the guide stops the voice
+  document.addEventListener('click', function (e) { var t = e.target.closest('[data-act="tab"]'); if (t && t.getAttribute('data-tab') !== 'guide') { G.playing = false; clearTimeout(G.timer); stopVoice(); } }, true);
+  A.guideLang = function () { return G.lang; };
+})();
 </script>
 <script>HA.boot();</script>
 </body>
