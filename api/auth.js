@@ -28,7 +28,7 @@ module.exports = core.handler(async (req, res) => {
     // a one-way hash, so a new account on this number gets no second free trial
     await db.cmd(['SADD', 'trialused', core.sha256('trial:' + user.phone)]);
     await db.cmd(['DEL', `user:${user.phone}`, `sync:${user.phone}`, push.userKey(user.phone)]);
-    await db.cmd(['ZREM', 'users', user.phone]);
+    await db.pipe([['ZREM', 'users', user.phone], ['ZREM', 'paid', user.phone], ['ZREM', 'seen', user.phone], ['HDEL', 'names', user.phone]]);
     const t = core.bearer(req);
     if (t) await db.cmd(['DEL', `sess:${core.sha256(t)}`]);
     return core.send(res, 200, { ok: true, deleted: true });
@@ -70,7 +70,7 @@ module.exports = core.handler(async (req, res) => {
     if (trial) { user.paidUntil = Date.now() + trial * core.DAY; user.lastPlan = 'trial'; }
     const created = await db.cmd(['SET', `user:${phone}`, JSON.stringify(user), 'NX']);
     if (!created) throw new core.HttpError(409, 'This number already has an account. Log in instead.');
-    await db.cmd(['ZADD', 'users', user.createdAt, phone]);
+    await db.pipe([['ZADD', 'users', user.createdAt, phone], ...core.indexCmds(user)]);
     return core.send(res, 200, { token: await core.createSession(phone), user: core.publicUser(user) });
   }
 
@@ -80,6 +80,7 @@ module.exports = core.handler(async (req, res) => {
     if (!user || !(await core.checkPassword(String(password), user.pass))) {
       throw new core.HttpError(401, 'Mobile number or password is wrong.');
     }
+    if (user.blocked) throw new core.HttpError(403, 'This account has been stopped. Please contact PakkaBill support.');
     user.lastSeen = Date.now();
     await core.saveUser(user);
     return core.send(res, 200, { token: await core.createSession(phone), user: core.publicUser(user) });

@@ -93,9 +93,11 @@ Made in India for GST sellers.
 | Financial info → **Purchase history** (Pro payments, UPI transaction number) | Yes | Optional | Account management, App functionality |
 | Financial info → **Other financial info** (bills, parties, items in cloud backup) | Yes | Optional (only if cloud backup is on) | App functionality |
 | Messages → **Other in-app messages** (help requests) | Yes | Optional | Customer support |
+| App activity → **App interactions** (pages opened, visit counts) | Yes | Required | Analytics |
+| Location → **Approximate location** (city from the connection, not GPS) | Yes | Required | Analytics |
 | App info and performance → **Diagnostics** (app version, sent with help requests) | Yes | Optional | Customer support, App functionality |
 
-For each: data is **not processed ephemerally**, it is **not shared**. Nothing else is collected (no location, contacts, photos, device IDs or advertising ID).
+For each: data is **not processed ephemerally**, it is **not shared**. Nothing else is collected (no precise location, contacts, photos, device IDs or advertising ID).
 
 ## Payments policy (important)
 

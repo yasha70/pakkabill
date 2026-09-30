@@ -8,6 +8,8 @@ const support = require('./_lib/support');
 const assist = require('./_lib/assist');
 const chat = require('./_lib/chat');
 const push = require('./_lib/push');
+const users = require('./_lib/users');
+const visits = require('./_lib/visits');
 
 const OWNER = 'owner';
 const IST = 5.5 * 3600e3;
@@ -33,44 +35,60 @@ async function requireAdmin(req) {
   if (!ok) throw new core.HttpError(401, 'Please log in to the admin panel again.');
 }
 
-async function allUsers() {
-  const phones = await db.cmd(['ZREVRANGE', 'users', 0, -1]);
-  return (await db.mgetJSON(phones.map((p) => `user:${p}`))).filter(Boolean);
-}
 async function allOrders() {
   const ids = await db.cmd(['ZREVRANGE', 'orders', 0, -1]);
   return (await db.mgetJSON(ids.map((id) => `order:${id}`))).filter(Boolean);
 }
 
+function adminUser(u) {
+  return { ...core.publicUser(u), note: u.note || '', blocked: !!u.blocked };
+}
+function cloudOf(raw) {
+  try {
+    const ix = raw ? JSON.parse(raw) : null;
+    if (ix && ix.shops) { const sh = Object.values(ix.shops); return { shops: sh.length, bytes: sh.reduce((n, x) => n + (x.bytes || 0), 0) }; }
+  } catch { /* ignore */ }
+  return null;
+}
+
+// Admin actions that change something are written to a short activity log (latest 300).
+const LOGGED = { grant: 'Gave Pro', revoke: 'Removed Pro', resetPassword: 'Reset password', approve: 'Approved payment', reject: 'Rejected payment', saveSettings: 'Changed settings', gift: 'Gifted Pro', block: 'Blocked or unblocked', notify: 'Sent a notification', saveNote: 'Saved a note', savePromo: 'Saved an offer', deletePromo: 'Deleted an offer', saveCoupon: 'Saved a coupon', deleteCoupon: 'Deleted a coupon' };
+async function logAction(action, b, result) {
+  if (!LOGGED[action]) return;
+  const who = b.phone || (result && result.order && result.order.phone) || '';
+  let what = LOGGED[action];
+  if (action === 'grant') what += `: ${b.days} days`;
+  if (action === 'gift') what += `: ${b.days} days to ${b.audience === 'phones' ? 'chosen numbers' : b.audience} (${result.count} accounts)`;
+  if (action === 'block') what = b.blocked ? 'Blocked account' : 'Unblocked account';
+  if (action === 'notify') what += `: "${String(b.title || '').slice(0, 60)}" (${result.sent} devices)`;
+  if ((action === 'approve' || action === 'reject') && result.order) what += ` ₹${(result.order.amount / 100).toLocaleString('en-IN')} UTR ${result.order.utr}`;
+  await db.pipe([['LPUSH', 'alog', JSON.stringify({ t: Date.now(), action, what, phone: who })], ['LTRIM', 'alog', 0, 299]]).catch(() => {});
+}
+
 const actions = {
   async stats() {
-    const [users, list] = [await allUsers(), await allOrders()];
     const now = Date.now();
+    const [c, list] = await Promise.all([users.counts(), allOrders()]);
     const paid = list.filter((o) => o.state === 'COMPLETED' && o.appliedAt);
     const thisMonth = MONTH(now);
+    const payers = new Set(paid.map((o) => o.phone)).size;
     return {
-      users: users.length,
-      pro: users.filter((u) => (u.paidUntil || 0) > now).length,
+      ...c,
       revenue: paid.reduce((s, o) => s + o.amount, 0) / 100,
       revenueMonth: paid.filter((o) => MONTH(o.paidAt || o.createdAt) === thisMonth).reduce((s, o) => s + o.amount, 0) / 100,
       payments: paid.length,
+      payers,
       waiting: list.filter((o) => o.state === 'PENDING').length,
       paymentsReady: core.paymentsReady(await core.getSettings()),
       tickets: await support.counts(),
-      activeWeek: users.filter((u) => now - (u.lastSeen || 0) < 7 * core.DAY).length,
       series: lastMonths(6).map(({ key, label }) => ({
         label,
         amount: paid.filter((o) => MONTH(o.paidAt || o.createdAt) === key).reduce((s, o) => s + o.amount, 0) / 100,
       })),
+      signups: await users.signupSeries(14),
       // Pro ending in the next 7 days, and Pro that ended in the last 14 days.
-      expiring: users
-        .filter((u) => u.paidUntil > now && u.paidUntil < now + 7 * core.DAY)
-        .sort((a, b) => a.paidUntil - b.paidUntil)
-        .map(core.publicUser),
-      lapsed: users
-        .filter((u) => u.paidUntil && u.paidUntil <= now && u.paidUntil > now - 14 * core.DAY)
-        .sort((a, b) => b.paidUntil - a.paidUntil)
-        .map(core.publicUser),
+      expiring: (await users.paidBetween(`(${now}`, now + 7 * core.DAY, 50)).map(core.publicUser),
+      lapsed: (await users.paidBetween(now - 14 * core.DAY, now, 50)).sort((a, b) => b.paidUntil - a.paidUntil).map(core.publicUser),
     };
   },
 
@@ -151,40 +169,96 @@ const actions = {
     return { ok: true };
   },
 
-  // Adds Pro days to every account in an audience (or a list of numbers).
+  // Adds Pro days to every account in an audience (or a list of numbers), 100 accounts per round trip.
   async gift({ audience, phones, days }) {
     const n = Math.round(Number(days));
     if (!(n > 0 && n <= 365)) throw new core.HttpError(400, 'Days must be between 1 and 365.');
     if (!['all', 'free', 'pro', 'phones'].includes(audience)) throw new core.HttpError(400, 'Pick who gets the gift.');
-    const wanted = audience === 'phones' ? new Set(String(phones || '').split(/[,;\n]+/).map(core.normPhone).filter(Boolean)) : null;
-    if (wanted && !wanted.size) throw new core.HttpError(400, 'Add at least one 10-digit mobile number.');
-    const users = (await allUsers()).filter((u) =>
-      wanted ? wanted.has(u.phone) : promos.inAudience({ audience }, u),
-    );
-    for (const u of users) {
-      core.extend(u, n);
-      await core.saveUser(u);
+    const give = async (list) => {
+      if (!list.length) return;
+      list.forEach((u) => core.extend(u, n));
+      await db.pipe(list.flatMap((u) => [['SET', `user:${u.phone}`, JSON.stringify(u)], ...core.indexCmds(u)]));
+    };
+    if (audience === 'phones') {
+      const wanted = [...new Set(String(phones || '').split(/[,;\n]+/).map(core.normPhone).filter(Boolean))];
+      if (!wanted.length) throw new core.HttpError(400, 'Add at least one 10-digit mobile number.');
+      const list = await users.load(wanted);
+      await give(list);
+      return { count: list.length };
     }
-    return { count: users.length };
+    let count = 0;
+    await users.each(audience, async (list) => { count += list.length; await give(list); });
+    return { count };
   },
 
-  async users({ q = '' }) {
-    const needle = String(q).trim().toLowerCase();
-    const users = (await allUsers()).filter(
-      (u) => !needle || u.phone.includes(needle) || (u.shopName || '').toLowerCase().includes(needle),
-    );
-    const list = users.slice(0, 500);
-    // cloud backup use per customer (one read for all)
-    const cloud = list.length ? await db.cmd(['MGET', ...list.map((u) => `sync:${u.phone}`)]) : [];
-    return { users: list.map((u, i) => {
-      let c = null;
-      try { const ix = cloud[i] ? JSON.parse(cloud[i]) : null; if (ix && ix.shops) { const sh = Object.values(ix.shops); c = { shops: sh.length, bytes: sh.reduce((n, x) => n + (x.bytes || 0), 0) }; } } catch { /* ignore */ }
-      return { ...core.publicUser(u), cloud: c };
-    }) };
+  // One page of customers. filter: all, new, pro, expiring, lapsed, free, active, inactive; or q to search.
+  async users({ filter = 'all', q = '', page = 0, size = 50 }) {
+    const r = await users.page({ filter, q, page, size });
+    const cloud = r.users.length ? await db.cmd(['MGET', ...r.users.map((u) => `sync:${u.phone}`)]) : [];
+    return { ...r, users: r.users.map((u, i) => ({ ...adminUser(u), cloud: cloudOf(cloud[i]) })) };
   },
 
-  async payments() {
-    return { payments: (await allOrders()).slice(0, 500) };
+  // Everything about one customer: account, cloud backup, payments and help requests.
+  async customer({ phone }) {
+    const u = await core.getUser(String(phone));
+    if (!u) throw new core.HttpError(404, 'No such account.');
+    const [cloud, orderIds, ticketIds, subs] = await db.pipe([
+      ['GET', `sync:${u.phone}`], ['ZREVRANGE', `orders:${u.phone}`, 0, 19], ['ZREVRANGE', `tickets:u:${u.phone}`, 0, 9], ['GET', push.userKey(u.phone)],
+    ]);
+    const [ords, tks] = await Promise.all([db.mgetJSON(orderIds.map((id) => `order:${id}`)), db.mgetJSON(ticketIds.map((id) => `ticket:${id}`))]);
+    let devices = 0;
+    try { devices = (JSON.parse(subs || '[]') || []).length; } catch { /* ignore */ }
+    return {
+      user: { ...adminUser(u), cloud: cloudOf(cloud) },
+      orders: ords.filter(Boolean),
+      tickets: tks.filter(Boolean).map((t) => ({ id: t.id, no: t.no, subject: t.subject, status: t.status, updatedAt: t.updatedAt })),
+      devices,
+    };
+  },
+
+  async saveNote({ phone, note }) {
+    const u = await core.getUser(String(phone));
+    if (!u) throw new core.HttpError(404, 'No such account.');
+    u.note = String(note || '').slice(0, 1000);
+    await core.saveUser(u);
+    return { user: adminUser(u) };
+  },
+
+  // Stops an account from logging in (for abuse or fraud); every session ends at once.
+  async block({ phone, blocked }) {
+    const u = await core.getUser(String(phone));
+    if (!u) throw new core.HttpError(404, 'No such account.');
+    if (u.phone === OWNER) throw new core.HttpError(400, 'The owner account cannot be blocked.');
+    u.blocked = !!blocked;
+    await core.saveUser(u);
+    return { user: adminUser(u) };
+  },
+
+  // A phone notification to one customer (on the devices where they allowed notifications).
+  async notify({ phone, title, body }) {
+    const t = String(title || '').trim().slice(0, 80), m = String(body || '').trim().slice(0, 300);
+    if (!t) throw new core.HttpError(400, 'Write a title.');
+    return { sent: await push.toUser(String(phone), { title: t, body: m, url: '/', tag: `admin-${Date.now()}` }) };
+  },
+
+  async visitors({ range = 7 }) {
+    return visits.report(30, [1, 7, 30].includes(Number(range)) ? Number(range) : 7);
+  },
+
+  async activity() {
+    const rows = (await db.cmd(['LRANGE', 'alog', 0, 199])) || [];
+    return { log: rows.map((r) => { try { return JSON.parse(r); } catch { return null; } }).filter(Boolean) };
+  },
+
+  // Payments, newest first, one page at a time. status: all, PENDING, COMPLETED, REJECTED; q: phone or UTR.
+  async payments({ status = 'all', q = '', page = 0, size = 50 } = {}) {
+    const all = await allOrders();
+    const needle = String(q || '').trim();
+    const list = all.filter((o) => (status === 'all' || o.state === status) && (!needle || String(o.phone).includes(needle) || String(o.utr || '').includes(needle)));
+    const n = Math.max(1, Math.min(200, Number(size) || 50)), p = Math.max(0, Number(page) || 0);
+    const counts = { all: all.length, PENDING: 0, COMPLETED: 0, REJECTED: 0 };
+    all.forEach((o) => { counts[o.state] = (counts[o.state] || 0) + 1; });
+    return { payments: list.slice(p * n, p * n + n), total: list.length, page: p, pages: Math.ceil(list.length / n), counts };
   },
 
   async grant({ phone, days }) {
@@ -289,5 +363,7 @@ module.exports = core.handler(async (req, res) => {
   await requireAdmin(req);
   const fn = actions[b.action];
   if (!fn) throw new core.HttpError(400, 'Unknown action.');
-  core.send(res, 200, await fn(b));
+  const out = await fn(b);
+  await logAction(b.action, b, out);
+  core.send(res, 200, out);
 });

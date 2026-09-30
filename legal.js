@@ -29,4 +29,5 @@
   f.className = 'lg-foot';
   f.innerHTML = '<nav><a href="/">Open PakkaBill</a><a href="/about">About us</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/refund">Refunds</a><a href="/contact">Contact</a></nav><p>© ' + new Date().getFullYear() + ' PakkaBill. Made in India for GST sellers.</p>';
   (document.querySelector('main') || document.body).appendChild(f);
+  var v = document.createElement('script'); v.src = 'visit.js'; v.defer = true; document.head.appendChild(v);
 })();

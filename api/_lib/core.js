@@ -127,7 +127,14 @@ function publicUser(u) {
 
 const userKey = (phone) => `user:${phone}`;
 const getUser = (phone) => db.getJSON(userKey(phone));
-const saveUser = (u) => db.setJSON(userKey(u.phone), u);
+// Small indexes kept next to every account, so the admin panel and daily reminders read only the
+// accounts they need, never all of them:  paid (sorted set: phone -> Pro end), seen (phone -> last
+// seen), names (hash: phone -> shop name). They are rewritten on every save, in the same round trip.
+function indexCmds(u) {
+  if (!u || u.phone === 'owner') return [];
+  return [['ZADD', 'paid', u.paidUntil || 0, u.phone], ['ZADD', 'seen', u.lastSeen || u.createdAt || 0, u.phone], ['HSET', 'names', u.phone, String(u.shopName || '').toLowerCase()]];
+}
+const saveUser = (u) => db.pipe([['SET', userKey(u.phone), JSON.stringify(u)], ...indexCmds(u)]);
 
 // A session stores the phone and when it was made; changing or resetting the password
 // (user.pwAt) ends every session made before that.
@@ -148,7 +155,7 @@ async function sessionUser(req) {
   if (!v) return null;
   const [phone, at] = String(v).split('|');
   const user = await getUser(phone);
-  if (!user || (user.pwAt && !(Number(at) >= user.pwAt))) return null;
+  if (!user || user.blocked || (user.pwAt && !(Number(at) >= user.pwAt))) return null;
   return user;
 }
 
@@ -190,6 +197,7 @@ module.exports = {
   publicUser,
   getUser,
   saveUser,
+  indexCmds,
   createSession,
   bearer,
   requireUser,

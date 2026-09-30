@@ -72,6 +72,30 @@
   th{background:var(--tint);color:var(--violet);text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding:10px 12px;white-space:nowrap}
   td{padding:10px 12px;border-top:1px solid var(--rule-soft);vertical-align:middle;white-space:nowrap}
   td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chips button{border:1px solid var(--rule);background:var(--paper);color:var(--ink-2);padding:6px 12px;border-radius:999px;font-weight:600;cursor:pointer;font:inherit;font-size:13px}
+  .chips button[aria-pressed=true]{background:var(--tint);border-color:var(--violet);color:var(--violet)}
+  .chips button small{opacity:.75;margin-left:4px}
+  .pager{display:flex;align-items:center;gap:10px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+  .pager span{color:var(--ink-3);font-size:13px;font-weight:600}
+  tr.click{cursor:pointer} tr.click:hover td{background:var(--tint)}
+  .drawer-back{position:fixed;inset:0;background:rgba(18,12,40,.45);z-index:50}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100vw);background:var(--bg,var(--paper));z-index:51;overflow:auto;padding:18px 18px 40px;box-shadow:-20px 0 60px -30px rgba(20,10,60,.6)}
+  .drawer h2{margin:0}
+  .drawer .dh{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:12px}
+  .drawer .card{margin-bottom:12px}
+  .drawer dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0}
+  .drawer dt{color:var(--ink-3);font-weight:600;font-size:13px}.drawer dd{margin:0;font-weight:600}
+  .drawer textarea,.drawer input[type=text]{width:100%;box-sizing:border-box}
+  .funnel{display:grid;gap:10px}
+  .funnel div{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) auto;gap:10px;align-items:center;font-size:14px}
+  .funnel span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .funnel i{display:block;height:14px;border-radius:7px;background:var(--btn);background-image:var(--grad);min-width:3px}
+  .funnel b{text-align:right;font-variant-numeric:tabular-nums}
+  .log{list-style:none;margin:0;padding:0}
+  .log li{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--rule-soft);font-size:14px;flex-wrap:wrap}
+  .log time{color:var(--ink-3);min-width:150px;font-variant-numeric:tabular-nums}
+  .pill.blk{background:var(--red);color:#fff}
   .pill{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px}
   .pill.pro{background:var(--green-soft);color:var(--green)}
   .pill.free{background:var(--rule-soft);color:var(--ink-2)}
@@ -155,6 +179,8 @@
 </style>
 </head>
 <body>
+<div class="drawer-back" id="cback" hidden></div>
+<aside class="drawer" id="cdrawer" role="dialog" aria-modal="true" aria-labelledby="cname" hidden></aside>
 <div class="wrap">
   <section id="login" class="login card">
     <h1>PakkaBill Admin</h1>
@@ -171,10 +197,12 @@
       <div class="brand"><b>PakkaBill</b><span>Admin</span></div>
       <nav class="tabs" role="tablist">
         <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+        <button role="tab" data-tab="visitors" aria-selected="false">Visitors</button>
         <button role="tab" data-tab="customers" aria-selected="false">Customers</button>
         <button role="tab" data-tab="payments" aria-selected="false">Payments</button>
         <button role="tab" data-tab="support" aria-selected="false">Support<span class="tbadge" id="tkBadge" hidden></span></button>
         <button role="tab" data-tab="offers" aria-selected="false">Offers</button>
+        <button role="tab" data-tab="activity" aria-selected="false">Activity</button>
         <button role="tab" data-tab="settings" aria-selected="false">Settings</button>
         <button role="tab" data-tab="device" aria-selected="false">This device</button>
       </nav>
@@ -188,15 +216,39 @@
         <div class="card"><h2>Earnings by month</h2><p class="sub">Approved payments, last 6 months.</p><div class="chart" id="chart"></div></div>
         <div class="card"><h2>Remind before Pro runs out</h2><p class="sub">Pro ending in the next 7 days, and Pro that ended in the last 14 days. One tap opens WhatsApp with a ready message.</p><div id="expiring"></div></div>
       </div>
+      <div class="grid2" style="align-items:start">
+        <div class="card"><h2>New customers per day</h2><p class="sub">Accounts created in the last 14 days (Indian time).</p><div class="chart" id="signups"></div></div>
+        <div class="card"><h2>Customer funnel</h2><p class="sub">How many customers move from signing up to paying.</p><div id="funnel"></div></div>
+      </div>
       <div class="card"><h2>Latest payments</h2><p class="sub">The five most recent payments customers submitted.</p><div class="tablewrap" id="latest"></div></div>
+    </section>
+
+    <section data-panel="visitors" class="hidden">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+        <div class="seg" id="vrange" role="group" aria-label="Period"><button data-r="1" aria-pressed="false">Today</button><button data-r="7" aria-pressed="true">7 days</button><button data-r="30" aria-pressed="false">30 days</button></div>
+        <button class="btn sec sm" id="vrefresh" type="button">Refresh</button>
+      </div>
+      <div class="stats" id="vstats"></div>
+      <div class="card"><h2>Visitors per day</h2><p class="sub">Last 30 days. The tall bar is visits; the number on top is different people (visitors).</p><div class="chart" id="vchart" style="gap:4px"></div></div>
+      <div class="grid2" style="align-items:start">
+        <div class="card"><h2>Pages people open</h2><div id="vpages"></div></div>
+        <div class="card"><h2>Where visitors come from</h2><div id="vsrc"></div></div>
+        <div class="card"><h2>Cities</h2><div id="vcity"></div></div>
+        <div class="card"><h2>Devices</h2><div id="vdev"></div></div>
+      </div>
+      <div class="card"><h2>Latest visits</h2><p class="sub">The most recent 100 visits. Logged-in customers show their mobile number; everyone else is anonymous. We keep counts for 90 days and store no IP addresses.</p><div class="tablewrap" id="vrecent"></div></div>
     </section>
 
     <section data-panel="customers" class="hidden">
       <div class="card">
         <h2>Customers</h2>
-        <p class="sub">Give or remove Pro, or reset a password for a customer who forgot it.</p>
-        <div class="row" style="margin-bottom:12px"><input id="q" type="search" placeholder="Search mobile or shop name" style="flex:1;max-width:360px"><button class="btn sec sm" id="csv" type="button">Download CSV</button></div>
+        <p class="sub">Tap a customer to see their plan, payments, help requests and cloud backup, give or remove Pro, reset a password, send a notification or block the account.</p>
+        <div class="chips" id="ufilters" role="group" aria-label="Show customers">
+          <button data-f="all" aria-pressed="true">All</button><button data-f="new" aria-pressed="false">New this week</button><button data-f="pro" aria-pressed="false">Pro</button><button data-f="expiring" aria-pressed="false">Pro ending in 7 days</button><button data-f="lapsed" aria-pressed="false">Pro ended (30 days)</button><button data-f="free" aria-pressed="false">Free</button><button data-f="active" aria-pressed="false">Active this week</button><button data-f="inactive" aria-pressed="false">Not seen in 30 days</button>
+        </div>
+        <div class="row" style="margin:12px 0"><input id="q" type="search" placeholder="Search mobile or shop name" style="flex:1;max-width:360px"><button class="btn sec sm" id="csv" type="button">Download CSV</button></div>
         <div class="tablewrap" id="users"></div>
+        <div class="pager" id="upager"></div>
       </div>
     </section>
 
@@ -204,9 +256,21 @@
       <div class="card">
         <h2>Payments</h2>
         <p class="sub">Customers pay your UPI QR and send the 12-digit transaction number (UTR). Find the same UTR and amount in your bank or UPI app, then Approve. Approve turns Pro on straight away; Reject lets the customer send a corrected number.</p>
+        <div class="chips" id="pfilters" role="group" aria-label="Show payments"></div>
+        <div class="row" style="margin:12px 0"><input id="pq" type="search" placeholder="Search mobile or UTR" style="flex:1;max-width:360px"></div>
         <div class="tablewrap" id="payments"></div>
+        <div class="pager" id="ppager"></div>
       </div>
     </section>
+
+    <section data-panel="activity" class="hidden">
+      <div class="card">
+        <h2>Activity</h2>
+        <p class="sub">Everything done in this admin panel: Pro given or removed, payments approved, passwords reset, accounts blocked, settings changed. The latest 300 actions are kept.</p>
+        <div id="activity"></div>
+      </div>
+    </section>
+
 
 
     <section data-panel="support" class="hidden">
@@ -398,7 +462,7 @@
   function show(tab) {
     document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
     document.querySelectorAll('[data-panel]').forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== tab));
-    ({ overview: loadOverview, customers: loadUsers, payments: loadPayments, support: loadTickets, offers: loadOffers, settings: loadSettings })[tab]?.();
+    ({ overview: loadOverview, customers: loadUsers, payments: loadPayments, activity: loadActivity, visitors: loadVisitors, support: loadTickets, offers: loadOffers, settings: loadSettings })[tab]?.();
   }
 
   function stateBadge(s) {
@@ -409,7 +473,7 @@
   function paymentsTable(list, withActions) {
     if (!list.length) return '<p class="empty">No payments yet.</p>';
     return `<table><thead><tr><th>Date</th><th>Mobile</th><th>Plan</th><th class="num">Amount</th><th>UTR</th><th>Status</th>${withActions ? '<th></th>' : ''}</tr></thead><tbody>${list
-      .map((o) => `<tr><td>${when(o.createdAt)}</td><td>${esc(o.phone)}</td><td>${o.plan === 'yearly' ? 'Yearly' : 'Monthly'}</td><td class="num">${money(o.amount / 100)}</td><td><code>${esc(o.utr || '—')}</code></td><td>${stateBadge(o.state)}</td>${
+      .map((o) => `<tr><td>${when(o.createdAt)}</td><td><a href="#" data-cust="${esc(o.phone)}">${esc(o.phone)}</a></td><td>${o.plan === 'yearly' ? 'Yearly' : 'Monthly'}</td><td class="num">${money(o.amount / 100)}</td><td><code>${esc(o.utr || '—')}</code></td><td>${stateBadge(o.state)}</td>${
         withActions ? `<td>${o.state === 'PENDING' ? `<div class="actions"><button class="btn sm" data-approve="${esc(o.id)}">Approve</button><button class="btn danger sm" data-reject="${esc(o.id)}">Reject</button></div>` : ''}</td>` : ''
       }</tr>`)
       .join('')}</tbody></table>`;
@@ -417,15 +481,21 @@
 
   async function loadOverview() {
     try {
-      const [s, p] = await Promise.all([api('stats'), api('payments')]);
+      const [s, p] = await Promise.all([api('stats'), api('payments', { size: 5 })]);
+      const n = (x) => Number(x || 0).toLocaleString('en-IN');
       $('#stats').innerHTML = [
-        ['Customers', s.users.toLocaleString('en-IN')],
-        ['Pro right now', s.pro.toLocaleString('en-IN')],
-        ['Earned this month', money(s.revenueMonth)],
-        ['Earned in total', money(s.revenue)],
-        ['Active this week', s.activeWeek.toLocaleString('en-IN')],
-        ['Open tickets', (s.tickets ? s.tickets.active : 0).toLocaleString('en-IN')],
-      ].map(([l, v]) => `<div class="stat"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
+        ['Customers', n(s.users), `+${n(s.newWeek)} this week`],
+        ['Pro right now', n(s.pro), s.users ? `${((s.pro / s.users) * 100).toFixed(1)}% of customers` : ''],
+        ['Earned this month', money(s.revenueMonth), ''],
+        ['Earned in total', money(s.revenue), `${n(s.payers)} paying customers`],
+        ['Active this week', n(s.activeWeek), `${n(s.activeToday)} today`],
+        ['Open tickets', n(s.tickets ? s.tickets.active : 0), ''],
+      ].map(([l, v, sub]) => `<div class="stat"><div class="l">${l}</div><div class="v">${v}</div>${sub ? `<div class="muted" style="font-size:12px;font-weight:600">${esc(sub)}</div>` : ''}</div>`).join('');
+      const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const topS = Math.max(1, ...s.signups.map((d) => d.signups));
+      $('#signups').innerHTML = s.signups.map((d) => `<div class="bar"><b>${d.signups || ''}</b><i style="height:${Math.round((d.signups / topS) * 110) + 3}px" title="${d.day} ${MN[d.month]}: ${d.signups} new"></i><span>${d.day}</span></div>`).join('');
+      const fun = [['Signed up', s.users], ['Active this week', s.activeWeek], ['Ever paid', s.payers], ['Pro right now', s.pro]];
+      $('#funnel').innerHTML = `<div class="funnel">${fun.map(([l, v]) => `<div><span>${l}</span><i style="width:${s.users ? Math.max(1, Math.round((v / s.users) * 100)) : 0}%"></i><b>${n(v)}</b></div>`).join('')}</div>`;
       $('#setupBanner').innerHTML = !s.paymentsReady
         ? `<div class="banner warn"><b>Payments are not switched on yet</b>, so every feature is free for everyone. Add your UPI ID in <b>Settings</b> to start selling Pro.</div>`
         : s.waiting
@@ -439,7 +509,7 @@
         const text = ended
           ? `Namaste${u.shopName ? ' ' + u.shopName : ''}! Your PakkaBill Pro plan ended on ${day(u.paidUntil)}. Renew in a minute from the Plan page to get unlimited bills, PDF and WhatsApp sharing back: ${location.origin}/#/plan`
           : `Namaste${u.shopName ? ' ' + u.shopName : ''}! Your PakkaBill Pro plan ends on ${day(u.paidUntil)}. Renew from the Plan page to keep unlimited bills, PDF and WhatsApp sharing: ${location.origin}/#/plan`;
-        return `<li><span class="who"><b>${esc(u.shopName || u.phone)}</b><span class="muted">${esc(u.phone)} · ${ended ? 'ended' : 'ends'} ${day(u.paidUntil)}</span></span><a class="btn sm wa" target="_blank" rel="noopener" href="https://wa.me/91${esc(u.phone)}?text=${encodeURIComponent(text)}">WhatsApp reminder</a></li>`;
+        return `<li><span class="who"><b><a href="#" data-cust="${esc(u.phone)}">${esc(u.shopName || u.phone)}</a></b><span class="muted">${esc(u.phone)} · ${ended ? 'ended' : 'ends'} ${day(u.paidUntil)}</span></span><a class="btn sm wa" target="_blank" rel="noopener" href="https://wa.me/91${esc(u.phone)}?text=${encodeURIComponent(text)}">WhatsApp reminder</a></li>`;
       };
       $('#expiring').innerHTML = s.expiring.length || s.lapsed.length
         ? `<ul class="people">${s.expiring.map((u) => remind(u, false)).join('')}${s.lapsed.map((u) => remind(u, true)).join('')}</ul>`
@@ -715,59 +785,177 @@
     const d = Math.round(h / 24);
     return d < 30 ? `${d} day${d > 1 ? 's' : ''} ago` : day(t);
   }
-  $('#csv').addEventListener('click', async () => {
+  // ---------- customers (one page at a time) ----------
+  let uf = 'all', upage = 0, qTimer;
+  const planPill = (u) => (u.blocked ? '<span class="pill blk">Blocked</span> ' : '') + (u.pro ? (u.trial ? '<span class="pill wait">Trial</span>' : '<span class="pill pro">Pro</span>') : '<span class="pill free">Free</span>');
+  const pager = (el, r, go) => {
+    el.innerHTML = r.pages > 1 ? `<button class="btn sec sm" data-pg="${r.page - 1}" ${r.page <= 0 ? 'disabled' : ''}>‹ Previous</button><span>Page ${r.page + 1} of ${r.pages} · ${r.total.toLocaleString('en-IN')} in all</span><button class="btn sec sm" data-pg="${r.page + 1}" ${r.page + 1 >= r.pages ? 'disabled' : ''}>Next ›</button>` : r.total ? `<span>${r.total.toLocaleString('en-IN')} in all</span>` : '';
+    el.onclick = (e) => { const b = e.target.closest('[data-pg]'); if (b && !b.disabled) go(Number(b.dataset.pg)); };
+  };
+  $('#ufilters').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-f]'); if (!b) return;
+    uf = b.dataset.f; upage = 0; $('#q').value = '';
+    $('#ufilters').querySelectorAll('[data-f]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    loadUsers();
+  });
+  $('#q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(() => { upage = 0; loadUsers(); }, 250); });
+  async function loadUsers() {
     try {
-      const { users } = await api('users', { q: '' });
+      const r = await api('users', { filter: uf, q: $('#q').value, page: upage, size: 50 });
+      $('#users').innerHTML = r.users.length
+        ? `<table><thead><tr><th>Mobile</th><th>Shop</th><th>Plan</th><th>Pro until</th><th>Cloud</th><th>Last seen</th><th>Joined</th></tr></thead><tbody>${r.users
+            .map((u) => `<tr class="click" data-open="${esc(u.phone)}"><td><b>${esc(u.phone)}</b></td><td>${esc(u.shopName) || '<span class="muted">—</span>'}${u.note ? ' <span title="Has a note">📝</span>' : ''}</td><td>${planPill(u)}</td><td>${u.paidUntil ? day(u.paidUntil) : '—'}</td><td>${u.cloud ? `${u.cloud.shops} shop${u.cloud.shops > 1 ? 's' : ''} · ${(u.cloud.bytes / 1048576).toFixed(1)} MB` : '<span class="muted">—</span>'}</td><td>${u.lastSeen ? ago(u.lastSeen) : '—'}</td><td>${day(u.createdAt)}</td></tr>`)
+            .join('')}</tbody></table>${r.capped ? '<p class="muted">Showing the first 200 matches. Type more to narrow the search.</p>' : ''}`
+        : '<p class="empty">No customers here.</p>';
+      pager($('#upager'), r, (p) => { upage = p; loadUsers(); });
+    } catch (e) { toast(e.message, true); }
+  }
+  $('#users').addEventListener('click', (e) => { const r = e.target.closest('[data-open]'); if (r) openCustomer(r.dataset.open); });
+
+  $('#csv').addEventListener('click', async () => {
+    const b = $('#csv'); b.disabled = true;
+    try {
+      const all = [];
+      for (let p = 0; ; p++) {
+        b.textContent = `Downloading… ${all.length}`;
+        const r = await api('users', { filter: uf, q: $('#q').value, page: p, size: 200 });
+        all.push(...r.users);
+        if (p + 1 >= r.pages) break;
+      }
       const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-      const rows = [['Mobile', 'Shop', 'Plan', 'Pro until', 'Last plan', 'Last seen', 'Joined']].concat(
-        users.map((u) => [u.phone, u.shopName, u.pro ? 'Pro' : 'Free', u.paidUntil ? day(u.paidUntil) : '', u.lastPlan, u.lastSeen ? day(u.lastSeen) : '', day(u.createdAt)]),
+      const rows = [['Mobile', 'Shop', 'Plan', 'Pro until', 'Last plan', 'Last seen', 'Joined', 'Blocked', 'Note']].concat(
+        all.map((u) => [u.phone, u.shopName, u.pro ? 'Pro' : 'Free', u.paidUntil ? day(u.paidUntil) : '', u.lastPlan, u.lastSeen ? day(u.lastSeen) : '', day(u.createdAt), u.blocked ? 'Yes' : '', u.note]),
       );
-      const blob = new Blob(['\uFEFF' + rows.map((r) => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv' });
+      const blob = new Blob(['﻿' + rows.map((r) => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `pakkabill-customers-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `pakkabill-customers-${uf}-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     } catch (e) { toast(e.message, true); }
+    b.disabled = false; b.textContent = 'Download CSV';
   });
-  let qTimer;
-  $('#q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(loadUsers, 250); });
-  async function loadUsers() {
+
+  // ---------- one customer ----------
+  const drawer = $('#cdrawer'), dback = $('#cback');
+  function closeCustomer() { drawer.hidden = true; dback.hidden = true; drawer.innerHTML = ''; }
+  dback.addEventListener('click', closeCustomer);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !drawer.hidden) closeCustomer(); });
+  async function openCustomer(phone) {
+    drawer.hidden = false; dback.hidden = false;
+    drawer.innerHTML = '<p class="muted">Loading…</p>';
     try {
-      const { users } = await api('users', { q: $('#q').value });
-      const now = Date.now();
-      $('#users').innerHTML = users.length
-        ? `<table><thead><tr><th>Mobile</th><th>Shop</th><th>Plan</th><th>Pro until</th><th>Cloud</th><th>Last seen</th><th>Joined</th><th>Actions</th></tr></thead><tbody>${users
-            .map((u) => `<tr><td>${esc(u.phone)}</td><td>${esc(u.shopName) || '<span class="muted">—</span>'}</td><td>${u.paidUntil > now ? (u.trial ? '<span class="pill wait">Trial</span>' : '<span class="pill pro">Pro</span>') : '<span class="pill free">Free</span>'}</td><td>${u.paidUntil ? day(u.paidUntil) : '—'}</td><td>${u.cloud ? `${u.cloud.shops} shop${u.cloud.shops > 1 ? 's' : ''} · ${(u.cloud.bytes / 1048576).toFixed(1)} MB` : '<span class="muted">—</span>'}</td><td>${u.lastSeen ? ago(u.lastSeen) : '—'}</td><td>${day(u.createdAt)}</td>
-              <td><div class="actions"><button class="btn sec sm" data-grant="30" data-phone="${esc(u.phone)}">+1 month</button><button class="btn sec sm" data-grant="365" data-phone="${esc(u.phone)}">+1 year</button><button class="btn sec sm" data-grant="?" data-phone="${esc(u.phone)}">+ days…</button>${u.paidUntil > now ? `<button class="btn danger sm" data-revoke="${esc(u.phone)}">Remove Pro</button>` : ''}<button class="btn sec sm" data-reset="${esc(u.phone)}">Reset password</button></div></td></tr>`)
-            .join('')}</tbody></table>`
-        : '<p class="empty">No customers found.</p>';
-    } catch (e) { toast(e.message, true); }
+      const c = await api('customer', { phone });
+      const u = c.user;
+      drawer.innerHTML = `<div class="dh"><div><h2 id="cname">${esc(u.shopName || u.phone)}</h2><p class="muted" style="margin:4px 0 0">${esc(u.phone)} · ${planPill(u)}</p></div><button class="btn sec sm" data-x>Close</button></div>
+        <div class="row" style="margin-bottom:12px">${/^\d{10}$/.test(u.phone) ? `<a class="btn sm wa" target="_blank" rel="noopener" href="https://wa.me/91${esc(u.phone)}">WhatsApp</a><a class="btn sec sm" href="tel:+91${esc(u.phone)}">Call</a>` : ''}</div>
+        <div class="card"><dl>
+          <dt>Plan</dt><dd>${u.pro ? `${u.trial ? 'Free trial' : 'Pro'} till ${day(u.paidUntil)}` : u.paidUntil ? `Free (Pro ended ${day(u.paidUntil)})` : 'Free, never paid'}</dd>
+          <dt>Joined</dt><dd>${when(u.createdAt)}</dd>
+          <dt>Last seen</dt><dd>${u.lastSeen ? when(u.lastSeen) : '—'}</dd>
+          <dt>Cloud backup</dt><dd>${u.cloud ? `${u.cloud.shops} shop${u.cloud.shops > 1 ? 's' : ''}, ${(u.cloud.bytes / 1048576).toFixed(1)} MB` : 'Off'}</dd>
+          <dt>Notifications</dt><dd>${c.devices ? `On, ${c.devices} device${c.devices > 1 ? 's' : ''}` : 'Off'}</dd>
+        </dl></div>
+        <div class="card"><h3 style="margin-top:0">Plan</h3><div class="actions"><button class="btn sec sm" data-grant="30">+1 month</button><button class="btn sec sm" data-grant="365">+1 year</button><button class="btn sec sm" data-grant="?">+ days…</button>${u.pro ? '<button class="btn danger sm" data-revoke>Remove Pro</button>' : ''}</div></div>
+        <div class="card"><h3 style="margin-top:0">Send a notification</h3>${c.devices ? `<input type="text" id="ntitle" maxlength="80" placeholder="Title, e.g. Your payment is confirmed"><textarea id="nbody" rows="2" maxlength="300" placeholder="Message (optional)" style="margin-top:8px"></textarea><div class="row" style="margin-top:8px"><button class="btn sm" data-notify>Send to their phone</button></div>` : '<p class="muted" style="margin:0">This customer has not turned on notifications. Use WhatsApp instead.</p>'}</div>
+        <div class="card"><h3 style="margin-top:0">Private note</h3><textarea id="cnote" rows="3" maxlength="1000" placeholder="Only you see this. E.g. Paid by cash, gave extra month">${esc(u.note)}</textarea><div class="row" style="margin-top:8px"><button class="btn sec sm" data-note>Save note</button></div></div>
+        <div class="card"><h3 style="margin-top:0">Payments</h3>${c.orders.length ? `<ul class="log">${c.orders.map((o) => `<li><time>${when(o.createdAt)}</time><span>${money(o.amount / 100)} · ${o.plan === 'yearly' ? 'Yearly' : 'Monthly'} · UTR <code>${esc(o.utr || '—')}</code> ${stateBadge(o.state)}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:0">No payments.</p>'}</div>
+        <div class="card"><h3 style="margin-top:0">Help requests</h3>${c.tickets.length ? `<ul class="log">${c.tickets.map((t) => `<li><time>${when(t.updatedAt)}</time><span>${esc(t.no || '')} ${esc(t.subject || '')} ${tkPill(t.status)}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:0">No help requests.</p>'}</div>
+        <div class="card"><h3 style="margin-top:0">Account</h3><div class="actions"><button class="btn sec sm" data-reset>Reset password</button>${u.phone !== 'owner' ? `<button class="btn ${u.blocked ? 'sec' : 'danger'} sm" data-block="${u.blocked ? '0' : '1'}">${u.blocked ? 'Unblock account' : 'Block account'}</button>` : ''}</div><p class="muted" style="margin:8px 0 0">Blocking logs the customer out everywhere and stops them logging in. Bills on their phone keep working.</p></div>`;
+      drawer.onclick = (e) => customerAction(e, u.phone);
+      drawer.querySelector('[data-x]').focus();
+    } catch (e) { drawer.innerHTML = `<p class="empty">${esc(e.message)}</p><button class="btn sec sm" data-x>Close</button>`; drawer.onclick = (ev) => { if (ev.target.closest('[data-x]')) closeCustomer(); }; }
   }
-  $('#users').addEventListener('click', async (e) => {
+  async function customerAction(e, phone) {
     const b = e.target.closest('button');
     if (!b) return;
+    if (b.hasAttribute('data-x')) return closeCustomer();
     try {
       if (b.dataset.grant) {
         const days = b.dataset.grant === '?' ? prompt('How many days of Pro to add?', '30') : b.dataset.grant;
         if (!days) return;
-        const { user } = await api('grant', { phone: b.dataset.phone, days: Number(days) });
-        toast(`Pro for ${user.phone} now runs till ${day(user.paidUntil)}.`);
-      } else if (b.dataset.revoke) {
-        if (!confirm(`Remove Pro from ${b.dataset.revoke} now? They go back to the free plan.`)) return;
-        await api('revoke', { phone: b.dataset.revoke });
-        toast('Pro removed.');
-      } else if (b.dataset.reset) {
-        if (!confirm(`Make a new password for ${b.dataset.reset}? Their old password stops working.`)) return;
-        const { password } = await api('resetPassword', { phone: b.dataset.reset });
-        prompt(`New password for ${b.dataset.reset}. Copy it and send it to the customer:`, password);
-      }
-      loadUsers();
+        const { user } = await api('grant', { phone, days: Number(days) });
+        toast(`Pro now runs till ${day(user.paidUntil)}.`);
+      } else if (b.hasAttribute('data-revoke')) {
+        if (!confirm(`Remove Pro from ${phone} now? They go back to the free plan.`)) return;
+        await api('revoke', { phone }); toast('Pro removed.');
+      } else if (b.hasAttribute('data-reset')) {
+        if (!confirm(`Make a new password for ${phone}? Their old password stops working and they are logged out everywhere.`)) return;
+        const { password } = await api('resetPassword', { phone });
+        prompt(`New password for ${phone}. Copy it and send it to the customer:`, password);
+      } else if (b.dataset.block) {
+        const on = b.dataset.block === '1';
+        if (on && !confirm(`Block ${phone}? They are logged out everywhere and cannot log in until you unblock them.`)) return;
+        await api('block', { phone, blocked: on }); toast(on ? 'Account blocked.' : 'Account unblocked.');
+      } else if (b.hasAttribute('data-note')) {
+        await api('saveNote', { phone, note: $('#cnote').value }); toast('Note saved.'); return;
+      } else if (b.hasAttribute('data-notify')) {
+        const { sent } = await api('notify', { phone, title: $('#ntitle').value, body: $('#nbody').value });
+        toast(sent ? `Sent to ${sent} device${sent > 1 ? 's' : ''}.` : 'Could not reach their phone. Try WhatsApp.', !sent); return;
+      } else return;
+      openCustomer(phone);
+      if (!$('[data-panel="customers"]').classList.contains('hidden')) loadUsers();
     } catch (err) { toast(err.message, true); }
-  });
+  }
 
+  document.addEventListener('click', (e) => { const a = e.target.closest('[data-cust]'); if (a) { e.preventDefault(); openCustomer(a.dataset.cust); } });
+
+  // ---------- visitors ----------
+  let vr = 7;
+  const PAGE_NAME = { '/#/': 'Home', '/#/pnl': 'Profit & Loss', '/#/bills': 'Bills', '/#/new': 'New bill', '/#/parties': 'Parties', '/#/items': 'Items', '/#/shop': 'Shop', '/#/shops': 'Shops & cloud', '/#/plan': 'Plan', '/#/account': 'My account', '/#/app': 'Get the app', '/#/support': 'Help', '/#/reports': 'GST summary', '/#/gstr1': 'GSTR-1', '/#/lens': 'Meesho Lens', '/#/listing': 'Meesho listing', '/terms': 'Terms page', '/privacy': 'Privacy page', '/about': 'About us', '/contact': 'Contact', '/refund': 'Refunds page', '/delete-account': 'Delete account page' };
+  const bars = (list, name = (x) => x) => {
+    if (!list.length) return '<p class="empty">No visits yet.</p>';
+    const top = list[0].count;
+    return `<div class="funnel">${list.map((x) => `<div><span title="${esc(x.name)}">${esc(name(x.name))}</span><i style="width:${Math.max(2, Math.round((x.count / top) * 100))}%"></i><b>${x.count.toLocaleString('en-IN')}</b></div>`).join('')}</div>`;
+  };
+  $('#vrange').addEventListener('click', (e) => { const b = e.target.closest('[data-r]'); if (!b) return; vr = Number(b.dataset.r); $('#vrange').querySelectorAll('[data-r]').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); loadVisitors(); });
+  $('#vrefresh').addEventListener('click', () => loadVisitors());
+  async function loadVisitors() {
+    try {
+      const v = await api('visitors', { range: vr });
+      const n = (x) => Number(x || 0).toLocaleString('en-IN');
+      const lbl = vr === 1 ? 'today' : `last ${vr} days`;
+      $('#vstats').innerHTML = [
+        ['On the site now', n(v.now), 'visits in the last 5 minutes'],
+        ['Visitors today', n(v.today.visitors), `${n(v.today.visits)} visits · ${n(v.today.pv)} pages`],
+        [`Visitors, ${lbl}`, n(v.week.visitors), `${n(v.week.visits)} visits · ${n(v.week.pv)} pages`],
+        ['Visitors, 30 days', n(v.month.visitors), `${n(v.month.visits)} visits`],
+        ['New vs returning', `${n(v.week.newVisitors)} / ${n(v.week.returning)}`, `visits in the ${lbl}`],
+        ['Logged-in visits', n(v.week.loggedIn), `in the ${lbl}`],
+      ].map(([l, x, sub]) => `<div class="stat"><div class="l">${l}</div><div class="v">${x}</div><div class="muted" style="font-size:12px;font-weight:600">${esc(sub)}</div></div>`).join('');
+      const topV = Math.max(1, ...v.series.map((d) => d.visits));
+      $('#vchart').innerHTML = v.series.map((d) => `<div class="bar"><b style="font-size:10px">${d.visitors || ''}</b><i style="height:${Math.round((d.visits / topV) * 110) + 3}px" title="${d.day.slice(6)}/${d.day.slice(4, 6)}: ${d.visitors} visitors, ${d.visits} visits, ${d.pv} pages"></i><span style="font-size:10px">${Number(d.day.slice(6))}</span></div>`).join('');
+      $('#vpages').innerHTML = bars(v.pages, (p) => PAGE_NAME[p] || p);
+      $('#vsrc').innerHTML = bars(v.sources);
+      $('#vcity').innerHTML = bars(v.cities);
+      $('#vdev').innerHTML = bars(v.devices);
+      $('#vrecent').innerHTML = v.recent.length
+        ? `<table><thead><tr><th>Time</th><th>Page</th><th>From</th><th>Device</th><th>City</th><th>Who</th></tr></thead><tbody>${v.recent.map((r) => `<tr><td>${ago(r.t) === 'Just now' ? 'Just now' : when(r.t)}</td><td>${esc(PAGE_NAME[r.path] || r.path)}</td><td>${esc(r.src)}</td><td>${esc(r.dev)}</td><td>${esc(r.place)}</td><td>${r.phone ? `<a href="#" data-cust="${esc(r.phone)}">${esc(r.phone)}</a>` : `<span class="muted">${r.isNew ? 'New visitor' : 'Returning visitor'}</span>`}</td></tr>`).join('')}</tbody></table>`
+        : '<p class="empty">No visits yet. Visits appear here a few seconds after someone opens PakkaBill.</p>';
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function loadActivity() {
+    try {
+      const { log } = await api('activity');
+      $('#activity').innerHTML = log.length
+        ? `<ul class="log">${log.map((x) => `<li><time>${when(x.t)}</time><span>${esc(x.what)}${x.phone ? ` · <a href="#" data-cust="${esc(x.phone)}">${esc(x.phone)}</a>` : ''}</span></li>`).join('')}</ul>`
+        : '<p class="empty">Nothing yet. Actions you take in this panel show up here.</p>';
+    } catch (e) { toast(e.message, true); }
+  }
+
+  // ---------- payments (one page at a time) ----------
+  let payF = 'all', ppage = 0, pqTimer;
+  $('#pq').addEventListener('input', () => { clearTimeout(pqTimer); pqTimer = setTimeout(() => { ppage = 0; loadPayments(); }, 250); });
+  $('#pfilters').addEventListener('click', (e) => { const b = e.target.closest('[data-f]'); if (!b) return; payF = b.dataset.f; ppage = 0; loadPayments(); });
   async function loadPayments() {
-    try { $('#payments').innerHTML = paymentsTable((await api('payments')).payments, true); } catch (e) { toast(e.message, true); }
+    try {
+      const r = await api('payments', { status: payF, q: $('#pq').value, page: ppage, size: 50 });
+      const F = [['all', 'All'], ['PENDING', 'Waiting'], ['COMPLETED', 'Approved'], ['REJECTED', 'Rejected']];
+      $('#pfilters').innerHTML = F.map(([k, l]) => `<button data-f="${k}" aria-pressed="${payF === k}">${l}<small>${(r.counts[k] || 0).toLocaleString('en-IN')}</small></button>`).join('');
+      $('#payments').innerHTML = paymentsTable(r.payments, true);
+      pager($('#ppager'), r, (p) => { ppage = p; loadPayments(); });
+    } catch (e) { toast(e.message, true); }
   }
   $('#payments').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-approve],[data-reject]');

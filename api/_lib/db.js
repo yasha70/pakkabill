@@ -47,6 +47,14 @@ async function redisPipe(cmds) {
 
 // Minimal in-memory Redis for the commands used here.
 const mem = { kv: new Map(), exp: new Map(), z: new Map() };
+// Score bound like Redis: '-inf', '+inf', '(123' (exclusive) or '123'.
+function bound(b, low) {
+  const t = String(b);
+  if (t === '-inf') return () => true;
+  if (t === '+inf') return () => true;
+  const ex = t.startsWith('('), n = Number(ex ? t.slice(1) : t);
+  return low ? (v) => (ex ? v > n : v >= n) : (v) => (ex ? v < n : v <= n);
+}
 function memAlive(k) {
   const e = mem.exp.get(k);
   if (e && e <= Date.now()) {
@@ -72,7 +80,7 @@ async function memory([op, ...a]) {
       return 'OK';
     }
     case 'DEL':
-      return a.reduce((n, k) => n + (mem.kv.delete(k) ? 1 : 0), 0);
+      return a.reduce((n, k) => n + ([mem.kv.delete(k), mem.z.delete(k), mem.z.delete('hash:' + k), mem.z.delete('hll:' + k), mem.z.delete('list:' + k)].some(Boolean) ? 1 : 0), 0);
     case 'INCR':
     case 'DECR': {
       const v = (memAlive(a[0]) ? Number(mem.kv.get(a[0])) : 0) + (op.toUpperCase() === 'INCR' ? 1 : -1);
@@ -107,6 +115,74 @@ async function memory([op, ...a]) {
     }
     case 'SISMEMBER':
       return (mem.z.get('set:' + a[0]) || new Map()).has(String(a[1])) ? 1 : 0;
+    case 'ZCOUNT': {
+      const [lo, hi] = [bound(a[1], true), bound(a[2], false)];
+      return [...(mem.z.get(a[0]) || new Map()).values()].filter((v) => lo(v) && hi(v)).length;
+    }
+    case 'ZRANGEBYSCORE':
+    case 'ZREVRANGEBYSCORE': {
+      const rev = op.toUpperCase() === 'ZREVRANGEBYSCORE';
+      const [lo, hi] = rev ? [bound(a[2], true), bound(a[1], false)] : [bound(a[1], true), bound(a[2], false)];
+      let z = [...(mem.z.get(a[0]) || new Map()).entries()].filter((e) => lo(e[1]) && hi(e[1])).sort((x, y) => (rev ? y[1] - x[1] : x[1] - y[1])).map((e) => e[0]);
+      const li = a.findIndex((x) => String(x).toUpperCase() === 'LIMIT');
+      if (li > 0) z = z.slice(Number(a[li + 1]), Number(a[li + 1]) + Number(a[li + 2]));
+      return z;
+    }
+    case 'ZSCORE': {
+      const z = mem.z.get(a[0]);
+      return z && z.has(a[1]) ? String(z.get(a[1])) : null;
+    }
+    case 'HSET': {
+      const h = mem.z.get('hash:' + a[0]) || new Map();
+      let n = 0;
+      for (let i = 1; i < a.length; i += 2) { if (!h.has(a[i])) n++; h.set(String(a[i]), String(a[i + 1])); }
+      mem.z.set('hash:' + a[0], h);
+      return n;
+    }
+    case 'HGETALL':
+      return [...(mem.z.get('hash:' + a[0]) || new Map()).entries()].flat();
+    case 'HDEL': {
+      const h = mem.z.get('hash:' + a[0]);
+      return h ? a.slice(1).reduce((n, k) => n + (h.delete(k) ? 1 : 0), 0) : 0;
+    }
+    case 'HLEN':
+      return (mem.z.get('hash:' + a[0]) || new Map()).size;
+    case 'LPUSH': {
+      const l = mem.z.get('list:' + a[0]) || [];
+      a.slice(1).forEach((v) => l.unshift(String(v)));
+      mem.z.set('list:' + a[0], l);
+      return l.length;
+    }
+    case 'LTRIM': {
+      const l = mem.z.get('list:' + a[0]) || [];
+      mem.z.set('list:' + a[0], l.slice(Number(a[1]), Number(a[2]) < 0 ? l.length + Number(a[2]) + 1 : Number(a[2]) + 1));
+      return 'OK';
+    }
+    case 'LRANGE': {
+      const l = mem.z.get('list:' + a[0]) || [];
+      return l.slice(Number(a[1]), Number(a[2]) < 0 ? l.length + Number(a[2]) + 1 : Number(a[2]) + 1);
+    }
+    case 'PFADD': {
+      const st = mem.z.get('hll:' + a[0]) || new Map();
+      const before = st.size;
+      a.slice(1).forEach((m) => st.set(String(m), 1));
+      mem.z.set('hll:' + a[0], st);
+      return st.size > before ? 1 : 0;
+    }
+    case 'PFCOUNT': {
+      const u = new Set();
+      a.forEach((k) => (mem.z.get('hll:' + k) || new Map()).forEach((_, m) => u.add(m)));
+      return u.size;
+    }
+    case 'HINCRBY': {
+      const h = mem.z.get('hash:' + a[0]) || new Map();
+      const v = Number(h.get(String(a[1])) || 0) + Number(a[2]);
+      h.set(String(a[1]), String(v));
+      mem.z.set('hash:' + a[0], h);
+      return v;
+    }
+    case 'HGET':
+      return (mem.z.get('hash:' + a[0]) || new Map()).get(String(a[1])) ?? null;
     case 'ZCARD':
       return (mem.z.get(a[0]) || new Map()).size;
     case 'ZREVRANGE': {
