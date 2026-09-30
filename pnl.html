@@ -158,6 +158,16 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: .88rem; co
 .period { display: grid; gap: 10px; grid-template-columns: 1fr; }
 @media (min-width: 620px) { .period { grid-template-columns: 1fr auto; align-items: end; } }
 .dl { display: flex; gap: 8px; flex-wrap: wrap; }
+.lock { display: grid; overflow: hidden; padding: 0; }
+.lock > * { grid-area: 1 / 1; }
+.lk-sk { padding: 22px; filter: blur(3px); opacity: .55; }
+.lk-row { display: flex; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--rule); }
+.lk-row i { display: block; height: 11px; border-radius: 6px; background: var(--ink-3); opacity: .35; }
+.lk-box { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; background: linear-gradient(180deg, color-mix(in srgb, var(--sheet) 55%, transparent), var(--sheet) 55%); }
+.lk-box h2 { margin: 6px 0 4px; font-size: 1.25rem; }
+.lk-box p { margin: 0 0 8px; color: var(--ink-2); max-width: 440px; }
+.lk-box ul { text-align: left; margin: 4px 0 14px; padding-left: 20px; color: var(--ink-2); font-size: .92rem; }
+.lk-ic { font-size: 1.8rem; }
 .btn.wa { background: #1faa59; border-color: #1faa59; color: #fff; }
 .vs { font-size: .82rem; font-weight: 700; flex-basis: 100%; }
 .vs.up { color: var(--pos, #12714b); } .vs.down { color: var(--neg, #c8202a); }
@@ -1731,6 +1741,43 @@ details.more[open] > summary { margin-bottom: 10px; }
   }
   A.recompute = recompute;
   function hasData() { return W().files.length > 0; }
+
+  /* ---------------- access: the full report and downloads need a login and Pro ---------------- */
+  function lsJSON(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+  function host() { try { return window.parent !== window && window.parent.pbPnlAccess ? window.parent : null; } catch (e) { return null; } }
+  // { login, pro, trialDays, play } from the PakkaBill app around this page, or from saved state when opened alone.
+  function access() {
+    var P = host();
+    if (P) { try { return P.pbPnlAccess(); } catch (e) { /* fall through */ } }
+    var a = lsJSON('pb-acct'), c = lsJSON('pb-cfg'), login = !!(a && a.token);
+    return { login: login, pro: login && (!(c && c.enabled && c.enforce) || !!(a.user && a.user.paidUntil > Date.now())), trialDays: (c && c.trialDays) || 0, play: false };
+  }
+  A.access = access;
+  // Sample data always shows in full, so people can see what the full report looks like.
+  A.full = function () { if (S.demo) return true; var x = access(); return x.login && x.pro; };
+  // Opens log in / sign up, or the Pro plans, in the app around this page.
+  function askAccess(kind) {
+    var P = host();
+    if (P && P.pbUpgrade) { P.pbUpgrade(kind); return; }
+    try { window.top.location.href = '/#/plan'; } catch (e) { location.href = '/#/plan'; }
+  }
+  A.askAccess = askAccess;
+  // Checks with the server before a download, so a changed saved state on the device is not enough.
+  async function verifyPro() {
+    var a = lsJSON('pb-acct');
+    if (!a || !a.token) return false;
+    try {
+      var r = await Promise.all([fetch('/api/me', { headers: { Authorization: 'Bearer ' + a.token }, cache: 'no-store' }), fetch('/api/config', { cache: 'no-cache' })]);
+      if (r[0].status === 401) return false;
+      if (!r[0].ok || !r[1].ok) throw new Error('server');
+      var u = (await r[0].json()).user, c = await r[1].json();
+      return !(c.enabled && c.enforce) || !!(u && u.pro);
+    } catch (e) {
+      return access().pro; // offline: use what the app last saw
+    }
+  }
+  A.verifyPro = verifyPro;
+  window.addEventListener('storage', function (e) { if (e.key === 'pb-acct' || e.key === 'pb-cfg') { try { render(); } catch (x) { /* ignore */ } } });
   A.hasData = hasData;
 
   /* ---------------- rendering hooks (views.js fills A.V) ---------------- */
@@ -1884,6 +1931,11 @@ details.more[open] > summary { margin-bottom: 10px; }
   async function exportFile(kind, btn) {
     if (!hasData()) return;
     if (btn) btn.disabled = true;
+    if (!(await verifyPro())) {
+      if (btn) btn.disabled = false;
+      askAccess('pnlDl');
+      return;
+    }
     busy(kind === 'xlsx' ? 'Building the Excel file' : 'Building the PDF');
     try {
       await libs(kind === 'xlsx' ? ['XLSX'] : ['jsPDF']);
@@ -2080,6 +2132,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     xlsx: function (el) { A.markDl(); exportFile('xlsx', el); },
     pdf: function (el) { A.markDl(); exportFile('pdf', el); },
     share: function () { A.shareSummary(); },
+    unlock: function () { askAccess('pnl'); },
     stepsHide: function () { try { localStorage.setItem('hisaab:steps', '1'); } catch (e) { /* ignore */ } refresh(); },
     rmFile: function (el) {
       var id = el.getAttribute('data-id');
@@ -2516,6 +2569,24 @@ details.more[open] > summary { margin-bottom: 10px; }
   A.shareSummary = shareSummary;
   A.markDl = markDl;
 
+  // Shown in place of the full report when not logged in or not on Pro.
+  function lockHtml(what) {
+    var x = A.access(), trial = x.trialDays ? ' New accounts get ' + x.trialDays + ' days of Pro free.' : '';
+    var items = what === 'rc'
+      ? ['Every order with its Meesho payment, side by side', 'Payments overdue, recoveries and rows that do not add up', 'Mark each return or RTO as resellable or not', 'Search by order ID or SKU']
+      : ['Profit and loss statement, line by line', 'RTO, returns and exchanges with every Meesho fee', 'Profit by product and by category, with break-even price', 'GST, TCS and TDS worked out', 'Month by month', 'Download as PDF and Excel'];
+    var btn = !x.login ? '<button class="btn pri" data-act="unlock" data-k="' + what + '">Log in or sign up free</button>'
+      : x.play ? '<p class="small">Log in with an account that has Pro to see it here.</p>'
+      : '<button class="btn pri" data-act="unlock" data-k="' + what + '">Get PakkaBill Pro</button>';
+    var sk = '';
+    for (var i = 0; i < 7; i++) sk += '<div class="lk-row"><i style="width:' + (38 + (i * 23) % 40) + '%"></i><i style="width:' + (14 + (i * 7) % 12) + '%"></i></div>';
+    return '<section class="sheet lock" aria-label="Full report locked"><div class="lk-sk" aria-hidden="true">' + sk + '</div><div class="lk-box"><div class="lk-ic" aria-hidden="true">\ud83d\udd12</div>' +
+      '<h2>' + (what === 'rc' ? 'Reconcile every order' : 'See your full report') + '</h2>' +
+      '<p>' + (!x.login ? 'Log in or create a free account, then ' : '') + 'get PakkaBill Pro to open ' + (what === 'rc' ? 'order-by-order reconciliation.' : 'the complete profit and loss report.') + trial + '</p>' +
+      '<ul>' + items.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul>' + btn + '</div></section>';
+  }
+  A.lockHtml = lockHtml;
+
   /* ---------------- P&L ---------------- */
   V.pl = function () {
     if (!A.hasData()) return empty();
@@ -2562,6 +2633,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       notes += '<div class="note info"><p>' + (K.unexpl === 1 ? '1 settlement row does' : K.unexpl + ' settlement rows do') + ' not fully add up from Meesho\u2019s own columns: Meesho paid ' + rs(Math.abs(K.O)) + (K.O < 0 ? ' less' : ' more') + ' than they add up to. The difference is shown as its own line, so the total still matches Meesho.</p></div>';
     }
     if (notes) h += '<div class="stack no-print">' + notes + '</div>';
+    if (!A.full()) return '<div class="stack">' + h + lockHtml('pl') + '</div>';
 
     var lines = '';
     R.lines.forEach(function (l) {
@@ -2668,6 +2740,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   };
   V.rc = function () {
     if (!A.hasData()) return empty();
+    if (!A.full()) return '<div class="stack">' + lockHtml('rc') + '</div>';
     var C = S.REC.counts, total = S.REC.rows.length;
     if (S.rc.b !== 'all' && !(C[S.rc.b] && C[S.rc.b].n)) S.rc.b = 'all';
     var keys = ['all', 'issues'].concat(E.BUCKETS);
@@ -2979,13 +3052,13 @@ details.more[open] > summary { margin-bottom: 10px; }
     X.utils.book_append_sheet(wb, sheet(SK, [16, 40, 9, 10, 10, 10, 10, 13, 13, 13, 12, 13, 13, 14, 13, 12, 11, 13, 12, 12, 14, 15], { xSplit: 1, ySplit: 1 }), 'SKU wise');
 
     /* Category wise */
-    if (A.categoryRows) {
+    if (window.HA.categoryRows) {
       var CR = [heads(['Category', 'SKUs', 'Orders sold', 'Net sales', 'Profit', 'Margin', 'RTO and returns', 'Lost on RTO and returns'])];
-      A.categoryRows().forEach(function (r) {
+      window.HA.categoryRows().forEach(function (r) {
         CR.push([t(r.cat), n(r.skus), n(r.sold), m(r.NS), m(r.profit, ST.bold), t(r.NS > 0 ? (r.profit * 100 / r.NS).toFixed(1) + '%' : ''), n(r.rto + r.ret), m(-r.loss)]);
       });
       var catOfSku = {};
-      R.skus.forEach(function (x) { catOfSku[x.sku] = A.catOf(x.sku, x.pn); });
+      R.skus.forEach(function (x) { catOfSku[x.sku] = window.HA.catOf(x.sku, x.pn); });
       CR.push([]);
       CR.push([t('SKU', ST.sec), t('Category', ST.sec), t('Product', ST.sec)]);
       R.skus.forEach(function (x) { CR.push([t(x.sku), t(catOfSku[x.sku]), t(x.pn)]); });

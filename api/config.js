@@ -2,6 +2,8 @@
 const core = require('./_lib/core');
 
 module.exports = core.handler(async (req, res) => {
+  // Browsers always check again; only Vercel's CDN keeps a copy (for a minute).
+  res.setHeader('CDN-Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
   const s = await core.getSettings();
   core.send(res, 200, {
     enabled: core.paymentsReady(s),
@@ -13,5 +15,5 @@ module.exports = core.handler(async (req, res) => {
     payeeName: s.payeeName,
     trialDays: core.paymentsReady(s) && s.enforce ? Number(s.trialDays) || 0 : 0,
     biz: { name: s.bizName, email: s.bizEmail, phone: s.bizPhone, address: s.bizAddress, grievance: s.grievanceName },
-  }, 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+  }, 'public, max-age=0, must-revalidate');
 });

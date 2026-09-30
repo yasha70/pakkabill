@@ -108,12 +108,15 @@
     pdf: () => 'PDF download and sharing are part of PakkaBill Pro.',
     share: () => 'WhatsApp sharing is part of PakkaBill Pro.',
     offer: () => 'Everything in PakkaBill, without limits.',
+    pnl: () => 'Your full profit and loss report (statement, RTO and returns, profit by product and category, GST, month by month and order-wise reconcile) is part of PakkaBill Pro.',
+    pnlDl: () => 'Downloading your profit and loss report as PDF or Excel is part of PakkaBill Pro.',
     claim: () => 'Log in or create a free account to claim your free Pro days.',
     shops: () => 'More than one shop (GSTIN) in PakkaBill is part of Pro. Your first shop stays free.',
     sync: () => 'Cloud backup on every phone and laptop you log in on is part of PakkaBill Pro.',
     renew: () => (acct && acct.user && acct.user.paidUntil ? `Your Pro plan ends on ${dateStr(acct.user.paidUntil)}. Renew now; the new time adds on top of what is left.` : 'Renew PakkaBill Pro.'),
   };
   const PERKS = [
+    'Full Meesho profit & loss report, with PDF and Excel download',
     'Unlimited bills every month',
     'Up to 10 shops (GSTINs) in one app',
     'Cloud backup: your bills on every phone and laptop you log in on',
@@ -125,6 +128,8 @@
   function compareHtml() {
     const free = cfg ? cfg.freeBills : 15;
     const rows = [
+      ['Meesho P&L: real profit summary', '✓', '✓'],
+      ['Meesho P&L: full report, reconcile, PDF and Excel', '–', '✓'],
       ['Bills every month', `${free}`, 'Unlimited'],
       ['Shops (GSTINs)', '1', 'Up to 10'],
       ['Cloud backup and sync', '–', '✓'],
@@ -457,8 +462,8 @@
       if (m) mode = m;
       box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button>
         <div class="pbp-badge">PRO</div>
-        <h2 id="pbp-title">Upgrade to PakkaBill Pro</h2>
-        <p class="pbp-why">${esc((WHY[feature] || WHY.pdf)(arg))}</p>
+        <h2 id="pbp-title">${!(acct && acct.token) && /^pnl/.test(feature) ? 'Log in to see your full report' : 'Upgrade to PakkaBill Pro'}</h2>
+        <p class="pbp-why">${!(acct && acct.token) && /^pnl/.test(feature) ? 'Create a free account or log in to open your full profit and loss report and download it as PDF or Excel.' : esc((WHY[feature] || WHY.pdf)(arg))}</p>
         <ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>
         ${acct && acct.token ? accountHtml() + plansHtml() + (playApp() ? '' : '<p class="pbp-fine">Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.</p>') : authHtml(mode)}`;
       box.querySelector('.pbp-x').addEventListener('click', closeUpgrade);
@@ -721,5 +726,11 @@
     return out;
   }
 
-  Object.assign(window, { pbPro, pbGate, pbCanAddBill, pbPlanMount, pbLocked, pbUpgrade: openUpgrade, pbUnzipFiles, pbRefreshAccount: refresh });
+  // The Meesho P&L (pnl.html, in a frame) asks this: the full report and downloads need a login and Pro
+  // (or everything free, when paid plans are off).
+  const pbPnlAccess = () => {
+    const login = !!(acct && acct.token);
+    return { login, pro: login && pbPro(), trialDays: (cfg && cfg.trialDays) || 0, play: playApp() };
+  };
+  Object.assign(window, { pbPnlAccess, pbPro, pbGate, pbCanAddBill, pbPlanMount, pbLocked, pbUpgrade: openUpgrade, pbUnzipFiles, pbRefreshAccount: refresh });
 })();
