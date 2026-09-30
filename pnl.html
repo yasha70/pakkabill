@@ -788,12 +788,14 @@ details.more[open] > summary { margin-bottom: 10px; }
   function uid(p) { seq++; return (p || 'f') + Date.now().toString(36) + seq.toString(36) + Math.random().toString(36).slice(2, 6); }
 
   function ingest(name, size, sheets, cfg) {
-    var f = { id: uid('f'), name: name, size: size || 0, at: Date.now(), sheets: [], pay: [], ads: [], ref: [], adj: [], ord: [], reg: {} };
+    var f = { id: uid('f'), name: name, size: size || 0, at: Date.now(), sheets: [], pay: [], ads: [], ref: [], adj: [], ord: [], reg: {}, cats: {} };
     var maxPd = '';
     sheets.forEach(function (sh) {
       var rows = sh.rows || [];
       var d = detect(rows, sh.name);
       var info = { name: sh.name, type: d.type, n: 0 };
+      var ct = readCats(rows);
+      if (ct.n) { for (var ck in ct.map) f.cats[ck] = ct.map[ck]; info.cats = Object.keys(ct.map).length; }
       if (d.type === 'pay') {
         var p = parsePay(rows, d.hr, sh.name, cfg);
         f.pay = f.pay.concat(p.recs);
@@ -843,6 +845,8 @@ details.more[open] > summary { margin-bottom: 10px; }
     M.ref = dedupe(files, 'ref', function (x) { return x.dt + '|' + x.t + '|' + x.desc; }, M.dup);
     M.adj = dedupe(files, 'adj', function (x) { return x.dt + '|' + x.t + '|' + x.desc; }, M.dup);
     files.forEach(function (f) { (f.ord || []).forEach(function (o) { M.ord[o.id] = o; }); });
+    M.cats = {};
+    files.forEach(function (f) { for (var k in (f.cats || {})) M.cats[k] = f.cats[k]; });
     M.pk = packInfo(M);
     return M;
   }
@@ -878,6 +882,36 @@ details.more[open] > summary { margin-bottom: 10px; }
     return CAT_OTHER;
   }
   function catNames() { return CATS.map(function (c) { return c[0]; }).concat([CAT_OTHER]); }
+
+  /* Categories written in an uploaded file: Meesho's catalogue or inventory download, or any sheet
+     with a SKU column and a Category column. Sub-category is more exact, so it wins over category.
+     "Women Ethnic Wear > Sarees" keeps the last part. */
+  function niceCat(v) {
+    var t = String(v).split(/\s*(?:>|»|\/|\|)\s*/).filter(Boolean).pop() || '';
+    t = t.replace(/\s+/g, ' ').trim();
+    if (t === t.toUpperCase() || t === t.toLowerCase()) t = t.toLowerCase().replace(/(^|[\s&(-])([a-z])/g, function (m, a, b) { return a + b.toUpperCase(); });
+    return t.slice(0, 40);
+  }
+  function readCats(rows) {
+    var lim = Math.min(rows.length, 30);
+    for (var i = 0; i < lim; i++) {
+      var H = (rows[i] || []).map(h), sku = -1, cat = -1, sub = -1;
+      H.forEach(function (c, j) {
+        if (sku < 0 && /^(supplier\s*|seller\s*|product\s*|style\s*)?(sku|style)(\s*(id|code|no))?$/.test(c)) sku = j;
+        if (/sub[\s_-]*categor/.test(c)) { if (sub < 0) sub = j; }
+        else if (/categor/.test(c) && cat < 0) cat = j;
+      });
+      var col = sub >= 0 ? sub : cat, out = {}, n = 0;
+      if (sku < 0 || col < 0) continue;
+      for (var r = i + 1; r < rows.length; r++) {
+        var k = txt((rows[r] || [])[sku]), v = txt((rows[r] || [])[col]);
+        if (!k || !v || v.length > 80 || /^(na|n\/a|-|null|none|0)$/i.test(v)) continue;
+        out[k] = niceCat(v); n++;
+      }
+      return { map: out, n: n };
+    }
+    return { map: {}, n: 0 };
+  }
 
   /* ---------------- costs & conditions ---------------- */
   function costFn(costs) {
@@ -1510,7 +1544,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     monthStart: monthStart, monthEnd: monthEnd, nextMonth: nextMonth, fmtDate: fmtDate, fmtMonth: fmtMonth, money: money,
     skuLetters: skuLetters, nameCount: nameCount, packRule: packRule, piecesOf: piecesOf, normSt: normSt, classify: classify, detect: detect, parsePay: parsePay, parseAds: parseAds, parseAmt: parseAmt, parseOrd: parseOrd,
     calibrate: calibrate, ingest: ingest, merge: merge, index: index, dataMonths: dataMonths, periodFor: periodFor, expFor: expFor,
-    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, payouts: payouts, health: health, demo: demo, uid: uid
+    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, demo: demo, uid: uid
   };
 });
 
@@ -1834,22 +1868,99 @@ details.more[open] > summary { margin-bottom: 10px; }
     });
   }
   A.readBook = readBook;
-  async function expand(fileList) {
-    var items = [], bad = [];
-    for (var i = 0; i < fileList.length; i++) {
-      var file = fileList[i];
-      var buf = await file.arrayBuffer();
-      if (/\.zip$/i.test(file.name)) {
-        await libs(['JSZip']);
-        var zip = await window.JSZip.loadAsync(buf);
-        var names = Object.keys(zip.files).filter(function (n) { return !zip.files[n].dir && /\.(xlsx|xls|csv)$/i.test(n) && !/(^|\/)(__MACOSX|\._)/.test(n); });
-        if (!names.length) bad.push(file.name + ' has no Excel or CSV files inside');
-        for (var j = 0; j < names.length; j++) items.push({ name: names[j].split('/').pop(), size: 0, buf: await zip.files[names[j]].async('arraybuffer') });
-      } else if (/\.(xlsx|xls|csv|xlsm)$/i.test(file.name)) {
-        items.push({ name: file.name, size: file.size, buf: buf });
-      } else bad.push(file.name + ' is not an Excel, CSV or ZIP file');
+  /* Zip files. Meesho and phone downloads often come zipped, sometimes a zip inside a zip. This reader
+     works offline (the browser's own inflate); JSZip from the CDN is only a fallback. */
+  function kindOf(u8, name) {
+    if (u8.length >= 4 && u8[0] === 0x50 && u8[1] === 0x4b && (u8[2] === 3 || u8[2] === 5)) return 'pk';
+    if (u8.length >= 8 && u8[0] === 0xd0 && u8[1] === 0xcf && u8[2] === 0x11 && u8[3] === 0xe0) return 'xls';
+    if (/\.(csv|txt|tsv)$/i.test(name)) return 'csv';
+    if (/\.(xlsx|xlsm|xls)$/i.test(name)) return 'sheet';
+    // plain text that looks like a table is read as CSV
+    var head = new TextDecoder('utf-8').decode(u8.subarray(0, 2000));
+    return /[,\t;].*\n/.test(head) && !/[\u0000-\u0008]/.test(head) ? 'csv' : '';
+  }
+  function zipEntries(u8) {
+    var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), eocd = -1;
+    for (var i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    if (eocd < 0) throw new Error('broken');
+    var out = [], p = dv.getUint32(eocd + 16, true), n = dv.getUint16(eocd + 10, true);
+    for (var k = 0; k < n && p + 46 <= u8.length; k++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      var nameLen = dv.getUint16(p + 28, true), utf8 = dv.getUint16(p + 8, true) & 0x800;
+      var raw = u8.subarray(p + 46, p + 46 + nameLen);
+      out.push({ flags: dv.getUint16(p + 8, true), method: dv.getUint16(p + 10, true), csize: dv.getUint32(p + 20, true), local: dv.getUint32(p + 42, true),
+        name: utf8 ? new TextDecoder('utf-8').decode(raw) : Array.prototype.map.call(raw, function (c) { return String.fromCharCode(c); }).join('') });
+      p += 46 + nameLen + dv.getUint16(p + 30, true) + dv.getUint16(p + 32, true);
     }
-    return { items: items, bad: bad };
+    return out.map(function (e) {
+      e.dir = /\/$/.test(e.name);
+      e.data = function () {
+        var st = e.local + 30 + dv.getUint16(e.local + 26, true) + dv.getUint16(e.local + 28, true);
+        return u8.subarray(st, st + e.csize);
+      };
+      return e;
+    });
+  }
+  async function inflate(e) {
+    if (e.flags & 1) throw new Error('password');
+    var d = e.data();
+    if (e.method === 0) return d;
+    if (e.method === 8 && typeof DecompressionStream !== 'undefined')
+      return new Uint8Array(await new Response(new Blob([d]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    throw new Error('method');
+  }
+  // A workbook (.xlsx) is itself a zip; tell it apart from a zip of files.
+  function isWorkbook(list) { return list.some(function (e) { return e.name === '[Content_Types].xml'; }) && list.some(function (e) { return /^xl\//.test(e.name); }); }
+
+  async function expand(fileList) {
+    var items = [], bad = [], from = {};
+    async function take(name, u8, zipName, depth) {
+      var k = kindOf(u8, name), base = name.split('/').pop();
+      if (/(^|\/)(__MACOSX|\._)|(^|\/)\.DS_Store$|^~\$/.test(name) || /^~\$/.test(base)) return;
+      if (k === 'pk') {
+        var list;
+        try { list = zipEntries(u8); } catch (e) { bad.push(base + ' is damaged or not a real ZIP file. Download it again from Meesho'); return; }
+        if (isWorkbook(list)) { items.push({ name: base, buf: u8, zip: zipName }); return; }
+        if (depth > 2) return;
+        var before = items.length, files = list.filter(function (e) { return !e.dir; });
+        for (var i = 0; i < files.length; i++) {
+          var e = files[i], inner;
+          if (/(^|\/)(__MACOSX|\._)|\.DS_Store$/.test(e.name)) continue;
+          if (!/\.(xlsx|xlsm|xls|csv|txt|zip)$/i.test(e.name)) continue;
+          try { inner = await inflate(e); }
+          catch (x) {
+            if (x.message === 'password') { bad.push(base + ' is locked with a password. Unzip it on your phone or computer first, then upload the Excel files'); return; }
+            inner = null;
+          }
+          if (!inner) { // an unusual zip: let JSZip try
+            try {
+              await libs(['JSZip']);
+              var z = await window.JSZip.loadAsync(u8);
+              inner = new Uint8Array(await z.file(e.name).async('arraybuffer'));
+            } catch (x2) { bad.push(e.name.split('/').pop() + ' inside ' + base + ' could not be opened'); continue; }
+          }
+          await take(e.name, inner, zipName || base, depth + 1);
+        }
+        if (items.length === before) bad.push(base + ' has no Excel or CSV files inside');
+        else from[zipName || base] = (from[zipName || base] || 0) + (items.length - before);
+        return;
+      }
+      if (k === 'xls' || k === 'csv' || k === 'sheet') {
+        var nm = k === 'csv' && !/\.(csv|txt|tsv)$/i.test(base) ? base + '.csv' : k === 'xls' && !/\.xls$/i.test(base) ? base.replace(/\.[^.]*$/, '') + '.xls' : base;
+        items.push({ name: nm, buf: u8, zip: zipName });
+        return;
+      }
+      bad.push(base + ' is not an Excel, CSV or ZIP file');
+    }
+    for (var i = 0; i < fileList.length; i++) {
+      var f = fileList[i];
+      await take(f.name, new Uint8Array(await f.arrayBuffer()), '', 0);
+    }
+    // two files with the same name from different folders: keep both
+    var seen = {};
+    items.forEach(function (it) { var k = it.name.toLowerCase(); if (seen[k]) it.name = it.name.replace(/(\.[^.]+)?$/, ' (' + (++seen[k]) + ')$1'); else seen[k] = 1; });
+    items.forEach(function (it) { it.size = it.buf.byteLength; it.buf = it.buf.byteOffset || it.buf.byteLength !== it.buf.buffer.byteLength ? it.buf.slice().buffer : it.buf.buffer; });
+    return { items: items, bad: bad, from: from };
   }
   async function addFiles(fileList) {
     if (!fileList || !fileList.length) return;
@@ -1866,11 +1977,13 @@ details.more[open] > summary { margin-bottom: 10px; }
         try { sheets = readBook(it.name, it.buf); }
         catch (e) { msgs.push(it.name + ' could not be opened. If it is password protected, open it in Excel and save a copy without a password.'); continue; }
         var f = E.ingest(it.name, size, sheets, target.settings);
-        if (!f.sheets.some(function (s) { return s.type !== 'skip' && s.n > 0; })) {
-          msgs.push(it.name + ' has no Meesho payment, ads or order rows. Upload the payment report (Excel) or the orders CSV.');
+        var nCats = Object.keys(f.cats || {}).length;
+        if (!f.sheets.some(function (s) { return s.type !== 'skip' && s.n > 0; }) && !nCats) {
+          msgs.push(it.name + ' has no Meesho payment, ads or order rows, and no SKU and Category columns. Upload the payment report (Excel), the orders CSV, or a catalogue file with categories.');
           continue;
         }
         target.files.push(f); added++;
+        if (nCats) msgs.push('Categories for ' + nCats + ' SKU' + (nCats === 1 ? '' : 's') + ' read from ' + it.name + '. Change any of them in the Costs tab');
       }
       if (added) {
         S.demo = null;
@@ -1881,7 +1994,10 @@ details.more[open] > summary { margin-bottom: 10px; }
       }
       busy();
       if (msgs.length) toast(msgs.map(function (m) { return /[.!?]$/.test(m) ? m : m + '.'; }).join(' '), 7000);
-      else if (added) toast(added === 1 ? 'File added' : added + ' files added');
+      else if (added) {
+        var zips = Object.keys(ex.from);
+        toast((added === 1 ? 'File added' : added + ' files added') + (zips.length ? ' from ' + (zips.length === 1 ? zips[0] : zips.length + ' ZIP files') : ''));
+      }
     } catch (e) {
       busy(); console.error(e);
       toast(e && e.message ? e.message : 'Could not read the files.', 6000);
@@ -1977,7 +2093,7 @@ details.more[open] > summary { margin-bottom: 10px; }
           var cur = w.costs[sku] || {};
           var nn = cur.n == null ? null : cur.n;
           if (pc !== null) nn = Math.round(pc) === E.piecesOf(sku, w.settings, null, S.M) ? null : Math.round(pc);
-          var autoK = autoCats[sku] || E.categoryOf(sku);
+          var autoK = autoCats[sku] || A.fileCat(sku) || E.categoryOf(sku);
           w.costs[sku] = { c: c !== null ? c : (cur.c == null ? null : cur.c), p: p !== null ? p : (cur.p == null ? null : cur.p), n: nn, k: kk ? (kk === autoK ? null : kk) : (cur.k || null) }; n++;
         }
       });
@@ -2028,13 +2144,27 @@ details.more[open] > summary { margin-bottom: 10px; }
     Object.keys(map).forEach(function (k) {
       var e = map[k];
       e.pcs = E.piecesOf(k, w.settings, w.costs[k], S.M); e.auto = E.piecesOf(k, w.settings, null, S.M);
-      e.autoCat = E.categoryOf(e.pn || k); e.cat = (w.costs[k] && w.costs[k].k) || e.autoCat;
+      e.autoCat = A.fileCat(k) || E.categoryOf(e.pn || k); e.cat = (w.costs[k] && w.costs[k].k) || e.autoCat;
       e.price = price[k] ? Math.round(price[k].t / price[k].n) : 0;
     });
     return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) { return b.orders - a.orders || (a.sku < b.sku ? -1 : 1); });
   };
 
-  A.catOf = function (sku, pn) { var c = W().costs[sku]; return (c && c.k) || E.categoryOf(pn || sku); };
+  // Category from an uploaded file for this SKU ('' when none).
+  A.fileCat = function (sku) {
+    var m = S.M && S.M.cats;
+    if (!m) return '';
+    if (m[sku]) return m[sku];
+    if (!S.catIx || S.catIx.src !== m) { S.catIx = { src: m, ix: {} }; for (var k in m) S.catIx.ix[k.trim().toUpperCase()] = m[k]; }
+    return S.catIx.ix[String(sku || '').trim().toUpperCase()] || '';
+  };
+  // The category list: PakkaBill's own, plus any new ones from uploaded files (before "Other").
+  A.catList = function () {
+    var base = E.catNames(), other = base.pop(), extra = {}, m = (S.M && S.M.cats) || {};
+    for (var k in m) if (base.indexOf(m[k]) < 0 && m[k] !== other) extra[m[k]] = 1;
+    return base.concat(Object.keys(extra).sort()).concat([other]);
+  };
+  A.catOf = function (sku, pn) { var c = W().costs[sku]; return (c && c.k) || A.fileCat(sku) || E.categoryOf(pn || sku); };
 
   /* SKU "family": the same product in another size or colour. Size words and trailing numbers are
      dropped, so KURTI-RED-XL, KURTI-RED-M and KURTI-RED-2XL are one family, and so are BG32 and BG34. */
@@ -2507,7 +2637,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     }).join('');
     return '<details class="sheet more"' + (rows.length > 1 ? ' open' : '') + '><summary>Profit by category</summary><div class="tw"><table class="t"><thead><tr><th>Category</th><th class="n">Profit</th><th class="n">Margin</th><th class="n">Net sales</th><th class="n">Orders</th><th class="n">RTO + returns</th><th class="n">Lost on them</th></tr></thead><tbody>' + body +
       '<tr class="tot"><td>All categories</td><td class="n"><b>' + mny(tot.profit) + '</b></td><td class="n">' + (tot.NS > 0 ? pct(tot.profit / tot.NS) : '') + '</td><td class="n">' + mny(tot.NS) + '</td><td></td><td></td><td></td></tr></tbody></table></div>' +
-      '<p class="small muted" style="margin:8px 0 0">Categories are read from Meesho\u2019s product names. Change any SKU\u2019s category in the Costs tab. Profit is before ads and other expenses, like Profit by SKU.</p></details>';
+      '<p class="small muted" style="margin:8px 0 0">Categories come from a Category column in your uploaded files when there is one (for example Meesho\u2019s catalogue download), otherwise from Meesho\u2019s product names. Change any SKU\u2019s category in the Costs tab. Profit is before ads and other expenses, like Profit by SKU.</p></details>';
   }
 
   /* ---------------- Simple helpers: next steps, share, compare ---------------- */
@@ -2768,6 +2898,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   function fileRow(f) {
     var what = { pay: 'settlement rows', ads: 'ads deductions', ref: 'referral payments', adj: 'compensation and recovery entries', ord: 'orders' };
     var sh = f.sheets.map(function (s) {
+      if ((s.type === 'skip' || !s.n) && s.cats) return '<li>' + esc(s.name) + ': categories for ' + s.cats + ' SKU' + (s.cats === 1 ? '' : 's') + '</li>';
       if (s.type === 'skip' || !s.n) return '<li class="muted">' + esc(s.name) + ': not used</li>';
       var t = '<span class="tick" aria-hidden="true">\u2713</span> ' + esc(s.name) + ': ' + s.n + ' ' + what[s.type];
       if (s.type === 'pay') t += ', paid ' + fd(s.from) + ' to ' + fd(s.to) + '. ' + s.matched + ' of ' + s.n + ' rows add up exactly to Final Settlement';
@@ -2789,7 +2920,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       step(H.ordRows > 0, 'Orders report (optional)', 'From <strong>Orders</strong>, download the orders CSV. It adds orders that are not paid yet, so pending and overdue payments show up.') +
       step(costDone, 'Product costs', 'Enter what one unit of each SKU costs you. <button class="btn link" data-act="tab" data-tab="costs">Open Costs</button>') +
       step(w.expenses.length > 0, 'Other expenses', 'Rent, packing help, internet, photoshoots. <button class="btn link" data-act="tab" data-tab="exp">Open Expenses</button>') +
-      '</ol><label class="drop" id="drop"><input type="file" id="fin" class="sr" multiple accept=".xlsx,.xls,.csv,.zip"><b>Drop Meesho files here</b><span class="muted small">or tap to choose. Excel, CSV or ZIP.</span></label>' +
+      '</ol><label class="drop" id="drop"><input type="file" id="fin" class="sr" multiple accept=".xlsx,.xlsm,.xls,.csv,.zip,application/zip,application/x-zip-compressed,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"><b>Drop Meesho files here</b><span class="muted small">or tap to choose. Excel (.xlsx, .xls), CSV or ZIP, many at once. ZIP files are opened for you.</span></label>' +
       '<p class="small muted" style="margin:10px 0 0">Files are read on this device and kept here for next time. Costs, expenses, return marks and settings are saved ' + (S.local ? 'in this browser.' : 'privately to your account.') + '</p>' +
       (S.real.files.length || S.demo ? '' : '<div class="row" style="margin-top:12px"><button class="btn" data-act="demo">Try with sample data</button></div>') + '</section>';
     if (files.length) {
@@ -2841,11 +2972,11 @@ details.more[open] > summary { margin-bottom: 10px; }
     }).join('') + (list.length > 400 ? '<p class="small muted">Showing 400 of ' + list.length + '. Search to find the rest.</p>' : '');
   };
   function catOptions(cur, auto) {
-    return E.catNames().map(function (n) { return '<option value="' + esc(n) + '"' + (n === cur ? ' selected' : '') + '>' + esc(n) + (n === auto ? ' (auto)' : '') + '</option>'; }).join('');
+    return A.catList().map(function (n) { return '<option value="' + esc(n) + '"' + (n === cur ? ' selected' : '') + '>' + esc(n) + (n === auto ? ' (auto)' : '') + '</option>'; }).join('');
   }
   function catCounts() {
     var m = {}; A.skuList().forEach(function (x) { m[x.cat] = (m[x.cat] || 0) + 1; });
-    return E.catNames().filter(function (n) { return m[n]; }).map(function (n) { return [n, m[n]]; });
+    return A.catList().filter(function (n) { return m[n]; }).map(function (n) { return [n, m[n]]; });
   }
   function fillHtml() {
     var mode = S.cf.mode || 'same', cats = catCounts(), total = A.skuList().length, undo = A.undoLabel();
