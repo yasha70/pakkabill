@@ -158,6 +158,24 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: .88rem; co
 .period { display: grid; gap: 10px; grid-template-columns: 1fr; }
 @media (min-width: 620px) { .period { grid-template-columns: 1fr auto; align-items: end; } }
 .dl { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn.wa { background: #1faa59; border-color: #1faa59; color: #fff; }
+.vs { font-size: .82rem; font-weight: 700; flex-basis: 100%; }
+.vs.up { color: var(--pos, #12714b); } .vs.down { color: var(--neg, #c8202a); }
+.steps { padding: 14px 16px; }
+.steps-h { display: flex; align-items: center; gap: 10px; }
+.steps-h b { font-size: 1rem; }
+.steps-h span { color: var(--ink-3); font-size: .85rem; font-weight: 600; margin-right: auto; }
+.lnk { background: none; border: 0; color: var(--ink-3); cursor: pointer; text-decoration: underline; padding: 4px; font: inherit; }
+.steps-bar { height: 6px; background: var(--rule); border-radius: 6px; margin: 10px 0 6px; overflow: hidden; }
+.steps-bar i { display: block; height: 100%; background: linear-gradient(90deg, #5b3fe6, #1faa59); border-radius: 6px; }
+.steps-l { list-style: none; margin: 0; padding: 0; }
+.steps-l li::before, .steps-l li::after { content: none !important; display: none !important; }
+.steps-l li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.steps-l li:last-child { border-bottom: 0; }
+.steps-c { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--rule); display: grid; place-items: center; font-size: .8rem; font-weight: 800; }
+.steps-l li.ok .steps-c { background: #1faa59; border-color: #1faa59; color: #fff; }
+.steps-l li.ok .steps-t { color: var(--ink-3); text-decoration: line-through; }
+.steps-t { flex: 1; min-width: 0; }
 .dl .btn { flex: 1 1 130px; padding-left: 12px; padding-right: 12px; }
 @media (min-width: 620px) { .dl .btn { flex: 0 0 auto; white-space: nowrap; } }
 
@@ -2059,8 +2077,10 @@ details.more[open] > summary { margin-bottom: 10px; }
     demo: startDemo,
     endDemo: endDemo,
     basis: function (el) { S.sel.basis = el.getAttribute('data-v'); lsSet('ui', { sel: { basis: S.sel.basis } }); refresh(); },
-    xlsx: function (el) { exportFile('xlsx', el); },
-    pdf: function (el) { exportFile('pdf', el); },
+    xlsx: function (el) { A.markDl(); exportFile('xlsx', el); },
+    pdf: function (el) { A.markDl(); exportFile('pdf', el); },
+    share: function () { A.shareSummary(); },
+    stepsHide: function () { try { localStorage.setItem('hisaab:steps', '1'); } catch (e) { /* ignore */ } refresh(); },
     rmFile: function (el) {
       var id = el.getAttribute('data-id');
       if (S.demo) return;
@@ -2080,7 +2100,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       refresh(); toast('Everything erased');
     },
     rcb: function (el) { S.rc.b = el.getAttribute('data-b'); S.rc.n = 60; render(); },
-    rcgo: function (el) { S.rc.b = el.getAttribute('data-b'); S.rc.n = 60; S.rc.q = ''; setTab('rc'); },
+    rcgo: function (el) { if (el.getAttribute('data-b') === 'returned') { try { localStorage.setItem('hisaab:rv', '1'); } catch (e) { /* ignore */ } } S.rc.b = el.getAttribute('data-b'); S.rc.n = 60; S.rc.q = ''; setTab('rc'); },
     rcMore: function () { S.rc.n += 60; render(); },
     fillSame: function () {
       var gr = fillGroup(), c = toPaise($('#fl-c').value), onlyEmpty = $('#fl-e').checked, w = W();
@@ -2437,10 +2457,70 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<p class="small muted" style="margin:8px 0 0">Categories are read from Meesho\u2019s product names. Change any SKU\u2019s category in the Costs tab. Profit is before ads and other expenses, like Profit by SKU.</p></details>';
   }
 
+  /* ---------------- Simple helpers: next steps, share, compare ---------------- */
+  function markDl() { try { localStorage.setItem('hisaab:dl', '1'); } catch (e) { /* ignore */ } }
+  function flag(k) { try { return localStorage.getItem(k) === '1'; } catch (e) { return false; } }
+
+  // A short checklist of what is left to make the profit exact, each with a button to do it.
+  function stepsHtml() {
+    if (S.demo) return '';
+    var R = S.R, K = R.K, w = A.W(), steps = [
+      [!!S.H.legs, 'Add the Meesho payment report', 'Payment report added', 'Upload', 'tab', 'data'],
+      [!R.missing.length, 'Add product cost for ' + pl(R.missing.length, 'SKU'), 'Product costs added', 'Add costs', 'tab', 'costs'],
+      [!K.rdef || flag('hisaab:rv'), 'Check ' + pl(K.rdef, 'return') + ': resellable or not', 'Returns checked', 'Check', 'rcgo', 'returned'],
+      [(w.expenses || []).length > 0, 'Add other costs like packing, rent or staff (optional)', 'Other costs added', 'Add', 'tab', 'exp'],
+      [flag('hisaab:dl'), 'Download your P&L report (PDF or Excel)', 'Report downloaded', 'PDF', 'pdf', '']
+    ], done = steps.filter(function (x) { return x[0]; }).length;
+    if (done === steps.length || flag('hisaab:steps')) return '';
+    return '<section class="sheet steps no-print"><div class="steps-h"><b>Your next steps</b><span>' + done + ' of ' + steps.length + ' done</span>' +
+      '<button class="lnk small" data-act="stepsHide" aria-label="Hide next steps">Hide</button></div>' +
+      '<div class="steps-bar"><i style="width:' + Math.round(done / steps.length * 100) + '%"></i></div><ul class="steps-l">' +
+      steps.map(function (x) {
+        var btn = x[0] ? '' : '<button class="btn sm" data-act="' + x[4] + '"' + (x[4] === 'tab' ? ' data-tab="' + x[5] + '"' : x[4] === 'rcgo' ? ' data-b="' + x[5] + '"' : '') + '>' + x[3] + '</button>';
+        return '<li class="' + (x[0] ? 'ok' : '') + '"><span class="steps-c">' + (x[0] ? '✓' : '') + '</span><span class="steps-t">' + esc(x[0] ? x[2] : x[1]) + '</span>' + btn + '</li>';
+      }).join('') + '</ul></section>';
+  }
+
+  // Net profit of the month before the one shown, to show the change.
+  function vsPrev() {
+    if (!S.MO || S.sel.mode !== 'month') return '';
+    var i = -1;
+    S.MO.forEach(function (m, j) { if (m.m === S.sel.m) i = j; });
+    if (i < 1) return '';
+    var cur = S.MO[i], prev = S.MO[i - 1], d = cur.NP - prev.NP;
+    if (!d) return '<span class="vs">Same as ' + esc(E.fmtMonth(prev.m)) + '</span>';
+    return '<span class="vs ' + (d > 0 ? 'up' : 'down') + '">' + (d > 0 ? '▲ ' : '▼ ') + rs(Math.abs(d), true) + (d > 0 ? ' more' : ' less') + ' than ' + esc(E.fmtMonth(prev.m)) + '</span>';
+  }
+
+  function summaryText() {
+    var R = S.R, K = R.K, st = A.cfg(), RV = S.RV, top = null;
+    R.skus.forEach(function (x) { if (!top || x.contrib > top.contrib) top = x; });
+    function r(v) { return '₹' + Math.round(v / 100).toLocaleString('en-IN'); }
+    var t = ['📊 *Meesho profit and loss: ' + S.per.label + '*' + (st.biz ? ' (' + st.biz + ')' : ''), '',
+      'Net sales: ' + r(R.NS),
+      '*Real profit: ' + r(R.NP) + '*' + (R.NR ? ' (' + pct(R.margin) + ')' : ''),
+      'Received from Meesho: ' + r(R.payout),
+      'Orders: ' + K.sales + (RV ? ' · RTO ' + pct(RV.rtoRate) + ' · Returns ' + pct(RV.retRate) : '')];
+    if (top && top.contrib > 0) t.push('Best product: ' + top.sku + ' (' + r(top.contrib) + ' profit)');
+    if (R.missing.length) t.push('(Cost not added yet for ' + pl(R.missing.length, 'SKU') + ')');
+    t.push('', 'Made with PakkaBill: know your real profit', 'https://pakkabill1.vercel.app/#/pnl');
+    return t.join('\n');
+  }
+  function shareSummary() {
+    var text = summaryText();
+    function wa() { window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener'); }
+    if (navigator.share) navigator.share({ text: text }).catch(function (e) { if (!e || e.name !== 'AbortError') wa(); });
+    else wa();
+  }
+  A.summaryText = summaryText;
+  A.shareSummary = shareSummary;
+  A.markDl = markDl;
+
   /* ---------------- P&L ---------------- */
   V.pl = function () {
     if (!A.hasData()) return empty();
     var R = S.R, K = R.K, st = A.cfg(), per = S.per, h = hero(false) + demoBar();
+    h += stepsHtml();
     var opts = '<option value="all"' + (S.sel.mode === 'all' ? ' selected' : '') + '>All data</option>';
     S.months.forEach(function (m) { opts += '<option value="m:' + m + '"' + (S.sel.mode === 'month' && S.sel.m === m ? ' selected' : '') + '>' + E.fmtMonth(m) + '</option>'; });
     opts += '<option value="custom"' + (S.sel.mode === 'custom' ? ' selected' : '') + '>Custom dates</option>';
@@ -2450,14 +2530,14 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<div class="row"><span class="small muted">Count sales by</span><div class="seg" role="group" aria-label="Count sales by">' +
       '<button data-act="basis" data-v="pay" aria-pressed="' + (S.sel.basis === 'pay') + '">Payment date</button>' +
       '<button data-act="basis" data-v="order" aria-pressed="' + (S.sel.basis === 'order') + '">Order date</button></div></div></div>' +
-      '<div class="dl"><button class="btn pri" data-act="xlsx">Download Excel</button><button class="btn" data-act="pdf">Download PDF</button></div></div></section>';
+      '<div class="dl"><button class="btn pri" data-act="xlsx">Download Excel</button><button class="btn" data-act="pdf">Download PDF</button><button class="btn wa" data-act="share">Share on WhatsApp</button></div></div></section>';
 
     if (!S.H.legs) {
       h += '<div class="note bad"><p>Add the payment report to see profit. The orders report alone has no settlement amounts.</p></div>';
     }
     h += '<div class="slip" role="group" aria-label="Summary">' +
       '<div class="np"><div><small>Net profit</small><strong class="' + (R.NP < 0 ? 'neg' : '') + '">' + rs(R.NP, true) + '</strong></div>' +
-      '<span class="small muted">' + (R.NR ? pct(R.margin) + ' of net revenue' : '') + '</span></div>' +
+      '<span class="small muted">' + (R.NR ? pct(R.margin) + ' of net revenue' : '') + '</span>' + vsPrev() + '</div>' +
       '<div><small>Net sales</small><strong>' + rs(R.NS, true) + '</strong></div>' +
       '<div><small>Received from Meesho</small><strong>' + rs(R.payout, true) + '</strong></div>' +
       '<div><small>Orders sold</small><strong>' + K.sales + '</strong></div>' +

@@ -2,6 +2,31 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "headers": [
     {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "geolocation=(), payment=(), usb=(), interest-cohort=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains"
+        }
+      ]
+    },
+    {
       "source": "/download/(.*).apk",
       "headers": [
         {
@@ -182,6 +207,22 @@
     {
       "source": "/delete-account",
       "destination": "/delete-account.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/terms.html"
+    },
+    {
+      "source": "/about",
+      "destination": "/about.html"
+    },
+    {
+      "source": "/refund",
+      "destination": "/refund.html"
+    },
+    {
+      "source": "/contact",
+      "destination": "/contact.html"
     }
   ],
   "functions": {
@@ -193,6 +234,9 @@
     },
     "api/sync.js": {
       "maxDuration": 30
+    },
+    "api/cron.js": {
+      "maxDuration": 60
     }
   },
   "crons": [

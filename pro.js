@@ -35,6 +35,7 @@
   const dateStr = (t) => new Date(t).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
   async function api(path, opts = {}) {
+    acct = read(ACCT); // another page (My account → Change password) may have saved a new token
     const headers = { 'Content-Type': 'application/json' };
     if (acct && acct.token) headers.Authorization = 'Bearer ' + acct.token;
     const res = await fetch('/api/' + path, {
@@ -157,7 +158,7 @@
       <label>Password<input name="password" type="password" autocomplete="${mode === 'signup' ? 'new-password' : 'current-password'}" minlength="6" required></label>
       <p class="pbp-err" role="alert"></p>
       <button class="pbp-btn" type="submit">${mode === 'signup' ? (cfg && cfg.trialDays ? `Create account: ${cfg.trialDays} days of Pro free` : 'Create account') : 'Log in'}</button>
-      <p class="pbp-fine">${mode === 'login' ? 'Log in and your shops and bills from your other devices download here. Forgot your password? Ask PakkaBill support to reset it.' : `${cfg && cfg.trialDays ? `Every new account gets ${cfg.trialDays} days of Pro free, no payment needed. ` : ''}Your account keeps your Pro plan and cloud backup on every phone and laptop you log in on.`}</p>
+      <p class="pbp-fine">${mode === 'login' ? 'Log in and your shops and bills from your other devices download here. Forgot your password? Ask PakkaBill support to reset it.' : `${cfg && cfg.trialDays ? `Every new account gets ${cfg.trialDays} days of Pro free, no payment needed. ` : ''}Your account keeps your Pro plan and cloud backup on every phone and laptop you log in on. By creating an account you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.`}</p>
     </form>`;
   }
 

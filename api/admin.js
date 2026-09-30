@@ -209,7 +209,8 @@ const actions = {
     const user = await core.getUser(String(phone));
     if (!user) throw new core.HttpError(404, 'No such account.');
     const temp = core.token().replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
-    user.pass = core.hashPassword(temp);
+    user.pass = await core.hashPassword(temp);
+    user.pwAt = Date.now(); // logs the account out on every device
     await core.saveUser(user);
     return { password: temp };
   },
@@ -229,11 +230,11 @@ const actions = {
   },
 
   async getSettings() {
-    return { settings: await core.getSettings() };
+    return { settings: await core.getSettings(true) };
   },
 
-  async saveSettings({ monthly, yearly, freeBills, enforce, upiId, payeeName, trialDays, syncFree }) {
-    const prev = await core.getSettings();
+  async saveSettings({ monthly, yearly, freeBills, enforce, upiId, payeeName, trialDays, syncFree, biz }) {
+    const prev = await core.getSettings(true);
     const s = {
       monthly: Math.round(Number(monthly)),
       yearly: Math.round(Number(yearly)),
@@ -244,11 +245,16 @@ const actions = {
       trialDays: trialDays === undefined ? prev.trialDays : Math.round(Number(trialDays)),
       syncFree: syncFree === undefined ? !!prev.syncFree : !!syncFree,
     };
+    // Business details shown on the Contact, Terms and Refund pages.
+    const B = biz && typeof biz === 'object' ? biz : prev;
+    for (const [k, n] of [['bizName', 100], ['bizEmail', 100], ['bizPhone', 20], ['bizAddress', 300], ['grievanceName', 80]]) s[k] = String(B[k] || '').trim().slice(0, n);
+    if (s.bizEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.bizEmail)) throw new core.HttpError(400, 'That email address does not look right.');
     if (!(s.trialDays >= 0 && s.trialDays <= 90)) throw new core.HttpError(400, 'Free trial days must be 0 to 90.');
     if (s.upiId && !core.UPI_ID.test(s.upiId)) throw new core.HttpError(400, 'That does not look like a UPI ID (name@bank).');
     if (!(s.monthly >= 1 && s.yearly >= 1)) throw new core.HttpError(400, 'Prices must be at least ₹1.');
     if (!(s.freeBills >= 0 && s.freeBills <= 1000)) throw new core.HttpError(400, 'Free bills must be 0 to 1000.');
     await db.setJSON('settings', s);
+    core.forgetSettings();
     return { settings: s };
   },
 

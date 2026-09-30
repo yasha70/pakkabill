@@ -1,4 +1,5 @@
 // POST /api/auth  { action: 'signup' | 'login' | 'logout' | 'delete', phone, password, shopName }
+// POST /api/auth  { action: 'password', password, newPassword } (logged in) -> new token; other devices are logged out
 // 'delete' (logged in, with the password) removes the account and its cloud backups for good,
 // as Google Play requires for apps with sign-up.
 const core = require('./_lib/core');
@@ -21,7 +22,7 @@ module.exports = core.handler(async (req, res) => {
     const user = await core.requireUser(req);
     await core.rateLimit(`del:${user.phone}`, 5, 3600);
     if (user.phone === 'owner') throw new core.HttpError(400, 'The owner account cannot be deleted here.');
-    if (!core.checkPassword(String(password), user.pass)) throw new core.HttpError(401, 'The password is wrong.');
+    if (!(await core.checkPassword(String(password), user.pass))) throw new core.HttpError(401, 'The password is wrong.');
     const ix = await sync.status(user).catch(() => ({ shops: [] }));
     for (const s of ix.shops || []) await sync.remove(user, s.id).catch(() => {});
     // a one-way hash, so a new account on this number gets no second free trial
@@ -33,6 +34,21 @@ module.exports = core.handler(async (req, res) => {
     return core.send(res, 200, { ok: true, deleted: true });
   }
 
+  if (action === 'password') {
+    const user = await core.requireUser(req);
+    await core.rateLimit(`pw:${user.phone}`, 10, 3600);
+    const next = String(core.body(req).newPassword || '');
+    if (user.phone === 'owner') throw new core.HttpError(400, 'The owner account has no password.');
+    if (!(await core.checkPassword(String(password), user.pass))) throw new core.HttpError(401, 'Your current password is wrong.');
+    if (next.length < 6) throw new core.HttpError(400, 'Use a new password of at least 6 characters.');
+    user.pass = await core.hashPassword(next);
+    user.pwAt = Date.now();
+    await core.saveUser(user);
+    const t = core.bearer(req);
+    if (t) await db.cmd(['DEL', `sess:${core.sha256(t)}`]);
+    return core.send(res, 200, { token: await core.createSession(user.phone), user: core.publicUser(user) });
+  }
+
   const phone = core.normPhone(rawPhone);
   if (!phone) throw new core.HttpError(400, 'Enter a 10-digit mobile number.');
   await core.rateLimit(`auth:${core.clientIp(req)}`, 30, 900);
@@ -42,7 +58,7 @@ module.exports = core.handler(async (req, res) => {
     const user = {
       phone,
       shopName: String(shopName).trim().slice(0, 80),
-      pass: core.hashPassword(String(password)),
+      pass: await core.hashPassword(String(password)),
       createdAt: Date.now(),
       lastSeen: Date.now(),
       paidUntil: 0,
@@ -61,7 +77,7 @@ module.exports = core.handler(async (req, res) => {
   if (action === 'login') {
     await core.rateLimit(`login:${phone}`, 10, 900);
     const user = await core.getUser(phone);
-    if (!user || !core.checkPassword(String(password), user.pass)) {
+    if (!user || !(await core.checkPassword(String(password), user.pass))) {
       throw new core.HttpError(401, 'Mobile number or password is wrong.');
     }
     user.lastSeen = Date.now();

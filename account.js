@@ -60,7 +60,7 @@
     '.pba-who .pba-pill{display:inline-block}.pba-shopc header .pba-l{min-width:0}.pba-shopc .pba-l b{display:block;font-size:1rem;overflow-wrap:anywhere}.pba-shopc .pba-l span{display:block}.pba-shopc header>div:last-child{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex:none}' +
     '.pba-danger{border-color:#f3c4c7}.pba-danger summary{cursor:pointer;font-weight:700;color:#c8202a}.pba-lbl{display:block;font-size:.85rem;font-weight:600;margin:6px 0}' +
     '.pba-in{display:block;width:100%;max-width:320px;margin-top:4px;padding:9px 11px;border:1px solid var(--rule,#e2daf2);border-radius:10px;font:inherit;background:transparent;color:inherit}' +
-    '.pba-chk{display:flex;gap:8px;align-items:center;font-size:.88rem;margin:10px 0}.pba-err{color:#c8202a;font-weight:600;margin:8px 0 0}' +
+    '.pba-chk{display:flex;gap:8px;align-items:center;font-size:.88rem;margin:10px 0}.pba-err{color:#c8202a;font-weight:600;margin:8px 0 0}.pba-ok{color:#12714b;font-weight:600;margin:8px 0 0}.pba-legal{display:flex;flex-wrap:wrap;gap:8px 16px}.pba-legal a{font-weight:600}' +
     '.pba-btn-danger{background:#c8202a;border-color:#c8202a;color:#fff}.pba-btn[disabled]{opacity:.6;cursor:wait}' +
     '@media(max-width:420px){.pba-shop{grid-template-columns:repeat(2,1fr)}}';
   function css() {
@@ -152,6 +152,21 @@
       '<p class="pba-muted" style="margin-top:8px">One file with every shop’s bills, parties, items and settings. Keep it as your own backup.</p></section>';
   }
 
+  function securityHtml(st) {
+    var d = st.pw || {};
+    return '<section class="pba-card"><details' + (d.open ? ' open' : '') + ' data-pba-pwdetails><summary><b>Change password</b></summary>' +
+      '<p class="pba-muted" style="margin:10px 0">After you change it, PakkaBill logs out on every other phone and computer. This one stays logged in.</p>' +
+      '<label class="pba-lbl">Current password<input type="password" class="pba-in" data-pba-pwold autocomplete="current-password" value="' + esc(d.old || '') + '"></label>' +
+      '<label class="pba-lbl">New password (6 or more characters)<input type="password" class="pba-in" data-pba-pwnew autocomplete="new-password" value="' + esc(d.nw || '') + '"></label>' +
+      (d.err ? '<p class="pba-err">' + esc(d.err) + '</p>' : '') + (d.ok ? '<p class="pba-ok">\u2713 Password changed.</p>' : '') +
+      '<div class="pba-btns"><button type="button" class="pba-btn pri" data-pba="password"' + (d.busy ? ' disabled' : '') + '>' + (d.busy ? 'Saving\u2026' : 'Change password') + '</button></div></details></section>';
+  }
+
+  function legalHtml() {
+    var L = [['About PakkaBill', '/about'], ['Terms & conditions', '/terms'], ['Privacy policy', '/privacy'], ['Refund & cancellation', '/refund'], ['Contact us', '/contact']];
+    return '<section class="pba-card"><h2>About &amp; legal</h2><div class="pba-legal">' + L.map(function (l) { return '<a href="' + l[1] + '" target="_blank" rel="noopener">' + l[0] + '</a>'; }).join('') + '</div></section>';
+  }
+
   // Google Play asks every app with sign-up to let people delete their account from inside the app.
   function deleteHtml(st) {
     var d = st.del || {};
@@ -195,6 +210,8 @@
     var st = el._pba, a = acct();
     if (!st) return;
     var pwIn = el.querySelector('[data-pba-delpw]'), wipeIn = el.querySelector('[data-pba-delwipe]'), det = el.querySelector('[data-pba-deldetails]');
+    var po = el.querySelector('[data-pba-pwold]'), pn = el.querySelector('[data-pba-pwnew]'), pd = el.querySelector('[data-pba-pwdetails]');
+    if (po) st.pw = Object.assign(st.pw || {}, { old: po.value, nw: pn.value, open: pd.open });
     if (pwIn || det) st.del = Object.assign(st.del || {}, { pw: pwIn ? pwIn.value : '', wipe: wipeIn ? wipeIn.checked : false, open: det ? det.open : false });
     if (!st.delAsked && /[?&]delete=1/.test(location.hash) && a) { st.delAsked = true; st.del = Object.assign(st.del || {}, { open: true }); st.scrollDel = true; }
     var main = st.shops && st.shops.filter(function (s) { return s.id === st.active; })[0];
@@ -208,6 +225,8 @@
       h += ticketsHtml(st.tickets);
     }
     h += deviceHtml(st.dev);
+    if (a && a.user.phone !== 'owner') h += securityHtml(st);
+    h += legalHtml();
     if (a && a.user.phone !== 'owner') h += deleteHtml(st);
     h += '</div>';
     var keepSync = el.querySelector('[data-pba-sync]');
@@ -238,6 +257,17 @@
       });
     }).catch(function (e) { st.del = { open: true, pw: '', wipe: wipe, err: e.message || 'Could not delete the account. Try again.' }; draw(el); });
   }
+  function changePassword(el) {
+    var st = el._pba, old = (el.querySelector('[data-pba-pwold]') || {}).value || '', nw = (el.querySelector('[data-pba-pwnew]') || {}).value || '';
+    st.pw = { open: true, old: old, nw: nw };
+    if (!old || nw.length < 6) { st.pw.err = !old ? 'Type your current password.' : 'The new password needs 6 or more characters.'; draw(el); return; }
+    st.pw.busy = true; draw(el);
+    api('auth', { action: 'password', password: old, newPassword: nw }).then(function (j) {
+      var a = acct();
+      if (a) { a.token = j.token; a.user = j.user || a.user; try { localStorage.setItem('pb-acct', JSON.stringify(a)); } catch (e) { /* ignore */ } }
+      st.pw = { open: true, ok: true }; draw(el);
+    }).catch(function (e) { st.pw = { open: true, old: '', nw: nw, err: e.message || 'Could not change the password.' }; draw(el); });
+  }
   function download(el) {
     var st = el._pba;
     if (!st || !st.shops) return;
@@ -256,6 +286,7 @@
       var act = b.getAttribute('data-pba');
       if (act === 'download') download(el);
       else if (act === 'delete') deleteAccount(el);
+      else if (act === 'password') changePassword(el);
       else if (act === 'appsettings' && window.PakkaBillApp) window.PakkaBillApp.settings();
       else if (act === 'switch' && window.pbShops) window.pbShops.switchTo(b.getAttribute('data-id'), '#/account');
       else if (act === 'logout') {

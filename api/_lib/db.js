@@ -9,15 +9,40 @@ function configured() {
   return MEMORY || !!(URL_ && TOKEN);
 }
 
+// One HTTP call to Upstash. Each call has a time limit, and a network error or a 5xx from Upstash
+// is tried once more, so a slow or dropped connection does not hang a request.
+async function call(path, payload) {
+  for (let attempt = 0; ; attempt++) {
+    let res, data;
+    try {
+      res = await fetch(URL_ + path, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000),
+      });
+      data = await res.json().catch(() => ({}));
+    } catch (e) {
+      if (attempt < 1) { await new Promise((r) => setTimeout(r, 200)); continue; }
+      throw new Error(`Database unreachable: ${e.message}`);
+    }
+    if (res.status >= 500 && attempt < 1) { await new Promise((r) => setTimeout(r, 200)); continue; }
+    if (!res.ok || data.error) throw new Error(`Database error: ${data.error || res.status}`);
+    return data;
+  }
+}
+
 async function redis(cmd) {
-  const res = await fetch(URL_, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(cmd),
+  return (await call('', cmd)).result;
+}
+
+// Several commands in one round trip; returns their results in order.
+async function redisPipe(cmds) {
+  const out = await call('/pipeline', cmds);
+  return out.map((r) => {
+    if (r.error) throw new Error(`Database error: ${r.error}`);
+    return r.result;
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error) throw new Error(`Database error: ${data.error || res.status}`);
-  return data.result;
 }
 
 // Minimal in-memory Redis for the commands used here.
@@ -54,6 +79,11 @@ async function memory([op, ...a]) {
       mem.kv.set(a[0], String(v));
       return v;
     }
+    case 'TTL':
+      if (!memAlive(a[0])) return -2;
+      return mem.exp.has(a[0]) ? Math.ceil((mem.exp.get(a[0]) - Date.now()) / 1000) : -1;
+    case 'PING':
+      return 'PONG';
     case 'EXPIRE':
       if (!memAlive(a[0])) return 0;
       mem.exp.set(a[0], Date.now() + Number(a[1]) * 1000);
@@ -90,6 +120,12 @@ async function memory([op, ...a]) {
 }
 
 const cmd = (c) => (MEMORY ? memory(c) : redis(c));
+async function pipe(cmds) {
+  if (!MEMORY) return redisPipe(cmds);
+  const out = [];
+  for (const c of cmds) out.push(await memory(c));
+  return out;
+}
 
 async function getJSON(key) {
   const v = await cmd(['GET', key]);
@@ -100,15 +136,17 @@ async function setJSON(key, value, ttlSeconds) {
   if (ttlSeconds) c.push('EX', ttlSeconds);
   return cmd(c);
 }
+// Reads many keys, 100 per call, a few calls at a time (fast even with thousands of accounts).
 async function mgetJSON(keys) {
-  const out = [];
-  for (let i = 0; i < keys.length; i += 100) {
-    const chunk = keys.slice(i, i + 100);
-    if (!chunk.length) break;
-    const vals = await cmd(['MGET', ...chunk]);
-    vals.forEach((v) => out.push(v ? JSON.parse(v) : null));
+  const chunks = [];
+  for (let i = 0; i < keys.length; i += 100) chunks.push(keys.slice(i, i + 100));
+  const out = new Array(chunks.length);
+  for (let i = 0; i < chunks.length; i += 6) {
+    await Promise.all(chunks.slice(i, i + 6).map(async (chunk, j) => {
+      out[i + j] = (await cmd(['MGET', ...chunk])).map((v) => (v ? JSON.parse(v) : null));
+    }));
   }
-  return out;
+  return out.flat();
 }
 
-module.exports = { configured, cmd, getJSON, setJSON, mgetJSON };
+module.exports = { configured, cmd, pipe, getJSON, setJSON, mgetJSON };

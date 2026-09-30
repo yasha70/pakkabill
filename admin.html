@@ -313,6 +313,15 @@
           <label class="f"><span>Free Pro days for new accounts <span class="muted">(0 = no trial)</span></span><input type="number" name="trialDays" min="0" max="90" step="1"></label>
         </div>
         <label class="check" style="margin-top:12px"><input type="checkbox" name="syncFree"><span><b>Let free users use cloud backup</b><br><span class="muted">Their first shop only, up to 3 MB. Pro always has cloud backup for every shop (up to 30 MB).</span></span></label>
+        <h2 style="margin-top:20px">Business details for the Contact, Terms and Refund pages</h2>
+        <p class="sub">Shown publicly on <a href="/contact" target="_blank">/contact</a>, <a href="/terms" target="_blank">/terms</a> and <a href="/refund" target="_blank">/refund</a>. Indian law (IT Rules 2021, Consumer Protection E-Commerce Rules 2020) and payment providers ask for a business name, a contact email and a grievance officer. Use a business email, not a personal one.</p>
+        <div class="grid2">
+          <label class="f">Business or owner name<input type="text" name="bizName" maxlength="100" placeholder="PakkaBill / your legal name"></label>
+          <label class="f">Support email<input type="email" name="bizEmail" maxlength="100" placeholder="support@yourdomain.in"></label>
+          <label class="f">Support phone or WhatsApp <span class="muted">(optional)</span><input type="tel" name="bizPhone" maxlength="20"></label>
+          <label class="f">Grievance officer name<input type="text" name="grievanceName" maxlength="80"></label>
+        </div>
+        <label class="f" style="margin-top:10px">Business address <span class="muted">(city and state at least)</span><input type="text" name="bizAddress" maxlength="300"></label>
         <div class="row" style="margin-top:16px"><button class="btn" type="submit">Save settings</button></div>
       </form>
     </section>
@@ -776,6 +785,7 @@
   });
 
   const form = $('#settingsForm');
+  const BIZ = ['bizName', 'bizEmail', 'bizPhone', 'bizAddress', 'grievanceName'];
   async function loadSettings() {
     try {
       const { settings } = await api('getSettings');
@@ -787,12 +797,13 @@
       form.payeeName.value = settings.payeeName || '';
       form.trialDays.value = settings.trialDays == null ? 7 : settings.trialDays;
       form.syncFree.checked = !!settings.syncFree;
+      BIZ.forEach((k) => { form[k].value = settings[k] || ''; });
     } catch (e) { toast(e.message, true); }
   }
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-      await api('saveSettings', { monthly: form.monthly.value, yearly: form.yearly.value, freeBills: form.freeBills.value, enforce: form.enforce.checked, upiId: form.upiId.value, payeeName: form.payeeName.value, trialDays: form.trialDays.value, syncFree: form.syncFree.checked });
+      await api('saveSettings', { monthly: form.monthly.value, yearly: form.yearly.value, freeBills: form.freeBills.value, enforce: form.enforce.checked, upiId: form.upiId.value, payeeName: form.payeeName.value, trialDays: form.trialDays.value, syncFree: form.syncFree.checked, biz: Object.fromEntries(BIZ.map((k) => [k, form[k].value])) });
       toast('Settings saved.');
     } catch (err) { toast(err.message, true); }
   });

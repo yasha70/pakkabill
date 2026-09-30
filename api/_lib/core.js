@@ -4,14 +4,14 @@ const db = require('./db');
 
 const DAY = 24 * 60 * 60 * 1000;
 const PLAN_DAYS = { monthly: 30, yearly: 365 };
-const DEFAULT_SETTINGS = { monthly: 99, yearly: 999, freeBills: 15, enforce: true, upiId: '', payeeName: '', trialDays: 7, syncFree: false };
+const DEFAULT_SETTINGS = { monthly: 99, yearly: 999, freeBills: 15, enforce: true, upiId: '', payeeName: '', trialDays: 7, syncFree: false, bizName: '', bizEmail: '', bizPhone: '', bizAddress: '', grievanceName: '' };
 const UPI_ID = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z][a-zA-Z0-9]{1,64}$/;
 const SESSION_DAYS = 180;
 
-function send(res, status, body) {
+function send(res, status, body, cache) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Cache-Control', cache || 'no-store');
   res.end(JSON.stringify(body));
 }
 
@@ -61,14 +61,16 @@ function safeEqual(a, b) {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
-function hashPassword(pw) {
+// scrypt runs on the thread pool (async), so many logins at once do not block the server.
+const scrypt = (pw, salt) => new Promise((ok, fail) => crypto.scrypt(pw, salt, 32, (e, k) => (e ? fail(e) : ok(k.toString('hex')))));
+async function hashPassword(pw) {
   const salt = crypto.randomBytes(16).toString('hex');
-  return `${salt}:${crypto.scryptSync(pw, salt, 32).toString('hex')}`;
+  return `${salt}:${await scrypt(pw, salt)}`;
 }
-function checkPassword(pw, stored) {
+async function checkPassword(pw, stored) {
   const [salt, hash] = String(stored || '').split(':');
   if (!salt || !hash) return false;
-  return safeEqual(crypto.scryptSync(pw, salt, 32).toString('hex'), hash);
+  return safeEqual(await scrypt(pw, salt), hash);
 }
 
 // Indian mobile number, 10 digits starting 6-9. Returns '' when invalid.
@@ -84,15 +86,25 @@ function clientIp(req) {
 }
 
 // Counts attempts per key; throws once more than `max` happen inside `windowSec`.
+// INCR and TTL go in one round trip; the expiry is set whenever it is missing, so a counter
+// can never get stuck without one and lock someone out for good.
 async function rateLimit(key, max, windowSec) {
-  const n = await db.cmd(['INCR', `rl:${key}`]);
-  if (n === 1) await db.cmd(['EXPIRE', `rl:${key}`, windowSec]);
+  const k = `rl:${key}`;
+  const [n, ttl] = await db.pipe([['INCR', k], ['TTL', k]]);
+  if (ttl < 0) await db.cmd(['EXPIRE', k, windowSec]);
   if (n > max) throw new HttpError(429, 'Too many attempts. Please wait a few minutes and try again.');
 }
 
-async function getSettings() {
-  const s = db.configured() ? await db.getJSON('settings') : null;
-  return { ...DEFAULT_SETTINGS, ...(s || {}) };
+// Settings are read on many requests, so each server instance keeps them for 30 seconds.
+let settingsCache = null;
+async function getSettings(fresh) {
+  if (!fresh && settingsCache && Date.now() - settingsCache.at < 30000) return { ...settingsCache.s };
+  const s = { ...DEFAULT_SETTINGS, ...((db.configured() ? await db.getJSON('settings') : null) || {}) };
+  settingsCache = { s, at: Date.now() };
+  return { ...s };
+}
+function forgetSettings() {
+  settingsCache = null;
 }
 
 // Paid features only switch on once the database is connected and a UPI ID is saved in admin.
@@ -117,9 +129,11 @@ const userKey = (phone) => `user:${phone}`;
 const getUser = (phone) => db.getJSON(userKey(phone));
 const saveUser = (u) => db.setJSON(userKey(u.phone), u);
 
+// A session stores the phone and when it was made; changing or resetting the password
+// (user.pwAt) ends every session made before that.
 async function createSession(phone) {
   const t = token();
-  await db.cmd(['SET', `sess:${sha256(t)}`, phone, 'EX', SESSION_DAYS * 86400]);
+  await db.cmd(['SET', `sess:${sha256(t)}`, `${phone}|${Date.now()}`, 'EX', SESSION_DAYS * 86400]);
   return t;
 }
 
@@ -130,8 +144,12 @@ function bearer(req) {
 
 async function sessionUser(req) {
   const t = bearer(req);
-  const phone = t && (await db.cmd(['GET', `sess:${sha256(t)}`]));
-  return (phone && (await getUser(phone))) || null;
+  const v = t && (await db.cmd(['GET', `sess:${sha256(t)}`]));
+  if (!v) return null;
+  const [phone, at] = String(v).split('|');
+  const user = await getUser(phone);
+  if (!user || (user.pwAt && !(Number(at) >= user.pwAt))) return null;
+  return user;
 }
 
 async function requireUser(req) {
@@ -167,6 +185,7 @@ module.exports = {
   clientIp,
   rateLimit,
   getSettings,
+  forgetSettings,
   paymentsReady,
   publicUser,
   getUser,

@@ -12,5 +12,6 @@ module.exports = core.handler(async (req, res) => {
     upiId: s.upiId,
     payeeName: s.payeeName,
     trialDays: core.paymentsReady(s) && s.enforce ? Number(s.trialDays) || 0 : 0,
-  });
+    biz: { name: s.bizName, email: s.bizEmail, phone: s.bizPhone, address: s.bizAddress, grievance: s.grievanceName },
+  }, 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
 });

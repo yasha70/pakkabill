@@ -23,3 +23,14 @@ button[disabled] { opacity: .6; cursor: wait; }
 .msg.bad { color: var(--danger); }
 .msg.ok { color: #12714b; }
 @media (prefers-color-scheme: dark) { .msg.ok { color: #74d8a7; } }
+.lg-foot { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); font-size: .9rem; }
+.lg-foot nav { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.lg-foot a { font-weight: 600; text-decoration: none; }
+.lg-foot p { margin: 10px 0 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.grid .card { margin: 0; }
+.grid .card b { display: block; color: var(--ink); margin-bottom: 4px; }
+.cta { display: inline-block; margin-top: 8px; padding: 11px 18px; border-radius: 10px; background: var(--brand); color: #fff !important; font-weight: 700; text-decoration: none; }
+@media (prefers-color-scheme: dark) { .cta { color: #110e20 !important; } }
+.hi { font-weight: 700; color: var(--brand); }
+[hidden] { display: none !important; }
