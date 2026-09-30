@@ -2960,127 +2960,230 @@ details.more[open] > summary { margin-bottom: 10px; }
     return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   };
 
-  /* ================= PDF ================= */
+  /* ================= PDF: PakkaBill branded P&L report ================= */
   HX.pdf = function (ctx) {
-    var S = ctx.S, E = ctx.E, R = S.R, K = R.K, st = ctx.cfg, per = S.per;
-    var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4' });
-    var PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight(), M = 40;
-    var INK = [27, 31, 59], GREY = [111, 117, 153], CARBON = [47, 52, 144], SOFT = [232, 233, 248], RULE = [220, 225, 240], RED = [200, 50, 58], NEG = [180, 35, 49];
-    function a(s) { return String(s == null ? '' : s).replace(/\u20b9/g, 'Rs.').replace(/[\u2013\u2014\u2212]/g, '-').replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[^\x20-\x7E]/g, ''); }
+    var S = ctx.S, E = ctx.E, R = S.R, K = R.K, st = ctx.cfg, per = S.per, RV = S.RV, HA = window.HA || {};
+    var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', compress: true });
+    var PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight(), M = 40, CW = PW - 2 * M;
+    // PakkaBill brand
+    var BRAND = [91, 63, 230], INDIGO = [43, 52, 148], CORAL = [255, 122, 89], INK = [42, 37, 64], GREY = [115, 110, 141],
+      SOFT = [240, 236, 255], PAPER = [248, 246, 252], RULE = [226, 218, 242], NEG = [200, 32, 42], POS = [18, 113, 75], GOLD = [245, 196, 83];
+    function a(s) { return String(s == null ? '' : s).replace(/₹/g, 'Rs.').replace(/[–—−]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/·/g, '|').replace(/[^\x20-\x7E]/g, ''); }
     function mn(p) { return E.money(p, { paren: true }); }
     function rsx(p) { return 'Rs. ' + E.money(p, { noPaise: true }); }
+    function pc(x) { return (x * 100).toFixed(1) + '%'; }
+    function fill(c) { doc.setFillColor(c[0], c[1], c[2]); }
+    function stroke(c) { doc.setDrawColor(c[0], c[1], c[2]); }
+    function ink(c) { doc.setTextColor(c[0], c[1], c[2]); }
+    function font(style, size) { doc.setFont('helvetica', style); doc.setFontSize(size); }
     var basis = per.basis === 'order' ? 'order date' : 'payment date';
+    var biz = st.biz || 'Meesho seller';
+    var reportId = 'PB-PL-' + String(per.from || '').replace(/-/g, '') + '-' + String(per.to || '').replace(/-/g, '');
 
-    doc.setFillColor(CARBON[0], CARBON[1], CARBON[2]); doc.rect(0, 0, PW, 80, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
-    doc.text(a(st.biz || 'Meesho seller'), M, 34);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5);
-    doc.text(a('Profit and loss statement, ' + per.label), M, 53);
-    doc.text(a('Counted by ' + basis + ' (' + per.from + ' to ' + per.to + ')'), M, 68);
-    if (st.gstin) doc.text(a('GSTIN ' + st.gstin), PW - M, 34, { align: 'right' });
-    doc.text(a('Generated ' + today()), PW - M, 53, { align: 'right' });
-
-    var y = 98, gap = 8, bw = (PW - 2 * M - 3 * gap) / 4;
-    [['Net sales', rsx(R.NS)], ['Received from Meesho', rsx(R.payout)], ['Net profit', rsx(R.NP), R.NP < 0], ['Margin on net revenue', R.NR ? (R.margin * 100).toFixed(1) + '%' : '-']].forEach(function (k, i) {
-      var x = M + i * (bw + gap);
-      doc.setDrawColor(RULE[0], RULE[1], RULE[2]); doc.setFillColor(246, 247, 251); doc.rect(x, y, bw, 46, 'FD');
-      doc.setTextColor(GREY[0], GREY[1], GREY[2]); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.text(a(k[0]), x + 8, y + 15);
-      var c = k[2] ? NEG : INK; doc.setTextColor(c[0], c[1], c[2]); doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text(a(k[1]), x + 8, y + 35);
-    });
-    doc.setFont('helvetica', 'normal');
-    y += 64;
-
-    var kinds = R.lines.map(function (l) { return l.k; });
-    var body = R.lines.map(function (l) {
-      if (l.k === 'sec') return [{ content: a(l.l), colSpan: 2 }];
-      return [a(l.l), mn(l.v)];
-    });
-    doc.autoTable({
-      startY: y, head: [['Particulars', 'Amount (Rs.)']], body: body, theme: 'plain', margin: { left: M, right: M },
-      styles: { font: 'helvetica', fontSize: 9.5, cellPadding: { top: 4, bottom: 4, left: 8, right: 8 }, textColor: INK },
-      headStyles: { fontStyle: 'bold', textColor: GREY, fontSize: 8.5 },
-      columnStyles: { 1: { halign: 'right', cellWidth: 130 } },
-      didParseCell: function (d) {
-        if (d.section !== 'body') return;
-        var k = kinds[d.row.index];
-        if (k === 'sec') { d.cell.styles.fontStyle = 'bold'; d.cell.styles.textColor = CARBON; d.cell.styles.fillColor = SOFT; }
-        else if (k === 'row') { if (d.column.index === 0) d.cell.styles.cellPadding = { top: 4, bottom: 4, left: 20, right: 8 }; }
-        else { d.cell.styles.fontStyle = 'bold'; if (k === 'np') d.cell.styles.fontSize = 11.5; if (k === 'gp') d.cell.styles.fillColor = [246, 247, 251]; }
-        if (d.column.index === 1 && k !== 'sec') { var v = R.lines[d.row.index].v; if (v < 0) d.cell.styles.textColor = NEG; }
-      },
-      didDrawCell: function (d) {
-        var c = d.cell;
-        if (d.section === 'head') { doc.setDrawColor(185, 193, 221); doc.setLineWidth(1); doc.line(c.x, c.y + c.height, c.x + c.width, c.y + c.height); return; }
-        var k = kinds[d.row.index];
-        doc.setDrawColor(RULE[0], RULE[1], RULE[2]); doc.setLineWidth(0.5); doc.line(c.x, c.y + c.height, c.x + c.width, c.y + c.height);
-        if (d.column.index === 1 && (k === 'tot' || k === 'sub' || k === 'gp' || k === 'np')) {
-          doc.setDrawColor(INK[0], INK[1], INK[2]); doc.setLineWidth(0.6); doc.line(c.x + 30, c.y + 1, c.x + c.width, c.y + 1);
-        }
-        if (d.column.index === 1 && k === 'np') {
-          doc.setDrawColor(RED[0], RED[1], RED[2]); doc.setLineWidth(0.7);
-          doc.line(c.x + 30, c.y + c.height - 3, c.x + c.width, c.y + c.height - 3); doc.line(c.x + 30, c.y + c.height - 0.8, c.x + c.width, c.y + c.height - 0.8);
-        }
-      }
-    });
-    var notes = ['Brackets mean a cost or a deduction.'];
-    if (R.REGD) notes.push('Sales and charges exclude GST.');
-    if (K.rdef) notes.push(K.rdef + ' returns/RTO use the default condition (customer returns: ' + (st.returnDefault === 'ok' ? 'back in stock' : 'not resellable') + ', RTO: ' + (st.rtoDefault === 'ok' ? 'back in stock' : 'not resellable') + ').');
-    if (R.missing.length) notes.push('Cost missing for ' + R.missing.length + ' SKU(s); profit is overstated.');
-    if (K.revPend) notes.push(K.revPend + ' returned/RTO orders not yet reversed by Meesho (' + rsx(K.revPendV) + ' of sales).');
-    var fy = doc.lastAutoTable.finalY + 14;
-    doc.setFontSize(8.5); doc.setTextColor(GREY[0], GREY[1], GREY[2]);
-    var nl = doc.splitTextToSize(a(notes.join(' ')), PW - 2 * M);
-    if (fy + nl.length * 11 > PH - 44) { doc.addPage(); fy = 50; doc.setFontSize(8.5); doc.setTextColor(GREY[0], GREY[1], GREY[2]); }
-    doc.text(nl, M, fy);
-    var cursor = fy + nl.length * 11;
-
-    function head(title, sub) {
-      var yy = cursor + 22;
-      if (yy > PH - 140) { doc.addPage(); yy = 50; }
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(INK[0], INK[1], INK[2]); doc.text(a(title), M, yy);
-      doc.setFont('helvetica', 'normal');
-      if (sub) { doc.setFontSize(8.5); doc.setTextColor(GREY[0], GREY[1], GREY[2]); var sl = doc.splitTextToSize(a(sub), PW - 2 * M); doc.text(sl, M, yy + 13); yy += 11 * sl.length + 2; }
-      return yy + 8;
+    // the PakkaBill mark, drawn as shapes (sharp at any size)
+    function logo(x, y, s) {
+      fill(INDIGO); doc.roundedRect(x, y, s, s, s * 0.22, s * 0.22, 'F');
+      doc.setFillColor(253, 230, 150); doc.roundedRect(x + s * 0.34, y + s * 0.2, s * 0.4, s * 0.52, s * 0.04, s * 0.04, 'F');
+      doc.setFillColor(248, 212, 222); doc.roundedRect(x + s * 0.3, y + s * 0.23, s * 0.4, s * 0.52, s * 0.04, s * 0.04, 'F');
+      doc.setFillColor(255, 255, 255); doc.roundedRect(x + s * 0.24, y + s * 0.26, s * 0.4, s * 0.52, s * 0.04, s * 0.04, 'F');
+      doc.setFillColor(214, 36, 48); doc.roundedRect(x + s * 0.47, y + s * 0.32, s * 0.12, s * 0.06, s * 0.02, s * 0.02, 'F');
+      doc.setFillColor(88, 96, 170); doc.roundedRect(x + s * 0.3, y + s * 0.46, s * 0.26, s * 0.035, s * 0.017, s * 0.017, 'F');
+      doc.setFillColor(160, 166, 212); doc.roundedRect(x + s * 0.3, y + s * 0.54, s * 0.18, s * 0.035, s * 0.017, s * 0.017, 'F');
+      doc.roundedRect(x + s * 0.3, y + s * 0.62, s * 0.22, s * 0.035, s * 0.017, s * 0.017, 'F');
     }
+
+    /* ---------- page 1: brand header ---------- */
+    fill(INDIGO); doc.rect(0, 0, PW, 118, 'F');
+    fill(BRAND); doc.triangle(PW * 0.45, 0, PW, 0, PW, 118, 'F');
+    fill(CORAL); doc.rect(0, 118, PW, 3, 'F');
+    logo(M, 26, 44);
+    ink([255, 255, 255]); font('bold', 20); doc.text('PakkaBill', M + 56, 46);
+    font('normal', 9.5); doc.setTextColor(222, 218, 255); doc.text('Meesho Profit & Loss Report', M + 56, 62);
+    font('bold', 15); ink([255, 255, 255]); doc.text(a(biz), PW - M, 42, { align: 'right' });
+    font('normal', 9.5); doc.setTextColor(222, 218, 255);
+    doc.text(a(st.gstin ? 'GSTIN ' + st.gstin : 'GSTIN not added'), PW - M, 58, { align: 'right' });
+    doc.text(a(per.label), PW - M, 74, { align: 'right' });
+    font('normal', 8.5); doc.text(a('Report ' + reportId + '   |   Generated ' + today()), M, 100);
+    doc.text(a('Counted by ' + basis + ' (' + per.from + ' to ' + per.to + ')'), PW - M, 100, { align: 'right' });
+
+    /* ---------- headline cards ---------- */
+    var y = 138, gap = 8, cols = 3, bw = (CW - (cols - 1) * gap) / cols, bh = 52;
+    var cards = [
+      ['NET PROFIT', rsx(R.NP), R.NP < 0 ? NEG : POS, R.NR ? pc(R.margin) + ' of net revenue' : ''],
+      ['NET SALES', rsx(R.NS), INK, K.sales + ' orders sold'],
+      ['RECEIVED FROM MEESHO', rsx(R.payout), INK, 'Settlements, ads and credits'],
+      ['COST OF GOODS', rsx(R.COGS), INK, R.missing.length ? R.missing.length + ' SKU(s) missing a cost' : 'All SKUs have a cost'],
+      ['MEESHO CHARGES', rsx(-R.MCx), INK, 'Commission, shipping and fees (excl. GST)'],
+      ['RTO | RETURN | EXCHANGE', RV ? pc(RV.rtoRate) + ' | ' + pc(RV.retRate) + ' | ' + pc(RV.exchRate) : (K.parcels ? pc(R.returnRate) : '-'), INK, RV ? 'Lost on these: ' + rsx(RV.loss) : '']
+    ];
+    cards.forEach(function (c, i) {
+      var x = M + (i % cols) * (bw + gap), yy = y + Math.floor(i / cols) * (bh + gap);
+      fill(i === 0 ? SOFT : PAPER); stroke(RULE); doc.setLineWidth(0.6); doc.roundedRect(x, yy, bw, bh, 6, 6, 'FD');
+      fill(i === 0 ? BRAND : RULE); doc.rect(x, yy + 8, 2.5, bh - 16, 'F');
+      ink(GREY); font('bold', 7); doc.text(a(c[0]), x + 12, yy + 15);
+      ink(c[2]); font('bold', i === 5 ? 11.5 : 14); doc.text(a(c[1]), x + 12, yy + 33);
+      ink(GREY); font('normal', 7.5); doc.text(a(c[3]), x + 12, yy + 45);
+    });
+    var cursor = y + 2 * bh + gap;
+
+    /* ---------- building blocks ---------- */
+    var sec = 0;
+    function newPage() { doc.addPage(); return 70; }
+    function heading(title, sub) {
+      var yy = cursor + 26;
+      if (yy > PH - 150) yy = newPage();
+      sec++;
+      fill(BRAND); doc.roundedRect(M, yy - 12, 18, 18, 4, 4, 'F');
+      ink([255, 255, 255]); font('bold', 9.5); doc.text(String(sec), M + 9, yy + 1, { align: 'center' });
+      ink(INK); font('bold', 12.5); doc.text(a(title), M + 26, yy + 1.5);
+      stroke(RULE); doc.setLineWidth(0.8); doc.line(M + 26 + doc.getTextWidth(a(title)) + 8, yy - 2, PW - M, yy - 2);
+      if (sub) { ink(GREY); font('normal', 8.3); var sl = doc.splitTextToSize(a(sub), CW - 26); doc.text(sl, M + 26, yy + 15); yy += 10.5 * sl.length + 3; }
+      return yy + 12;
+    }
+    function negColour(d) { if (d.section === 'body' && typeof d.cell.raw === 'string' && /^\(.*\)$/.test(d.cell.raw)) d.cell.styles.textColor = NEG; }
     function table(title, sub, hd, rows, numFrom, opt) {
-      var sy = head(title, sub);
+      var sy = heading(title, sub);
       var cs = {}; for (var i = numFrom; i < hd.length; i++) cs[i] = { halign: 'right' };
       doc.autoTable(Object.assign({
-        startY: sy, head: [hd.map(a)], body: rows, theme: 'striped', margin: { left: M, right: M },
-        styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 3.5, textColor: INK, overflow: 'linebreak' },
-        headStyles: { fillColor: CARBON, textColor: [255, 255, 255], fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: [246, 247, 251] }, columnStyles: cs,
-        didParseCell: function (d) { if (d.section === 'body' && typeof d.cell.raw === 'string' && /^\(.*\)$/.test(d.cell.raw)) d.cell.styles.textColor = NEG; }
+        startY: sy, head: [hd.map(a)], body: rows, theme: 'grid', margin: { left: M, right: M, top: 70, bottom: 52 },
+        styles: { font: 'helvetica', fontSize: 8.3, cellPadding: { top: 4, bottom: 4, left: 6, right: 6 }, textColor: INK, lineColor: RULE, lineWidth: 0.4, overflow: 'linebreak' },
+        headStyles: { fillColor: INDIGO, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+        alternateRowStyles: { fillColor: PAPER }, columnStyles: cs, didParseCell: negColour
       }, opt || {}));
       cursor = doc.lastAutoTable.finalY;
     }
+    var bold = function (v, extra) { return { content: v, styles: Object.assign({ fontStyle: 'bold' }, extra || {}) }; };
+    var twoCol = { columnStyles: { 1: { halign: 'right', cellWidth: 140 } } };
+
+    /* ---------- 1. statement ---------- */
+    var sy = heading('Profit and loss statement', 'Sales and charges exclude GST when GST registration is on. Brackets mean a cost or a deduction.');
+    var kinds = R.lines.map(function (l) { return l.k; });
+    doc.autoTable({
+      startY: sy, head: [['Particulars', 'Amount (Rs.)']], body: R.lines.map(function (l) { return l.k === 'sec' ? [{ content: a(l.l), colSpan: 2 }] : [a(l.l), mn(l.v)]; }),
+      theme: 'plain', margin: { left: M, right: M, top: 70, bottom: 52 },
+      styles: { font: 'helvetica', fontSize: 9.3, cellPadding: { top: 4.2, bottom: 4.2, left: 8, right: 8 }, textColor: INK },
+      headStyles: { fontStyle: 'bold', textColor: [255, 255, 255], fillColor: INDIGO, fontSize: 8.3 },
+      columnStyles: { 1: { halign: 'right', cellWidth: 140 } },
+      didParseCell: function (d) {
+        if (d.section !== 'body') return;
+        var k = kinds[d.row.index];
+        if (k === 'sec') { d.cell.styles.fontStyle = 'bold'; d.cell.styles.textColor = BRAND; d.cell.styles.fillColor = SOFT; d.cell.styles.fontSize = 8.5; }
+        else if (k === 'row') { if (d.column.index === 0) d.cell.styles.cellPadding = { top: 4, bottom: 4, left: 20, right: 8 }; }
+        else { d.cell.styles.fontStyle = 'bold'; if (k === 'gp') d.cell.styles.fillColor = PAPER; if (k === 'np') { d.cell.styles.fontSize = 11.5; d.cell.styles.fillColor = SOFT; } }
+        if (d.column.index === 1 && k !== 'sec' && R.lines[d.row.index].v < 0) d.cell.styles.textColor = NEG;
+      },
+      didDrawCell: function (d) {
+        if (d.section !== 'body') return;
+        var c = d.cell, k = kinds[d.row.index];
+        stroke(RULE); doc.setLineWidth(0.4); doc.line(c.x, c.y + c.height, c.x + c.width, c.y + c.height);
+        if (d.column.index === 1 && (k === 'tot' || k === 'sub' || k === 'gp' || k === 'np')) { stroke(INK); doc.setLineWidth(0.6); doc.line(c.x + 30, c.y + 1, c.x + c.width, c.y + 1); }
+        if (d.column.index === 1 && k === 'np') { stroke(BRAND); doc.setLineWidth(0.8); doc.line(c.x + 30, c.y + c.height - 3, c.x + c.width, c.y + c.height - 3); doc.line(c.x + 30, c.y + c.height - 0.8, c.x + c.width, c.y + c.height - 0.8); }
+      }
+    });
+    cursor = doc.lastAutoTable.finalY;
+
+    /* ---------- 2. money received ---------- */
     table('How profit ties to money received', 'Money received should match the Meesho credits in your bank for the same payment dates.', ['Item', 'Amount (Rs.)'],
-      R.bridge.map(function (b) { return [{ content: a(b.l), styles: b.k ? { fontStyle: 'bold' } : {} }, { content: mn(b.v), styles: b.k ? { fontStyle: 'bold' } : {} }]; }), 1, { columnStyles: { 1: { halign: 'right', cellWidth: 130 } } });
+      R.bridge.map(function (b) { return b.k ? [bold(a(b.l)), bold(mn(b.v))] : [a(b.l), mn(b.v)]; }), 1, twoCol);
+
+    /* ---------- 3. GST and tax ---------- */
+    var taxRows = [];
     if (R.gst) {
       var g = R.gst;
-      table('GST summary', 'Input credit is worked out at 18% on columns Meesho marks as including GST. Check against Meesho\'s monthly tax invoice before filing.', ['Item', 'Amount (Rs.)'],
-        [['Output GST on net sales', mn(g.out)], ['Less: input credit on Meesho charges', mn(-g.itcCh)], ['Less: input credit on ads', mn(-g.itcAds)], [{ content: 'Net GST payable', styles: { fontStyle: 'bold' } }, { content: mn(g.net), styles: { fontStyle: 'bold' } }], ['Less: TCS already collected by Meesho', mn(-g.tcs)], [{ content: 'GST left to pay in cash', styles: { fontStyle: 'bold' } }, { content: mn(g.cash), styles: { fontStyle: 'bold' } }]],
-        1, { columnStyles: { 1: { halign: 'right', cellWidth: 130 } } });
+      taxRows = [['Output GST on net sales', mn(g.out)], ['Less: input credit on Meesho charges', mn(-g.itcCh)], ['Less: input credit on ads', mn(-g.itcAds)],
+        [bold('Net GST payable'), bold(mn(g.net))], ['Less: TCS already collected by Meesho', mn(-g.tcs)], [bold('GST left to pay in cash'), bold(mn(g.cash))]];
     }
-    table('Tax deducted by Meesho', R.claim ? 'Claimable: TCS in your GST return, TDS in your income tax return (Form 26AS). Added back to profit.' : 'Counted as an expense, as chosen in Settings.', ['Item', 'Amount (Rs.)'],
-      [['TCS collected under GST', mn(-K.T)], ['TDS under section 194-O', mn(-K.D)]], 1, { columnStyles: { 1: { halign: 'right', cellWidth: 130 } } });
-    table('Profit by SKU', 'After cost of goods, Meesho charges and packaging; before ads and other expenses.', ['SKU', 'Orders', 'Pieces', 'Returns/RTO', 'Net sales', 'Cost of goods', 'Meesho charges', 'Profit', 'Per order'],
-      R.skus.map(function (x) { return [a(x.sku) + (x.pcs > 1 ? ' (' + x.pcs + ' pcs)' : ''), String(x.sold), String(x.units), String(x.retU + x.rto), mn(x.NS), mn(-x.COGS), mn(x.MC), mn(x.contrib), x.sold ? mn(x.perOrder) : '']; })
-        .concat([[{ content: 'Not tied to a SKU (ads, referral, account credits, expenses)', colSpan: 7, styles: { fontStyle: 'bold' } }, { content: mn(R.unalloc), styles: { fontStyle: 'bold', halign: 'right' } }, ''],
-          [{ content: 'Net profit', colSpan: 7, styles: { fontStyle: 'bold' } }, { content: mn(R.NP), styles: { fontStyle: 'bold', halign: 'right' } }, '']]), 1);
-    if (S.MO.length > 1) {
-      table('Month by month', 'Counted by ' + basis + '.', ['Month', 'Net sales', 'Gross profit', 'Meesho charges', 'Ads', 'Expenses', 'Net profit', 'Received'],
-        S.MO.map(function (x) { return [E.fmtMonth(x.m), mn(x.NS), mn(x.GP), mn(x.MCx), mn(x.ads), mn(-x.OPEX), mn(x.NP), mn(x.payout)]; }), 1);
-    }
-    table('Payouts by date', 'All payment dates in your files.', ['Payment date', 'Orders', 'Settlements', 'Ads', 'Other', 'Net received'],
-      S.PO.map(function (p) { return [p.d || 'No date', String(p.n), mn(p.f), mn(p.ads), mn(p.ref + p.adj), mn(p.net)]; }), 1);
+    taxRows.push([bold('Tax deducted by Meesho', { textColor: BRAND }), ''], ['TCS collected under GST', mn(-K.T)], ['TDS under section 194-O', mn(-K.D)]);
+    table('GST and tax', (R.gst ? 'Input credit is worked out at 18% on columns Meesho marks as including GST; check it against Meesho\'s monthly tax invoice before filing. ' : 'GST registration is off in Settings, so GST is not split out. ') +
+      (R.claim ? 'TCS and TDS are claimable (GST return and Form 26AS), so they are added back to profit.' : 'TCS and TDS are counted as an expense, as chosen in Settings.'), ['Item', 'Amount (Rs.)'], taxRows, 1, twoCol);
 
+    /* ---------- 4. returns, RTO, exchanges ---------- */
+    if (RV && RV.done) {
+      var G = RV.G, ks = ['rto', 'ret', 'exch'], lab = { rto: 'RTO', ret: 'Customer returns', exch: 'Exchanges', lost: 'Lost' };
+      if (G.lost.n) ks.push('lost');
+      var rate = { rto: RV.rtoRate, ret: RV.retRate, exch: RV.exchRate, lost: RV.lostRate };
+      var line = function (l, f, b) { var r = [b ? bold(l) : l].concat(ks.map(function (k) { var v = f(G[k], k); return b ? bold(v) : v; })); return r; };
+      table('Returns, RTO and exchanges', 'RTO and lost rates are of ' + RV.done + ' parcels shipped; return and exchange rates are of ' + RV.delivered + ' orders delivered. Amounts as Meesho cut them (incl. GST).',
+        ['', ].concat(ks.map(function (k) { return lab[k]; })), [
+          line('Orders', function (g) { return String(g.n); }),
+          line('Rate', function (g, k) { return pc(rate[k]); }, true),
+          line('Return shipping fee', function (g) { return mn(-g.retFee); }),
+          line('Forward shipping', function (g) { return mn(-g.fwdShip); }),
+          line('Commission and fees kept', function (g) { return mn(-g.fees); }),
+          line('Packing', function (g) { return mn(-g.pack); }),
+          line('Stock not resellable', function (g) { return mn(-g.stock); }),
+          line('Paid back by Meesho', function (g) { return mn(g.back); }),
+          line('Total lost', function (g) { return mn(-g.loss); }, true),
+          line('Lost per order', function (g) { return g.n ? mn(-Math.round(g.loss / g.n)) : '-'; })
+        ], 1);
+    }
+
+    /* ---------- 5. categories ---------- */
+    if (HA.categoryRows) {
+      var cats = HA.categoryRows();
+      if (cats.length) {
+        var ct = { NS: 0, p: 0, s: 0 }; cats.forEach(function (c) { ct.NS += c.NS; ct.p += c.profit; ct.s += c.sold; });
+        table('Profit by category', 'Categories come from Meesho product names (changeable in the Costs tab). Profit is before ads and other expenses.',
+          ['Category', 'SKUs', 'Orders', 'Net sales', 'Profit', 'Margin', 'RTO + returns'],
+          cats.map(function (c) { return [a(c.cat), String(c.skus), String(c.sold), mn(c.NS), mn(c.profit), c.NS > 0 ? pc(c.profit / c.NS) : '-', String(c.rto + c.ret)]; })
+            .concat([[bold('All categories'), '', bold(String(ct.s)), bold(mn(ct.NS)), bold(mn(ct.p)), bold(ct.NS > 0 ? pc(ct.p / ct.NS) : ''), '']]), 1);
+      }
+    }
+
+    /* ---------- 6. SKUs ---------- */
+    table('Profit by SKU', 'After cost of goods, Meesho charges and packaging; before ads and other expenses. Break-even is the buyer price where the SKU makes zero profit.',
+      ['SKU', 'Orders', 'Ret/RTO', 'Net sales', 'Cost of goods', 'Meesho charges', 'Profit', 'Per order', 'Break-even'],
+      R.skus.map(function (x) { return [a(x.sku) + (x.pcs > 1 ? ' (' + x.pcs + ' pcs)' : ''), String(x.sold), String(x.retU + x.rto), mn(x.NS), mn(-x.COGS), mn(x.MC), mn(x.contrib), x.sold ? mn(x.perOrder) : '', x.sold ? mn(x.breakEven) : '']; })
+        .concat([[{ content: 'Not tied to a SKU (ads, referral, account credits, expenses)', colSpan: 6, styles: { fontStyle: 'bold' } }, bold(mn(R.unalloc), { halign: 'right' }), '', ''],
+          [{ content: 'Net profit', colSpan: 6, styles: { fontStyle: 'bold', fillColor: SOFT } }, bold(mn(R.NP), { halign: 'right', fillColor: SOFT }), { content: '', styles: { fillColor: SOFT } }, { content: '', styles: { fillColor: SOFT } }]]), 1);
+
+    /* ---------- 7. months ---------- */
+    if (S.MO.length > 1) {
+      table('Month by month', 'Counted by ' + basis + '. Monthly expenses are included in each month.', ['Month', 'Net sales', 'Gross profit', 'Meesho charges', 'Ads', 'Expenses', 'Net profit', 'Received'],
+        S.MO.map(function (x) { return [E.fmtMonth(x.m), mn(x.NS), mn(x.GP), mn(x.MCx), mn(x.ads), mn(-x.OPEX), bold(mn(x.NP)), mn(x.payout)]; }), 1);
+    }
+
+    /* ---------- 8. payouts ---------- */
+    table('Payouts by date', 'Every payment date in your files; each should match one Meesho credit in your bank.', ['Payment date', 'Orders', 'Settlements', 'Ads', 'Other', 'Net received'],
+      S.PO.map(function (p) { return [p.d || 'No date', String(p.n), mn(p.f), mn(p.ads), mn(p.ref + p.adj), bold(mn(p.net))]; }), 1);
+
+    /* ---------- notes and assumptions ---------- */
+    var notes = [
+      'Source: Meesho payment report' + (S.H && S.H.ordFiles ? ' and orders report' : '') + '. All totals are reconciled to the paisa with Meesho\'s Final Settlement Amount.',
+      'Counted by ' + basis + ', ' + per.from + ' to ' + per.to + '.',
+      'Customer returns count as ' + (st.returnDefault === 'ok' ? 'back in stock' : 'not resellable') + ', RTO parcels as ' + (st.rtoDefault === 'ok' ? 'back in stock' : 'not resellable') + ', unless marked otherwise in Reconcile.'
+    ];
+    if (R.missing.length) notes.push('Cost is missing for ' + R.missing.length + ' SKU(s): ' + R.missing.slice(0, 12).map(function (x) { return x.sku; }).join(', ') + (R.missing.length > 12 ? '...' : '') + '. Profit is overstated until they are added.');
+    if (K.revPend) notes.push(K.revPend + ' returned/RTO orders are not yet reversed by Meesho (' + rsx(K.revPendV) + ' of sales); profit will drop when that is paid out.');
+    if (K.unexpl) notes.push(K.unexpl + ' settlement row(s) do not add up from Meesho\'s own columns; the difference is shown as its own line.');
+    notes.push('This report is prepared from the files and costs you entered and is not an audited statement. Check it with your accountant before filing returns.');
+    var ny = heading('Notes and assumptions');
+    font('normal', 8.4); ink(INK);
+    notes.forEach(function (n) {
+      var nl = doc.splitTextToSize(a(n), CW - 40);
+      if (ny + nl.length * 11 > PH - 60) ny = newPage();
+      fill(BRAND); doc.circle(M + 30, ny - 3, 1.6, 'F');
+      doc.text(nl, M + 38, ny); ny += nl.length * 11 + 4;
+    });
+
+    /* ---------- running header and footer on every page ---------- */
     var pages = doc.internal.getNumberOfPages();
     for (var i = 1; i <= pages; i++) {
-      doc.setPage(i); doc.setFontSize(8); doc.setTextColor(GREY[0], GREY[1], GREY[2]);
-      doc.text(a('Prepared from Meesho payment reports with Hisaab. Figures depend on the costs and return conditions entered.'), M, PH - 22);
-      doc.text('Page ' + i + ' of ' + pages, PW - M, PH - 22, { align: 'right' });
+      doc.setPage(i);
+      if (i > 1) {
+        fill(PAPER); doc.rect(0, 0, PW, 44, 'F'); fill(BRAND); doc.rect(0, 44, PW, 1.5, 'F');
+        logo(M, 11, 22);
+        ink(INDIGO); font('bold', 10.5); doc.text('PakkaBill', M + 30, 22);
+        ink(GREY); font('normal', 7.8); doc.text('Meesho P&L Report', M + 30, 33);
+        ink(INK); font('bold', 9); doc.text(a(biz), PW - M, 22, { align: 'right' });
+        ink(GREY); font('normal', 7.8); doc.text(a(per.label + (st.gstin ? '  |  GSTIN ' + st.gstin : '')), PW - M, 33, { align: 'right' });
+      }
+      stroke(RULE); doc.setLineWidth(0.6); doc.line(M, PH - 36, PW - M, PH - 36);
+      ink(GREY); font('normal', 7.5);
+      doc.text(a('Generated with PakkaBill  |  pakkabill1.vercel.app  |  ' + reportId), M, PH - 22);
+      font('bold', 7.5); ink(INDIGO); doc.text('Page ' + i + ' of ' + pages, PW - M, PH - 22, { align: 'right' });
     }
+    doc.setProperties({ title: 'P&L report - ' + a(biz) + ' - ' + a(per.label), subject: 'Meesho profit and loss', author: a(biz), creator: 'PakkaBill' });
     return doc.output('blob');
   };
 })();
