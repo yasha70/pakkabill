@@ -156,15 +156,36 @@
   }
 
   function authHtml(mode) {
+    const otpOn = !!(cfg && cfg.otp);
+    if (mode === 'reset' && !otpOn) mode = 'login';
+    const reset = mode === 'reset';
     return `<form class="pbp-auth" data-mode="${mode}">
       <div class="pbp-tabs"><button type="button" data-mode="login" class="${mode === 'login' ? 'is-on' : ''}">Log in</button><button type="button" data-mode="signup" class="${mode === 'signup' ? 'is-on' : ''}">Create account</button></div>
+      ${reset ? '<p class="pbp-fine" style="margin:0"><b>Forgot password?</b> Verify your mobile number and choose a new password.</p>' : ''}
       <label>Mobile number<input name="phone" inputmode="numeric" autocomplete="tel" placeholder="10-digit mobile" required></label>
       ${mode === 'signup' ? '<label>Shop name<input name="shopName" autocomplete="organization" placeholder="As on your bills"></label>' : ''}
-      <label>Password<span class="pbp-pw"><input name="password" type="password" autocomplete="${mode === 'signup' ? 'new-password' : 'current-password'}" autocapitalize="none" autocorrect="off" spellcheck="false" minlength="6" required><button type="button" class="pbp-show" aria-label="Show password">Show</button></span></label>
+      <label>${reset ? 'New password (6 or more characters)' : 'Password'}<span class="pbp-pw"><input name="password" type="password" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}" autocapitalize="none" autocorrect="off" spellcheck="false" minlength="6" required><button type="button" class="pbp-show" aria-label="Show password">Show</button></span></label>
+      <div class="pbp-otp" hidden></div>
       <p class="pbp-err" role="alert"></p>
-      <button class="pbp-btn" type="submit">${mode === 'signup' ? (cfg && cfg.trialDays ? `Create account: ${cfg.trialDays} days of Pro free` : 'Create account') : 'Log in'}</button>
-      <p class="pbp-fine">${mode === 'login' ? 'Log in and your shops and bills from your other devices download here. Forgot your password? Ask PakkaBill support to reset it.' : `${cfg && cfg.trialDays ? `Every new account gets ${cfg.trialDays} days of Pro free, no payment needed. ` : ''}Your account keeps your Pro plan and cloud backup on every phone and laptop you log in on. By creating an account you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.`}</p>
+      <button class="pbp-btn" type="submit">${reset ? 'Set new password' : mode === 'signup' ? (cfg && cfg.trialDays ? `Create account: ${cfg.trialDays} days of Pro free` : 'Create account') : 'Log in'}</button>
+      <p class="pbp-fine">${reset ? '<button type="button" class="pbp-link" data-mode="login">Back to log in</button>' : mode === 'login' ? (otpOn ? 'Log in and your shops and bills from your other devices download here. <button type="button" class="pbp-link" data-mode="reset">Forgot password?</button>' : 'Log in and your shops and bills from your other devices download here. Forgot your password? Ask PakkaBill support to reset it.') : `${cfg && cfg.trialDays ? `Every new account gets ${cfg.trialDays} days of Pro free, no payment needed. ` : ''}${otpOn ? 'We verify your mobile number with a free missed call or an SMS code. ' : ''}Your account keeps your Pro plan and cloud backup on every phone and laptop you log in on. By creating an account you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.`}</p>
     </form>`;
+  }
+
+  // Mobile verification (missed call or SMS OTP) from the OTP Verify service, loaded on first use.
+  let otpScript = null;
+  function loadOtpWidget() {
+    if (window.OTPWidget) return Promise.resolve();
+    if (!otpScript) {
+      otpScript = new Promise((ok, fail) => {
+        const s = document.createElement('script');
+        s.src = cfg.otp.url + '/widget.js';
+        s.onload = ok;
+        s.onerror = () => { otpScript = null; fail(new Error('Could not load mobile verification. Check your internet.')); };
+        document.head.appendChild(s);
+      });
+    }
+    return otpScript;
   }
 
   // Wires plan buttons and the login/sign-up form inside `root`; `redraw` re-renders it.
@@ -178,7 +199,7 @@
         openPay(b.dataset.plan);
       }),
     );
-    root.querySelectorAll('.pbp-tabs button').forEach((b) => b.addEventListener('click', () => redraw(b.dataset.mode)));
+    root.querySelectorAll('.pbp-auth button[data-mode]').forEach((b) => b.addEventListener('click', () => redraw(b.dataset.mode)));
     const form = root.querySelector('.pbp-auth');
     if (form)
       form.querySelectorAll('.pbp-show').forEach((b) => b.addEventListener('click', () => {
@@ -194,10 +215,51 @@
         const err = form.querySelector('.pbp-err');
         const btn = form.querySelector('.pbp-btn');
         err.textContent = '';
+        const needsOtp = cfg && cfg.otp && form.dataset.mode !== 'login';
+        if (needsOtp && !form._otpToken) {
+          // Verify the number first; the form submits itself once it is verified.
+          const phone = String(f.get('phone') || '').replace(/\D/g, '').slice(-10);
+          if (!/^[6-9]\d{9}$/.test(phone)) { err.textContent = 'Enter a 10-digit mobile number.'; return; }
+          const box = form.querySelector('.pbp-otp');
+          btn.disabled = true;
+          try {
+            await loadOtpWidget();
+          } catch (e) {
+            err.textContent = e.message;
+            btn.disabled = false;
+            return;
+          }
+          if (form._otpWidget) form._otpWidget.destroy();
+          box.replaceChildren();
+          const holder = document.createElement('div');
+          box.appendChild(holder);
+          box.hidden = false;
+          btn.hidden = true;
+          form._otpWidget = window.OTPWidget.mount(holder, {
+            widgetKey: cfg.otp.widgetKey,
+            mobile: phone,
+            accent: getComputedStyle(document.documentElement).getPropertyValue('--carbon').trim() || '#5b3fe6',
+            onVerified: (d) => {
+              form._otpToken = d.token;
+              btn.hidden = false;
+              btn.disabled = false;
+              form.requestSubmit();
+            },
+          });
+          form.querySelector('input[name=phone]').addEventListener('input', () => {
+            form._otpToken = '';
+            box.hidden = true;
+            btn.hidden = false;
+            btn.disabled = false;
+          }, { once: true });
+          return;
+        }
         btn.disabled = true;
         try {
+          const otpToken = form._otpToken || '';
+          form._otpToken = ''; // a token works once; a failed attempt needs a fresh verification
           const r = await api('auth', {
-            body: { action: form.dataset.mode, phone: f.get('phone'), password: f.get('password'), shopName: f.get('shopName') || '' },
+            body: { action: form.dataset.mode, phone: f.get('phone'), password: f.get('password'), shopName: f.get('shopName') || '', otpToken },
           });
           // logged in with a password PakkaBill support made: ask them to set their own
           if (r.user && r.user.tempPw) setTimeout(() => { if (confirm('You logged in with a temporary password from PakkaBill support. Set your own password now?')) location.hash = '#/account?pw=1'; }, 900);
@@ -205,11 +267,13 @@
           pendingClaim = '';
           setAcct({ token: r.token, user: r.user }, !claimId);
           if (claimId) return claimOffer(claimId);
-          toast(r.user.pro ? 'Logged in. Pro is active.' : 'Logged in.');
+          toast((form.dataset.mode === 'reset' ? 'Password changed. ' : '') + (r.user.pro ? 'Logged in. Pro is active.' : 'Logged in.'));
           loadNews();
         } catch (e) {
           err.textContent = e.message;
           btn.disabled = false;
+          const box = form.querySelector('.pbp-otp');
+          if (box) box.hidden = true;
         }
       });
     root.querySelector('[data-logout]')?.addEventListener('click', async () => {
@@ -612,6 +676,7 @@
 .pbp-btn--ghost{display:block;width:100%;margin:0 0 8px;background:var(--carbon-tint,#efeaff);background-image:none;color:var(--carbon,#5b3fe6);border:1.5px solid var(--carbon,#5b3fe6)}
 .pbp-err{color:var(--red,#c8202a);margin:0;font-size:13.5px;min-height:0}
 .pbp-err:empty{display:none}
+.pbp-otp{margin:2px 0}
 .pbp-fine{font-size:12.5px;color:var(--ink-3,#777);margin:6px 0 0}
 .pbp-acct{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:13.5px;color:var(--ink-2,#555);padding:10px 0;border-top:1px dashed var(--rule,#ddd);margin-top:12px}
 .pbp-dialog .pbp-acct{margin:0 0 10px;border-top:0;border-bottom:1px dashed var(--rule,#ddd);padding-top:0}

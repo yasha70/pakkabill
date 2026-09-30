@@ -1,4 +1,6 @@
-// POST /api/auth  { action: 'signup' | 'login' | 'logout' | 'delete', phone, password, shopName }
+// POST /api/auth  { action: 'signup' | 'login' | 'logout' | 'delete', phone, password, shopName, otpToken }
+// POST /api/auth  { action: 'reset', phone, password, otpToken } forgot password: a new password after
+// verifying the mobile number again (only when mobile verification is set up, see _lib/otp.js)
 // POST /api/auth  { action: 'password', password, newPassword } (logged in) -> new token; other devices are logged out
 // 'delete' (logged in, with the password) removes the account and its cloud backups for good,
 // as Google Play requires for apps with sign-up.
@@ -6,11 +8,12 @@ const core = require('./_lib/core');
 const db = require('./_lib/db');
 const sync = require('./_lib/sync');
 const push = require('./_lib/push');
+const otp = require('./_lib/otp');
 
 module.exports = core.handler(async (req, res) => {
   core.requireMethod(req, 'POST');
   core.requireDb();
-  const { action, phone: rawPhone, password = '', shopName = '' } = core.body(req);
+  const { action, phone: rawPhone, password = '', shopName = '', otpToken = '' } = core.body(req);
 
   if (action === 'logout') {
     const t = core.bearer(req);
@@ -56,6 +59,13 @@ module.exports = core.handler(async (req, res) => {
 
   if (action === 'signup') {
     if (String(password).length < 6) throw new core.HttpError(400, 'Use a password of at least 6 characters.');
+    // A token sent by a page that showed the widget is always checked; without one, verification
+    // is required only while the gateway phone is online (see _lib/otp.js).
+    if (otp.configured() && (otpToken || (await otp.online()))) {
+      // check the number is free before using up the verification
+      if (await core.getUser(phone)) throw new core.HttpError(409, 'This number already has an account. Log in instead.');
+      await otp.confirm(otpToken, phone);
+    }
     const user = {
       phone,
       shopName: String(shopName).trim().slice(0, 80),
@@ -75,6 +85,23 @@ module.exports = core.handler(async (req, res) => {
     return core.send(res, 200, { token: await core.createSession(phone), user: core.publicUser(user) });
   }
 
+  if (action === 'reset') {
+    if (!otp.configured() || !(otpToken || (await otp.online()))) throw new core.HttpError(400, 'Mobile verification is offline right now. Ask PakkaBill support to reset your password.');
+    await core.rateLimit(`reset:${phone}`, 10, 3600);
+    if (String(password).length < 6) throw new core.HttpError(400, 'Use a new password of at least 6 characters.');
+    const user = await core.getUser(phone);
+    if (!user) throw new core.HttpError(404, 'No account with this mobile number. Check the number, or create an account.');
+    if (user.blocked) throw new core.HttpError(403, 'This account has been stopped. Please contact PakkaBill support.');
+    await otp.confirm(otpToken, phone);
+    user.pass = await core.hashPassword(String(password));
+    user.pwAt = Date.now(); // logs out every other device
+    user.lastSeen = Date.now();
+    delete user.tempPw;
+    await core.saveUser(user);
+    await db.cmd(['DEL', `rl:login:${phone}`]); // earlier wrong tries no longer lock them out
+    return core.send(res, 200, { token: await core.createSession(phone), user: core.publicUser(user) });
+  }
+
   if (action === 'login') {
     await core.rateLimit(`login:${phone}`, 10, 900);
     const user = await core.getUser(phone);
@@ -82,7 +109,7 @@ module.exports = core.handler(async (req, res) => {
     // a space added by the phone keyboard or by copy-paste should not make the password wrong
     const ok = user && ((await core.checkPassword(pw, user.pass)) || (pw.trim() !== pw && (await core.checkPassword(pw.trim(), user.pass))));
     if (!ok) {
-      throw new core.HttpError(401, user ? 'The password is wrong. Check capital letters, or tap Show to see what you typed. Forgot it? Ask PakkaBill support to reset it.' : 'No account with this mobile number. Check the number, or create an account.');
+      throw new core.HttpError(401, user ? 'The password is wrong. Check capital letters, or tap Show to see what you typed. Forgot it? ' + ((await otp.online()) ? 'Tap Forgot password.' : 'Ask PakkaBill support to reset it.') : 'No account with this mobile number. Check the number, or create an account.');
     }
     if (user.blocked) throw new core.HttpError(403, 'This account has been stopped. Please contact PakkaBill support.');
     user.lastSeen = Date.now();
