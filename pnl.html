@@ -215,7 +215,7 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: .88rem; co
 .slip small { display: block; color: var(--ink-3); font-size: .82rem; font-weight: 600; }
 .slip strong { font-family: var(--f-head); font-weight: 600; font-size: 1.15rem; }
 .slip .np strong { font-size: 1.9rem; line-height: 1.1; }
-@media (min-width: 620px) { .slip { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 620px) { .slip { grid-template-columns: repeat(4, 1fr); } .slip > div:nth-last-child(-n+2):not(.np) { grid-column: span 2; } }
 
 /* returns, RTO and exchanges */
 .rv-total { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 12px; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; font-weight: 600; color: var(--ink-2); }
@@ -1159,6 +1159,10 @@ details.more[open] > summary { margin-bottom: 10px; }
       if (L.nc[i]) NC[p.sku || '(no SKU)'] = (NC[p.sku || '(no SKU)'] || 0) + L.nc[i];
       s.S += p.s; s.R += p.r; s.OUT += out; s.COGS += cg; s.MC += mc; s.OCR += ocr; s.TX += tx; s.pack += L.pack[i];
       s.sold += L.sale[i]; s.units += L.fu[i]; s.retU += L.ru[i] + L.rlu[i]; s.rto += L.rto[i];
+      // each order's sale and its reversal, to count the orders that were delivered and kept
+      if (!s.ord) s.ord = {};
+      var so = s.ord[p.id] || (s.ord[p.id] = { s: 0, r: 0, sale: 0 });
+      so.s += p.s; so.r += p.r; so.sale += L.sale[i];
     }
     IX.extra.forEach(function (e) {
       if (!inP(e.dt)) return;
@@ -1188,17 +1192,25 @@ details.more[open] > summary { margin-bottom: 10px; }
       x.contrib = x.NR - x.COGS + x.MC + x.OCR + (claim ? 0 : x.TX) - x.pack;
       x.pcs = (IX.PK && IX.PK[x.sku]) || 1;
       x.perUnit = x.units ? Math.round(x.contrib / x.units) : 0;
-      x.perOrder = x.sold ? Math.round(x.contrib / x.sold) : 0;
+      /* Delivered orders: sold and not returned or RTO (the sale was not reversed). Exchanges stay
+         sales, so they count. Profit per order is the SKU's whole profit, with the money lost on
+         returns and RTO already taken out, spread over only these delivered orders. */
+      x.delivered = 0;
+      for (var oid in (x.ord || {})) { var oo = x.ord[oid]; if (oo.sale > 0 && oo.s + oo.r > TOL) x.delivered++; }
+      delete x.ord;
+      x.perOrder = x.delivered ? Math.round(x.contrib / x.delivered) : 0;
+      var perSold = x.sold ? x.contrib / x.sold : 0;
       /* Customer price per order now, and the price where this SKU's profit per order is zero.
          Of each extra rupee the buyer pays, the seller keeps the part left after GST, and only on
          orders that are not returned (their sale is reversed). Meesho takes no commission on it. */
       x.avgPrice = x.sold ? Math.round(x.S / x.sold) : 0;
       var keep = x.S > 0 ? Math.max(0.05, 1 + x.R / x.S) : 0, netShare = x.NS > 0 ? x.NR / x.NS : 1;
-      x.breakEven = x.sold && keep ? Math.max(0, Math.round(x.avgPrice - x.perOrder / (keep * netShare))) : 0;
+      x.breakEven = x.sold && keep ? Math.max(0, Math.round(x.avgPrice - perSold / (keep * netShare))) : 0;
       return x;
     }).sort(function (a, b) { return b.NS - a.NS || (a.sku < b.sku ? -1 : 1); });
     var unalloc = K.ADJ + K.REF + adsNet - EXP, skuSum = 0;
     skus.forEach(function (x) { skuSum += x.contrib; });
+    K.del = 0; skus.forEach(function (x) { K.del += x.delivered; });
 
     var lines = [];
     function sec(l) { lines.push({ k: 'sec', l: l }); }
@@ -2841,6 +2853,8 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<div><small>Net sales</small><strong>' + rs(R.NS, true) + '</strong></div>' +
       '<div><small>Received from Meesho</small><strong>' + rs(R.payout, true) + '</strong></div>' +
       '<div><small>Orders sold</small><strong>' + K.sales + '</strong></div>' +
+      '<div><small>Delivered (no return or RTO)</small><strong>' + K.del + '</strong></div>' +
+      '<div><small>Profit per delivered order</small><strong class="' + (R.NP < 0 ? 'neg' : '') + '">' + (K.del ? rs(Math.round(R.NP / K.del), true) : '\u2013') + '</strong></div>' +
       '<div><small>RTO \u00b7 Return \u00b7 Exchange</small><strong>' + (S.RV ? pct(S.RV.rtoRate) + ' \u00b7 ' + pct(S.RV.retRate) + ' \u00b7 ' + pct(S.RV.exchRate) : (K.parcels ? pct(R.returnRate) : '0%')) + '</strong></div></div>';
 
     var notes = '';
@@ -2897,14 +2911,14 @@ details.more[open] > summary { margin-bottom: 10px; }
     h += '<details class="sheet more"><summary>GST, TCS and TDS</summary>' + tx + '</details>';
 
     var sk = R.skus.map(function (x) {
-      return '<tr><td><b>' + esc(x.sku) + '</b>' + (x.pcs > 1 ? ' <span class="tag">pack of ' + x.pcs + '</span>' : '') + (x.pn ? '<div class="small muted">' + esc(x.pn) + '</div>' : '') + '</td><td class="n">' + x.sold + '</td><td class="n">' + x.units + '</td><td class="n">' + (x.retU + x.rto) + '</td>' +
-        '<td class="n">' + mny(x.NS) + '</td><td class="n' + (x.contrib < 0 ? ' neg' : '') + '">' + mny(x.contrib) + '</td><td class="n' + (x.perOrder < 0 ? ' neg' : '') + '">' + (x.sold ? mny(x.perOrder) : '') + '</td>' +
+      return '<tr><td><b>' + esc(x.sku) + '</b>' + (x.pcs > 1 ? ' <span class="tag">pack of ' + x.pcs + '</span>' : '') + (x.pn ? '<div class="small muted">' + esc(x.pn) + '</div>' : '') + '</td><td class="n">' + x.sold + '</td><td class="n">' + x.units + '</td><td class="n">' + (x.retU + x.rto) + '</td><td class="n">' + x.delivered + '</td>' +
+        '<td class="n">' + mny(x.NS) + '</td><td class="n' + (x.contrib < 0 ? ' neg' : '') + '">' + mny(x.contrib) + '</td><td class="n' + (x.perOrder < 0 ? ' neg' : '') + '">' + (x.delivered ? mny(x.perOrder) : '\u2013') + '</td>' +
         '<td class="n">' + (x.sold ? rs(x.avgPrice, true) : '') + '</td><td class="n' + (x.sold && x.breakEven > x.avgPrice ? ' neg' : '') + '">' + (x.sold ? rs(x.breakEven, true) : '') + '</td></tr>';
     }).join('');
-    h += '<details class="sheet more"><summary>Profit by SKU</summary><div class="tw"><table class="t"><thead><tr><th>SKU</th><th class="n">Orders</th><th class="n">Pieces</th><th class="n">Returns and RTO</th><th class="n">Net sales</th><th class="n">Profit</th><th class="n">Per order</th><th class="n">Price now</th><th class="n">Break-even price</th></tr></thead><tbody>' + sk +
-      '<tr class="tot"><td>Not tied to a SKU (ads, referral, account credits, expenses)</td><td></td><td></td><td></td><td></td><td class="n' + (R.unalloc < 0 ? ' neg' : '') + '">' + mny(R.unalloc) + '</td><td></td><td></td><td></td></tr>' +
-      '<tr class="np"><td>Net profit</td><td class="n">' + K.sales + '</td><td class="n">' + K.fu + '</td><td></td><td class="n">' + mny(R.NS) + '</td><td class="n' + (R.NP < 0 ? ' neg' : '') + '">' + mny(R.NP) + '</td><td></td><td></td><td></td></tr></tbody></table></div>' +
-      '<p class="small muted" style="margin:8px 0 0">SKU profit is after cost of goods, Meesho charges and packaging, before ads and other expenses. Price now is what buyers paid per order on average. Break-even price is the customer price where the SKU\u2019s profit per order would be zero, with the same returns, GST and charges; red means it is above today\u2019s price, so the SKU loses money.</p></details>';
+    h += '<details class="sheet more"><summary>Profit by SKU</summary><div class="tw"><table class="t"><thead><tr><th>SKU</th><th class="n">Orders</th><th class="n">Pieces</th><th class="n">Returns and RTO</th><th class="n">Delivered</th><th class="n">Net sales</th><th class="n">Profit</th><th class="n">Per delivered order</th><th class="n">Price now</th><th class="n">Break-even price</th></tr></thead><tbody>' + sk +
+      '<tr class="tot"><td>Not tied to a SKU (ads, referral, account credits, expenses)</td><td></td><td></td><td></td><td></td><td></td><td class="n' + (R.unalloc < 0 ? ' neg' : '') + '">' + mny(R.unalloc) + '</td><td></td><td></td><td></td></tr>' +
+      '<tr class="np"><td>Net profit</td><td class="n">' + K.sales + '</td><td class="n">' + K.fu + '</td><td></td><td class="n">' + K.del + '</td><td class="n">' + mny(R.NS) + '</td><td class="n' + (R.NP < 0 ? ' neg' : '') + '">' + mny(R.NP) + '</td><td class="n' + (R.NP < 0 ? ' neg' : '') + '">' + (K.del ? mny(Math.round(R.NP / K.del)) : '') + '</td><td></td><td></td></tr></tbody></table></div>' +
+      '<p class="small muted" style="margin:8px 0 0">SKU profit is after cost of goods, Meesho charges and packaging, before ads and other expenses. Per delivered order is that profit divided by the orders delivered and kept: returned and RTO orders are left out of the count, but the money lost on them stays in the profit. Price now is what buyers paid per order on average. Break-even price is the customer price where the SKU\u2019s profit per order would be zero, with the same returns, GST and charges; red means it is above today\u2019s price, so the SKU loses money.</p></details>';
 
     if (S.MO.length > 1) {
       var mo = S.MO.map(function (m) {
@@ -3275,13 +3289,13 @@ details.more[open] > summary { margin-bottom: 10px; }
     X.utils.book_append_sheet(wb, sheet(P, [58, 18], { xSplit: 0, ySplit: 8 }), 'P&L');
 
     /* SKU wise */
-    var SK = [heads(['SKU', 'Product', 'Pieces per order', 'Orders sold', 'Pieces sold', 'Pieces returned', 'RTO parcels', 'Gross sales', 'Returns', 'Net sales', 'Output GST', 'Net revenue', 'Cost of goods', 'Meesho charges', 'Claims and recoveries', 'TCS/TDS as expense', 'Packaging', 'Profit', 'Profit per order', 'Profit per piece', 'Customer price per order', 'Break-even customer price'])];
+    var SK = [heads(['SKU', 'Product', 'Pieces per order', 'Orders sold', 'Pieces sold', 'Pieces returned', 'RTO parcels', 'Gross sales', 'Returns', 'Net sales', 'Output GST', 'Net revenue', 'Cost of goods', 'Meesho charges', 'Claims and recoveries', 'TCS/TDS as expense', 'Packaging', 'Profit', 'Delivered orders (no return or RTO)', 'Profit per delivered order', 'Profit per piece', 'Customer price per order', 'Break-even customer price'])];
     R.skus.forEach(function (x) {
-      SK.push([t(x.sku), t(x.pn), n(x.pcs), n(x.sold), n(x.units), n(x.retU), n(x.rto), m(x.S), m(x.R), m(x.NS), m(-x.OUT), m(x.NR), m(-x.COGS), m(x.MC), m(x.OCR), m(R.claim ? 0 : x.TX), m(-x.pack), m(x.contrib, ST.bold), m(x.perOrder), m(x.perUnit), m(x.sold ? x.avgPrice : 0), m(x.sold ? x.breakEven : 0)]);
+      SK.push([t(x.sku), t(x.pn), n(x.pcs), n(x.sold), n(x.units), n(x.retU), n(x.rto), m(x.S), m(x.R), m(x.NS), m(-x.OUT), m(x.NR), m(-x.COGS), m(x.MC), m(x.OCR), m(R.claim ? 0 : x.TX), m(-x.pack), m(x.contrib, ST.bold), n(x.delivered), m(x.perOrder), m(x.perUnit), m(x.sold ? x.avgPrice : 0), m(x.sold ? x.breakEven : 0)]);
     });
     SK.push([t('Not tied to a SKU (ads, referral, account credits, expenses)', ST.tot)].concat(new Array(16).fill(t('', ST.tot))).concat([m(R.unalloc, ST.tot)]));
-    SK.push([t('Net profit', ST.np), t('', ST.np), t('', ST.np), n(K.sales, ST.np), n(K.fu, ST.np)].concat(new Array(12).fill(t('', ST.np))).concat([m(R.NP, ST.np)]));
-    X.utils.book_append_sheet(wb, sheet(SK, [16, 40, 9, 10, 10, 10, 10, 13, 13, 13, 12, 13, 13, 14, 13, 12, 11, 13, 12, 12, 14, 15], { xSplit: 1, ySplit: 1 }), 'SKU wise');
+    SK.push([t('Net profit', ST.np), t('', ST.np), t('', ST.np), n(K.sales, ST.np), n(K.fu, ST.np)].concat(new Array(12).fill(t('', ST.np))).concat([m(R.NP, ST.np), n(K.del, ST.np), m(K.del ? Math.round(R.NP / K.del) : 0, ST.np)]));
+    X.utils.book_append_sheet(wb, sheet(SK, [16, 40, 9, 10, 10, 10, 10, 13, 13, 13, 12, 13, 13, 14, 13, 12, 11, 13, 13, 12, 12, 14, 15], { xSplit: 1, ySplit: 1 }), 'SKU wise');
 
     /* Category wise */
     if (window.HA.categoryRows) {
@@ -3566,11 +3580,11 @@ details.more[open] > summary { margin-bottom: 10px; }
     }
 
     /* ---------- 6. SKUs ---------- */
-    table('Profit by SKU', 'After cost of goods, Meesho charges and packaging; before ads and other expenses. Break-even is the buyer price where the SKU makes zero profit.',
-      ['SKU', 'Orders', 'Ret/RTO', 'Net sales', 'Cost of goods', 'Meesho charges', 'Profit', 'Per order', 'Break-even'],
-      R.skus.map(function (x) { return [a(x.sku) + (x.pcs > 1 ? ' (' + x.pcs + ' pcs)' : ''), String(x.sold), String(x.retU + x.rto), mn(x.NS), mn(-x.COGS), mn(x.MC), mn(x.contrib), x.sold ? mn(x.perOrder) : '', x.sold ? mn(x.breakEven) : '']; })
-        .concat([[{ content: 'Not tied to a SKU (ads, referral, account credits, expenses)', colSpan: 6, styles: { fontStyle: 'bold' } }, bold(mn(R.unalloc), { halign: 'right' }), '', ''],
-          [{ content: 'Net profit', colSpan: 6, styles: { fontStyle: 'bold', fillColor: SOFT } }, bold(mn(R.NP), { halign: 'right', fillColor: SOFT }), { content: '', styles: { fillColor: SOFT } }, { content: '', styles: { fillColor: SOFT } }]]), 1);
+    table('Profit by SKU', 'After cost of goods, Meesho charges and packaging; before ads and other expenses. Per delivered order counts only orders not returned or RTO. Break-even is the buyer price where the SKU makes zero profit.',
+      ['SKU', 'Orders', 'Ret/RTO', 'Delivered', 'Net sales', 'Cost of goods', 'Meesho charges', 'Profit', 'Per delivered order', 'Break-even'],
+      R.skus.map(function (x) { return [a(x.sku) + (x.pcs > 1 ? ' (' + x.pcs + ' pcs)' : ''), String(x.sold), String(x.retU + x.rto), String(x.delivered), mn(x.NS), mn(-x.COGS), mn(x.MC), mn(x.contrib), x.delivered ? mn(x.perOrder) : '', x.sold ? mn(x.breakEven) : '']; })
+        .concat([[{ content: 'Not tied to a SKU (ads, referral, account credits, expenses)', colSpan: 7, styles: { fontStyle: 'bold' } }, bold(mn(R.unalloc), { halign: 'right' }), '', ''],
+          [{ content: 'Net profit (' + R.K.del + ' delivered orders)', colSpan: 7, styles: { fontStyle: 'bold', fillColor: SOFT } }, bold(mn(R.NP), { halign: 'right', fillColor: SOFT }), bold(R.K.del ? mn(Math.round(R.NP / R.K.del)) : '', { halign: 'right', fillColor: SOFT }), { content: '', styles: { fillColor: SOFT } }]]), 1);
 
     /* ---------- 7. months ---------- */
     if (S.MO.length > 1) {
