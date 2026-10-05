@@ -5,3 +5,7 @@
 -dontwarn java.beans.**
 -dontwarn jdk.dynalink.**
 -dontwarn javax.script.**
+
+# AndroidSVG draws the How to use pictures
+-keep class com.caverock.androidsvg.** { *; }
+-dontwarn com.caverock.androidsvg.**

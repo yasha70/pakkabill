@@ -32,6 +32,11 @@ val json = KJson { ignoreUnknownKeys = true; isLenient = true; explicitNulls = f
     val payouts: List<Payout> = emptyList(),
     val lastPd: String = "",
     val firstPd: String = "",
+    /** rows of each file already in another file (counted once) */
+    val dup: Map<String, Int> = emptyMap(),
+    /** each expense's amount in this period, by id */
+    val expIn: Map<String, Long> = emptyMap(),
+    val packNote: String = "",
 )
 
 @Serializable data class GstRow(val l: String = "", val v: Long = 0, val b: Boolean = false)
@@ -45,11 +50,14 @@ val json = KJson { ignoreUnknownKeys = true; isLenient = true; explicitNulls = f
 @Serializable data class Payout(val d: String = "", val n: Int = 0, val f: Long = 0, val ads: Long = 0, val other: Long = 0, val net: Long = 0, val tx: List<String> = emptyList())
 
 @Serializable data class FileInfo(val id: String = "", val name: String = "", val size: Long = 0, val at: Long = 0, val sheets: List<SheetInfo> = emptyList(), val cats: Int = 0)
-@Serializable data class SheetInfo(val name: String = "", val type: String = "", val n: Int = 0, val from: String? = null, val to: String? = null, val cats: Int? = null)
+@Serializable data class SheetInfo(val name: String = "", val type: String = "", val n: Int = 0, val from: String? = null, val to: String? = null, val cats: Int? = null, val matched: Int? = null)
 @Serializable data class MonthRef(val m: String, val label: String)
 @Serializable data class Period(val from: String = "", val to: String = "", val basis: String = "pay", val mode: String = "all", val label: String = "", val m: String? = null)
 @Serializable data class Sel(val mode: String = "all", val basis: String = "pay", val m: String? = null, val from: String? = null, val to: String? = null)
-@Serializable data class Health(val legs: Int = 0, val ordRows: Int = 0)
+@Serializable data class Health(
+    val legs: Int = 0, val ordRows: Int = 0, val pd0: String = "", val pd1: String = "", val od0: String = "", val od1: String = "",
+    val orders: Int = 0, val ads: Int = 0, val ref: Int = 0, val adj: Int = 0, val unexpl: Int = 0, val dups: Int = 0,
+)
 @Serializable data class Missing(val sku: String = "", val units: Int = 0, val pn: String = "")
 @Serializable data class Summary(
     val NP: Long = 0, val NS: Long = 0, val NR: Long = 0, val margin: Double = 0.0, val payout: Long = 0, val COGS: Long = 0,
@@ -62,12 +70,14 @@ val json = KJson { ignoreUnknownKeys = true; isLenient = true; explicitNulls = f
 @Serializable data class Line(val k: String? = null, val l: String = "", val v: Long = 0)
 @Serializable data class Gst(val out: Long = 0, val itcCh: Long = 0, val itcAds: Long = 0, val itcGoods: Long = 0, val itc: Long = 0, val net: Long = 0, val tcs: Long = 0, val cash: Long = 0, val unusable: Long = 0, val tcsUnused: Long = 0)
 @Serializable data class Group(val n: Int = 0, val pcs: Int = 0, val retFee: Long = 0, val fwdShip: Long = 0, val fees: Long = 0, val back: Long = 0, val pack: Long = 0, val stock: Long = 0, val pending: Int = 0, val noPay: Int = 0, val loss: Long = 0)
+/** One Meesho column: what it took (minus) or gave back on RTO, returns, exchanges and lost parcels. */
+@Serializable data class RetCol(val key: String = "", val label: String = "", val rto: Long = 0, val ret: Long = 0, val exch: Long = 0, val lost: Long = 0)
 @Serializable data class Groups(val rto: Group = Group(), val ret: Group = Group(), val exch: Group = Group(), val lost: Group = Group())
 @Serializable data class RetSku(val sku: String = "", val pn: String = "", val done: Int = 0, val rto: Int = 0, val lost: Int = 0, val ret: Int = 0, val exch: Int = 0, val rtoRate: Double = 0.0, val retRate: Double = 0.0, val exchRate: Double = 0.0, val loss: Long = 0)
 @Serializable data class Returns(
     val done: Int = 0, val delivered: Int = 0, val transit: Int = 0, val loss: Long = 0,
     val rtoRate: Double = 0.0, val retRate: Double = 0.0, val exchRate: Double = 0.0, val lostRate: Double = 0.0,
-    val G: Groups = Groups(), val skus: List<RetSku> = emptyList(),
+    val G: Groups = Groups(), val skus: List<RetSku> = emptyList(), val cols: List<RetCol> = emptyList(),
 )
 @Serializable data class Category(val cat: String = "", val skus: Int = 0, val sold: Int = 0, val NS: Long = 0, val profit: Long = 0, val delivered: Int = 0, val rto: Int = 0, val ret: Int = 0, val loss: Long = 0)
 @Serializable data class SkuRow(

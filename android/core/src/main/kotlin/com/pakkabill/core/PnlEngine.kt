@@ -19,7 +19,7 @@ class PnlEngine {
         val cx = enter()
         try {
             scope = cx.initStandardObjects()
-            for (file in listOf("engine.js", "facade.js")) {
+            for (file in listOf("engine.js", "guide.js", "facade.js")) {
                 val src = PnlEngine::class.java.getResourceAsStream("/pakkabill/$file")?.readBytes()?.toString(Charsets.UTF_8)
                     ?: error("$file missing from the app")
                 cx.evaluateString(scope, src, file, 1, null)
@@ -53,6 +53,9 @@ class PnlEngine {
 
     /** The full report for a period (see [Report]). */
     fun report(stateJson: String): String = call("report", stateJson)
+
+    /** The "How to use" guide of the website (see [Guide]). */
+    fun guide(): String = call("guide")
 
     /** Sample data: files, costs, expenses and settings of the sample store. */
     fun demo(): String = call("demo")

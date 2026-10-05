@@ -21,7 +21,7 @@ class PakkaApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        pnl = PnlController(File(filesDir, "pnl"), scope)
+        pnl = PnlController(File(filesDir, "pnl"), scope, PrefsKeyValue(this, "pnl_ui"))
         val store = installSource(this)
         account = AccountController(Api(userAgent = "PakkaBillApp/${BuildConfig.VERSION_NAME} (Android; store=$store)"), PrefsKeyValue(this, "account"), scope)
     }

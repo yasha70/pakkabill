@@ -117,6 +117,20 @@ class PnlTest {
         assertEquals(100L, st.costs["B2"]!!.c)
     }
 
+    @Test fun hindiAndGuideFromTheWebsite() {
+        val hi = Hindi()
+        assertEquals("मुनाफ़ा-नुकसान", hi.tr("P&L"))
+        assertEquals("डिफ़ॉल्ट जैसा (5% GST बिल)", hi.tr("Same as default (5% GST bill)"))
+        assertEquals("ABC-12", hi.tr("ABC-12"))
+        val g = Guide.parse(engine.guide())
+        assertEquals(10, g.steps.size)
+        assertTrue(g.art["welcome"]!!.startsWith("<svg"))
+        assertTrue(g.terms.isNotEmpty())
+        assertTrue(g.ui["hi"]!!["title"]!!.isNotBlank())
+        val r = PnlStore(Files.createTempDirectory("pnl").toFile(), engine).apply { startSample() }.report(Sel()).first
+        assertTrue(r.health.pd0.isNotBlank() && r.packNote.isNotBlank() && r.returns!!.cols.isNotEmpty())
+    }
+
     @Test fun badFilesGiveClearMessages() {
         assertTrue(SheetReader.read("old.xls", byteArrayOf(0xd0.toByte(), 0xcf.toByte(), 0x11, 0xe0.toByte(), 0, 0)).problems.single().contains(".xls"))
         assertTrue(SheetReader.read("broken.zip", byteArrayOf(0x50, 0x4b, 3, 4, 9, 9)).problems.single().contains("damaged"))

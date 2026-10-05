@@ -15,8 +15,8 @@ android {
         applicationId = "com.pakkabill.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 4
-        versionName = "3.1"
+        versionCode = 5
+        versionName = "3.2"
     }
 
     buildTypes {
@@ -54,6 +54,7 @@ dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.compose.material.icons)
+    implementation(libs.androidsvg)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.activity.compose)

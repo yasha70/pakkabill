@@ -29,6 +29,16 @@ var PB = (function () {
     });
   }
 
+  // How combo pieces are found (the website's Costs tab note)
+  function packNote(st, M) {
+    var pk = M && M.pk, rule = E.packRule(st, M), v = st.packFromSku, mode = v === true || v === 'sku' ? 'sku' : v === false || v === 'name' ? 'name' : 'auto';
+    var sku = 'When the product name says the size ("Pack of 5"), that is used. Otherwise each letter before the number in the SKU is a piece and a colour in brackets is one more (BPYG05 = 4, PGWM(GREY)05 = 5, G21 = 1); the number is ignored.';
+    var name = 'Read from the product name, like "Combo of 2" or "Pack of 5"; anything else counts as 1 piece.';
+    if (mode !== 'auto') return rule === 'sku' ? sku : name;
+    if (rule === 'sku' && pk) return 'Automatic: your SKUs follow the letters rule (' + pk.agree + ' of ' + pk.stated + ' combo names agree). ' + sku;
+    return 'Automatic: ' + name;
+  }
+
   function fileCatFn(M) {
     var m = (M && M.cats) || {}, ix = {};
     for (var k in m) ix[k.replace(/^\s+|\s+$/g, '').toUpperCase()] = m[k];
@@ -97,7 +107,12 @@ var PB = (function () {
 
     out.months = months.map(function (m) { return { m: m, label: E.fmtMonth(m) }; });
     out.per = per; out.sel = sel;
-    out.health = { legs: H.legs, ordRows: H.ordRows };
+    out.health = H;
+    out.dup = M.dup || {};
+    // amounts of each expense counted in this period (the website's Expenses tab shows them)
+    out.expIn = {}; R.EXL.forEach(function (x) { out.expIn[x.id] = x.amt; });
+    out.packNote = packNote(cfg, M);
+    out.packAgree = M.pk ? { agree: M.pk.agree, stated: M.pk.stated } : null;
     out.sum = {
       NP: R.NP, NS: R.NS, NR: R.NR, margin: R.margin, payout: R.payout, COGS: R.COGS, sales: K.sales, del: K.del || 0,
       perDel: K.del ? Math.round(R.NP / K.del) : 0, pieces: K.fu, rdef: K.rdef, revPend: K.revPend, revPendV: K.revPendV,
@@ -111,7 +126,7 @@ var PB = (function () {
     out.gstRows = R.gst ? E.gstRows(R.gst).map(function (x) { return { l: x[0], v: x[1], b: !!x[2] }; }) : [];
     out.returns = RV ? { done: RV.done, delivered: RV.delivered, transit: RV.transit, loss: RV.loss,
       rtoRate: RV.rtoRate, retRate: RV.retRate, exchRate: RV.exchRate, lostRate: RV.lostRate, G: RV.G,
-      skus: RV.skus.slice(0, 50) } : null;
+      skus: RV.skus.slice(0, 50), cols: RV.cols.filter(function (c) { return c.rto || c.ret || c.exch || c.lost; }) } : null;
     out.categories = cats;
     out.skus = R.skus.map(function (x) {
       return { sku: x.sku, pn: x.pn, pcs: x.pcs, sold: x.sold, units: x.units, retRto: x.retU + x.rto, delivered: x.delivered || 0,
@@ -136,5 +151,7 @@ var PB = (function () {
 
   function money(p) { return E.money(p, { sym: '₹', noPaise: true }); }
 
-  return { ingest: ingest, report: report, demo: demo, money: money, catNames: function () { return JSON.stringify(E.catNames()); } };
+  function guide() { return typeof GUIDE === 'undefined' ? '{}' : JSON.stringify(GUIDE); }
+
+  return { ingest: ingest, report: report, demo: demo, money: money, guide: guide, catNames: function () { return JSON.stringify(E.catNames()); } };
 })();

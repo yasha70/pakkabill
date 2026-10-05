@@ -39,9 +39,13 @@ import com.pakkabill.app.files.PageFile
 import com.pakkabill.app.platform.AndroidPlatform
 import com.pakkabill.app.platform.LocalPlatform
 import com.pakkabill.app.ui.LockScreen
+import com.pakkabill.app.ui.Fonts
 import com.pakkabill.app.ui.PakkaBillTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import com.pakkabill.app.ui.Root
-import com.pakkabill.app.ui.Tab
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -52,10 +56,11 @@ class MainActivity : FragmentActivity() {
     private lateinit var settings: AppSettings
     private lateinit var biometric: BiometricPrompt
     private val snackbar = SnackbarHostState()
+    private var androidPlatform: AndroidPlatform? = null
 
     private var locked by mutableStateOf(false)
     private var lockOn by mutableStateOf(false)
-    private var startTab by mutableStateOf(Tab.PNL)
+    private var startTab by mutableStateOf("pl")
     private var prefsLoaded = false
     private var authPurpose = Auth.UNLOCK
     private var backgroundAt = 0L
@@ -121,8 +126,19 @@ class MainActivity : FragmentActivity() {
         }
 
         val platform = AndroidPlatform(this)
+        androidPlatform = platform
+        val fonts = Fonts(
+            head = FontFamily(Font(R.font.anek_latin_600, FontWeight.SemiBold), Font(R.font.anek_latin_700, FontWeight.Bold)),
+            body = FontFamily(Font(R.font.source_sans_400, FontWeight.Normal), Font(R.font.source_sans_600, FontWeight.SemiBold), Font(R.font.source_sans_700, FontWeight.Bold)),
+            mark = FontFamily(Font(R.font.anek_deva_mark, FontWeight.SemiBold)),
+        )
         setContent {
-            PakkaBillTheme {
+            val theme by app.pnl.theme.collectAsState()
+            val lang by app.pnl.lang.collectAsState()
+            val hindi by app.pnl.hindi.collectAsState()
+            val hi = hindi
+            val tr: (String) -> String = if (lang == "hi" && hi != null) hi::tr else { s -> s }
+            PakkaBillTheme(theme = theme, fonts = fonts, lang = lang, tr = tr) {
                 CompositionLocalProvider(LocalPlatform provides platform) {
                     if (locked) LockScreen(onUnlock = ::unlock, onExit = ::finish)
                     else Root(app.pnl, app.account, lockOn, snackbar, startTab)
@@ -146,19 +162,19 @@ class MainActivity : FragmentActivity() {
     private fun handle(intent: Intent?) {
         intent ?: return
         when (intent.action) {
-            ACTION_UPLOAD -> { startTab = Tab.FILES; window.decorView.post { pickMeesho() } }
-            ACTION_COSTS -> startTab = Tab.COSTS
+            ACTION_UPLOAD -> { startTab = "data"; window.decorView.post { pickMeesho() } }
+            ACTION_COSTS -> startTab = "costs"
             Intent.ACTION_SEND -> {
                 @Suppress("DEPRECATION")
                 val uri = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java) else intent.getParcelableExtra(Intent.EXTRA_STREAM)
-                if (uri != null) { startTab = Tab.PNL; readAndAdd(listOf(uri)) }
+                if (uri != null) { startTab = "pl"; readAndAdd(listOf(uri)) }
             }
             Intent.ACTION_SEND_MULTIPLE -> {
                 @Suppress("DEPRECATION")
                 val uris = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java) else intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
-                if (!uris.isNullOrEmpty()) { startTab = Tab.PNL; readAndAdd(uris) }
+                if (!uris.isNullOrEmpty()) { startTab = "pl"; readAndAdd(uris) }
             }
-            Intent.ACTION_VIEW -> intent.data?.let { if (it.scheme == "content" || it.scheme == "file") { startTab = Tab.PNL; readAndAdd(listOf(it)) } }
+            Intent.ACTION_VIEW -> intent.data?.let { if (it.scheme == "content" || it.scheme == "file") { startTab = "pl"; readAndAdd(listOf(it)) } }
         }
     }
 
@@ -180,6 +196,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onDestroy() {
         runCatching { appUpdates.unregisterListener(installListener) }
+        androidPlatform?.shutdown()
         super.onDestroy()
     }
 

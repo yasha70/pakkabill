@@ -2,7 +2,15 @@ package com.pakkabill.app.platform
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.net.Uri
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import com.caverock.androidsvg.SVG
+import java.util.Locale
 import androidx.browser.customtabs.CustomTabColorSchemeParams
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.content.ContextCompat
@@ -57,6 +65,52 @@ class AndroidPlatform(private val a: MainActivity) : Platform {
     }
 
     override fun setAppLock(on: Boolean) = a.toggleLock(on)
+
+    override fun svg(svg: String, widthPx: Int): ImageBitmap? = runCatching {
+        val doc = SVG.getFromString(svg)
+        val vb = doc.documentViewBox
+        val w = widthPx.coerceAtLeast(1)
+        val hgt = if (vb != null && vb.width() > 0) (w * vb.height() / vb.width()).toInt() else w / 2
+        doc.setDocumentWidth(w.toFloat()); doc.setDocumentHeight(hgt.toFloat())
+        val bmp = Bitmap.createBitmap(w, hgt.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+        doc.renderToCanvas(Canvas(bmp))
+        bmp.asImageBitmap()
+    }.getOrNull()
+
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private val pending = mutableListOf<() -> Unit>()
+
+    override fun speak(text: String, hindi: Boolean, done: () -> Unit): Boolean {
+        val go = {
+            val t = tts
+            if (t != null && ttsReady) {
+                t.language = if (hindi) Locale.forLanguageTag("hi-IN") else Locale.forLanguageTag("en-IN")
+                t.setSpeechRate(if (hindi) 0.95f else 1f)
+                t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(id: String?) {}
+                    override fun onDone(id: String?) { a.runOnUiThread(done) }
+                    @Deprecated("Deprecated in Java") override fun onError(id: String?) { a.runOnUiThread(done) }
+                })
+                t.speak(text, TextToSpeech.QUEUE_FLUSH, null, "pb-guide")
+            }
+        }
+        if (tts == null) {
+            tts = TextToSpeech(a) { status ->
+                ttsReady = status == TextToSpeech.SUCCESS
+                a.runOnUiThread { if (ttsReady) pending.forEach { it() } else pending.clear(); pending.clear() }
+            }
+            pending += go
+            return true
+        }
+        if (!ttsReady) return false
+        go()
+        return true
+    }
+
+    override fun stopSpeaking() { runCatching { tts?.stop() } }
+
+    fun shutdown() { runCatching { tts?.shutdown() }; tts = null }
 
     override fun rateApp() {
         a.leavingForOwnIntent()

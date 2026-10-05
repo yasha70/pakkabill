@@ -2,7 +2,10 @@ package com.pakkabill.app.pnl
 
 import com.pakkabill.core.AddResult
 import com.pakkabill.core.Cost
+import com.pakkabill.app.data.KeyValue
 import com.pakkabill.core.Expense
+import com.pakkabill.core.Guide
+import com.pakkabill.core.Hindi
 import com.pakkabill.core.PnlEngine
 import com.pakkabill.core.PnlSettings
 import com.pakkabill.core.PnlState
@@ -44,7 +47,7 @@ data class PnlUi(
  * Runs the Meesho P&L on one background thread (the engine is not thread safe) and keeps the
  * screens up to date. The last report is kept on the phone so the app opens instantly.
  */
-class PnlController(private val dir: File, private val scope: CoroutineScope) {
+class PnlController(private val dir: File, private val scope: CoroutineScope, private val kv: KeyValue) {
     // a big stack: the engine works through large Meesho files
     private val worker = Executors.newSingleThreadExecutor { r -> Thread(null, r, "pnl-engine", 64L shl 20) }.asCoroutineDispatcher()
     private lateinit var store: PnlStore
@@ -53,20 +56,52 @@ class PnlController(private val dir: File, private val scope: CoroutineScope) {
     private val _ui = MutableStateFlow(PnlUi())
     val ui: StateFlow<PnlUi> = _ui.asStateFlow()
 
+    /* ---------------- the seller's choices, kept on the phone ---------------- */
+
+    /** "en" or "hi": the whole P&L in English or Hindi, like the website's EN / हिंदी switch. */
+    val lang = MutableStateFlow(kv.get("lang") ?: "en")
+    /** "auto", "light" or "dark" (Settings, Appearance). */
+    val theme = MutableStateFlow(kv.get("theme") ?: "auto")
+    /** next steps hidden, returns checked, a report downloaded (as the website remembers them) */
+    val flags = MutableStateFlow(kv.get("flags")?.split(',')?.filter { it.isNotBlank() }?.toSet() ?: emptySet())
+    /** The website's Hindi dictionary, loaded when Hindi is first chosen. */
+    val hindi = MutableStateFlow<Hindi?>(null)
+    /** The "How to use" guide. */
+    val guide = MutableStateFlow<Guide?>(null)
+
+    fun setLang(l: String) {
+        lang.value = l; kv.put("lang", l)
+        if (l == "hi") loadHindi()
+    }
+    fun setTheme(v: String) { theme.value = v; kv.put("theme", v) }
+    fun flag(f: String) { val n = flags.value + f; flags.value = n; kv.put("flags", n.joinToString(",")) }
+
+    private fun loadHindi() {
+        if (hindi.value != null) return
+        scope.launch(kotlinx.coroutines.Dispatchers.Default) { runCatching { Hindi() }.onSuccess { hindi.value = it } }
+    }
+
+    /** One step of undo for "Fill costs automatically". */
+    private var lastFill: Pair<Map<String, Cost>, String>? = null
+    val undoLabel = MutableStateFlow<String?>(null)
+
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val messages: SharedFlow<String> = _messages
 
     init {
         dir.mkdirs()
+        if (lang.value == "hi") loadHindi()
         scope.launch(worker) {
             // show the last report straight away, then work it out again with the engine
             runCatching { json.decodeFromString(Report.serializer(), cacheFile.readText()) }.getOrNull()?.let { cached ->
                 _ui.update { it.copy(report = cached, fileCount = cached.files.size) }
             }
             try {
-                store = PnlStore(dir, PnlEngine())
+                val engine = PnlEngine()
+                store = PnlStore(dir, engine)
                 _ui.update { it.copy(ready = true) }
                 recompute()
+                runCatching { guide.value = Guide.parse(engine.guide()) }
             } catch (e: Throwable) {
                 _ui.update { it.copy(ready = false, busy = null) }
                 say("The P&L could not start on this phone: ${e.message ?: e.javaClass.simpleName}")
@@ -142,6 +177,26 @@ class PnlController(private val dir: File, private val scope: CoroutineScope) {
         store.setCosts(change)
         say("$what for ${change.size} SKU" + if (change.size == 1) "." else "s.")
     }
+
+    /** Fill costs automatically, with one step of undo; [message] is shown when done. */
+    fun fillCosts(label: String, plan: Map<String, Long>, message: String) = work("Working") {
+        if (plan.isEmpty()) { say(message); return@work }
+        lastFill = store.current.costs to label
+        undoLabel.value = label
+        store.setCosts(plan.mapValues { (_, c) -> { cur: Cost -> cur.copy(c = c) } })
+        say(message)
+    }
+
+    fun undoFill() = work("Working") {
+        val (before, label) = lastFill ?: return@work
+        lastFill = null
+        undoLabel.value = null
+        store.update { it.copy(costs = before) }
+        say("Undone: $label")
+    }
+
+    /** One field of one SKU, as typed in the Costs list (the website's change event). */
+    fun setCostField(sku: String, change: (Cost) -> Cost) = work(null) { store.setCost(sku) { change(it) } }
 
     /** Return or RTO parcel condition: "ok" back in stock, "loss" not resellable. */
     fun setMark(orderId: String, cond: String) = work(null) { store.setMark(orderId, cond) }

@@ -29,6 +29,11 @@ interface Platform {
     fun openUrl(url: String)
     fun openWhatsApp(phone: String, text: String)
     fun setAppLock(on: Boolean)
+    /** A picture of the guide (SVG from the website) as an image [widthPx] wide, or null. */
+    fun svg(svg: String, widthPx: Int): androidx.compose.ui.graphics.ImageBitmap?
+    /** Reads text aloud in English or Hindi; [done] runs when it finishes. False when the phone has no voice. */
+    fun speak(text: String, hindi: Boolean, done: () -> Unit): Boolean
+    fun stopSpeaking()
     fun rateApp()
     fun shareApp()
 }
