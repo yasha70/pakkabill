@@ -211,13 +211,10 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
     }
 
     if (pickDates) ui.report?.let { r -> DateRange(r, { pickDates = false }) { a, b -> pickDates = false; pnl.select(Sel(mode = "custom", from = a, to = b, basis = r.per.basis)) } }
-    if (askLogin) AlertDialog(
-        onDismissRequest = { askLogin = false },
-        text = { Column(Modifier.horizontalScroll(rememberScrollState(), enabled = false)) { AuthCard(account, x.trialDays, { askLogin = false; say(it) }, title = "Log in to see the full report") } },
-        confirmButton = { TextButton(onClick = { askLogin = false }) { Txt("Not now") } },
-        containerColor = h.paper,
-    )
-    LaunchedEffect(acct.loggedIn) { if (acct.loggedIn) askLogin = false }
+    // "Log in or sign up free" opens the account screen; it closes by itself once logged in
+    LaunchedEffect(askLogin) { if (askLogin) { accountOpen = true; askLogin = false } }
+    var wasIn by remember { mutableStateOf(acct.loggedIn) }
+    LaunchedEffect(acct.loggedIn) { if (acct.loggedIn && !wasIn && accountOpen) accountOpen = false; wasIn = acct.loggedIn }
 }
 
 /** .band: indigo strip with the हिसाब mark, the tool's name and the business on the right */
