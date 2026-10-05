@@ -1,8 +1,8 @@
 {
   "apk": "/download/PakkaBill.apk",
-  "version": "3.3",
-  "versionCode": 6,
-  "size": 3509734,
+  "version": "3.4",
+  "versionCode": 7,
+  "size": 3356678,
   "minAndroid": "8.0",
   "package": "com.pakkabill.app",
   "play": "",
