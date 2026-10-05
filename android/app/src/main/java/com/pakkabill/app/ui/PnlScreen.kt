@@ -182,9 +182,16 @@ private fun GstCard(r: Report, ui: PnlUi, act: PnlActions) {
             }
         }
         Spacer(Modifier.height(8.dp))
+        val tcsLeft = r.gst?.tcsUnused ?: 0
         Text(
-            "Meesho deducted ${rsp(-s.T)} TCS (under GST) and ${rsp(-s.D)} TDS (income tax, section 194-O) from these payouts. " +
-                if (s.claim) "Both are added back to profit because you can claim them: TCS in your GST return and TDS in your income tax return (Form 26AS)." else "They are counted as an expense, as chosen in P&L settings.",
+            "Meesho deducted ${rsp(-s.T)} TCS (under GST) and ${rsp(-s.D)} TDS (income tax, section 194-O) from these payouts. " + when {
+                !s.claim -> "They are counted as an expense, as chosen in P&L settings."
+                else -> "TDS is added back to profit: you get it back when you file your income tax return (it shows in Form 26AS). " + when {
+                    !s.REGD -> "Without GST registration the TCS cannot be used, so it is not counted as profit."
+                    tcsLeft > 0 -> "TCS sits in your GST cash ledger and can only pay GST. ${rsp(tcsLeft)} of it is more than the GST left to pay, so it is not counted as profit; it stays there for future GST."
+                    else -> "TCS sits in your GST cash ledger and can only pay GST, so it counts as profit only up to the GST you have to pay. Here all of it is used."
+                }
+            },
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (r.gst != null) Text(

@@ -88,8 +88,10 @@ class PnlTest {
         store.update { it.copy(settings = it.settings.copy(buyGst = 5)) }
         val r = store.report(Sel()).first
         // input credit only pays GST on sales: the gain is the GST no longer paid in cash, never more
-        assertEquals(1921921, r.sum.NP)
+        // and TCS only pays GST: with no GST left to pay, it is not profit either (TDS still is)
+        assertEquals(1866808, r.sum.NP)
         assertEquals(146516, r.gst!!.unusable)
+        assertEquals(55113, r.gst!!.tcsUnused)
         assertEquals(273298, r.gst!!.itcGoods)
         assertTrue(r.checks.bridge && r.checks.sku)
         assertTrue(r.gstRows.any { it.l.startsWith("GST credit carried forward") })
@@ -97,7 +99,7 @@ class PnlTest {
         store.setCost("MN08") { it.copy(b = 12) }
         store.setCost("BG32") { it.copy(b = 0) }
         val r2 = store.report(Sel()).first
-        assertEquals(1921921, r2.sum.NP)
+        assertEquals(1866808, r2.sum.NP)
         assertEquals(12, r2.costs.first { it.sku == "MN08" }.rate)
         assertEquals(0, r2.costs.first { it.sku == "BG32" }.rate)
         // orders and payouts for the Orders tab

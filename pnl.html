@@ -1009,6 +1009,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     r.push(['Less: TCS already collected by Meesho', -g.tcs]);
     r.push(g.cash >= 0 ? ['GST left to pay in cash', g.cash, 1] : ['GST credit carried forward (nothing to pay in cash)', -g.cash, 1]);
     if (g.unusable) r.push(['Input credit not counted as profit (only pays future GST)', g.unusable]);
+    if (g.tcsUnused) r.push(['TCS not counted as profit (only pays future GST)', g.tcsUnused]);
     return r;
   }
   function condOf(x, cfg, marks) {
@@ -1213,7 +1214,12 @@ details.more[open] > summary { margin-bottom: 10px; }
     /* Input credit is never paid out in cash: it can only pay GST on sales. Credit beyond the GST
        on sales of the period stays in the GST portal for later returns, so it is not profit. */
     var UNU = REGD ? Math.max(0, ITC - K.OUT) : 0;
-    NP -= UNU;
+    /* TDS (income tax) comes back in the income tax return, so it is added back in full. TCS sits
+       in the GST cash ledger and can only pay GST: it counts only up to the GST left to pay after
+       input credit; the rest is not profit (nor any of it without GST registration). */
+    var tcsLoss = !claim ? 0 : REGD ? Math.max(0, -K.T - Math.max(0, K.OUT - ITC)) : -K.T;
+    NP -= UNU + tcsLoss;
+    addBack -= tcsLoss;
     var bridgeNP = payout + addBack - Math.max(0, K.OUT - ITC) - COGS - K.IG - OPEX;
 
     var skus = Object.keys(SK).map(function (k) {
@@ -1238,7 +1244,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       x.breakEven = x.sold && keep ? Math.max(0, Math.round(x.avgPrice - perSold / (keep * netShare))) : 0;
       return x;
     }).sort(function (a, b) { return b.NS - a.NS || (a.sku < b.sku ? -1 : 1); });
-    var unalloc = K.ADJ + K.REF + adsNet - EXP - UNU, skuSum = 0;
+    var unalloc = K.ADJ + K.REF + adsNet - EXP - UNU - tcsLoss, skuSum = 0;
     skus.forEach(function (x) { skuSum += x.contrib; });
     K.del = 0; skus.forEach(function (x) { K.del += x.delivered; });
 
@@ -1280,10 +1286,11 @@ details.more[open] > summary { margin-bottom: 10px; }
     row('Packaging (' + K.parcels + ' parcels)', -K.pack);
     EXL.forEach(function (e) { row(e.name + (e.when === 'monthly' ? ' (monthly)' : ''), -e.amt); });
     tot('Total operating expenses', -OPEX);
-    if (UNU) {
-      sec('GST input credit not usable yet');
-      row('Input credit more than GST on sales (kept in the GST portal to pay future GST, not cash)', -UNU);
-      tot('Total credit not counted as profit', -UNU);
+    if (UNU || tcsLoss) {
+      sec('Tax credits not counted as profit');
+      if (UNU) row('Input credit more than GST on sales (kept in the GST portal to pay future GST, not cash)', -UNU);
+      if (tcsLoss) row(REGD ? 'TCS more than the GST left to pay (stays in the GST cash ledger for future GST)' : 'TCS deducted by Meesho (no GST registration to use it)', -tcsLoss);
+      tot('Total credit not counted as profit', -(UNU + tcsLoss));
     }
     tot('Net profit', NP, 'np');
 
@@ -1293,7 +1300,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     if (K.REF) bridge.push({ l: 'Referral payments', v: K.REF });
     if (K.ADJ) bridge.push({ l: 'Account-level compensation & recovery', v: K.ADJ });
     bridge.push({ l: 'Money received from Meesho', v: payout, k: 'sub' });
-    if (addBack) bridge.push({ l: 'Add back: TCS & TDS deducted (you claim these)', v: addBack });
+    if (addBack) bridge.push({ l: tcsLoss ? 'Add back: TDS (claimed in your ITR) and the TCS used to pay GST' : 'Add back: TCS & TDS deducted (you claim these)', v: addBack });
     if (REGD) bridge.push(K.OUT - ITC >= 0 ? { l: 'Less: GST payable (output GST minus input credit)', v: -(K.OUT - ITC) }
       : { l: 'GST payable: none (input credit covers it; the extra credit is not counted as profit)', v: 0 });
     bridge.push({ l: 'Less: cost of goods sold', v: -COGS });
@@ -1301,7 +1308,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     bridge.push({ l: 'Less: operating expenses', v: -OPEX });
     bridge.push({ l: 'Net profit', v: bridgeNP, k: 'np' });
 
-    var gst = REGD ? { out: K.OUT, itcCh: -CHG, itcAds: -K.ADG, itcGoods: K.IG, itc: ITC, net: K.OUT - ITC, tcs: -K.T, cash: K.OUT - ITC + K.T, unusable: UNU } : null;
+    var gst = REGD ? { out: K.OUT, itcCh: -CHG, itcAds: -K.ADG, itcGoods: K.IG, itc: ITC, net: K.OUT - ITC, tcs: -K.T, cash: K.OUT - ITC + K.T, unusable: UNU, tcsUnused: tcsLoss } : null;
     var missing = Object.keys(NC).map(function (k) { return { sku: k, units: NC[k] }; }).sort(function (a, b) { return b.units - a.units; });
 
     var colList = Object.keys(COLS).map(function (k) {
@@ -1312,7 +1319,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     return {
       per: per, REGD: REGD, claim: claim, K: K, CH: CH, cols: colList,
       NS: NS, NR: NR, COGS: COGS, GP: GP, MCx: MCx, taxExp: taxExp, OCR: OCR, credits: credits, adsNet: adsNet,
-      EXL: EXL, EXP: EXP, OPEX: OPEX, NP: NP, payout: payout, ITC: ITC, addBack: addBack, UNU: UNU,
+      EXL: EXL, EXP: EXP, OPEX: OPEX, NP: NP, payout: payout, ITC: ITC, addBack: addBack, UNU: UNU, tcsLoss: tcsLoss,
       margin: NR ? NP / NR : 0, returnRate: K.parcels ? (K.retn + K.rton) / K.parcels : 0,
       lines: lines, bridge: bridge, gst: gst, skus: skus, unalloc: unalloc, missing: missing,
       checks: { bridge: bridgeNP === NP, sku: skuSum + unalloc === NP, bridgeNP: bridgeNP, skuSum: skuSum }
@@ -2952,7 +2959,11 @@ details.more[open] > summary { margin-bottom: 10px; }
       tx += '<p>GST is not split out because GST registration is off in Settings. Meesho charges and ads are counted including GST.</p>';
     }
     tx += '<p class="small" style="margin:10px 0 0">Meesho deducted ' + rs(-K.T) + ' TCS (under GST) and ' + rs(-K.D) + ' TDS (income tax, section 194-O) from these payouts. ' +
-      (R.claim ? 'Both are added back to profit because you can claim them: TCS in your GST return and TDS in your income tax return, where it shows in Form 26AS.' : 'They are counted as an expense, as chosen in Settings.') + '</p>';
+      (!R.claim ? 'They are counted as an expense, as chosen in Settings.'
+        : 'TDS is added back to profit: you get it back when you file your income tax return (it shows in Form 26AS). ' +
+          (!R.REGD ? 'Without GST registration the TCS cannot be used, so it is not counted as profit.'
+            : R.tcsLoss ? 'TCS sits in your GST cash ledger and can only pay GST. ' + rs(R.tcsLoss) + ' of it is more than the GST left to pay, so it is not counted as profit; it stays there for future GST.'
+            : 'TCS sits in your GST cash ledger and can only pay GST, so it counts as profit only up to the GST you have to pay. Here all of it is used.')) + '</p>';
     if (g) tx += '<p class="small muted" style="margin:6px 0 0">Input credit is worked out at 18% on the columns Meesho marks as including GST. Check it against Meesho\u2019s monthly tax invoice before you file.</p>';
     h += '<details class="sheet more"><summary>GST, TCS and TDS</summary>' + tx + '</details>';
 

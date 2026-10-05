@@ -60,7 +60,7 @@ val json = KJson { ignoreUnknownKeys = true; isLenient = true; explicitNulls = f
 )
 @Serializable data class Vs(val prev: String = "", val prevLabel: String = "", val diff: Long = 0)
 @Serializable data class Line(val k: String? = null, val l: String = "", val v: Long = 0)
-@Serializable data class Gst(val out: Long = 0, val itcCh: Long = 0, val itcAds: Long = 0, val itcGoods: Long = 0, val itc: Long = 0, val net: Long = 0, val tcs: Long = 0, val cash: Long = 0, val unusable: Long = 0)
+@Serializable data class Gst(val out: Long = 0, val itcCh: Long = 0, val itcAds: Long = 0, val itcGoods: Long = 0, val itc: Long = 0, val net: Long = 0, val tcs: Long = 0, val cash: Long = 0, val unusable: Long = 0, val tcsUnused: Long = 0)
 @Serializable data class Group(val n: Int = 0, val pcs: Int = 0, val retFee: Long = 0, val fwdShip: Long = 0, val fees: Long = 0, val back: Long = 0, val pack: Long = 0, val stock: Long = 0, val pending: Int = 0, val noPay: Int = 0, val loss: Long = 0)
 @Serializable data class Groups(val rto: Group = Group(), val ret: Group = Group(), val exch: Group = Group(), val lost: Group = Group())
 @Serializable data class RetSku(val sku: String = "", val pn: String = "", val done: Int = 0, val rto: Int = 0, val lost: Int = 0, val ret: Int = 0, val exch: Int = 0, val rtoRate: Double = 0.0, val retRate: Double = 0.0, val exchRate: Double = 0.0, val loss: Long = 0)
