@@ -82,6 +82,37 @@ class PnlTest {
         assertTrue(cost.autoCat.contains("saree", ignoreCase = true), cost.autoCat)
     }
 
+    @Test fun goodsBoughtWithGstBill() {
+        val store = PnlStore(Files.createTempDirectory("pnl").toFile(), engine)
+        store.startSample()
+        store.update { it.copy(settings = it.settings.copy(buyGst = 5)) }
+        val r = store.report(Sel()).first
+        assertEquals(2068437, r.sum.NP)
+        assertEquals(273298, r.gst!!.itcGoods)
+        assertTrue(r.checks.bridge && r.checks.sku)
+        assertTrue(r.gstRows.any { it.l.startsWith("GST credit carried forward") })
+        // one SKU without a bill, another at 12%
+        store.setCost("MN08") { it.copy(b = 12) }
+        store.setCost("BG32") { it.copy(b = 0) }
+        val r2 = store.report(Sel()).first
+        assertEquals(2078813, r2.sum.NP)
+        assertEquals(12, r2.costs.first { it.sku == "MN08" }.rate)
+        assertEquals(0, r2.costs.first { it.sku == "BG32" }.rate)
+        // orders and payouts for the Orders tab
+        assertEquals(433, r2.orders.size)
+        assertEquals(5, r2.reconcile["issues"]!!.n)
+        assertTrue(r2.payouts.isNotEmpty())
+    }
+
+    @Test fun oldSavedCostsDoNotWipeEverything() {
+        val dir = Files.createTempDirectory("pnl").toFile()
+        dir.resolve("state.json").writeText("""{"costs":{"A1":{"c":9500,"p":2,"n":"note"},"B2":{"c":100}},"expenses":[{"id":"x","name":"Rent","amt":500000,"when":"monthly"}],"settings":{"biz":"Kavya"}}""")
+        val st = PnlStore(dir, engine).state
+        assertEquals("Kavya", st.settings.biz)
+        assertEquals(1, st.expenses.size)
+        assertEquals(100L, st.costs["B2"]!!.c)
+    }
+
     @Test fun badFilesGiveClearMessages() {
         assertTrue(SheetReader.read("old.xls", byteArrayOf(0xd0.toByte(), 0xcf.toByte(), 0x11, 0xe0.toByte(), 0, 0)).problems.single().contains(".xls"))
         assertTrue(SheetReader.read("broken.zip", byteArrayOf(0x50, 0x4b, 3, 4, 9, 9)).problems.single().contains("damaged"))
@@ -100,7 +131,9 @@ class PnlTest {
         val bytes = ReportExcel.build(r, "Sample", store.sample!!.state.expenses)
         val sheets = Xlsx.read(SheetReader.unzip(bytes))
         assertEquals("P&L", sheets[0].name)
-        assertTrue(sheets.any { it.name == "SKU wise" && it.rows.size == r.skus.size + 1 })
+        assertTrue(sheets.any { it.name == "SKU wise" && it.rows.size == r.skus.size + 2 })
+        assertTrue(sheets.any { it.name == "Orders" && it.rows.size == r.orders.size + 1 })
+        assertTrue(sheets.any { it.name == "GST" })
         val np = sheets[0].rows.first { it[0] == "Net profit" }[1] as Double
         assertEquals(17951.39, np, 0.001)
     }

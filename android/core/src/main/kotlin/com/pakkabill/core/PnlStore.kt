@@ -18,6 +18,8 @@ import kotlinx.serialization.json.jsonPrimitive
     val gstReg: Boolean = true,
     val taxCredits: String = "claim",
     val defaultGst: Int = 5,
+    /** GST rate on purchase bills for goods (0 = bought without a GST bill). */
+    val buyGst: Int = 0,
     val returnDefault: String = "ok",
     val rtoDefault: String = "ok",
     val overdueDays: Int = 21,
@@ -44,8 +46,25 @@ class PnlStore(private val dir: File, private val engine: PnlEngine) {
     private val filesDir = File(dir, "files").apply { mkdirs() }
     private val stateFile = File(dir, "state.json")
 
-    var state: PnlState = runCatching { json.decodeFromString<PnlState>(stateFile.readText()) }.getOrDefault(PnlState())
+    var state: PnlState = load()
         private set
+
+    /** Saved state; a part that cannot be read (from an older app) is dropped, never the rest. */
+    private fun load(): PnlState {
+        val text = runCatching { stateFile.readText() }.getOrNull() ?: return PnlState()
+        runCatching { return json.decodeFromString<PnlState>(text) }
+        val o = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return PnlState()
+        fun <T> part(key: String, d: T, f: (kotlinx.serialization.json.JsonElement) -> T): T = o[key]?.let { runCatching { f(it) }.getOrNull() } ?: d
+        val costs = part("costs", emptyMap<String, Cost>()) { el ->
+            el.jsonObject.mapNotNull { (k, v) -> runCatching { k to json.decodeFromJsonElement<Cost>(v) }.getOrNull() }.toMap()
+        }
+        return PnlState(
+            costs = costs,
+            marks = part("marks", emptyMap()) { json.decodeFromJsonElement(it) },
+            expenses = part("expenses", emptyList()) { json.decodeFromJsonElement(it) },
+            settings = part("settings", PnlSettings()) { json.decodeFromJsonElement(it) },
+        )
+    }
 
     /** Sample data shown instead of the seller's own (never saved). */
     var sample: Sample? = null
@@ -126,10 +145,27 @@ class PnlStore(private val dir: File, private val engine: PnlEngine) {
     fun eraseEverything() { removeAllFiles(); state = PnlState(); stateFile.delete() }
 
     fun setCost(sku: String, change: (Cost) -> Cost?) = update { s ->
-        val next = change(s.costs[sku] ?: Cost())?.let { c -> c.copy(n = c.n?.ifBlank { null }, k = c.k?.ifBlank { null }) }
+        val next = change(s.costs[sku] ?: Cost())?.let { c -> c.copy(k = c.k?.ifBlank { null }) }
         val costs = s.costs.toMutableMap()
-        if (next == null || (next.c == null && next.p == null && next.k.isNullOrEmpty() && next.n.isNullOrEmpty())) costs.remove(sku) else costs[sku] = next
+        if (next == null || next.isEmpty) costs.remove(sku) else costs[sku] = next
         s.copy(costs = costs)
+    }
+
+    /** Changes many SKUs at once (fill costs, GST bill for a category ...). */
+    fun setCosts(change: Map<String, (Cost) -> Cost?>) = update { s ->
+        val costs = s.costs.toMutableMap()
+        for ((sku, f) in change) {
+            val next = f(costs[sku] ?: Cost())?.let { c -> c.copy(k = c.k?.ifBlank { null }) }
+            if (next == null || next.isEmpty) costs.remove(sku) else costs[sku] = next
+        }
+        s.copy(costs = costs)
+    }
+
+    /** A return or RTO parcel came back fine ("ok") or not resellable ("loss"); null = use the default. */
+    fun setMark(orderId: String, cond: String?) = update { s ->
+        val m = s.marks.toMutableMap()
+        if (cond == null) m.remove(orderId) else m[orderId] = cond
+        s.copy(marks = m)
     }
 
     /** The report for the chosen period, plus the raw JSON (used for the Excel file). */

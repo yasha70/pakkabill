@@ -10,6 +10,7 @@ import com.pakkabill.core.PnlStore
 import com.pakkabill.core.Report
 import com.pakkabill.core.ReportExcel
 import com.pakkabill.core.Sel
+import com.pakkabill.core.SheetReader
 import com.pakkabill.core.json
 import java.io.File
 import java.util.concurrent.Executors
@@ -135,6 +136,35 @@ class PnlController(private val dir: File, private val scope: CoroutineScope) {
     fun select(sel: Sel) = work("Working out ${sel.m ?: "all months"}") { store.update { it.copy(sel = sel) } }
 
     fun setCost(sku: String, cost: Cost?) = work(null) { store.setCost(sku) { cost } }
+
+    /** Changes many SKUs at once; [what] names it in the message ("Cost set for 12 SKUs"). */
+    fun setCosts(change: Map<String, (Cost) -> Cost?>, what: String) = work("Saving") {
+        store.setCosts(change)
+        say("$what for ${change.size} SKU" + if (change.size == 1) "." else "s.")
+    }
+
+    /** Return or RTO parcel condition: "ok" back in stock, "loss" not resellable. */
+    fun setMark(orderId: String, cond: String) = work(null) { store.setMark(orderId, cond) }
+
+    /** Reads a cost sheet (Excel or CSV) with SKU and cost columns, like the website. */
+    fun importCostSheet(name: String, bytes: ByteArray) = work("Reading the cost sheet") {
+        val r = SheetReader.read(name, bytes)
+        val known = _ui.value.report?.costs.orEmpty().associateBy { it.sku.trim().uppercase() }
+        val change = LinkedHashMap<String, (Cost) -> Cost?>()
+        for (f in r.files) for (sh in f.sheets) CostSheet.read(sh.rows).forEach { row ->
+            val sku = known[row.sku.trim().uppercase()]?.sku ?: row.sku
+            change[sku] = { c -> c.copy(c = row.c ?: c.c, n = row.n ?: c.n, p = row.p ?: c.p, k = row.k ?: c.k, b = row.b ?: c.b) }
+        }
+        if (change.isEmpty()) { say("No rows found. The sheet needs an SKU column and a Cost column."); return@work }
+        store.setCosts(change)
+        say("Costs read for ${change.size} SKUs.")
+    }
+
+    /** All SKUs with their costs as an Excel sheet to fill in and read back. */
+    suspend fun costSheet(): ByteArray? = withContext(worker) {
+        val r = _ui.value.report ?: return@withContext null
+        CostSheet.build(r.costs)
+    }
 
     fun saveSettings(s: PnlSettings) = work(null) { store.update { it.copy(settings = s) } }
 

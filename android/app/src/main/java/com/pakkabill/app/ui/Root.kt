@@ -16,6 +16,8 @@ import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
+import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Folder
@@ -60,8 +62,9 @@ import kotlinx.coroutines.launch
 
 enum class Tab(val label: String, val icon: ImageVector, val selectedIcon: ImageVector, val title: String) {
     PNL("P&L", Icons.Outlined.Insights, Icons.Rounded.Insights, "Meesho P&L"),
-    FILES("Files", Icons.Outlined.FolderOpen, Icons.Rounded.Folder, "Meesho files"),
+    ORDERS("Orders", Icons.AutoMirrored.Outlined.ReceiptLong, Icons.AutoMirrored.Rounded.ReceiptLong, "Orders and payments"),
     COSTS("Costs", Icons.Outlined.Inventory2, Icons.Rounded.Inventory2, "Product costs"),
+    FILES("Files", Icons.Outlined.FolderOpen, Icons.Rounded.Folder, "Meesho files"),
     ACCOUNT("Account", Icons.Outlined.AccountCircle, Icons.Rounded.AccountCircle, "Account"),
 }
 
@@ -98,6 +101,8 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
         select = { pnl.select(it) },
         goCosts = { tab = Tab.COSTS },
         goFiles = { tab = Tab.FILES },
+        goOrders = { tab = Tab.ORDERS },
+        openSettings = { settingsOpen = true },
         unlock = ::unlock,
         excel = {
             needFull {
@@ -127,7 +132,7 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
                     TopAppBar(
                         title = { Text(tab.title) },
                         actions = {
-                            if (tab == Tab.PNL || tab == Tab.COSTS) IconButton(onClick = { settingsOpen = true }) { Icon(Icons.Outlined.Tune, "P&L settings") }
+                            if (tab == Tab.PNL || tab == Tab.COSTS || tab == Tab.ORDERS) IconButton(onClick = { settingsOpen = true }) { Icon(Icons.Outlined.Tune, "P&L settings") }
                         },
                         scrollBehavior = scroll,
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background, scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer),
@@ -159,7 +164,18 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
                 when (t) {
                     Tab.PNL -> PnlScreen(ui, access, acct.loggedIn, acct.config?.trialDays ?: 0, padding, actions)
                     Tab.FILES -> FilesScreen(ui, padding, upload = actions.upload, sample = actions.sample, remove = { pnl.removeFile(it.id) }, removeAll = { pnl.removeAllFiles() })
-                    Tab.COSTS -> CostsScreen(ui, padding, save = { sku, c -> pnl.setCost(sku, c) }, goFiles = { tab = Tab.FILES })
+                    Tab.ORDERS -> OrdersScreen(ui, full, padding, setMark = { id, c -> pnl.setMark(id, c) }, unlock = ::unlock, goFiles = { tab = Tab.FILES })
+                    Tab.COSTS -> CostsScreen(
+                        ui, padding,
+                        CostActions(
+                            save = { sku, c -> pnl.setCost(sku, c) },
+                            saveMany = { m, what -> pnl.setCosts(m, what) },
+                            saveSettings = { pnl.saveSettings(it) },
+                            goFiles = { tab = Tab.FILES },
+                            downloadSheet = { scope.launch { pnl.costSheet()?.let { platform.saveFile("PakkaBill-cost-sheet.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", it) } } },
+                            uploadSheet = { platform.pickCostSheet() },
+                        ),
+                    )
                     Tab.ACCOUNT -> AccountScreen(acct, account, lockOn, padding, openPnlSettings = { settingsOpen = true }, say = ::say)
                 }
             }

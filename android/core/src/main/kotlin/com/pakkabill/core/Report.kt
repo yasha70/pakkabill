@@ -26,7 +26,23 @@ val json = KJson { ignoreUnknownKeys = true; isLenient = true; explicitNulls = f
     val costs: List<CostRow> = emptyList(),
     val catList: List<String> = emptyList(),
     val checks: Checks = Checks(),
+    val gstRows: List<GstRow> = emptyList(),
+    val orders: List<OrderRow> = emptyList(),
+    val reconcile: Map<String, Bucket> = emptyMap(),
+    val payouts: List<Payout> = emptyList(),
+    val lastPd: String = "",
+    val firstPd: String = "",
 )
+
+@Serializable data class GstRow(val l: String = "", val v: Long = 0, val b: Boolean = false)
+@Serializable data class Bucket(val n: Int = 0, val amt: Long = 0)
+/** One order as on the website's Reconcile tab. f = what Meesho paid, est = order value when not paid yet. */
+@Serializable data class OrderRow(
+    val id: String = "", val b: String = "", val st: String = "", val label: String = "", val sku: String = "", val pn: String = "",
+    val od: String = "", val pd: String = "", val legs: Int = 0, val f: Long = 0, val est: Long = 0, val cond: String = "",
+    val condDef: Boolean = false, val flags: List<String> = emptyList(), val issue: Boolean = false, val hasPay: Boolean = false, val q: Int = 1,
+)
+@Serializable data class Payout(val d: String = "", val n: Int = 0, val f: Long = 0, val ads: Long = 0, val other: Long = 0, val net: Long = 0, val tx: List<String> = emptyList())
 
 @Serializable data class FileInfo(val id: String = "", val name: String = "", val size: Long = 0, val at: Long = 0, val sheets: List<SheetInfo> = emptyList(), val cats: Int = 0)
 @Serializable data class SheetInfo(val name: String = "", val type: String = "", val n: Int = 0, val from: String? = null, val to: String? = null, val cats: Int? = null)
@@ -40,10 +56,11 @@ val json = KJson { ignoreUnknownKeys = true; isLenient = true; explicitNulls = f
     val sales: Int = 0, val del: Int = 0, val perDel: Long = 0, val pieces: Int = 0, val rdef: Int = 0, val revPend: Int = 0,
     val revPendV: Long = 0, val unexpl: Int = 0, val O: Long = 0, val T: Long = 0, val D: Long = 0, val rlu: Int = 0, val rlv: Long = 0,
     val REGD: Boolean = true, val claim: Boolean = true, val missing: List<Missing> = emptyList(), val unalloc: Long = 0,
+    val IG: Long = 0, val parcels: Int = 0, val OPEX: Long = 0, val GP: Long = 0, val adsNet: Long = 0,
 )
 @Serializable data class Vs(val prev: String = "", val prevLabel: String = "", val diff: Long = 0)
 @Serializable data class Line(val k: String? = null, val l: String = "", val v: Long = 0)
-@Serializable data class Gst(val out: Long = 0, val itcCh: Long = 0, val itcAds: Long = 0, val itc: Long = 0, val net: Long = 0, val tcs: Long = 0, val cash: Long = 0)
+@Serializable data class Gst(val out: Long = 0, val itcCh: Long = 0, val itcAds: Long = 0, val itcGoods: Long = 0, val itc: Long = 0, val net: Long = 0, val tcs: Long = 0, val cash: Long = 0)
 @Serializable data class Group(val n: Int = 0, val pcs: Int = 0, val retFee: Long = 0, val fwdShip: Long = 0, val fees: Long = 0, val back: Long = 0, val pack: Long = 0, val stock: Long = 0, val pending: Int = 0, val noPay: Int = 0, val loss: Long = 0)
 @Serializable data class Groups(val rto: Group = Group(), val ret: Group = Group(), val exch: Group = Group(), val lost: Group = Group())
 @Serializable data class RetSku(val sku: String = "", val pn: String = "", val done: Int = 0, val rto: Int = 0, val lost: Int = 0, val ret: Int = 0, val exch: Int = 0, val rtoRate: Double = 0.0, val retRate: Double = 0.0, val exchRate: Double = 0.0, val loss: Long = 0)
@@ -56,16 +73,28 @@ val json = KJson { ignoreUnknownKeys = true; isLenient = true; explicitNulls = f
 @Serializable data class SkuRow(
     val sku: String = "", val pn: String = "", val pcs: Int = 1, val sold: Int = 0, val units: Int = 0, val retRto: Int = 0, val delivered: Int = 0,
     val NS: Long = 0, val contrib: Long = 0, val perOrder: Long = 0, val avgPrice: Long = 0, val breakEven: Long = 0, val cat: String = "",
+    val COGS: Long = 0, val MC: Long = 0, val pack: Long = 0, val perUnit: Long = 0, val ret: Int = 0, val rto: Int = 0,
 )
-@Serializable data class MonthRow(val m: String = "", val label: String = "", val NS: Long = 0, val GP: Long = 0, val NP: Long = 0, val payout: Long = 0, val MCx: Long = 0)
+@Serializable data class MonthRow(
+    val m: String = "", val label: String = "", val NS: Long = 0, val GP: Long = 0, val NP: Long = 0, val payout: Long = 0, val MCx: Long = 0,
+    val COGS: Long = 0, val ads: Long = 0, val OPEX: Long = 0, val orders: Int = 0, val parcels: Int = 0,
+)
 @Serializable data class CostRow(
     val sku: String = "", val pn: String = "", val orders: Int = 0, val units: Int = 0, val pcs: Int = 1, val auto: Int = 1,
     val autoCat: String = "", val cat: String = "", val price: Long = 0, val cost: Long? = null,
+    /** saved pieces, packaging per parcel and GST bill rate (null = default); rate that applies; cost after GST credit */
+    val n: Int? = null, val pack: Long? = null, val b: Int? = null, val rate: Int = 0, val netCost: Long? = null,
 )
 @Serializable data class Checks(val bridge: Boolean = true, val sku: Boolean = true)
 
-/** What the seller keeps per SKU: cost per piece (paise), pieces per order, note, category. */
-@Serializable data class Cost(val c: Long? = null, val p: Int? = null, val n: String? = null, val k: String? = null)
+/**
+ * What the seller keeps per SKU (same fields as the website): c = cost of one piece as paid, in
+ * paise; n = pieces in one order (combo); p = packaging per parcel, in paise; k = category;
+ * b = GST rate on the purchase bill (0 = no GST bill, null = the default in settings).
+ */
+@Serializable data class Cost(val c: Long? = null, val n: Int? = null, val p: Long? = null, val k: String? = null, val b: Int? = null) {
+    val isEmpty get() = c == null && n == null && p == null && k.isNullOrEmpty() && b == null
+}
 
 /** An expense outside Meesho: amount in paise, when = "monthly" or a month like "2026-08" (one time). */
 @Serializable data class Expense(val id: String = "", val name: String = "", val amt: Long = 0, val `when`: String = "monthly")

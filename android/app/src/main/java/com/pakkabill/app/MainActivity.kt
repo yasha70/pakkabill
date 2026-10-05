@@ -76,6 +76,14 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    private val costPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@registerForActivityResult
+        lifecycleScope.launch {
+            val bytes = withContext(Dispatchers.IO) { runCatching { contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull() }
+            if (bytes == null) say("Could not read this file.") else app.pnl.importCostSheet(displayName(uri), bytes)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
@@ -182,6 +190,11 @@ class MainActivity : FragmentActivity() {
     fun pickMeesho() {
         leavingForOwnIntent()
         runCatching { meeshoPicker.launch(arrayOf("*/*")) }.onFailure { say("No file picker found on this phone.") }
+    }
+
+    fun pickCostSheet() {
+        leavingForOwnIntent()
+        runCatching { costPicker.launch(arrayOf("*/*")) }.onFailure { say("No file picker found on this phone.") }
     }
 
     fun pickBackup() {

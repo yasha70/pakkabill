@@ -29,9 +29,17 @@ swipe_up; cap 04-pnl-scroll2 2
 swipe_up; swipe_up; cap 05-pnl-scroll3 2
 
 echo "== tabs" >> "$R"
+tap "Orders"; cap 06a-orders 3
+tap "Needs attention"; cap 06b-orders-issues 3
 tap "Costs"; cap 06-costs 3
 tap "MN08"; cap 07-cost-dialog 3
 adb shell input keyevent KEYCODE_BACK; sleep 1
+echo "== GST bill on purchases" >> "$R"
+tap "GST bill & packing"; cap 07a-defaults 2
+tap "5% GST bill"; tap "Save"; cap 07b-costs-gst 6
+tap "P&L"; sleep 4; cap 07c-pnl-gst 2
+for i in 1 2 3 4 5 6 7 8; do swipe_up; done; cap 07d-pnl-gst-section 2
+adb logcat -d | grep -E "PakkaBill P&L" | tail -2 >> "$R"
 tap "Files"; cap 08-files 3
 tap "Account"; cap 09-account 3
 tap "P&L settings and expenses"; cap 10-pnl-settings 3

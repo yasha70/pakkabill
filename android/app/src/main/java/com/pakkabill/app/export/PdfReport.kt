@@ -197,14 +197,11 @@ object PdfReport {
                 r.monthly.map { if (it.NP < 0) LOSS else null },
             )
         }
-        r.gst?.let { g ->
+        if (r.gstRows.isNotEmpty()) {
             pen.heading("GST, TCS and TDS")
-            pen.row("GST on sales", amt(g.out))
-            pen.row("Input credit on Meesho fees", amt(g.itcCh))
-            pen.row("Input credit on ads", amt(g.itcAds))
-            pen.row("Net GST to pay", amt(g.net), bold = true)
-            pen.row("TCS and TDS deducted by Meesho", amt(g.tcs))
-            pen.row("GST to pay in cash", amt(g.cash), bold = true)
+            r.gstRows.forEach { g -> pen.row(g.l, amt(g.v), bold = g.b) }
+            pen.row("TCS deducted by Meesho", Money.rs(-s.T, true))
+            pen.row("TDS deducted by Meesho (194-O)", Money.rs(-s.D, true))
         }
         pen.heading("How profit ties to money received")
         r.bridge.forEach { b -> pen.row(b.l, amt(b.v), bold = b.k != null) }

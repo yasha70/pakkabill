@@ -26,6 +26,15 @@ import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.TableChart
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.DateRange
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DateRangePicker
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -66,6 +75,8 @@ class PnlActions(
     val select: (Sel) -> Unit,
     val goCosts: () -> Unit,
     val goFiles: () -> Unit,
+    val goOrders: () -> Unit,
+    val openSettings: () -> Unit,
     val unlock: () -> Unit,
     val excel: () -> Unit,
     val pdf: () -> Unit,
@@ -91,7 +102,9 @@ fun PnlScreen(ui: PnlUi, access: Access, loggedIn: Boolean, trialDays: Int, padd
         item("hero") { Hero(r) }
         item("tiles") { Tiles(r) }
         item("actions") { ExportRow(act) }
+        item("steps") { NextSteps(r, ui, act) }
         item("notes") { Notes(r, ui, act) }
+        item("insights") { Insights(r, ui, full, act) }
         if (!full) {
             item("lock") {
                 LockCard(
@@ -114,8 +127,28 @@ fun PnlScreen(ui: PnlUi, access: Access, loggedIn: Boolean, trialDays: Int, padd
         }
         item("statement") { Statement(r, ui.state.settings.biz) }
         if (r.monthly.size > 1) item("monthly") {
-            SectionCard("Month by month", subtitle = "Net profit") {
+            SectionCard("Month by month", subtitle = "Net profit, counted by " + if (r.per.basis == "order") "order date" else "payment date") {
                 MonthBars(r.monthly.map { shortMonth(it.label) to it.NP })
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth()) {
+                    listOf("Month", "Net sales", "Gross profit", "Net profit", "Received").forEachIndexed { i, h ->
+                        Text(h, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(if (i == 0) 0.8f else 1f), textAlign = if (i == 0) null else androidx.compose.ui.text.style.TextAlign.End)
+                    }
+                }
+                r.monthly.forEach { m ->
+                    Divider()
+                    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                        Text(shortMonth(m.label), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(0.8f))
+                        listOf(m.NS, m.GP, m.NP, m.payout).forEachIndexed { i, v ->
+                            Text(
+                                rs(v), style = MaterialTheme.typography.bodySmall.merge(TabularNums), modifier = Modifier.weight(1f),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.End, fontWeight = if (i == 2) FontWeight.SemiBold else null,
+                                color = if (i == 2 && v < 0) LocalExtra.current.loss else Color.Unspecified,
+                            )
+                        }
+                    }
+                }
+                Text("Monthly expenses are included in each month.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
             }
         }
         r.returns?.let { rv -> item("returns") { ReturnsCard(r) } }
@@ -126,19 +159,102 @@ fun PnlScreen(ui: PnlUi, access: Access, loggedIn: Boolean, trialDays: Int, padd
                 r.bridge.forEach { b -> AmountRow(b.l, b.v, bold = b.k != null, big = b.k == "np") }
             }
         }
-        r.gst?.let { g ->
-            item("gst") {
-                SectionCard("GST, TCS and TDS") {
-                    AmountRow("GST on sales", g.out)
-                    AmountRow("Input credit on Meesho fees", g.itcCh)
-                    AmountRow("Input credit on ads", g.itcAds)
-                    Divider()
-                    AmountRow("Net GST to pay", g.net, bold = true)
-                    AmountRow("TCS and TDS deducted by Meesho", g.tcs)
-                    AmountRow("GST to pay in cash", g.cash, bold = true)
-                }
+        item("gst") { GstCard(r, ui, act) }
+    }
+}
+
+@Composable
+private fun GstCard(r: Report, ui: PnlUi, act: PnlActions) {
+    val x = LocalExtra.current
+    val s = r.sum
+    SectionCard("GST, TCS and TDS") {
+        val gst = r.gst
+        if (gst == null) {
+            Text("GST is not split out because GST registration is off in P&L settings. Meesho charges, ads and goods are counted including GST.", style = MaterialTheme.typography.bodyMedium)
+        } else {
+            r.gstRows.forEach { g ->
+                if (g.b) Divider()
+                AmountRow(g.l, g.v, bold = g.b, color = if (g.b && g.l.startsWith("GST credit")) x.gain else Color.Unspecified)
+            }
+            if (ui.state.settings.buyGst == 0 && gst.itcGoods == 0L) {
+                Spacer(Modifier.height(8.dp))
+                NoteCard("Do you buy your goods with a GST bill? Set it in Costs: the GST on that bill is input credit and lowers the GST you pay in cash.", Tone.INFO, "Set GST bill", act.goCosts)
             }
         }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Meesho deducted ${rsp(-s.T)} TCS (under GST) and ${rsp(-s.D)} TDS (income tax, section 194-O) from these payouts. " +
+                if (s.claim) "Both are added back to profit because you can claim them: TCS in your GST return and TDS in your income tax return (Form 26AS)." else "They are counted as an expense, as chosen in P&L settings.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (r.gst != null) Text(
+            "Input credit on Meesho charges is worked out at 18% on columns Meesho marks as including GST; on goods, from the GST bill rate you set. Check against your invoices before you file.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+}
+
+/** What to do next, ticked off as the seller goes (like the website's checklist). */
+@Composable
+private fun NextSteps(r: Report, ui: PnlUi, act: PnlActions) {
+    if (ui.sample) return
+    val st = ui.state.settings
+    val steps = listOf(
+        Triple(r.health.legs > 0, "Add the Meesho payment report", act.goFiles),
+        Triple(r.sum.missing.isEmpty(), "Add product cost for every SKU", act.goCosts),
+        Triple(!st.gstReg || st.buyGst > 0 || ui.state.costs.values.any { it.b != null }, "Tell us if you buy with a GST bill", act.goCosts),
+        Triple(ui.state.expenses.isNotEmpty() || st.pack > 0, "Add packing, rent or staff costs", act.openSettings),
+        Triple(r.sum.rdef == 0, "Check returns and RTO parcels", act.goOrders),
+    )
+    val done = steps.count { it.first }
+    if (done == steps.size) return
+    SectionCard("Next steps", subtitle = "$done of ${steps.size} done. Each one makes your profit more exact.") {
+        steps.forEach { (ok, t, go) ->
+            Row(
+                Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable(enabled = !ok, onClick = go).padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    if (ok) Icons.Rounded.CheckCircle else Icons.Outlined.RadioButtonUnchecked, null,
+                    tint = if (ok) LocalExtra.current.gain else MaterialTheme.colorScheme.outline, modifier = Modifier.size(22.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(t, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), color = if (ok) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified)
+                if (!ok) Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
+/** Things worth acting on: prices below break-even, loss makers, RTO, money waiting, GST credit. */
+@Composable
+private fun Insights(r: Report, ui: PnlUi, full: Boolean, act: PnlActions) {
+    val tips = mutableListOf<Pair<String, Tone>>()
+    val below = r.skus.filter { it.sold >= 3 && it.breakEven > 0 && it.avgPrice > 0 && it.breakEven > it.avgPrice }.sortedByDescending { it.breakEven - it.avgPrice }
+    below.take(2).forEach { k -> tips += "${k.sku} sells at ${rs(k.avgPrice)} but needs ${rs(k.breakEven)} to break even. Raise the price or cut its cost." to Tone.BAD }
+    r.skus.filter { it.contrib < 0 && it.sold >= 3 && below.none { b -> b.sku == it.sku } }.sortedBy { it.contrib }.take(1)
+        .forEach { k -> tips += "${k.sku} lost ${rs(-k.contrib)} in this period. Check its returns and cost." to Tone.BAD }
+    r.returns?.skus?.filter { it.done >= 5 }?.maxByOrNull { it.rtoRate }?.takeIf { it.rtoRate >= 0.2 }
+        ?.let { k -> tips += "${k.sku} has ${pct(k.rtoRate)} RTO. Check its listing, size chart and the states it ships to." to Tone.WARN }
+    r.skus.filter { it.contrib > 0 }.maxByOrNull { it.contrib }?.let { k -> tips += "Best product: ${k.sku}, ${rs(k.contrib)} profit (${if (k.delivered > 0) rs(k.perOrder) + " per delivered order" else "no deliveries yet"})." to Tone.INFO }
+    val waiting = (r.reconcile["awaiting"]?.amt ?: 0) + (r.reconcile["overdue"]?.amt ?: 0)
+    val overdue = r.reconcile["overdue"]?.n ?: 0
+    if (overdue > 0) tips += "${plural(overdue, "order")} delivered but not paid after ${ui.state.settings.overdueDays} days. Raise a ticket with Meesho." to Tone.WARN
+    else if (waiting > 0) tips += "${rs(waiting)} of delivered orders is still to be paid by Meesho." to Tone.INFO
+    val st = ui.state.settings
+    if (st.gstReg && st.buyGst == 0 && r.gst?.itcGoods == 0L && r.sum.COGS > 0)
+        tips += "If you bought these goods with a 5% GST bill, about ${rs(Math.round(r.sum.COGS * 5.0 / 105))} would come back as input credit. Set it in Costs." to Tone.INFO
+    if (tips.isEmpty()) return
+    SectionCard("Insights", subtitle = "Worked out from your files") {
+        tips.take(if (full) 6 else 2).forEach { (t, tone) ->
+            Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.Top) {
+                Tag(when (tone) { Tone.BAD -> "Act"; Tone.WARN -> "Check"; Tone.INFO -> "Good to know" }, tone)
+                Spacer(Modifier.width(10.dp))
+                Text(t, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            }
+        }
+        if (!full && tips.size > 2) Text("${tips.size - 2} more with the full report.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (overdue > 0 && full) TextButton(onClick = act.goOrders) { Text("See overdue orders") }
     }
 }
 
@@ -251,8 +367,15 @@ private fun Step(n: Int, title: String, text: String) {
 @Composable
 private fun PeriodPicker(r: Report, select: (Sel) -> Unit) {
     Column {
+        var picking by remember { mutableStateOf(false) }
+        if (picking) DateRange(r, onDismiss = { picking = false }) { from, to -> picking = false; select(Sel(mode = "custom", from = from, to = to, basis = r.per.basis)) }
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = r.per.mode == "all", onClick = { select(Sel(mode = "all", basis = r.per.basis)) }, label = { Text("All data") })
+            FilterChip(
+                selected = r.per.mode == "custom", onClick = { picking = true },
+                label = { Text(if (r.per.mode == "custom") r.per.label else "Custom dates") },
+                leadingIcon = { Icon(Icons.Outlined.DateRange, null, Modifier.size(18.dp)) },
+            )
             r.months.asReversed().forEach { m ->
                 FilterChip(
                     selected = r.per.mode == "month" && r.per.m == m.m,
@@ -268,13 +391,42 @@ private fun PeriodPicker(r: Report, select: (Sel) -> Unit) {
                 listOf("pay" to "Payment date", "order" to "Order date").forEachIndexed { i, (v, l) ->
                     SegmentedButton(
                         selected = r.per.basis == v,
-                        onClick = { if (r.per.basis != v) select(Sel(mode = r.per.mode, m = r.per.m, basis = v)) },
+                        onClick = { if (r.per.basis != v) select(Sel(mode = r.per.mode, m = r.per.m, from = r.per.from.takeIf { r.per.mode == "custom" }, to = r.per.to.takeIf { r.per.mode == "custom" }, basis = v)) },
                         shape = SegmentedButtonDefaults.itemShape(i, 2),
                         label = { Text(l, maxLines = 1) },
                     )
                 }
             }
         }
+    }
+}
+
+/** Pick any from-to dates (a week, a sale, a quarter). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DateRange(r: Report, onDismiss: () -> Unit, onPick: (String, String) -> Unit) {
+    val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ENGLISH).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+    fun ms(d: String) = runCatching { fmt.parse(d)!!.time }.getOrNull()
+    val state = rememberDateRangePickerState(
+        initialSelectedStartDateMillis = if (r.per.mode == "custom") ms(r.per.from) else null,
+        initialSelectedEndDateMillis = if (r.per.mode == "custom") ms(r.per.to) else null,
+        initialDisplayedMonthMillis = ms(r.per.to.ifBlank { r.per.from }),
+    )
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                enabled = state.selectedStartDateMillis != null,
+                onClick = {
+                    val a = state.selectedStartDateMillis ?: return@TextButton
+                    val b = state.selectedEndDateMillis ?: a
+                    onPick(fmt.format(java.util.Date(a)), fmt.format(java.util.Date(b)))
+                },
+            ) { Text("Show") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    ) {
+        DateRangePicker(state, modifier = Modifier.weight(1f), title = { Text("Choose dates", modifier = Modifier.padding(start = 24.dp, top = 16.dp)) })
     }
 }
 
@@ -463,19 +615,25 @@ private fun SkusCard(r: Report) {
                     Mini("Orders", "${k.sold}")
                     Mini("Delivered", "${k.delivered}")
                     Mini("Per delivered", if (k.delivered > 0) rs(k.perOrder) else "–")
-                    Mini("Break-even", if (k.breakEven > 0) rs(k.breakEven) else "–")
+                    Mini("Price now", if (k.avgPrice > 0) rs(k.avgPrice) else "–")
+                    Mini("Break-even", if (k.breakEven > 0) rs(k.breakEven) else "–", bad = k.breakEven > k.avgPrice && k.avgPrice > 0)
                 }
             }
             Divider()
         }
         if (list.size > 6) TextButton(onClick = { all = !all }) { Text(if (all) "Show fewer" else "Show all ${list.size} products") }
+        AmountRow("Not tied to a product (ads, referral, account credits, expenses)", r.sum.unalloc)
+        Text(
+            "Product profit is after cost of goods, Meesho charges and packaging, before ads and other expenses. Per delivered order leaves out returned and RTO orders from the count, but the money lost on them stays in the profit. Break-even is the price where profit per order is zero.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
 @Composable
-private fun Mini(label: String, value: String) {
+private fun Mini(label: String, value: String, bad: Boolean = false) {
     Column {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyMedium.merge(TabularNums), fontWeight = FontWeight.Medium)
+        Text(value, style = MaterialTheme.typography.bodyMedium.merge(TabularNums), fontWeight = FontWeight.Medium, color = if (bad) LocalExtra.current.loss else Color.Unspecified)
     }
 }

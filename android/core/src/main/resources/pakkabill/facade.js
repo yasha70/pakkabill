@@ -77,7 +77,12 @@ var PB = (function () {
       e.pcs = E.piecesOf(k, cfg, costs[k], M); e.auto = E.piecesOf(k, cfg, null, M);
       e.autoCat = fileCat(k) || E.categoryOf(e.pn || k); e.cat = (costs[k] && costs[k].k) || e.autoCat;
       e.price = price[k] ? Math.round(price[k].t / price[k].n) : 0;
-      e.cost = costs[k] && costs[k].c != null ? costs[k].c : null;
+      var ce = costs[k] || null;
+      e.cost = ce && ce.c != null ? ce.c : null;
+      // what the seller saved for this SKU (null = not set), and the GST bill rate that applies
+      e.n = ce && ce.n != null ? ce.n : null; e.pack = ce && ce.p != null ? ce.p : null; e.b = ce && ce.b != null ? ce.b : null;
+      e.rate = E.buyRate(ce, cfg);
+      e.netCost = e.cost != null && e.rate ? Math.round(e.cost * 100 / (100 + e.rate)) : e.cost;
       return e;
     }).sort(function (a, b) { return b.orders - a.orders || (a.sku < b.sku ? -1 : 1); });
     var catList = E.catNames(), other = catList.pop(), extra = {};
@@ -97,22 +102,32 @@ var PB = (function () {
       NP: R.NP, NS: R.NS, NR: R.NR, margin: R.margin, payout: R.payout, COGS: R.COGS, sales: K.sales, del: K.del || 0,
       perDel: K.del ? Math.round(R.NP / K.del) : 0, pieces: K.fu, rdef: K.rdef, revPend: K.revPend, revPendV: K.revPendV,
       unexpl: K.unexpl, O: K.O, T: K.T, D: K.D, rlu: K.rlu, rlv: K.rlv, REGD: !!R.REGD, claim: !!R.claim,
-      missing: R.missing, unalloc: R.unalloc
+      missing: R.missing, unalloc: R.unalloc, IG: K.IG || 0, parcels: K.parcels, OPEX: R.OPEX, GP: R.GP, adsNet: R.adsNet
     };
     out.vs = vs;
     out.lines = R.lines;
     out.bridge = R.bridge;
     out.gst = R.gst || null;
+    out.gstRows = R.gst ? E.gstRows(R.gst).map(function (x) { return { l: x[0], v: x[1], b: !!x[2] }; }) : [];
     out.returns = RV ? { done: RV.done, delivered: RV.delivered, transit: RV.transit, loss: RV.loss,
       rtoRate: RV.rtoRate, retRate: RV.retRate, exchRate: RV.exchRate, lostRate: RV.lostRate, G: RV.G,
       skus: RV.skus.slice(0, 50) } : null;
     out.categories = cats;
     out.skus = R.skus.map(function (x) {
       return { sku: x.sku, pn: x.pn, pcs: x.pcs, sold: x.sold, units: x.units, retRto: x.retU + x.rto, delivered: x.delivered || 0,
-        NS: x.NS, contrib: x.contrib, perOrder: x.perOrder, avgPrice: x.avgPrice, breakEven: x.breakEven, cat: catOf(x.sku, x.pn) };
+        NS: x.NS, contrib: x.contrib, perOrder: x.perOrder, avgPrice: x.avgPrice, breakEven: x.breakEven, cat: catOf(x.sku, x.pn),
+        COGS: x.COGS, MC: x.MC, pack: x.pack, perUnit: x.perUnit, ret: x.retU, rto: x.rto };
     });
-    out.monthly = MO.map(function (m) { return { m: m.m, label: E.fmtMonth(m.m), NS: m.NS, GP: m.GP, NP: m.NP, payout: m.payout, MCx: m.MCx }; });
+    out.monthly = MO.map(function (m) { return { m: m.m, label: E.fmtMonth(m.m), NS: m.NS, GP: m.GP, NP: m.NP, payout: m.payout, MCx: m.MCx,
+      COGS: m.COGS, ads: m.ads, OPEX: m.OPEX, orders: m.orders, parcels: m.parcels }; });
     out.reconcile = REC.counts;
+    // every order, as on the website's Reconcile tab (newest first), and payouts by date
+    out.orders = REC.rows.map(function (r) {
+      return { id: r.id, b: r.b, st: r.st, label: E.ST_LABEL[r.st] || '', sku: r.sku, pn: r.pn, od: r.od, pd: r.pd, legs: r.legs, f: r.f,
+        est: r.est, cond: r.cond, condDef: r.condDef, flags: r.flags, issue: !!r.issue, hasPay: r.hasPay, q: r.q };
+    });
+    out.payouts = E.payouts(M).map(function (p) { return { d: p.d, n: p.n, f: p.f, ads: p.ads, other: p.ref + p.adj, net: p.net, tx: p.tx.slice(0, 3) }; });
+    out.lastPd = REC.lastPd; out.firstPd = REC.firstPd;
     out.costs = skuList;
     out.catList = catList;
     out.checks = R.checks;
