@@ -125,6 +125,47 @@ adb logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime: |PakkaBill P&L" | head 
 adb logcat -d > "$OUT/logcat-full.txt"
 grep -iE "pakkabill|AndroidRuntime|FATAL|rhino|svg" "$OUT/logcat-full.txt" | tail -300 > "$OUT/logcat.txt"
 
+# A big Meesho account (about 3,500 payment rows over 200 SKUs, made from the website's sample
+# shop), read through the phone's file picker, then scrolled and switched like a seller would.
+node android/ci/bigshop.js big | tee -a "$R"
+adb push big/Meesho-big-payments.csv /sdcard/Download/Meesho-big-payments.csv > /dev/null
+adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Download/Meesho-big-payments.csv > /dev/null
+bigshop() {
+  echo "== big shop: $1" >> "$R"
+  tap "Upload files"; sleep 2
+  # the drop area can be below the screen: scroll until it shows
+  for i in 1 2 3 4; do python3 android/ci/tap.py "Drop Meesho files here" >> "$R" && break; up; sleep 1; done
+  sleep 5
+  cap "$1-1-picker" 1
+  if ! python3 android/ci/tap.py "Meesho-big-payments.csv" >> "$R"; then
+    tap "Show roots"; sleep 2; tap "Downloads"; sleep 3; tap "Meesho-big-payments.csv"
+  fi
+  python3 android/ci/wait.py "Real profit" 300 >> "$R"
+  sleep 5; cap "$1-2-pl" 1
+  adb shell dumpsys gfxinfo $PKG reset > /dev/null
+  for i in 1 2 3 4 5 6 7 8; do up; sleep 1; done
+  frames "$1: P&L scroll"
+  adb shell dumpsys gfxinfo $PKG reset > /dev/null
+  tap "Costs"; sleep 5
+  frames "$1: open Costs"
+  cap "$1-3-costs" 1
+  adb shell dumpsys gfxinfo $PKG reset > /dev/null
+  for i in 1 2 3 4 5 6 7 8; do up; sleep 1; done
+  frames "$1: Costs scroll"
+  cap "$1-4-costs" 1
+  adb shell dumpsys gfxinfo $PKG reset > /dev/null
+  tap "Reconcile"; sleep 5
+  frames "$1: open Reconcile"
+  adb shell dumpsys gfxinfo $PKG reset > /dev/null
+  for i in 1 2 3 4 5 6; do up; sleep 1; done
+  frames "$1: Reconcile scroll"
+  cap "$1-5-rc" 1
+  adb logcat -d | grep -E "PakkaBill P&L: report" | tail -2 >> "$R"
+}
+adb shell pm clear $PKG > /dev/null
+adb shell am start -W -n $PKG/.MainActivity > /dev/null; sleep 6
+bigshop "new"
+
 # the same scrolling with the app the website offers now, when it is older than this one
 OLD=$(grep -o '"versionCode": *[0-9]*' download/app.json | grep -o '[0-9]*$')
 NEW=$(grep -o 'versionCode = [0-9]*' android/app/build.gradle.kts | grep -o '[0-9]*$')
@@ -142,5 +183,8 @@ if [ -n "$OLD" ] && [ -n "$NEW" ] && [ "$OLD" -lt "$NEW" ]; then
   for i in 1 2 3 4 5 6; do up; sleep 1; done
   frames "Old app Costs scroll"
   cap 90-old-costs 1
+  adb shell pm clear $PKG > /dev/null
+  adb shell am start -W -n $PKG/.MainActivity > /dev/null; sleep 6
+  bigshop "old"
 fi
 exit 0

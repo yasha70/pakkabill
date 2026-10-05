@@ -54,6 +54,9 @@ class PnlEngine {
     /** The full report for a period (see [Report]). */
     fun report(stateJson: String): String = call("report", stateJson)
 
+    /** Which files the engine keeps from the last report ("" when none): they need not be sent again. */
+    fun filesKey(): String = call("filesKey").let { if (it == "null" || it == "undefined") "" else it }
+
     /** The "How to use" guide of the website (see [Guide]). */
     fun guide(): String = call("guide")
 

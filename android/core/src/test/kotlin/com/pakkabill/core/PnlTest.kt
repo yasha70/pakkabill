@@ -57,6 +57,28 @@ class PnlTest {
         assertEquals(0, again.added)
     }
 
+    @Test fun keptFilesGiveTheSameReport() {
+        val dir = Files.createTempDirectory("pnl").toFile()
+        val store = PnlStore(dir, engine)
+        store.addFiles(listOf("Meesho payment report.xlsx" to res("pay.xlsx"), "orders.csv" to res("orders.csv")))
+        val (r, unchanged) = store.report(Sel(mode = "month", m = "2026-09"))
+        // the engine keeps the files between reports: after a cost, a return mark and a setting
+        // change the numbers must be exactly what a fresh engine works out from the files
+        store.setCost(r.costs[0].sku) { it.copy(c = 15000, b = 12) }
+        store.setMark(r.orders.first { it.cond.isNotBlank() }.id, "loss")
+        store.update { it.copy(settings = it.settings.copy(pack = 700, buyGst = 5)) }
+        val sel = Sel(mode = "month", m = "2026-09")
+        val kept = store.report(sel).second
+        assertEquals(PnlStore(dir, PnlEngine()).report(sel).second, kept)
+        assertTrue(kept != unchanged)
+        // a removed file is noticed
+        val before = store.report(Sel()).first
+        store.removeFile(before.files.first { it.name == "orders.csv" }.id)
+        val after = store.report(Sel()).first
+        assertEquals(1, after.files.size)
+        assertEquals(PnlStore(dir, PnlEngine()).report(Sel()).second, store.report(Sel()).second)
+    }
+
     @Test fun zipOfBothFiles() {
         val zip = ByteArrayOutputStream().also { o ->
             ZipOutputStream(o).use { z ->

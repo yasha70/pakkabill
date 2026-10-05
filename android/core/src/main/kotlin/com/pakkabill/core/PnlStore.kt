@@ -172,9 +172,11 @@ class PnlStore(private val dir: File, private val engine: PnlEngine) {
     fun report(sel: Sel = (sample?.state ?: state).sel): Pair<Report, String> {
         val smp = sample
         val st = smp?.state ?: state
-        val files = smp?.files ?: fileJsons()
+        // the engine keeps the files from the last report; send them only when they changed
+        val key = if (smp != null) "sample:" + System.identityHashCode(smp.files) else ownFilesKey()
         val sb = StringBuilder()
-        sb.append("{\"files\":[").append(files.joinToString(",")).append("],")
+        sb.append("{\"filesKey\":").append(json.encodeToString(key)).append(',')
+        if (engine.filesKey() != key) sb.append("\"files\":[").append((smp?.files ?: fileJsons()).joinToString(",")).append("],")
         sb.append("\"costs\":").append(json.encodeToString(st.costs)).append(',')
         sb.append("\"marks\":").append(json.encodeToString(st.marks)).append(',')
         sb.append("\"expenses\":").append(json.encodeToString(st.expenses)).append(',')
@@ -183,6 +185,10 @@ class PnlStore(private val dir: File, private val engine: PnlEngine) {
         val raw = engine.report(sb.toString())
         return json.decodeFromString<Report>(raw) to raw
     }
+
+    /** Names, sizes and times of the seller's files: changes whenever a file is added or removed. */
+    private fun ownFilesKey(): String =
+        "own:" + (filesDir.listFiles { f -> f.extension == "json" } ?: emptyArray()).sortedBy { it.name }.joinToString("|") { it.name + "," + it.length() + "," + it.lastModified() }
 
     /** Costs, expenses and settings as one file (same idea as the website's backup). */
     fun backup(): String = json.encodeToString(state)

@@ -45,14 +45,21 @@ var PB = (function () {
     return function (sku) { return m[sku] || ix[String(sku || '').replace(/^\s+|\s+$/g, '').toUpperCase()] || ''; };
   }
 
-  // The whole report for one period. state = { files, costs, marks, expenses, settings, sel }
+  // The uploaded files rarely change, but costs, marks and settings do. The files and their merge
+  // are kept here between reports (the engine only reads them), so a cost change does not send
+  // and read every Meesho row again. filesKey() says which files are kept.
+  var kept = { key: null, files: [], M: null };
+  function filesKey() { return kept.key; }
+
+  // The whole report for one period. state = { filesKey, files (left out when kept), costs, marks, expenses, settings, sel }
   function report(stateJson) {
     var st = JSON.parse(stateJson), cfg = settingsOf(st.settings), costs = st.costs || {}, marks = st.marks || {}, exps = st.expenses || [];
     var sel = st.sel || { mode: 'all', basis: 'pay' };
-    var files = st.files || [];
+    if (st.files || st.filesKey !== kept.key) kept = { key: st.filesKey == null ? null : st.filesKey, files: st.files || [], M: null };
+    var files = kept.files;
     var out = { files: files.map(function (f) { return { id: f.id, name: f.name, size: f.size, at: f.at, sheets: f.sheets, cats: Object.keys(f.cats || {}).length }; }) };
     if (!files.length) { out.empty = true; out.catList = E.catNames(); return JSON.stringify(out); }
-    var M = E.merge(files), IX = E.index(M, cfg, costs, marks), H = E.health(M);
+    var M = kept.M || (kept.M = E.merge(files)), IX = E.index(M, cfg, costs, marks), H = E.health(M);
     var months = E.dataMonths(M, IX, sel.basis === 'order' ? 'order' : 'pay');
     if (sel.mode === 'month' && months.indexOf(sel.m) < 0) sel = { mode: 'all', basis: sel.basis };
     var per = E.periodFor(sel, M, IX);
@@ -153,5 +160,5 @@ var PB = (function () {
 
   function guide() { return typeof GUIDE === 'undefined' ? '{}' : JSON.stringify(GUIDE); }
 
-  return { ingest: ingest, report: report, demo: demo, money: money, guide: guide, catNames: function () { return JSON.stringify(E.catNames()); } };
+  return { ingest: ingest, report: report, filesKey: filesKey, demo: demo, money: money, guide: guide, catNames: function () { return JSON.stringify(E.catNames()); } };
 })();

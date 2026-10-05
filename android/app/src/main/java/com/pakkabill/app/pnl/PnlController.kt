@@ -20,6 +20,7 @@ import java.util.concurrent.Executors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -85,6 +86,13 @@ class PnlController(private val dir: File, private val scope: CoroutineScope, pr
     private var lastFill: Pair<Map<String, Cost>, String>? = null
     val undoLabel = MutableStateFlow<String?>(null)
 
+    /**
+     * Asks for the report to be worked out again. Asks that come in while it is being worked out
+     * are joined into one: after several quick edits (costs typed one after another) the report
+     * is worked out once more, not once per edit, so the screen catches up straight away.
+     */
+    private val again = Channel<Unit>(Channel.CONFLATED)
+
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val messages: SharedFlow<String> = _messages
 
@@ -102,6 +110,8 @@ class PnlController(private val dir: File, private val scope: CoroutineScope, pr
                 _ui.update { it.copy(ready = true) }
                 recompute()
                 runCatching { guide.value = Guide.parse(engine.guide()) }
+                // from now on, the report is worked out again whenever something changed
+                scope.launch(worker) { for (x in again) recomputeAndReport() }
             } catch (e: Throwable) {
                 _ui.update { it.copy(ready = false, busy = null) }
                 say("The P&L could not start on this phone: ${e.message ?: e.javaClass.simpleName}")
@@ -118,12 +128,23 @@ class PnlController(private val dir: File, private val scope: CoroutineScope, pr
             if (busy != null) _ui.update { it.copy(busy = busy) }
             try {
                 block()
-                recompute()
+                // the changed costs, marks and settings show at once; the numbers follow
+                if ((store.sample != null) == _ui.value.sample) _ui.update { it.copy(state = store.current) }
+                again.trySend(Unit)
             } catch (e: Throwable) {
                 say("Something went wrong: ${e.message ?: e.javaClass.simpleName}")
-            } finally {
                 _ui.update { it.copy(busy = null) }
             }
+        }
+    }
+
+    private fun recomputeAndReport() {
+        try {
+            recompute()
+        } catch (e: Throwable) {
+            say("Something went wrong: ${e.message ?: e.javaClass.simpleName}")
+        } finally {
+            _ui.update { it.copy(busy = null) }
         }
     }
 
