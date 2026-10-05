@@ -353,16 +353,16 @@ details.more[open] > summary { margin-bottom: 10px; }
 .clist .crow:last-child { border-bottom: 0; }
 .clist .crow.miss { box-shadow: inset 3px 0 0 var(--margin); padding-left: 10px; }
 .clist .crow .info { grid-column: 1 / -1; min-width: 0; }
-.clist .crow .ccat { grid-column: 1 / -1; }
+.clist .crow .ccat, .clist .crow .cbuy { grid-column: 1 / -1; }
 .fill-seg { flex-wrap: wrap; }
 .clist .crow .sku { font-weight: 700; word-break: break-all; }
 .clist .crow .sub { font-size: .84rem; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .clist .crow label { display: flex; flex-direction: column; gap: 3px; font-size: .76rem; font-weight: 600; color: var(--ink-3); min-width: 0; }
 .clist .crow .inp { min-height: 38px; padding: 6px 8px; min-width: 0; width: 100%; }
 @media (min-width: 620px) {
-  .clist .crow { grid-template-columns: minmax(0, 1fr) 120px 70px 100px 170px; }
+  .clist .crow { grid-template-columns: minmax(0, 1fr) 110px 66px 96px 150px 160px; }
   .clist .crow .info { grid-column: auto; align-self: center; }
-  .clist .crow .ccat { grid-column: auto; }
+  .clist .crow .ccat, .clist .crow .cbuy { grid-column: auto; }
 }
 
 /* expenses */
@@ -993,6 +993,23 @@ details.more[open] > summary { margin-bottom: 10px; }
     if (packRule(cfg, M) === 'sku') { var k = skuLetters(sku); return k >= 1 ? k : 1; }
     return 1;
   }
+  /* GST rate on the seller's purchase bill for a SKU: its own setting (b), else the default in
+     Settings (buyGst). 0 means bought without a GST bill. Only a GST registered seller gets
+     the input credit back, so for others the full price stays the cost. */
+  function buyRate(e, cfg) {
+    if (!cfg || !cfg.gstReg) return 0;
+    var b = e && e.b != null && e.b !== '' ? +e.b : +cfg.buyGst || 0;
+    return b > 0 && b <= 40 ? b : 0;
+  }
+  /* The GST summary as [label, amount, bold] rows, used on screen, in Excel and in the PDF. */
+  function gstRows(g) {
+    var r = [['Output GST on net sales', g.out], ['Less: input credit on Meesho charges', -g.itcCh], ['Less: input credit on ads', -g.itcAds]];
+    if (g.itcGoods) r.push(['Less: input credit on goods bought with a GST bill', -g.itcGoods]);
+    r.push(g.net >= 0 ? ['Net GST payable', g.net, 1] : ['Input credit more than GST on sales', g.net, 1]);
+    r.push(['Less: TCS already collected by Meesho', -g.tcs]);
+    r.push(g.cash >= 0 ? ['GST left to pay in cash', g.cash, 1] : ['GST credit carried forward (nothing to pay in cash)', -g.cash, 1]);
+    return r;
+  }
   function condOf(x, cfg, marks) {
     var mk = marks && marks[x.id];
     if (mk === 'ok' || mk === 'loss') return { c: mk, def: false };
@@ -1005,7 +1022,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   function index(M, cfg, costs, marks) {
     var P = M.pay, n = P.length, reg = M.reg;
     function z() { var a = new Array(n); for (var i = 0; i < n; i++) a[i] = 0; return a; }
-    var L = { fwd: z(), rst: z(), loss: z(), pack: z(), fu: z(), ru: z(), lu: z(), rlu: z(), rlv: z(), nc: z(), parcel: z(), sale: z(), retn: z(), rto: z(), rdef: z() };
+    var L = { fwd: z(), rst: z(), loss: z(), gfwd: z(), grst: z(), gloss: z(), pack: z(), fu: z(), ru: z(), lu: z(), rlu: z(), rlv: z(), nc: z(), parcel: z(), sale: z(), retn: z(), rto: z(), rdef: z() };
     var O = {}, list = [];
     function mk(id) { var x = { id: id, legs: [], rank: -1, st: '', stRaw: '', sku: '', pn: '', q: 1, od: '', sale: -1, ret: -1, f: 0, s: 0, r: 0, o: 0, rc: 0, cl: 0, hasPay: false, ord: null }; O[id] = x; list.push(x); return x; }
     for (var i = 0; i < n; i++) {
@@ -1040,15 +1057,19 @@ details.more[open] > summary { margin-bottom: 10px; }
     list.forEach(function (x) {
       if (x.rank < 0) x.rank = 0;
       var e = cf(x.sku), pcs = piecesOf(x.sku, cfg, e, M);
-      // cost entered per piece; one sold unit of a combo SKU holds pcs pieces
+      // cost entered per piece, as paid; one sold unit of a combo SKU holds pcs pieces
       var cost = e && e.c != null && e.c !== '' ? +e.c * pcs : null;
+      // Bought with a GST bill: the GST in the price comes back as input credit (for a GST
+      // registered seller), so the goods cost the price without GST and the GST is tracked apart.
+      var br = buyRate(e, cfg), gc = 0;
+      if (cost != null && br > 0) { var net = Math.round(cost * 100 / (100 + br)); gc = cost - net; cost = net; }
       var pk = e && e.p != null && e.p !== '' ? +e.p : (+cfg.pack || 0);
       var q = x.q || 1, qp = q * pcs;
       x.cost = cost; x.pcs = pcs; x.pk = pk;
       if (x.sku) PK[x.sku] = pcs;
       if (x.sale >= 0) {
         var s = x.sale;
-        L.fwd[s] += (cost || 0) * q; L.fu[s] += qp; L.pack[s] += pk; L.parcel[s] = 1; L.sale[s] = 1;
+        L.fwd[s] += (cost || 0) * q; L.gfwd[s] += gc * q; L.fu[s] += qp; L.pack[s] += pk; L.parcel[s] = 1; L.sale[s] = 1;
         if (cost == null) L.nc[s] += qp;
       }
       if (x.ret >= 0 || x.st === 'RTO' || x.st === 'LOST' || x.st === 'RETURN') {
@@ -1057,19 +1078,19 @@ details.more[open] > summary { margin-bottom: 10px; }
       if (x.ret >= 0) {
         var rr = x.ret;
         L.retn[rr] = 1;
-        if (x.cond === 'ok') { L.rst[rr] += (cost || 0) * q; L.ru[rr] += qp; }
+        if (x.cond === 'ok') { L.rst[rr] += (cost || 0) * q; L.grst[rr] += gc * q; L.ru[rr] += qp; }
         else { L.rlu[rr] += qp; L.rlv[rr] += (cost || 0) * q; }
         if (x.condDef) L.rdef[rr] = 1;
       }
       if (x.sale < 0 && x.ret < 0 && (x.st === 'RTO' || x.st === 'LOST')) {
-        var loss = x.cond === 'loss' ? (cost || 0) * q : 0;
+        var loss = x.cond === 'loss' ? (cost || 0) * q : 0, gloss = x.cond === 'loss' ? gc * q : 0;
         if (x.legs.length) {
           var a0 = x.legs[0];
-          L.pack[a0] += pk; L.parcel[a0] = 1; L.rto[a0] = 1; L.loss[a0] += loss;
+          L.pack[a0] += pk; L.parcel[a0] = 1; L.rto[a0] = 1; L.loss[a0] += loss; L.gloss[a0] += gloss;
           if (x.cond === 'loss') { L.lu[a0] += qp; if (cost == null) L.nc[a0] += qp; }
           if (x.condDef) L.rdef[a0] = 1;
         } else if (x.od) {
-          extra.push({ id: x.id, dt: x.od, sku: x.sku, pn: x.pn, pack: pk, loss: loss, lu: x.cond === 'loss' ? qp : 0, nc: (x.cond === 'loss' && cost == null) ? qp : 0, def: !!x.condDef });
+          extra.push({ id: x.id, dt: x.od, sku: x.sku, pn: x.pn, pack: pk, loss: loss, gloss: gloss, lu: x.cond === 'loss' ? qp : 0, nc: (x.cond === 'loss' && cost == null) ? qp : 0, def: !!x.condDef });
         }
       }
     });
@@ -1118,7 +1139,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   function compute(M, IX, cfg, expenses, per) {
     var P = M.pay, reg = M.reg, L = IX.L, REGD = !!cfg.gstReg, claim = cfg.taxCredits !== 'expense';
     function inP(d) { return !!d && d >= per.from && d <= per.to; }
-    var K = { S: 0, R: 0, OUT: 0, T: 0, D: 0, CP: 0, CL: 0, RC: 0, O: 0, F: 0, fwd: 0, rst: 0, loss: 0, pack: 0, fu: 0, ru: 0, lu: 0, rlu: 0, rlv: 0, parcels: 0, retn: 0, rton: 0, rdef: 0, sales: 0, legs: 0, unexpl: 0, revPend: 0, revPendV: 0, AD: 0, ADG: 0, REF: 0, ADJ: 0 };
+    var K = { S: 0, R: 0, OUT: 0, T: 0, D: 0, CP: 0, CL: 0, RC: 0, O: 0, F: 0, fwd: 0, rst: 0, loss: 0, pack: 0, fu: 0, ru: 0, lu: 0, rlu: 0, rlv: 0, parcels: 0, retn: 0, rton: 0, rdef: 0, sales: 0, legs: 0, unexpl: 0, revPend: 0, revPendV: 0, AD: 0, ADG: 0, REF: 0, ADJ: 0, IG: 0 };
     var CH = {}; CHARGE_CATS.forEach(function (c) { CH[c] = { v: 0, g: 0 }; });
     var COLS = {}, SK = {}, NC = {};
     // each order's sale less its reversal over all files, whatever the period: an order sold in
@@ -1157,6 +1178,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       K.OUT += out;
       var cg = L.fwd[i] - L.rst[i] + L.loss[i];
       K.fwd += L.fwd[i]; K.rst += L.rst[i]; K.loss += L.loss[i]; K.pack += L.pack[i];
+      K.IG += L.gfwd[i] - L.grst[i] + L.gloss[i];
       K.fu += L.fu[i]; K.ru += L.ru[i]; K.lu += L.lu[i]; K.rlu += L.rlu[i]; K.rlv += L.rlv[i];
       K.parcels += L.parcel[i]; K.retn += L.retn[i]; K.rton += L.rto[i]; K.rdef += L.rdef[i]; K.sales += L.sale[i];
       if (L.sale[i]) { var xo = IX.O[p.id]; if (xo && (xo.st === 'RETURN' || xo.st === 'RTO') && xo.ret < 0) { K.revPend++; K.revPendV += p.s; } }
@@ -1169,7 +1191,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     IX.extra.forEach(function (e) {
       if (!inP(e.dt)) return;
       var s2 = sk(e.sku, e.pn);
-      K.pack += e.pack; K.loss += e.loss; K.lu += e.lu; K.parcels++; K.rton++; if (e.def) K.rdef++;
+      K.pack += e.pack; K.loss += e.loss; K.IG += e.gloss || 0; K.lu += e.lu; K.parcels++; K.rton++; if (e.def) K.rdef++;
       if (e.nc) NC[e.sku || '(no SKU)'] = (NC[e.sku || '(no SKU)'] || 0) + e.nc;
       s2.pack += e.pack; s2.COGS += e.loss; s2.rto++;
     });
@@ -1185,8 +1207,9 @@ details.more[open] > summary { margin-bottom: 10px; }
     var MCx = CHv - CHG + K.O, taxExp = claim ? 0 : K.T + K.D, OCR = K.CP + K.CL + K.RC;
     var adsNet = K.AD - K.ADG, credits = OCR + K.ADJ + K.REF, OPEX = K.pack + EXP;
     var NP = GP + MCx + taxExp + credits + adsNet - OPEX;
-    var payout = K.F + K.AD + K.REF + K.ADJ, ITC = -(CHG + K.ADG), addBack = claim ? -(K.T + K.D) : 0;
-    var bridgeNP = payout + addBack - (K.OUT - ITC) - COGS - OPEX;
+    // input credit: GST in Meesho charges and ads, and GST paid to suppliers on the goods sold
+    var payout = K.F + K.AD + K.REF + K.ADJ, ITC = -(CHG + K.ADG) + K.IG, addBack = claim ? -(K.T + K.D) : 0;
+    var bridgeNP = payout + addBack - (K.OUT - ITC) - COGS - K.IG - OPEX;
 
     var skus = Object.keys(SK).map(function (k) {
       var x = SK[k];
@@ -1224,7 +1247,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     tot('Net sales' + (REGD ? ' (incl. GST)' : ''), NS, 'sub');
     if (REGD) row('Less: output GST on net sales', -K.OUT);
     tot('Net revenue', NR);
-    sec('Cost of goods sold');
+    sec('Cost of goods sold' + (K.IG ? ' (without the GST you claim back)' : ''));
     function pcs(n) { return n + (n === 1 ? ' piece' : ' pieces'); }
     row('Cost of goods shipped (' + pcs(K.fu) + ')', -K.fwd);
     if (K.rst || K.ru) row('Returned goods back in stock (' + pcs(K.ru) + ')', K.rst);
@@ -1261,12 +1284,14 @@ details.more[open] > summary { margin-bottom: 10px; }
     if (K.ADJ) bridge.push({ l: 'Account-level compensation & recovery', v: K.ADJ });
     bridge.push({ l: 'Money received from Meesho', v: payout, k: 'sub' });
     if (addBack) bridge.push({ l: 'Add back: TCS & TDS deducted (you claim these)', v: addBack });
-    if (REGD) bridge.push({ l: 'Less: GST payable (output GST minus input credit)', v: -(K.OUT - ITC) });
+    if (REGD) bridge.push(K.OUT - ITC >= 0 ? { l: 'Less: GST payable (output GST minus input credit)', v: -(K.OUT - ITC) }
+      : { l: 'Add: input credit left over (carried to the next GST return)', v: ITC - K.OUT });
     bridge.push({ l: 'Less: cost of goods sold', v: -COGS });
+    if (K.IG) bridge.push({ l: 'Less: GST paid to suppliers on these goods (claimed back above)', v: -K.IG });
     bridge.push({ l: 'Less: operating expenses', v: -OPEX });
     bridge.push({ l: 'Net profit', v: bridgeNP, k: 'np' });
 
-    var gst = REGD ? { out: K.OUT, itcCh: -CHG, itcAds: -K.ADG, itc: ITC, net: K.OUT - ITC, tcs: -K.T, cash: K.OUT - ITC + K.T } : null;
+    var gst = REGD ? { out: K.OUT, itcCh: -CHG, itcAds: -K.ADG, itcGoods: K.IG, itc: ITC, net: K.OUT - ITC, tcs: -K.T, cash: K.OUT - ITC + K.T } : null;
     var missing = Object.keys(NC).map(function (k) { return { sku: k, units: NC[k] }; }).sort(function (a, b) { return b.units - a.units; });
 
     var colList = Object.keys(COLS).map(function (k) {
@@ -1579,7 +1604,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     };
   }
 
-  var DEFAULTS = { biz: '', gstin: '', gstReg: true, taxCredits: 'claim', defaultGst: 5, returnDefault: 'ok', rtoDefault: 'ok', overdueDays: 21, pack: 0, packFromSku: 'auto', sv: 3 };
+  var DEFAULTS = { biz: '', gstin: '', gstReg: true, taxCredits: 'claim', defaultGst: 5, buyGst: 0, returnDefault: 'ok', rtoDefault: 'ok', overdueDays: 21, pack: 0, packFromSku: 'auto', sv: 3 };
 
   return {
     TOL: TOL, DEFAULTS: DEFAULTS, CATL: CATL, CHARGE_CATS: CHARGE_CATS, BUCKETS: BUCKETS, ST_LABEL: ST_LABEL, RANK: RANK, MNAME: MNAME,
@@ -1587,7 +1612,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     monthStart: monthStart, monthEnd: monthEnd, nextMonth: nextMonth, fmtDate: fmtDate, fmtMonth: fmtMonth, money: money,
     skuLetters: skuLetters, nameCount: nameCount, packRule: packRule, piecesOf: piecesOf, normSt: normSt, classify: classify, detect: detect, parsePay: parsePay, parseAds: parseAds, parseAmt: parseAmt, parseOrd: parseOrd,
     calibrate: calibrate, ingest: ingest, merge: merge, index: index, dataMonths: dataMonths, periodFor: periodFor, expFor: expFor,
-    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, demo: demo, uid: uid
+    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
   };
 });
 
@@ -1689,7 +1714,7 @@ details.more[open] > summary { margin-bottom: 10px; }
 
   function toDoc(name, w) {
     if (name === 'settings') { var s = {}; for (var k in E.DEFAULTS) s[k] = w.settings[k]; return s; }
-    if (name === 'costs') return { list: Object.keys(w.costs).map(function (k) { var c = w.costs[k]; return { s: k, c: c.c == null ? null : c.c, p: c.p == null ? null : c.p, n: c.n == null ? null : c.n, k: c.k || null }; }) };
+    if (name === 'costs') return { list: Object.keys(w.costs).map(function (k) { var c = w.costs[k]; return { s: k, c: c.c == null ? null : c.c, p: c.p == null ? null : c.p, n: c.n == null ? null : c.n, k: c.k || null, b: c.b == null ? null : c.b }; }) };
     if (name === 'expenses') return { list: w.expenses.map(function (e) { return { id: e.id, name: e.name, amt: e.amt, when: e.when }; }) };
     return { list: Object.keys(w.marks).map(function (k) { return { i: k, c: w.marks[k] }; }) };
   }
@@ -1703,7 +1728,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       w.settings = s;
     } else if (name === 'costs') {
       var c = {};
-      (d.list || []).forEach(function (r) { if (r && r.s) c[r.s] = { c: r.c == null ? null : +r.c, p: r.p == null ? null : +r.p, n: r.n == null ? null : +r.n, k: r.k ? String(r.k) : null }; });
+      (d.list || []).forEach(function (r) { if (r && r.s) c[r.s] = { c: r.c == null ? null : +r.c, p: r.p == null ? null : +r.p, n: r.n == null ? null : +r.n, k: r.k ? String(r.k) : null, b: r.b == null ? null : +r.b }; });
       w.costs = c;
     } else if (name === 'expenses') {
       w.expenses = (d.list || []).filter(function (e) { return e && e.id && e.when; }).map(function (e) { return { id: String(e.id), name: String(e.name || 'Expense'), amt: +e.amt || 0, when: String(e.when) }; });
@@ -2170,15 +2195,18 @@ details.more[open] > summary { margin-bottom: 10px; }
       var buf = await file.arrayBuffer(), sheets = readBook(file.name, buf), n = 0, w = W(), autoCats = {};
       A.skuList().forEach(function (x) { autoCats[x.sku] = x.autoCat; });
       sheets.forEach(function (sh) {
-        var rows = sh.rows, hr = -1, cs = -1, cc = -1, cp = -1, cn = -1, ck = -1;
+        var rows = sh.rows, hr = -1, cs = -1, cc = -1, cp = -1, cn = -1, ck = -1, cg = -1;
         for (var i = 0; i < Math.min(rows.length, 15) && hr < 0; i++) {
           var H = (rows[i] || []).map(E.h);
-          var a = H.findIndex(function (x) { return /sku/.test(x); }), b = H.findIndex(function (x) { return /cost|price|rate/.test(x) && !/packag/.test(x); });
+          // the cost column: "cost" first, so our own sheet's "Buyer price" column is not taken for it
+          var a = H.findIndex(function (x) { return /sku/.test(x); }), b = H.findIndex(function (x) { return /cost/.test(x) && !/packag/.test(x); });
+          if (b < 0) b = H.findIndex(function (x) { return /price|rate/.test(x) && !/packag|buyer|selling|mrp|gst/.test(x); });
           if (a >= 0 && b >= 0) {
             hr = i; cs = a; cc = b;
             cp = H.findIndex(function (x) { return /packag/.test(x); });
             cn = H.findIndex(function (x) { return /piece|pcs|combo/.test(x) && !/cost|price|rate/.test(x); });
             ck = H.findIndex(function (x) { return /categor/.test(x); });
+            cg = H.findIndex(function (x) { return /gst/.test(x); });
           }
         }
         if (hr < 0) return;
@@ -2187,12 +2215,14 @@ details.more[open] > summary { margin-bottom: 10px; }
           var c = toPaise(rows[r][cc]), p = cp >= 0 ? toPaise(rows[r][cp]) : null, pc = cn >= 0 ? E.cleanNum(rows[r][cn]) : null;
           if (pc !== null && !(pc >= 1 && pc <= 50)) pc = null;
           var kk = ck >= 0 ? E.txt(rows[r][ck]) : '';
-          if (c === null && p === null && pc === null && !kk) continue;
+          var gt = cg >= 0 ? E.txt(rows[r][cg]).toLowerCase() : '', gb = null;
+          if (gt) gb = /^(no|n|none|without)/.test(gt) ? 0 : (E.cleanNum(gt.replace('%', '')) !== null ? Math.max(0, Math.min(40, E.cleanNum(gt.replace('%', '')))) : null);
+          if (c === null && p === null && pc === null && !kk && gb === null) continue;
           var cur = w.costs[sku] || {};
           var nn = cur.n == null ? null : cur.n;
           if (pc !== null) nn = Math.round(pc) === E.piecesOf(sku, w.settings, null, S.M) ? null : Math.round(pc);
           var autoK = autoCats[sku] || A.fileCat(sku) || E.categoryOf(sku);
-          w.costs[sku] = { c: c !== null ? c : (cur.c == null ? null : cur.c), p: p !== null ? p : (cur.p == null ? null : cur.p), n: nn, k: kk ? (kk === autoK ? null : kk) : (cur.k || null) }; n++;
+          w.costs[sku] = { c: c !== null ? c : (cur.c == null ? null : cur.c), p: p !== null ? p : (cur.p == null ? null : cur.p), n: nn, k: kk ? (kk === autoK ? null : kk) : (cur.k || null), b: gb !== null ? gb : (cur.b == null ? null : cur.b) }; n++;
         }
       });
       if (!n) { toast('No rows found. The sheet needs an SKU column and a Cost column.', 6000); return; }
@@ -2200,10 +2230,10 @@ details.more[open] > summary { margin-bottom: 10px; }
     } catch (e) { console.error(e); toast('Could not read that cost sheet.', 5000); }
   }
   function exportCosts() {
-    var rows = [['SKU', 'Product', 'Category', 'Buyer price per order (Rs)', 'Pieces in combo', 'Cost per piece (Rs)', 'Packaging per parcel (Rs, optional)']];
+    var rows = [['SKU', 'Product', 'Category', 'Buyer price per order (Rs)', 'Pieces in combo', 'Cost per piece (Rs)', 'Packaging per parcel (Rs, optional)', 'GST bill % (0 = no GST bill, blank = default)']];
     A.skuList().forEach(function (x) {
       var c = W().costs[x.sku] || {};
-      rows.push([x.sku, x.pn, x.cat, x.price ? rupeeInput(x.price) : '', x.pcs, c.c == null ? '' : rupeeInput(c.c), c.p == null ? '' : rupeeInput(c.p)]);
+      rows.push([x.sku, x.pn, x.cat, x.price ? rupeeInput(x.price) : '', x.pcs, c.c == null ? '' : rupeeInput(c.c), c.p == null ? '' : rupeeInput(c.p), c.b == null ? '' : c.b]);
     });
     var csv = rows.map(function (r) { return r.map(function (v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }).join('\r\n');
     saveBlob('Hisaab_costs.csv', new Blob(['\uFEFF' + csv], { type: 'text/csv' }));
@@ -2326,12 +2356,14 @@ details.more[open] > summary { margin-bottom: 10px; }
   /* ---------------- actions ---------------- */
   function costEntry(sku) {
     var cur = W().costs[sku] || {};
-    return { c: cur.c == null ? null : cur.c, p: cur.p == null ? null : cur.p, n: cur.n == null ? null : cur.n, k: cur.k || null };
+    return { c: cur.c == null ? null : cur.c, p: cur.p == null ? null : cur.p, n: cur.n == null ? null : cur.n, k: cur.k || null, b: cur.b == null ? null : cur.b };
   }
   function setCost(sku, field, raw) {
     var w = W(), empty = String(raw).trim() === '', v;
     if (field === 'k') {
       v = empty ? null : String(raw);
+    } else if (field === 'b') {
+      v = empty ? null : Math.max(0, Math.min(40, +raw || 0));
     } else if (field === 'n') {
       v = empty ? null : E.cleanNum(raw);
       if (v !== null && !(v >= 1 && v <= 50 && Math.round(v) === v)) { toast('Pieces must be a whole number from 1 to 50'); return false; }
@@ -2341,7 +2373,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       if (!empty && v === null) { toast('Enter a number, like 128 or 128.50'); return false; }
     }
     var cur = costEntry(sku); cur[field] = v;
-    if (cur.c == null && cur.p == null && cur.n == null && !cur.k) delete w.costs[sku]; else w.costs[sku] = cur;
+    if (cur.c == null && cur.p == null && cur.n == null && cur.b == null && !cur.k) delete w.costs[sku]; else w.costs[sku] = cur;
     persist('costs'); recompute(); renderChrome();
     return true;
   }
@@ -2462,6 +2494,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     to: function (el) { S.sel.to = el.value; if (S.sel.from && S.sel.to) refresh(); },
     cost: function (el) { if (setCost(el.getAttribute('data-sku'), 'c', el.value)) refreshCostRow(el); },
     cpack: function (el) { if (setCost(el.getAttribute('data-sku'), 'p', el.value)) refreshCostRow(el); },
+    cbuy: function (el) { if (setCost(el.getAttribute('data-sku'), 'b', el.value)) refreshCostRow(el); },
     cpcs: function (el) { if (setCost(el.getAttribute('data-sku'), 'n', el.value)) refreshCostRow(el); else { var c = W().costs[el.getAttribute('data-sku')]; el.value = c && c.n != null ? c.n : ''; } },
     pack: function (el) {
       var v = el.value.trim() === '' ? 0 : toPaise(el.value);
@@ -2481,12 +2514,14 @@ details.more[open] > summary { margin-bottom: 10px; }
     set: function (el) {
       var k = el.getAttribute('data-k'), st = W().settings, v;
       if (el.type === 'checkbox') v = el.checked;
+      else if (k === 'buyGst') v = +el.value || 0;
       else if (k === 'defaultGst' || k === 'overdueDays') {
         v = E.cleanNum(el.value);
         if (v === null || v < 0 || (k === 'defaultGst' && v > 40) || (k === 'overdueDays' && v > 365)) { toast('Enter a valid number'); el.value = st[k]; return; }
       } else v = el.value;
       st[k] = v; persist('settings');
-      if (k === 'gstReg' || k === 'taxCredits' || k === 'returnDefault' || k === 'rtoDefault' || k === 'packFromSku') refresh(); else { recompute(); renderChrome(); }
+      if (k === 'buyGst') toast(v ? 'Goods counted as bought with a ' + v + '% GST bill' : 'Goods counted as bought without a GST bill');
+      if (k === 'buyGst' || k === 'gstReg' || k === 'taxCredits' || k === 'returnDefault' || k === 'rtoDefault' || k === 'packFromSku') refresh(); else { recompute(); renderChrome(); }
       toast('Saved');
     },
     exw: function (el) { var m = $('#ex-m-wrap'); if (m) m.hidden = el.value === 'monthly'; }
@@ -2902,8 +2937,7 @@ details.more[open] > summary { margin-bottom: 10px; }
 
     var g = R.gst, tx = '';
     if (g) {
-      tx += kv([['Output GST on net sales', g.out], ['Less: input credit on Meesho charges', -g.itcCh], ['Less: input credit on ads', -g.itcAds],
-        ['Net GST payable', g.net, true], ['Less: TCS already collected by Meesho', -g.tcs], ['GST left to pay in cash', g.cash, true]]);
+      tx += kv(E.gstRows(g).map(function (x) { return [x[0], x[1], !!x[2]]; }));
     } else {
       tx += '<p>GST is not split out because GST registration is off in Settings. Meesho charges and ads are counted including GST.</p>';
     }
@@ -3066,6 +3100,8 @@ details.more[open] > summary { margin-bottom: 10px; }
     if (x.price) bits.push('buyer pays ' + rs(x.price, true));
     if (c.c != null && x.pcs > 1) bits.push(rs(c.c * x.pcs) + ' cost per order');
     if (c.c != null && x.price) bits.push(Math.round(c.c * (x.pcs || 1) * 100 / x.price) + '% of price');
+    var br = E.buyRate(c, A.W().settings);
+    if (c.c != null && br) bits.push(rs(Math.round(c.c * 100 / (100 + br)), true) + ' per piece after ' + br + '% GST credit');
     return '<span class="sku">' + esc(x.sku) + '</span>' + (x.pcs > 1 ? ' <span class="tag">pack of ' + x.pcs + '</span>' : '') +
       '<div class="sub">' + bits.map(function (b) { return '<span>' + b + '</span>'; }).join(', ') + (x.pn ? '. <span data-noi18n>' + esc(x.pn) + '</span>' : '') + '</div>';
   };
@@ -3083,9 +3119,18 @@ details.more[open] > summary { margin-bottom: 10px; }
         '<label>Per piece (\u20b9)<input class="inp money" data-ch="cost" data-sku="' + sk + '" inputmode="decimal" value="' + A.rupeeInput(c.c) + '" placeholder="Cost"></label>' +
         '<label>Pieces<input class="inp money" data-ch="cpcs" data-sku="' + sk + '" inputmode="numeric" value="' + (c.n != null ? c.n : '') + '" placeholder="' + x.auto + '"></label>' +
         '<label>Packaging (\u20b9)<input class="inp money" data-ch="cpack" data-sku="' + sk + '" inputmode="decimal" value="' + A.rupeeInput(c.p) + '" placeholder="' + A.rupeeInput(st.pack || 0) + '"></label>' +
+        '<label class="cbuy">GST bill<select class="inp" data-ch="cbuy" data-sku="' + sk + '">' + buyOptions(c.b, st) + '</select></label>' +
         '<label class="ccat">Category<select class="inp" data-ch="ccat" data-sku="' + sk + '">' + catOptions(x.cat, x.autoCat) + '</select></label></div>';
     }).join('') + (list.length > 400 ? '<p class="small muted">Showing 400 of ' + list.length + '. Search to find the rest.</p>' : '');
   };
+  var BUY = [[0, 'No GST bill'], [5, '5% GST bill'], [12, '12% GST bill'], [18, '18% GST bill'], [28, '28% GST bill']];
+  // for one SKU: '' follows the default in Costs
+  function buyOptions(cur, st) {
+    var d = +st.buyGst || 0, dl = (BUY.filter(function (o) { return o[0] === d; })[0] || BUY[0])[1];
+    return '<option value=""' + (cur == null ? ' selected' : '') + '>Same as default (' + dl + ')</option>' +
+      BUY.map(function (o) { return '<option value="' + o[0] + '"' + (cur != null && +cur === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('');
+  }
+  A.BUY = BUY;
   function catOptions(cur, auto) {
     return A.catList().map(function (n) { return '<option value="' + esc(n) + '"' + (n === cur ? ' selected' : '') + '>' + esc(n) + (n === auto ? ' (auto)' : '') + '</option>'; }).join('');
   }
@@ -3130,7 +3175,12 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<div class="fgrid"><label class="f">Pieces in a combo' + packSel(st) + '</label></div>' +
       '<p class="small muted" style="margin:0">' + esc(packNote(st)) + ' For any SKU that is different, type the right count under Pieces.</p>' +
       '<div class="fgrid"><label class="f">Packaging per parcel (\u20b9)<input class="inp money" data-ch="pack" inputmode="decimal" value="' + A.rupeeInput(st.pack || 0) + '"></label></div>' +
-      '<p class="small muted" style="margin:0">Poly bag, label and tape for one parcel. Counted once per shipped parcel, RTO parcels included.</p></section>' + fillHtml() +
+      '<p class="small muted" style="margin:0">Poly bag, label and tape for one parcel. Counted once per shipped parcel, RTO parcels included.</p>' +
+      '<div class="fgrid"><label class="f">Goods you buy come with<select class="inp" data-ch="set" data-k="buyGst">' +
+      BUY.map(function (o) { return '<option value="' + o[0] + '"' + ((+st.buyGst || 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label></div>' +
+      '<p class="small muted" style="margin:0">' + (st.gstReg
+        ? 'Enter the cost you paid, including GST. With a GST bill, the GST in it is your input credit: it lowers the GST you pay in cash, so the product costs you the price without GST. Change it for any SKU below.'
+        : 'You are not registered under GST (see Settings), so GST on purchases cannot be claimed back and the full price you paid is the cost.') + '</p></section>' + fillHtml() +
       '<section class="sheet"><div class="sheet-h"><h3>Your SKUs</h3><span class="small muted" id="c-sum">' + costSummaryText() + '</span></div>' +
       '<div class="row" style="margin-bottom:4px"><input class="inp" type="search" data-in="cq" placeholder="Search SKU" value="' + esc(S.cf.q) + '" aria-label="Search SKU" style="flex:1 1 200px">' +
       '<select class="inp" data-ch="ccatf" aria-label="Category" style="flex:0 1 190px"><option value="">All categories</option>' + catCounts().map(function (c) { return '<option value="' + esc(c[0]) + '"' + (S.cf.cat === c[0] ? ' selected' : '') + '>' + esc(c[0]) + ' (' + c[1] + ')</option>'; }).join('') + '</select>' +
@@ -3280,7 +3330,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       var g = R.gst;
       P.push([]);
       P.push([t('GST summary', ST.sec), t('', ST.sec)]);
-      [['Output GST on net sales', g.out], ['Less: input credit on Meesho charges', -g.itcCh], ['Less: input credit on ads', -g.itcAds], ['Net GST payable', g.net, 1], ['Less: TCS already collected by Meesho', -g.tcs], ['GST left to pay in cash', g.cash, 1]]
+      E.gstRows(g)
         .forEach(function (x) { P.push([t(x[0], x[2] ? ST.tot : ST.row), m(x[1], x[2] ? ST.tot : null)]); });
     }
     P.push([]);
@@ -3541,8 +3591,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     var taxRows = [];
     if (R.gst) {
       var g = R.gst;
-      taxRows = [['Output GST on net sales', mn(g.out)], ['Less: input credit on Meesho charges', mn(-g.itcCh)], ['Less: input credit on ads', mn(-g.itcAds)],
-        [bold('Net GST payable'), bold(mn(g.net))], ['Less: TCS already collected by Meesho', mn(-g.tcs)], [bold('GST left to pay in cash'), bold(mn(g.cash))]];
+      taxRows = E.gstRows(g).map(function (x) { return x[2] ? [bold(x[0]), bold(mn(x[1]))] : [x[0], mn(x[1])]; });
     }
     taxRows.push([bold('Tax deducted by Meesho', { textColor: BRAND }), ''], ['TCS collected under GST', mn(-K.T)], ['TDS under section 194-O', mn(-K.D)]);
     table('GST and tax', (R.gst ? 'Input credit is worked out at 18% on columns Meesho marks as including GST; check it against Meesho\'s monthly tax invoice before filing. ' : 'GST registration is off in Settings, so GST is not split out. ') +
