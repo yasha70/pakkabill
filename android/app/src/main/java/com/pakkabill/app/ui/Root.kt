@@ -115,6 +115,10 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
     var tab by rememberSaveable { mutableStateOf(startTab) }
     var accountOpen by rememberSaveable { mutableStateOf(false) }
     var moreOpen by rememberSaveable { mutableStateOf(false) }
+    var planOpen by rememberSaveable { mutableStateOf(false) }
+    val reminder by pnl.reminder.collectAsState()
+    val goal by pnl.goal.collectAsState()
+    var speaking by remember { mutableStateOf(false) }
     var askLogin by remember { mutableStateOf(false) }
     var pickDates by remember { mutableStateOf(false) }
     // filters kept here, so the lazy rows below can be worked out once per change
@@ -126,6 +130,7 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
     val panes = remember { Panes() }
     val lists = remember { HashMap<String, LazyListState>() }
     fun open(k: String, top: Boolean = true) {
+        if (k == "plan") { planOpen = true; moreOpen = false; return }
         if (top) lists.remove(k)
         tab = k
         moreOpen = false
@@ -138,13 +143,11 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
     val cfg = acct.config
     val enforced = cfg != null && cfg.enabled && cfg.enforce
     val login = acct.loggedIn
-    val pro = login && (!enforced || (acct.session?.user?.paidUntil ?: 0) > System.currentTimeMillis())
+    // Pro dates use the account's safe clock: turning the phone's clock back does not keep Pro on
+    val pro = login && (!enforced || acct.isPro)
     val x = Access(login, pro, if (cfg != null && cfg.enabled && cfg.enforce) cfg.trialDays else 0, !platform.sellsPro)
-    fun unlock() {
-        if (!login) askLogin = true
-        else if (platform.sellsPro) platform.openUrl("$SITE/#/plan")
-        else say("Log in with an account that has Pro to see it here.")
-    }
+    // the Plan screen: log in or sign up there, then the plans, coupons and UPI payment
+    fun unlock() { planOpen = true; moreOpen = false }
     // downloads need a login and Pro, like the website (sample data too)
     fun needFull(block: () -> Unit) { if (x.full) block() else unlock() }
 
@@ -167,6 +170,32 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
         unlock = { unlock() },
         rcGo = { b -> if (b == "returned") pnl.flag("rv"); rcB = b; rcQ = ""; open("rc") },
         hideSteps = { pnl.flag("steps") },
+    )
+
+    val hindiNow = lang == "hi"
+    val proNote = when {
+        enforced && acct.isPro && acct.daysLeft <= 3 && platform.sellsPro -> {
+            val d = acct.daysLeft
+            ProNote(
+                tr((if (acct.trial) "Your free Pro trial ends in $d day" else "Your Pro plan ends in $d day") + (if (d == 1) "" else "s") + ". Renew now; the new time adds on top of what is left."),
+                tr("Renew Pro"), true,
+            ) { planOpen = true }
+        }
+        acct.pending -> ProNote(tr("Your Pro payment is being checked. Pro turns on here by itself, usually within a few hours."), tr("See payment"), false) { planOpen = true }
+        else -> acct.news.firstOrNull { it.trialDays > 0 && !it.claimed }?.let { n ->
+            ProNote(n.title + if (n.message.isNotBlank()) ". " + n.message else "", tr("Claim ${n.trialDays} day" + (if (n.trialDays > 1) "s" else "") + " of Pro free"), false) { planOpen = true }
+        }
+    }
+    val ex = PlExtras(
+        goal = goal, setGoal = { pnl.setGoal(it) }, speaking = speaking, proNote = proNote,
+        hear = {
+            val r = ui.report
+            if (speaking) { platform.stopSpeaking(); speaking = false }
+            else if (r != null) {
+                speaking = platform.speak(speechText(r, hindiNow, tr), hindiNow) { speaking = false }
+                if (!speaking) say("No voice is installed on this phone. Add one in the phone's settings, under Text-to-speech.")
+            }
+        },
     )
 
     // the rows the lazy lists show, worked out only when the report or a filter changes
@@ -207,7 +236,7 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
                         contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 2.dp, bottom = 28.dp),
                     ) {
                         when (tab) {
-                            "pl" -> plTab(ui, x, flags, go, panes)
+                            "pl" -> plTab(ui, x, flags, go, panes, ex)
                             "rc" -> rcTab(ui, x, RcState(rcB, rcQ, rcRowsNow, { rcB = it }, { rcQ = it }), { id, c -> pnl.setMark(id, c) }, go, panes)
                             "data" -> block("data") { DataTab(ui, go, DataActs(upload = { platform.pickMeeshoFiles() }, remove = { pnl.removeFile(it.id) }, removeAll = { pnl.removeAllFiles() })) }
                             "costs" -> costsTab(
@@ -225,6 +254,9 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
                             )
                             "exp" -> block("exp") { ExpTab(ui, go, { pnl.addExpense(it) }, { pnl.removeExpense(it) }, ::say) }
                             "set" -> block("set") {
+                                AppExtrasSheet(reminder, { on -> pnl.setReminder(on); platform.setReminder(on); if (on) say("Reminder on: every Thursday morning.") }) {
+                                    if (!platform.pinWidget()) say("Long-press your home screen, tap Widgets and pick PakkaBill.")
+                                }
                                 SetTab(
                                     ui, lang, theme, go,
                                     SetActs(
@@ -261,20 +293,22 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
             }
         }
 
-        MoreSheet(moreOpen, tab, login, close = { moreOpen = false }, pick = { open(it) }, account = { moreOpen = false; accountOpen = true })
+        MoreSheet(moreOpen, tab, login, acct.isPro && enforced, close = { moreOpen = false }, pick = { open(it) }, account = { moreOpen = false; accountOpen = true })
+
+        AnimatedVisibility(planOpen, enter = slideInHorizontally(tween(220)) { it } + fadeIn(tween(220)), exit = slideOutHorizontally(tween(200)) { it } + fadeOut(tween(200))) {
+            SystemBack { planOpen = false }
+            LaunchedEffect(Unit) { account.refresh(force = false) }
+            Column(Modifier.fillMaxSize().then(doodle)) {
+                OverlayBar("PakkaBill Pro") { planOpen = false }
+                PlanScreen(acct, account, ::say)
+            }
+        }
 
         AnimatedVisibility(accountOpen, enter = slideInHorizontally(tween(220)) { it } + fadeIn(tween(220)), exit = slideOutHorizontally(tween(200)) { it } + fadeOut(tween(200))) {
             SystemBack { accountOpen = false }
             Column(Modifier.fillMaxSize().then(doodle)) {
-                Row(
-                    Modifier.fillMaxWidth().background(h.spine).drawBehind { drawRect(h.rule, Offset(0f, size.height - 1.dp.toPx()), Size(size.width, 1.dp.toPx())) }
-                        .windowInsetsPadding(WindowInsets.statusBars).height(56.dp).padding(horizontal = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.size(44.dp).clip(CircleShape).clickable { accountOpen = false }, contentAlignment = Alignment.Center) { Icon(PbIcons.Back, t("Back"), tint = h.ink, modifier = Modifier.size(22.dp)) }
-                    Txt("My account", weight = FontWeight.SemiBold, head = true, size = 18.sp)
-                }
-                AccountScreen(acct, account, lockOn, PaddingValues(0.dp), openPnlSettings = { accountOpen = false; open("set") }, say = ::say)
+                OverlayBar("My account") { accountOpen = false }
+                AccountScreen(acct, account, lockOn, PaddingValues(0.dp), openPnlSettings = { accountOpen = false; open("set") }, openPlan = { planOpen = true }, say = ::say)
             }
         }
 
@@ -381,7 +415,7 @@ private fun RowScope.BarTab(icon: ImageVector, label: String, on: Boolean, badge
 
 /** More: the rest of the P&L (files, expenses, settings, how to use) and the account. */
 @Composable
-private fun MoreSheet(open: Boolean, tab: String, login: Boolean, close: () -> Unit, pick: (String) -> Unit, account: () -> Unit) {
+private fun MoreSheet(open: Boolean, tab: String, login: Boolean, pro: Boolean, close: () -> Unit, pick: (String) -> Unit, account: () -> Unit) {
     val h = LocalHues.current
     if (open) SystemBack(onBack = close)
     AnimatedVisibility(open, enter = fadeIn(tween(160)), exit = fadeOut(tween(160))) {
@@ -400,6 +434,7 @@ private fun MoreSheet(open: Boolean, tab: String, login: Boolean, close: () -> U
                     Triple("set", "Settings", PbIcons.Gear), Triple("guide", "How to use", PbIcons.Book),
                 ).forEach { (k, l, ic) -> MoreRow(ic, l, tab == k) { pick(k) } }
                 Box(Modifier.padding(vertical = 6.dp, horizontal = 8.dp).fillMaxWidth().height(1.dp).background(h.rule))
+                MoreRow(PbIcons.Crown, if (pro) "PakkaBill Pro is active" else "PakkaBill Pro", false) { pick("plan") }
                 MoreRow(PbIcons.User, if (login) "My account" else "Log in", false, account)
             }
         }
@@ -462,4 +497,18 @@ fun summaryText(r: Report, biz: String): String {
     if (s.missing.isNotEmpty()) t += "(Cost not added yet for " + pl(s.missing.size, "SKU") + ")"
     t += listOf("", "Made with PakkaBill: know your real profit", "$SITE/#/pnl")
     return t.joinToString("\n")
+}
+
+/** The bar of a screen opened over the tabs (Plan, My account): back and the title. */
+@Composable
+private fun OverlayBar(title: String, back: () -> Unit) {
+    val h = LocalHues.current
+    Row(
+        Modifier.fillMaxWidth().background(h.spine).drawBehind { drawRect(h.rule, Offset(0f, size.height - 1.dp.toPx()), Size(size.width, 1.dp.toPx())) }
+            .windowInsetsPadding(WindowInsets.statusBars).height(56.dp).padding(horizontal = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(44.dp).clip(CircleShape).clickable(onClick = back), contentAlignment = Alignment.Center) { Icon(PbIcons.Back, t("Back"), tint = h.ink, modifier = Modifier.size(22.dp)) }
+        Txt(title, weight = FontWeight.SemiBold, head = true, size = 18.sp)
+    }
 }

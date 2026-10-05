@@ -4,6 +4,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -34,7 +35,43 @@ import kotlinx.serialization.json.put
     val yearly: Int = 999,
     val freeBills: Int = 0,
     val trialDays: Int = 0,
+    /** where Pro payments go (UPI), set by the admin */
+    val upiId: String = "",
+    val payeeName: String = "",
     val biz: Biz = Biz(),
+)
+
+/** A Pro payment the seller sent (UPI transaction number), checked by hand by PakkaBill. */
+@Serializable data class Order(
+    val id: String = "",
+    val plan: String = "",
+    /** paise */
+    val amount: Long = 0,
+    val listAmount: Long = 0,
+    val coupon: String? = null,
+    val utr: String = "",
+    /** PENDING, COMPLETED or REJECTED */
+    val state: String = "",
+    val createdAt: Long = 0,
+)
+
+/** Price of a plan after a coupon, in rupees. */
+@Serializable data class Quote(val list: Double = 0.0, val amount: Double = 0.0, val coupon: String? = null)
+
+/** A message or offer from PakkaBill (the admin's banners, free Pro days to claim). */
+@Serializable data class News(
+    val id: String = "",
+    val title: String = "",
+    val message: String = "",
+    /** info, offer or warn */
+    val tone: String = "info",
+    val trialDays: Int = 0,
+    /** "", "upgrade" or "link" */
+    val cta: String? = null,
+    val ctaLabel: String? = null,
+    val link: String? = null,
+    val endAt: Long? = null,
+    val claimed: Boolean = false,
 )
 
 @Serializable data class Session(val token: String, val user: User)
@@ -45,6 +82,10 @@ data class Access(val login: Boolean, val pro: Boolean) {
     val full get() = login && pro
 
     companion object {
+        /**
+         * [now] should be [Clock.now]: the latest time the app has seen from the server or the
+         * phone, so turning the phone's clock back does not keep Pro running.
+         */
         fun of(session: Session?, cfg: ServerConfig?, now: Long = System.currentTimeMillis()): Access {
             val login = session != null && session.token.isNotEmpty()
             val enforced = cfg != null && cfg.enabled && cfg.enforce
@@ -65,6 +106,10 @@ class ApiException(val status: Int, message: String) : IOException(message) {
  */
 class Api(private val base: String = "https://pakkabill1.vercel.app", private val userAgent: String = "PakkaBillApp/3") {
 
+    /** The server's time from the last answer (0 before any): the phone's clock can be wrong or moved. */
+    @Volatile var serverTime: Long = 0
+        private set
+
     private fun request(method: String, path: String, token: String?, body: JsonObject? = null): JsonObject {
         val c = try { URL(base.trimEnd('/') + path).openConnection() as HttpURLConnection } catch (e: Exception) { throw offline() }
         try {
@@ -82,6 +127,7 @@ class Api(private val base: String = "https://pakkabill1.vercel.app", private va
                 c.outputStream.use { it.write(json.encodeToString(body).toByteArray()) }
             }
             val status = c.responseCode
+            c.date.takeIf { it > 0 }?.let { serverTime = it }
             val text = (if (status >= 400) c.errorStream else c.inputStream)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: ""
             val obj = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull()
             if (status >= 400 || obj == null) {
@@ -123,7 +169,42 @@ class Api(private val base: String = "https://pakkabill1.vercel.app", private va
 
     fun config(): ServerConfig = json.decodeFromJsonElement(ServerConfig.serializer(), request("GET", "/api/config", null))
 
+    /** The price of [plan] ("monthly" or "yearly") with a coupon; fails with the server's reason for a bad coupon. */
+    fun quote(token: String, plan: String, coupon: String): Quote =
+        json.decodeFromJsonElement(Quote.serializer(), request("POST", "/api/pay", token, buildJsonObject { put("action", "quote"); put("plan", plan); put("coupon", coupon) }))
+
+    /** Sends a UPI payment for PakkaBill to check: the 12-digit transaction number (UTR). */
+    fun pay(token: String, plan: String, utr: String, coupon: String?): Order =
+        json.decodeFromJsonElement(
+            Order.serializer(),
+            request("POST", "/api/pay", token, buildJsonObject { put("plan", plan); put("utr", utr); if (!coupon.isNullOrBlank()) put("coupon", coupon) })["order"]!!,
+        )
+
+    /** The seller's latest payments, newest first. */
+    fun orders(token: String): List<Order> =
+        request("GET", "/api/pay", token)["orders"]?.let { json.decodeFromJsonElement(ListSerializer(Order.serializer()), it) } ?: emptyList()
+
+    /** Messages and offers for this seller (or for everyone, without a login). */
+    fun news(token: String?): List<News> =
+        request("GET", "/api/news", token)["news"]?.let { json.decodeFromJsonElement(ListSerializer(News.serializer()), it) } ?: emptyList()
+
+    /** Claims an offer of free Pro days; gives the account with its new Pro date. */
+    fun claim(token: String, id: String): User =
+        json.decodeFromJsonElement(User.serializer(), request("POST", "/api/news", token, buildJsonObject { put("action", "claim"); put("id", id) })["user"]!!)
+
     companion object {
+        /** The 12-digit UPI transaction number (UTR) in what was copied from a payment app, or null. */
+        fun findUtr(text: String): String? =
+            Regex("(?<!\\d)\\d{12}(?!\\d)").find(text.replace(Regex("(\\d)[ -](?=\\d)"), "$1"))?.value
+
+        /** The UPI payment link for a Pro plan (opens PhonePe, Google Pay, Paytm or a bank app). */
+        fun upiLink(cfg: ServerConfig, plan: String, rupees: Double, phone: String): String {
+            fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")
+            val note = "PakkaBill Pro $plan $phone".trim().take(50)
+            return "upi://pay?pa=" + cfg.upiId.trim() + "&pn=" + enc(cfg.payeeName.ifBlank { "PakkaBill" }.take(40)) +
+                "&am=" + String.format(java.util.Locale.ENGLISH, "%.2f", rupees) + "&cu=INR&tn=" + enc(note)
+        }
+
         /** 10-digit Indian mobile number from what the seller typed (+91, spaces, a leading 0). */
         fun normPhone(s: String): String? {
             val d = s.filter { it.isDigit() }

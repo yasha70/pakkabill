@@ -36,6 +36,20 @@ interface Platform {
     fun stopSpeaking()
     fun rateApp()
     fun shareApp()
+
+    /**
+     * Opens a UPI app (PhonePe, Google Pay, Paytm, a bank app) to pay [link]. When the app says the
+     * payment went through, [done] gets the 12-digit transaction number (UTR), otherwise null.
+     * False when the phone has no UPI app.
+     */
+    fun payUpi(link: String, done: (String?) -> Unit): Boolean
+    fun copyText(text: String)
+    /** What the seller copied last (to find a UTR in it), or null. */
+    fun pasteText(): String?
+    /** The weekly reminder to add the new Meesho payment report (asks for notifications when needed). */
+    fun setReminder(on: Boolean)
+    /** Asks the home screen to add the real-profit widget; false when the launcher cannot. */
+    fun pinWidget(): Boolean
 }
 
 val LocalPlatform = staticCompositionLocalOf<Platform> { error("No platform") }

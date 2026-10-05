@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="splash_background">#110E20</color>
+    <color name="widget_bg">#1B1631</color>
+    <color name="widget_rule">#3A3160</color>
+    <color name="widget_ink">#ECE8FB</color>
+    <color name="widget_ink2">#958DB3</color>
+    <color name="widget_profit">#74D8A7</color>
+    <color name="widget_loss">#FF8A8F</color>
 </resources>

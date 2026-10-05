@@ -8,4 +8,7 @@
     <string name="shortcut_upload_long">Add Meesho payment files</string>
     <string name="shortcut_costs">Costs</string>
     <string name="shortcut_costs_long">Product costs</string>
+    <string name="widget_title">PakkaBill real profit</string>
+    <string name="widget_empty">Add a Meesho payment report</string>
+    <string name="widget_desc">This month\'s real Meesho profit at a glance</string>
 </resources>

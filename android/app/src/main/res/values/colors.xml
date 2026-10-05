@@ -3,4 +3,10 @@
     <color name="brand">#2B3494</color>
     <color name="ic_launcher_background">#2B3494</color>
     <color name="splash_background">#FDF8F3</color>
+    <color name="widget_bg">#FFFFFF</color>
+    <color name="widget_rule">#E2DAF2</color>
+    <color name="widget_ink">#2A2540</color>
+    <color name="widget_ink2">#736E8D</color>
+    <color name="widget_profit">#12714B</color>
+    <color name="widget_loss">#C8202A</color>
 </resources>

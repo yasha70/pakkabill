@@ -261,7 +261,7 @@ fun NextSteps(steps: List<StepItem>, go: Go) {
 /* ---------------- the P&L tab ---------------- */
 
 /** The P&L tab as lazy blocks: only the sheets on screen are drawn. */
-fun LazyListScope.plTab(ui: PnlUi, x: Access, flags: Set<String>, go: Go, panes: Panes) {
+fun LazyListScope.plTab(ui: PnlUi, x: Access, flags: Set<String>, go: Go, panes: Panes, ex: PlExtras = PlExtras()) {
     val r = ui.report
     if (!ui.hasData || r == null || r.empty) {
         block("pl-hero") {
@@ -285,9 +285,11 @@ fun LazyListScope.plTab(ui: PnlUi, x: Access, flags: Set<String>, go: Go, panes:
     val st = ui.state.settings
     val full = ui.sample || x.full
     block("pl-hero") { Hero(false, r, go) }
+    ex.proNote?.let { n -> block("pro-note") { Note(if (n.warn) NoteKind.WARN else NoteKind.INFO) { NoteText(n.text, raw = true); Btn(n.button, n.onClick, small = true, kind = BtnKind.PRI, raw = true) } } }
     if (ui.sample) block("demo") { DemoBar(true, go.endDemo) }
     val steps = stepsFor(r, ui, flags, go)
     if (steps.isNotEmpty()) block("steps") { NextSteps(steps, go) }
+    if (!ui.sample && r.monthly.isNotEmpty()) block("goal") { GoalCard(r, ex.goal, ex.setGoal) }
 
     // period, basis and downloads
     block("period") {
@@ -324,7 +326,11 @@ fun LazyListScope.plTab(ui: PnlUi, x: Access, flags: Set<String>, go: Go, panes:
                 Btn("Download PDF", go.pdf, Modifier.weight(1f))
             }
             Spacer(Modifier.height(8.dp))
-            Btn("Share on WhatsApp", go.share, Modifier.fillMaxWidth(), kind = BtnKind.WA)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Btn("Share on WhatsApp", go.share, Modifier.weight(1f), kind = BtnKind.WA)
+                // the summary read aloud, in English or Hindi (only in the app)
+                ex.hear?.let { Btn((if (ex.speaking) "■ " else "🔊 ") + t(if (ex.speaking) "Stop" else "Hear"), it, raw = true) }
+            }
         }
     }
 

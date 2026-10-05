@@ -173,6 +173,7 @@ class MainActivity : FragmentActivity() {
         when (intent.action) {
             ACTION_UPLOAD -> { startTab = "data"; window.decorView.post { pickMeesho() } }
             ACTION_COSTS -> startTab = "costs"
+            ACTION_PLAN -> startTab = "plan"
             Intent.ACTION_SEND -> {
                 @Suppress("DEPRECATION")
                 val uri = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java) else intent.getParcelableExtra(Intent.EXTRA_STREAM)
@@ -193,7 +194,8 @@ class MainActivity : FragmentActivity() {
         val away = backgroundAt > 0 && now - backgroundAt > 60_000
         val ownIntent = leftForOwnIntentAt > 0 && now - leftForOwnIntentAt < 10 * 60_000
         if (lockOn && away && !ownIntent) locked = true
-        if (away) app.account.refresh()
+        // the plan, payments and offers again (a payment approved meanwhile turns Pro on); quietly
+        app.account.refresh(force = away)
         leftForOwnIntentAt = 0
         backgroundAt = 0
     }
@@ -277,6 +279,42 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    /* ---------------- paying Pro by UPI ---------------- */
+
+    private var upiDone: ((String?) -> Unit)? = null
+    private val upiLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
+        // UPI apps answer like "txnId=..&responseCode=00&Status=SUCCESS&ApprovalRefNo=412345678901"
+        val b = res.data?.extras
+        @Suppress("DEPRECATION")
+        val text = b?.keySet()?.joinToString("&") { k -> k + "=" + (b.get(k)?.toString() ?: "") }.orEmpty()
+        val ok = Regex("status=success", RegexOption.IGNORE_CASE).containsMatchIn(text)
+        val utr = Regex("(?:ApprovalRefNo|UTR|bankRefNo)=(\\d{12})(?!\\d)", RegexOption.IGNORE_CASE).find(text)?.groupValues?.get(1)
+            ?: if (ok) com.pakkabill.core.Api.findUtr(text) else null
+        upiDone?.invoke(utr)
+        upiDone = null
+    }
+
+    fun payUpi(link: String, done: (String?) -> Unit): Boolean {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(link))
+        if (packageManager.queryIntentActivities(intent, 0).isEmpty()) return false
+        upiDone = done
+        leavingForOwnIntent()
+        return runCatching { upiLauncher.launch(Intent.createChooser(intent, "Pay with")) }.isSuccess
+    }
+
+    /* ---------------- the weekly reminder ---------------- */
+
+    private val notifyAsk = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (!ok) say("Notifications are off for PakkaBill. Turn them on in the phone's settings to get the reminder.", long = true)
+    }
+
+    fun setReminder(on: Boolean) {
+        com.pakkabill.app.extras.Reminder.schedule(this, on)
+        if (on && Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            runCatching { notifyAsk.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
+        }
+    }
+
     /* ---------------- app lock ---------------- */
 
     fun canUseLock(): Boolean =
@@ -354,6 +392,7 @@ class MainActivity : FragmentActivity() {
     companion object {
         const val ACTION_UPLOAD = "com.pakkabill.app.UPLOAD"
         const val ACTION_COSTS = "com.pakkabill.app.COSTS"
+        const val ACTION_PLAN = "com.pakkabill.app.PLAN"
         /** Meesho payment files are a few MB; this keeps a wrong pick (a video) from filling memory. */
         private const val MAX_FILE = 60L * 1024 * 1024
     }

@@ -10,6 +10,11 @@ import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.pakkabill.app.extras.WidgetData
 
 /** Starts the P&L engine as soon as the app opens, so it is ready by the time a screen needs it. */
 class PakkaApp : Application() {
@@ -24,5 +29,11 @@ class PakkaApp : Application() {
         pnl = PnlController(File(filesDir, "pnl"), scope, PrefsKeyValue(this, "pnl_ui"))
         val store = installSource(this)
         account = AccountController(Api(userAgent = "PakkaBillApp/${BuildConfig.VERSION_NAME} (Android; store=$store)"), PrefsKeyValue(this, "account"), scope)
+        // the home-screen widget follows every new report and the language
+        scope.launch {
+            combine(pnl.ui, pnl.lang) { ui, lang -> ui.report?.takeIf { !ui.sample && !it.empty }?.let { WidgetData.of(it, lang == "hi") } }
+                .distinctUntilChanged()
+                .collect { d -> withContext(Dispatchers.IO) { runCatching { WidgetData.save(this@PakkaApp, d) } } }
+        }
     }
 }

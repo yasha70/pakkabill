@@ -15,6 +15,7 @@ kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarg
 
 dependencies {
     implementation(libs.rhino)
+    implementation(libs.zxing.core) // QR code for paying Pro by UPI from another phone
     api(libs.kotlinx.serialization.json)
     testImplementation(kotlin("test"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.1") // needed by Gradle 9

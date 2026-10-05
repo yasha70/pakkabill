@@ -123,6 +123,29 @@ class AndroidPlatform(private val a: MainActivity) : Platform {
         shareText("PakkaBill: know your real Meesho profit after returns, RTO, fees and GST. Free app: $link")
     }
 
+    override fun payUpi(link: String, done: (String?) -> Unit): Boolean = a.payUpi(link, done)
+
+    override fun copyText(text: String) {
+        val cm = a.getSystemService(android.content.ClipboardManager::class.java) ?: return
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("PakkaBill", text))
+    }
+
+    override fun pasteText(): String? = runCatching {
+        val cm = a.getSystemService(android.content.ClipboardManager::class.java)
+        cm?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(a)?.toString()
+    }.getOrNull()
+
+    override fun setReminder(on: Boolean) = a.setReminder(on)
+
+    override fun pinWidget(): Boolean {
+        if (android.os.Build.VERSION.SDK_INT < 26) return false
+        val mgr = a.getSystemService(android.appwidget.AppWidgetManager::class.java) ?: return false
+        return runCatching {
+            mgr.isRequestPinAppWidgetSupported &&
+                mgr.requestPinAppWidget(android.content.ComponentName(a, com.pakkabill.app.extras.ProfitWidget::class.java), null, null)
+        }.getOrDefault(false)
+    }
+
     companion object {
         const val PLAY_URL = "https://play.google.com/store/apps/details?id=com.pakkabill.app"
     }

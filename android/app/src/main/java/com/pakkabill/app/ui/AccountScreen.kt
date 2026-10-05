@@ -75,6 +75,7 @@ fun AccountScreen(
     lockOn: Boolean,
     padding: PaddingValues,
     openPnlSettings: () -> Unit,
+    openPlan: () -> Unit = {},
     say: (String) -> Unit,
 ) {
     val platform = LocalPlatform.current
@@ -89,12 +90,13 @@ fun AccountScreen(
         if (s == null) {
             item { AuthCard(account, ui.config?.trialDays ?: 0, say) }
         } else {
-            item { ProfileCard(ui) }
+            item { ProfileCard(ui, openPlan) }
             if (s.user.tempPw) item {
                 NoteCard("You are using a temporary password from PakkaBill support. Set your own password now.", Tone.WARN, "Change password") { changePw = true }
             }
             item {
                 SectionCard("Account") {
+                    MenuRow(Icons.Outlined.WorkspacePremium, "PakkaBill Pro plan", "Plans, payments and offers", onClick = openPlan)
                     MenuRow(Icons.Outlined.Key, "Change password", "Other phones and browsers get logged out") { changePw = true }
                     MenuRow(Icons.AutoMirrored.Outlined.Logout, "Log out") { confirmLogout = true }
                     MenuRow(Icons.Outlined.DeleteForever, "Delete account", "Removes your account and cloud backups for good", tint = MaterialTheme.colorScheme.error) { deleting = true }
@@ -134,12 +136,11 @@ fun AccountScreen(
 }
 
 @Composable
-private fun ProfileCard(ui: AccountUi) {
+private fun ProfileCard(ui: AccountUi, openPlan: () -> Unit) {
     val s = ui.session ?: return
     val x = LocalExtra.current
     val u = s.user
-    val now = System.currentTimeMillis()
-    val pro = u.paidUntil > now
+    val pro = ui.isPro
     val enforced = ui.config?.let { it.enabled && it.enforce } ?: false
     val until = SimpleDateFormat("d MMM yyyy", Locale.ENGLISH).format(Date(u.paidUntil))
     SectionCard(u.shopName.ifBlank { "My shop" }, subtitle = "+91 " + u.phone) {
@@ -152,7 +153,7 @@ private fun ProfileCard(ui: AccountUi) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         when {
-                            u.trial && pro -> "Pro free trial"
+                            ui.trial -> "Pro free trial"
                             pro -> "PakkaBill Pro"
                             !enforced -> "All features are free right now"
                             else -> "Free plan"
@@ -174,10 +175,10 @@ private fun ProfileCard(ui: AccountUi) {
         if (enforced && !pro && !platform.sellsPro) {
             Text("Buying Pro is not available in this app. If your account has Pro, it works here too.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
         }
-        if (enforced && !pro && platform.sellsPro) {
+        if (enforced && platform.sellsPro && (!pro || ui.daysLeft <= 5)) {
             Spacer(Modifier.height(10.dp))
-            Button(onClick = { platform.openUrl("$SITE/#/plan") }, modifier = Modifier.fillMaxWidth()) { Text("Get PakkaBill Pro") }
-            Text("Opens the PakkaBill website. Pro works in the app as soon as it is active.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+            Button(onClick = openPlan, modifier = Modifier.fillMaxWidth()) { Text(if (pro) "Renew PakkaBill Pro" else "Get PakkaBill Pro") }
+            Text("Pay by UPI right here. Pro turns on in the app as soon as it is confirmed.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
         }
     }
 }

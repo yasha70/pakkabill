@@ -187,6 +187,29 @@ class PnlTest {
         assertEquals(17951.39, np, 0.001)
     }
 
+    @Test fun planHelpers() {
+        // the UTR inside whatever a payment app lets you copy
+        assertEquals("412345678901", Api.findUtr("UPI transaction ID: 4123 4567 8901 Paid to PakkaBill"))
+        assertEquals("412345678901", Api.findUtr("UTR 412345678901, ref 99"))
+        assertEquals(null, Api.findUtr("Order 12345 of Rs 999"))
+        val cfg = ServerConfig(upiId = "pakkabill@upi", payeeName = "PakkaBill Store")
+        assertEquals("upi://pay?pa=pakkabill@upi&pn=PakkaBill%20Store&am=999.00&cu=INR&tn=PakkaBill%20Pro%20yearly%209876543210", Api.upiLink(cfg, "yearly", 999.0, "9876543210"))
+        val q = Qr.of(Api.upiLink(cfg, "monthly", 99.0, "9876543210"))
+        assertTrue(q.size >= 25 && q.all { it.size == q.size } && q[0][0] && q[6][6])
+        // turning the clock back does not bring time back; the server's time is trusted
+        var kept = 0L
+        var phone = 1_000_000L
+        val clock = SafeClock({ kept }, { kept = it }, { phone })
+        assertEquals(1_000_000L, clock.now())
+        phone = 500_000L
+        assertEquals(1_000_000L, clock.now())
+        clock.server(2_000_000L)
+        assertEquals(2_000_000L, clock.now())
+        // a phone clock set far ahead by mistake is put right by the server
+        phone = 9_000_000_000L; clock.now(); phone = 2_100_000L; clock.server(2_100_000L)
+        assertEquals(2_100_000L, clock.now())
+    }
+
     @Test fun moneyAndAccess() {
         assertEquals("₹1,15,741", Money.rs(11574100))
         assertEquals("−₹5.50", Money.rs(-550, true))

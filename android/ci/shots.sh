@@ -59,6 +59,9 @@ more "Settings"; cap 29-set 3
 up; cap 30-set 1
 more "How to use"; cap 31-guide 4
 tap "Next"; cap 32-guide 3
+more "PakkaBill Pro"; cap 33-plan 8
+up; cap 34-plan 1; up; cap 35-plan 1
+adb shell input keyevent KEYCODE_BACK; sleep 1
 
 echo "== Hindi" >> "$R"
 tap "P&L"; sleep 1; top

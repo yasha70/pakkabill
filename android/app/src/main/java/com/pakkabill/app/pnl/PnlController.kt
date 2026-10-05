@@ -75,6 +75,14 @@ class PnlController(private val dir: File, private val scope: CoroutineScope, pr
         if (l == "hi") loadHindi()
     }
     fun setTheme(v: String) { theme.value = v; kv.put("theme", v) }
+
+    /** The weekly reminder to add the new Meesho payment report (only in the app). */
+    val reminder = MutableStateFlow(kv.get("reminder") == "1")
+    fun setReminder(on: Boolean) { reminder.value = on; kv.put("reminder", if (on) "1" else "0") }
+
+    /** A profit goal for each month, in paise (0 = none), shown on the P&L (only in the app). */
+    val goal = MutableStateFlow(kv.get("goal")?.toLongOrNull() ?: 0L)
+    fun setGoal(paise: Long) { goal.value = paise.coerceAtLeast(0); kv.put("goal", goal.value.toString()) }
     fun flag(f: String) { val n = flags.value + f; flags.value = n; kv.put("flags", n.joinToString(",")) }
 
     private fun loadHindi() {

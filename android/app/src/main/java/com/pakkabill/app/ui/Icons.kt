@@ -68,6 +68,12 @@ object PbIcons {
     }
     val Book by lazy { lineIcon("book", "M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z", "M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z") }
     val Upload by lazy { lineIcon("upload", "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M17 8l-5-5-5 5", "M12 3v12") }
+    val Crown by lazy {
+        lineIcon(
+            "crown", "M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z",
+            "M5 21h14",
+        )
+    }
     val Close by lazy { lineIcon("close", "M18 6L6 18", "M6 6l12 12") }
     val Back by lazy { lineIcon("back", "M19 12H5", "M12 19l-7-7 7-7") }
 }
