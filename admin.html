@@ -237,6 +237,8 @@
         <div class="card"><h2>Where visitors come from</h2><div id="vsrc"></div></div>
         <div class="card"><h2>Cities</h2><div id="vcity"></div></div>
         <div class="card"><h2>Devices</h2><div id="vdev"></div></div>
+        <div class="card"><h2>Countries</h2><p class="sub">Real visitors only. PakkaBill is for Indian sellers, so most should be India.</p><div id="vcty"></div></div>
+        <div class="card"><h2>Bots kept out</h2><p class="sub">Automated visits (crawlers, scanners, scripts) are not counted as visitors. Why they were flagged, and where from:</p><div id="vbots"></div></div>
       </div>
       <div class="card"><h2>Latest visits</h2><p class="sub">The most recent 100 visits. Logged-in customers show their mobile number; everyone else is anonymous. We keep counts for 90 days and store no IP addresses.</p><div class="tablewrap" id="vrecent"></div></div>
     </section>
@@ -930,6 +932,8 @@
         ['Visitors, 30 days', n(v.month.visitors), `${n(v.month.visits)} visits`],
         ['New vs returning', `${n(v.week.newVisitors)} / ${n(v.week.returning)}`, `visits in the ${lbl}`],
         ['Logged-in visits', n(v.week.loggedIn), `in the ${lbl}`],
+        ['From outside India', n(v.week.abroad), v.week.visits ? `${Math.round((v.week.abroad / v.week.visits) * 100)}% of visits, ${lbl}` : `in the ${lbl}`],
+        ['Bots kept out', n(v.week.bots + (v.gate ? v.gate.blocked + Math.max(0, v.gate.checked - v.gate.passed) : 0)), `blocked or not counted, ${lbl}`],
       ].map(([l, x, sub]) => `<div class="stat"><div class="l">${l}</div><div class="v">${x}</div><div class="muted" style="font-size:12px;font-weight:600">${esc(sub)}</div></div>`).join('');
       const topV = Math.max(1, ...v.series.map((d) => d.visits));
       $('#vchart').innerHTML = v.series.map((d) => `<div class="bar"><b style="font-size:10px">${d.visitors || ''}</b><i style="height:${Math.round((d.visits / topV) * 110) + 3}px" title="${d.day.slice(6)}/${d.day.slice(4, 6)}: ${d.visitors} visitors, ${d.visits} visits, ${d.pv} pages"></i><span style="font-size:10px">${Number(d.day.slice(6))}</span></div>`).join('');
@@ -937,8 +941,18 @@
       $('#vsrc').innerHTML = bars(v.sources);
       $('#vcity').innerHTML = bars(v.cities);
       $('#vdev').innerHTML = bars(v.devices);
+      const cn = (c) => { try { return c && c !== '??' ? new Intl.DisplayNames(['en'], { type: 'region' }).of(c) : 'Unknown'; } catch { return c; } };
+      $('#vcty').innerHTML = bars(v.countries || [], cn);
+      const b = v.bots || { reasons: [], countries: [], recent: [] };
+      const g = v.gate || { blocked: 0, checked: 0, passed: 0, blockedFrom: [], checkedFrom: [] };
+      const gateHtml = `<div class="funnel" style="margin-bottom:12px"><div><span>Stopped at the door (scripts, scanners)</span><i style="width:100%"></i><b>${n(g.blocked)}</b></div><div><span>Asked for the browser check</span><i style="width:100%"></i><b>${n(g.checked)}</b></div><div><span>Passed the check (real browsers)</span><i style="width:${g.checked ? Math.max(2, Math.round((g.passed / g.checked) * 100)) : 0}%"></i><b>${n(g.passed)}</b></div></div>
+        <p class="muted" style="margin:0 0 10px;font-size:13px">Visitors from outside India get a one-second browser check before the website opens. Visitors in India, Google and WhatsApp previews never see it.</p>${g.blockedFrom.length ? `<h3 style="margin:0 0 6px;font-size:14px">Stopped, by country</h3>${bars(g.blockedFrom, cn)}` : ''}`;
+      $('#vbots').innerHTML = gateHtml + (b.reasons.length
+        ? `${bars(b.reasons)}<h3 style="margin:14px 0 6px;font-size:14px">From</h3>${bars(b.countries, cn)}
+          <details style="margin-top:12px"><summary>Latest ${b.recent.length} bots</summary><div class="tablewrap" style="margin-top:8px"><table><thead><tr><th>Time</th><th>Why</th><th>Country</th><th>Page</th><th>Browser name</th></tr></thead><tbody>${b.recent.map((r) => `<tr><td>${when(r.t)}</td><td>${esc(r.why)}</td><td>${esc(cn(r.country))}</td><td>${esc(PAGE_NAME[r.path] || r.path)}</td><td style="white-space:normal;max-width:360px;font-size:12px">${esc(r.ua)}</td></tr>`).join('')}</tbody></table></div></details>`
+        : '') || '<p class="empty">No bots caught yet.</p>';
       $('#vrecent').innerHTML = v.recent.length
-        ? `<table><thead><tr><th>Time</th><th>Page</th><th>From</th><th>Device</th><th>City</th><th>Who</th></tr></thead><tbody>${v.recent.map((r) => `<tr><td>${ago(r.t) === 'Just now' ? 'Just now' : when(r.t)}</td><td>${esc(PAGE_NAME[r.path] || r.path)}</td><td>${esc(r.src)}</td><td>${esc(r.dev)}</td><td>${esc(r.place)}</td><td>${r.phone ? `<a href="#" data-cust="${esc(r.phone)}">${esc(r.phone)}</a>` : `<span class="muted">${r.isNew ? 'New visitor' : 'Returning visitor'}</span>`}</td></tr>`).join('')}</tbody></table>`
+        ? `<table><thead><tr><th>Time</th><th>Page</th><th>From</th><th>Device</th><th>City</th><th>Country</th><th>Who</th></tr></thead><tbody>${v.recent.map((r) => `<tr><td>${ago(r.t) === 'Just now' ? 'Just now' : when(r.t)}</td><td>${esc(PAGE_NAME[r.path] || r.path)}</td><td>${esc(r.src)}</td><td>${esc(r.dev)}</td><td>${esc(r.place)}</td><td>${esc(r.country ? cn(r.country) : '')}</td><td>${r.phone ? `<a href="#" data-cust="${esc(r.phone)}">${esc(r.phone)}</a>` : `<span class="muted">${r.isNew ? 'New visitor' : 'Returning visitor'}</span>`}</td></tr>`).join('')}</tbody></table>`
         : '<p class="empty">No visits yet. Visits appear here a few seconds after someone opens PakkaBill.</p>';
     } catch (e) { toast(e.message, true); }
   }
