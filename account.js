@@ -355,18 +355,19 @@
   function draw(el) {
     var apk = info && info.apk;
     var h = '<div class="page-head"><div><h1 class="page-title">Get the app</h1><p class="page-sub">PakkaBill on your phone’s home screen, full screen, with your bills always there.</p></div></div><div class="pbg">';
-    h += '<section class="pbg-card pbg-hero"><img src="icon-192.png" alt=""><div><h2>PakkaBill app</h2><p>Same PakkaBill, same login and data. Opens in one tap, works offline, sends notifications.</p></div></section>';
+    h += '<section class="pbg-card pbg-hero"><img src="icon-192.png" alt=""><div><h2>PakkaBill app</h2><p>The Meesho P&amp;L as a real Android app: same calculations, same screens, English and हिंदी. Your Meesho files are read on the phone. Same login as the website.</p></div></section>';
     if (standalone()) h += '<div class="pbg-ok">✅ You are using the PakkaBill app. Nothing more to install.</div>';
     if (!inApp()) {
       // Android
       h += '<section class="pbg-card"><h2>🤖 Android phone</h2>';
       if (info && info.play) {
         h += '<p>Install PakkaBill from Google Play. It updates by itself.</p><a class="pbg-btn pri" href="' + esc(info.play) + '" target="_blank" rel="noopener">▶ Get it on Google Play</a>' +
-          (apk ? '<div class="pbg-meta">No Play Store? <a href="' + esc(apk) + '" download="PakkaBill.apk">Download the app file</a> (' + (info.size ? (info.size / 1048576).toFixed(1) + ' MB, ' : '') + 'Android 7 or newer).</div>' : '');
+          (apk ? '<div class="pbg-meta">No Play Store? <a href="' + esc(apk) + '" download="PakkaBill.apk">Download the app file</a> (' + (info.size ? (info.size / 1048576).toFixed(1) + ' MB, ' : '') + 'Android ' + esc(String(info.minAndroid || '8').replace(/\.0$/, '')) + ' or newer).</div>' : '');
       } else if (apk) {
         h += '<p>Download the PakkaBill app and install it.</p><a class="pbg-btn pri" href="' + esc(apk) + '" download="PakkaBill.apk">⬇️ Download PakkaBill for Android</a>' +
-          '<div class="pbg-meta">Version ' + esc(info.version || '1.0') + (info.size ? ' · ' + (info.size / 1048576).toFixed(1) + ' MB' : '') + ' · Android 7 or newer</div>' +
-          '<ol class="pbg-steps"><li>Tap <b>Download</b>, then open <b>PakkaBill.apk</b> from the notification or Downloads.</li><li>If the phone asks, allow <b>Install unknown apps</b> for Chrome (or your file app). This is normal for apps from a website.</li><li>Tap <b>Install</b>, then <b>Open</b>. Log in with the same mobile number and your bills come back.</li></ol>';
+          '<div class="pbg-meta">Version ' + esc(info.version || '1.0') + (info.size ? ' · ' + (info.size / 1048576).toFixed(1) + ' MB' : '') + ' · Android ' + esc(String(info.minAndroid || '8').replace(/\.0$/, '')) + ' or newer</div>' +
+          '<ol class="pbg-steps"><li>Tap <b>Download</b>, then open <b>PakkaBill.apk</b> from the notification or Downloads.</li><li>If the phone asks, allow <b>Install unknown apps</b> for Chrome (or your file app). This is normal for apps from a website.</li><li>Tap <b>Install</b>, then <b>Open</b>. Log in with the same mobile number to use your plan.</li></ol>' +
+          '<p class="pbg-meta">The app has the Meesho P&amp;L. GST bills, estimates and GSTR-1 are on this website for now: install it from your browser below to keep them one tap away too.</p>';
       } else {
         h += '<p>The Android app download is being prepared. Meanwhile, install PakkaBill straight from Chrome below; it works the same way.</p>';
       }
