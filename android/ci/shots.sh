@@ -12,7 +12,11 @@ adb shell settings put system screen_off_timeout 1800000
 adb shell svc power stayon true
 adb logcat -c
 cap() { sleep "$2"; adb exec-out screencap -p > "$OUT/$1.png"; }
-tap() { python3 android/ci/tap.py "$1" | tee -a "$R"; }
+tap() { python3 android/ci/tap.py "$1" $2 | tee -a "$R"; }
+# opens a page from the More sheet of the bottom bar
+more() { tap "More"; sleep 1; tap "$1" last; }
+# frames drawn and janky frames since the last reset, while scrolling
+frames() { echo "$1: $(adb shell dumpsys gfxinfo $PKG | grep -E 'Total frames rendered|Janky frames:|90th percentile|99th percentile' | tr -d '\r' | tr -s ' ' | tr '\n' ';')" >> "$R"; }
 up() { adb shell input swipe 540 1900 540 500 350; }
 top() { for i in 1 2 3 4 5 6; do adb shell input swipe 540 500 540 1900 120; done; }
 alive() { echo "$1 running: $(adb shell pidof $PKG | tr -d '\r')" >> "$R"; }
@@ -25,26 +29,32 @@ echo "== sample data" >> "$R"
 tap "Try with sample data"
 cap 02-pl 20
 adb logcat -d | grep -E "PakkaBill P&L" | tail -3 >> "$R"
+adb shell dumpsys gfxinfo $PKG reset > /dev/null
 for n in 03 04 05 06 07 08 09 10; do up; cap pl-$n 1; done
 up; cap 11-pl 1; up; cap 12-pl 1; up; cap 13-pl 1
+frames "P&L scroll"
 
 echo "== tabs" >> "$R"
 top
 tap "Reconcile"; cap 20-rc 3
-up; cap 21-rc 1
-top; tap "Upload"; cap 22-data 3
-up; cap 23-data 1
-top; tap "Costs"; cap 24-costs 3
-up; cap 25-costs 1; up; cap 26-costs 1
-top; tap "Expenses"; cap 27-exp 3
-adb shell input swipe 900 345 100 345 300; sleep 1
-tap "Settings"; cap 28-set 3
-up; cap 29-set 1
-top; adb shell input swipe 900 345 100 345 300; sleep 1; tap "How to use"; cap 30-guide 4
-tap "Next"; cap 31-guide 3
+adb shell dumpsys gfxinfo $PKG reset > /dev/null
+up; cap 21-rc 1; up; up; up
+frames "Reconcile scroll"
+tap "More"; cap 22-more 2
+tap "Upload" last; cap 23-data 3
+up; cap 24-data 1
+tap "Costs"; cap 25-costs 3
+adb shell dumpsys gfxinfo $PKG reset > /dev/null
+up; cap 26-costs 1; up; cap 27-costs 1; up; up; up
+frames "Costs scroll"
+more "Expenses"; cap 28-exp 3
+more "Settings"; cap 29-set 3
+up; cap 30-set 1
+more "How to use"; cap 31-guide 4
+tap "Next"; cap 32-guide 3
 
 echo "== Hindi" >> "$R"
-top; adb shell input swipe 100 345 900 345 300; sleep 1; tap "P&L"; sleep 1
+tap "P&L"; sleep 1; top
 tap "हिंदी"; cap 40-hi-pl 6
 up; cap 41-hi-pl 1; up; cap 42-hi-pl 1
 top; tap "EN"; sleep 2
@@ -66,7 +76,7 @@ cap 50-own-file 15
 adb shell am start -W -a android.intent.action.VIEW -d "file:///data/data/$PKG/files/Orders.csv" -n $PKG/.MainActivity
 cap 51-two-files 15
 up; cap 52-own-pl 1
-top; tap "Upload"; cap 53-files 3; up; cap 54-files 1
+more "Upload"; cap 53-files 3; up; cap 54-files 1
 
 echo "== dark mode" >> "$R"
 top; tap "P&L"; adb shell cmd uimode night yes
@@ -74,6 +84,8 @@ cap 60-dark 6
 up; cap 61-dark 1
 adb shell cmd uimode night no
 sleep 3
+tap "Dark"; cap 62-dark-button 3
+tap "Light"; sleep 2
 
 echo "== restart" >> "$R"
 adb shell am force-stop $PKG

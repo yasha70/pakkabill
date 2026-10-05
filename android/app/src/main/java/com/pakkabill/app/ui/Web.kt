@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -134,6 +137,34 @@ fun Sheet(modifier: Modifier = Modifier, padding: Dp = 16.dp, content: @Composab
     val h = LocalHues.current
     Column(
         modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp)).background(h.sheet).border(1.dp, h.rule, RoundedCornerShape(3.dp)).padding(padding),
+        content = content,
+    )
+}
+
+/* ---------------- lazy pages: only what is on screen is drawn ---------------- */
+
+/** One block of a tab, with the usual gap above it. Blocks inside stack with the same gap. */
+fun LazyListScope.block(key: Any, content: @Composable ColumnScope.() -> Unit) = item(key = key, contentType = "block") {
+    Column(Modifier.fillMaxWidth().padding(top = Gap), verticalArrangement = Arrangement.spacedBy(Gap), content = content)
+}
+
+enum class Part { TOP, MID, BOTTOM }
+
+/**
+ * A slice of one .sheet, so a long sheet (SKU costs, orders, tables) can be a lazy list:
+ * TOP has the top edge and the gap above, MID only the sides, BOTTOM the bottom edge.
+ */
+@Composable
+fun SheetPart(part: Part, modifier: Modifier = Modifier, padding: Dp = 16.dp, content: @Composable ColumnScope.() -> Unit) {
+    val h = LocalHues.current
+    Column(
+        modifier.fillMaxWidth().padding(top = if (part == Part.TOP) Gap else 0.dp).background(h.sheet).drawBehind {
+            val w = 1.dp.toPx()
+            drawRect(h.rule, size = Size(w, size.height))
+            drawRect(h.rule, Offset(size.width - w, 0f), Size(w, size.height))
+            if (part == Part.TOP) drawRect(h.rule, size = Size(size.width, w))
+            if (part == Part.BOTTOM) drawRect(h.rule, Offset(0f, size.height - w), Size(size.width, w))
+        }.padding(start = padding, end = padding, top = if (part == Part.TOP) padding else 0.dp, bottom = if (part == Part.BOTTOM) padding else 0.dp),
         content = content,
     )
 }
@@ -280,7 +311,7 @@ fun Inp(
         decorationBox = { inner ->
             Box(
                 Modifier.fillMaxWidth().defaultMinSize(minHeight = if (small) 38.dp else 42.dp).clip(RoundedCornerShape(6.dp)).background(h.sheet)
-                    .border(if (focused) 2.dp else 1.dp, if (focused) Color(0xFF5A61E6) else h.rule2, RoundedCornerShape(6.dp))
+                    .border(if (focused) 2.dp else 1.dp, if (focused) h.focus else h.rule2, RoundedCornerShape(6.dp))
                     .padding(horizontal = if (small) 8.dp else 10.dp, vertical = 8.dp),
                 contentAlignment = if (money) Alignment.CenterEnd else Alignment.CenterStart,
             ) {
@@ -326,6 +357,25 @@ fun Details(title: String, key: String, open: Boolean = false, modifier: Modifie
         }
     }
     if (bare) Column(modifier.fillMaxWidth().padding(top = 12.dp), content = body) else Sheet(modifier, content = body)
+}
+
+/** The heading of a details.more whose open state is kept outside (lazy sheets). */
+@Composable
+fun DetailsHead(title: String, open: Boolean, toggle: () -> Unit) {
+    val h = LocalHues.current
+    Row(Modifier.fillMaxWidth().clickable(onClick = toggle).padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1f)) { Txt(title, weight = FontWeight.SemiBold, head = true, size = 17.sp) }
+        Txt(if (open) "−" else "+", color = h.ink3, size = 21.sp, raw = true)
+    }
+}
+
+/** Open sections and the sideways scroll of long tables, kept by the shell so lazy rows share them. */
+class Panes {
+    private val open = androidx.compose.runtime.mutableStateMapOf<String, Boolean>()
+    private val scrolls = HashMap<String, ScrollState>()
+    fun scroll(k: String) = scrolls.getOrPut(k) { ScrollState(0) }
+    fun isOpen(k: String, def: Boolean) = open[k] ?: def
+    fun toggle(k: String, def: Boolean) { open[k] = !isOpen(k, def) }
 }
 
 /** .kv: label and value pairs; a bold row gets a line above */
@@ -376,6 +426,46 @@ fun Table(cols: List<Col>, rows: List<List<Cell>>, totals: List<List<Cell>> = em
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * The same table as [Table], one row at a time for a lazy list: every row scrolls sideways
+ * together through the shared [scroll]. [first] draws the head, [last] the bottom edge.
+ */
+@Composable
+fun TableHead(cols: List<Col>, scroll: ScrollState) {
+    val h = LocalHues.current
+    Row(Modifier.fillMaxWidth().background(h.paper).drawBehind {
+        val w = 1.dp.toPx()
+        drawRect(h.rule, size = Size(size.width, w))
+        drawRect(h.rule, size = Size(w, size.height))
+        drawRect(h.rule, Offset(size.width - w, 0f), Size(w, size.height))
+    }.horizontalScroll(scroll)) {
+        cols.forEach { c ->
+            Box(Modifier.width(c.width).padding(horizontal = 10.dp, vertical = 8.dp), contentAlignment = if (c.num) Alignment.CenterEnd else Alignment.CenterStart) {
+                Txt(c.label, size = 13.sp, weight = FontWeight.SemiBold, color = h.ink2, maxLines = 2, align = if (c.num) TextAlign.End else TextAlign.Start)
+            }
+        }
+    }
+}
+@Composable
+fun TableRow(cols: List<Col>, r: List<Cell>, scroll: ScrollState, total: Boolean = false, last: Boolean = false) {
+    val h = LocalHues.current
+    Row(Modifier.fillMaxWidth().background(h.sheet).drawBehind {
+        val w = 1.dp.toPx()
+        drawRect(if (total) h.rule2 else h.rule, size = Size(size.width, w))
+        drawRect(h.rule, size = Size(w, size.height))
+        drawRect(h.rule, Offset(size.width - w, 0f), Size(w, size.height))
+        if (last) drawRect(h.rule, Offset(0f, size.height - w), Size(size.width, w))
+    }.horizontalScroll(scroll)) {
+        r.forEachIndexed { i, cell ->
+            val c = cols[i]
+            Column(Modifier.width(c.width).padding(horizontal = 10.dp, vertical = 8.dp), horizontalAlignment = if (c.num) Alignment.End else Alignment.Start) {
+                Txt(cell.text, size = 14.4.sp, color = cell.color, weight = if (cell.bold || total) FontWeight.Bold else null, raw = cell.raw, align = if (c.num) TextAlign.End else TextAlign.Start)
+                if (cell.sub != null) Small(cell.sub, raw = true)
             }
         }
     }

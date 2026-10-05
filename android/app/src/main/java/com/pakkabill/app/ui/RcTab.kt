@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -23,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -57,51 +59,70 @@ private val FLAG = mapOf(
     "overdue" to ("Payment overdue" to TagKind.BAD),
 )
 
-/** Reconcile state kept by the shell: chosen bucket, search, how many shown. */
-class RcState(val b: String, val q: String, val n: Int, val setB: (String) -> Unit, val setQ: (String) -> Unit, val more: () -> Unit)
+/** Reconcile state kept by the shell: chosen bucket, search, and the orders that match. */
+class RcState(val b: String, val q: String, val rows: List<OrderRow>, val setB: (String) -> Unit, val setQ: (String) -> Unit)
 
-@Composable
-fun RcTab(ui: PnlUi, x: Access, st: RcState, setMark: (String, String) -> Unit, go: Go) {
+/** The bucket actually shown: a chosen bucket that is now empty falls back to all orders. */
+fun rcBucket(r: com.pakkabill.core.Report, b: String) = if (b != "all" && (r.reconcile[b]?.n ?: 0) == 0) "all" else b
+
+/** The orders in bucket [b] that match the search [q] (sub order number or SKU). */
+fun rcRows(r: com.pakkabill.core.Report, b: String, q: String): List<OrderRow> {
+    val qq = q.trim().uppercase()
+    return r.orders.filter { o -> (b == "all" || (if (b == "issues") o.issue else o.b == b)) && (qq.isEmpty() || o.id.uppercase().contains(qq) || o.sku.uppercase().contains(qq)) }
+}
+
+/** The Reconcile tab as a lazy list: one row per order, however many there are. */
+fun LazyListScope.rcTab(ui: PnlUi, x: Access, st: RcState, setMark: (String, String) -> Unit, go: Go, panes: Panes) {
     val r = ui.report
-    val h = LocalHues.current
-    if (!ui.hasData || r == null || r.empty) { PlTab(ui, x, emptySet(), go); return }
-    if (!(ui.sample || x.full)) { LockBox("rc", x, go); return }
+    if (!ui.hasData || r == null || r.empty) { plTab(ui, x, emptySet(), go, panes); return }
+    if (!(ui.sample || x.full)) { block("lock") { LockBox("rc", x, go) }; return }
     val counts = r.reconcile
-    var b = st.b
-    if (b != "all" && (counts[b]?.n ?: 0) == 0) b = "all"
-    DemoBar(ui.sample, go.endDemo)
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        (listOf("all", "issues") + RC_BUCKETS).filter { it == "all" || (counts[it]?.n ?: 0) > 0 }.forEach { k ->
-            Chip(RC_LABEL[k]!!, if (k == "all") r.orders.size else counts[k]?.n, on = b == k, alert = k == "issues" || k == "overdue") { st.setB(k) }
-        }
-    }
-    Small(bucketHelp(b, ui.state.settings.overdueDays))
-    Inp(st.q, {}, placeholder = "Search sub order number or SKU", onChange = { st.setQ(it) })
-    val q = st.q.trim().uppercase()
-    val rows = r.orders.filter { o -> (b == "all" || (if (b == "issues") o.issue else o.b == b)) && (q.isEmpty() || o.id.uppercase().contains(q) || o.sku.uppercase().contains(q)) }
-    if (rows.isEmpty()) Sheet { Small("No orders match.") }
-    else {
-        val sum = rows.sumOf { if (it.hasPay) it.f else it.est }
-        Small(pl(rows.size, "order") + ", " + rs(sum) + if (b == "awaiting" || b == "overdue") " in order value" else "")
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp)).background(h.sheet).border(1.dp, h.rule, RoundedCornerShape(3.dp))) {
-            rows.take(st.n).forEachIndexed { i, o ->
-                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(h.rule))
-                OrdRow(o, setMark)
+    val b = rcBucket(r, st.b)
+    val rows = st.rows
+    if (ui.sample) block("demo") { DemoBar(true, go.endDemo) }
+    block("rc-top") {
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            (listOf("all", "issues") + RC_BUCKETS).filter { it == "all" || (counts[it]?.n ?: 0) > 0 }.forEach { k ->
+                Chip(RC_LABEL[k]!!, if (k == "all") r.orders.size else counts[k]?.n, on = b == k, alert = k == "issues" || k == "overdue") { st.setB(k) }
             }
         }
-        if (rows.size > st.n) Btn("Show ${minOf(60, rows.size - st.n)} more of ${rows.size - st.n}", st.more)
+        Small(bucketHelp(b, ui.state.settings.overdueDays))
+        Inp(st.q, {}, placeholder = "Search sub order number or SKU", onChange = { st.setQ(it) })
+        if (rows.isEmpty()) Sheet { Small("No orders match.") }
+        else {
+            val sum = rows.sumOf { if (it.hasPay) it.f else it.est }
+            Small(pl(rows.size, "order") + ", " + rs(sum) + if (b == "awaiting" || b == "overdue") " in order value" else "")
+        }
     }
-    if (r.payouts.isNotEmpty()) Details("Payouts by date (${r.payouts.size})", "payouts") {
-        Table(
-            listOf(Col("Payment date", 150.dp, false), Col("Orders", 70.dp), Col("Settlements", 110.dp), Col("Ads", 96.dp), Col("Other", 90.dp), Col("Net received", 120.dp)),
-            r.payouts.map { p ->
-                listOf(
-                    Cell(if (p.d.isNotBlank()) fd(p.d) else t("No date"), sub = p.tx.take(2).joinToString(", ").ifBlank { null }),
-                    Cell("${p.n}"), Cell(mny(p.f)), Cell(mny(p.ads), if (p.ads < 0) h.neg else Color.Unspecified), Cell(mny(p.other)), Cell(mny(p.net), bold = true),
-                )
-            },
-        )
-        Small("Match each net amount with the Meesho credit in your bank statement. The transaction ID helps you find it.", Modifier.padding(top = 8.dp))
+    if (rows.isNotEmpty()) {
+        val last = rows.size - 1
+        items(rows.size, key = { "o:$it:" + rows[it].id }, contentType = { "order" }) { i ->
+            val h = LocalHues.current
+            Column(
+                Modifier.fillMaxWidth().padding(top = if (i == 0) Gap else 0.dp).background(h.sheet).drawBehind {
+                    val w = 1.dp.toPx()
+                    drawRect(h.rule, size = Size(size.width, w))
+                    drawRect(h.rule, size = Size(w, size.height))
+                    drawRect(h.rule, Offset(size.width - w, 0f), Size(w, size.height))
+                    if (i == last) drawRect(h.rule, Offset(0f, size.height - w), Size(size.width, w))
+                },
+            ) { OrdRow(rows[i], setMark) }
+        }
+    }
+    if (r.payouts.isNotEmpty()) block("payouts") {
+        val h = LocalHues.current
+        Details("Payouts by date (${r.payouts.size})", "payouts") {
+            Table(
+                listOf(Col("Payment date", 150.dp, false), Col("Orders", 70.dp), Col("Settlements", 110.dp), Col("Ads", 96.dp), Col("Other", 90.dp), Col("Net received", 120.dp)),
+                r.payouts.map { p ->
+                    listOf(
+                        Cell(if (p.d.isNotBlank()) fd(p.d) else t("No date"), sub = p.tx.take(2).joinToString(", ").ifBlank { null }),
+                        Cell("${p.n}"), Cell(mny(p.f)), Cell(mny(p.ads), if (p.ads < 0) h.neg else Color.Unspecified), Cell(mny(p.other)), Cell(mny(p.net), bold = true),
+                    )
+                },
+            )
+            Small("Match each net amount with the Meesho credit in your bank statement. The transaction ID helps you find it.", Modifier.padding(top = 8.dp))
+        }
     }
 }
 

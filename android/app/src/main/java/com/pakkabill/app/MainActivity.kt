@@ -42,6 +42,8 @@ import com.pakkabill.app.ui.LockScreen
 import com.pakkabill.app.ui.Fonts
 import com.pakkabill.app.ui.PakkaBillTheme
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -127,17 +129,24 @@ class MainActivity : FragmentActivity() {
 
         val platform = AndroidPlatform(this)
         androidPlatform = platform
-        val fonts = Fonts(
-            head = FontFamily(Font(R.font.anek_latin_600, FontWeight.SemiBold), Font(R.font.anek_latin_700, FontWeight.Bold)),
-            body = FontFamily(Font(R.font.source_sans_400, FontWeight.Normal), Font(R.font.source_sans_600, FontWeight.SemiBold), Font(R.font.source_sans_700, FontWeight.Bold)),
-            mark = FontFamily(Font(R.font.anek_deva_mark, FontWeight.SemiBold)),
+        // PakkaBill's fonts: Hind for everything, Teko for the PakkaBill wordmark
+        val hind = FontFamily(
+            Font(R.font.hind_400, FontWeight.Normal), Font(R.font.hind_500, FontWeight.Medium),
+            Font(R.font.hind_600, FontWeight.SemiBold), Font(R.font.hind_700, FontWeight.Bold),
         )
+        val fonts = Fonts(head = hind, body = hind, mark = FontFamily(Font(R.font.teko_600, FontWeight.SemiBold)))
         setContent {
             val theme by app.pnl.theme.collectAsState()
             val lang by app.pnl.lang.collectAsState()
             val hindi by app.pnl.hindi.collectAsState()
             val hi = hindi
             val tr: (String) -> String = if (lang == "hi" && hi != null) hi::tr else { s -> s }
+            // dark status bar icons on PakkaBill's light top bar, light ones in dark mode
+            val dark = when (theme) { "dark" -> true; "light" -> false; else -> isSystemInDarkTheme() }
+            LaunchedEffect(dark) {
+                val bars = if (dark) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+            }
             PakkaBillTheme(theme = theme, fonts = fonts, lang = lang, tr = tr) {
                 CompositionLocalProvider(LocalPlatform provides platform) {
                     if (locked) LockScreen(onUnlock = ::unlock, onExit = ::finish)

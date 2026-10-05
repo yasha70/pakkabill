@@ -535,7 +535,7 @@
     'Enter the packaging cost in rupees': 'पैकिंग लागत रुपये में भरें',
     'Write what the expense is for': 'लिखें कि खर्च किस लिए है',
     'Pieces must be a whole number from {n} to {n}': 'पीस {n} से {n} के बीच पूरा नंबर होना चाहिए',
-    'That is not a Hisaab backup file.': 'यह हिसाब की बैकअप फ़ाइल नहीं है।',
+    'That is not a PakkaBill backup file.': 'यह PakkaBill की बैकअप फ़ाइल नहीं है।',
     'Could not read that cost sheet.': 'यह लागत शीट पढ़ी नहीं जा सकी।',
     'No rows found. The sheet needs an SKU column and a Cost column.': 'कोई लाइन नहीं मिली। शीट में SKU और Cost कॉलम होने चाहिए।',
     'Paste rows like: SKU, cost per piece (copied from Excel)': 'ऐसे लाइनें पेस्ट करें: SKU, प्रति पीस लागत (Excel से कॉपी करके)',

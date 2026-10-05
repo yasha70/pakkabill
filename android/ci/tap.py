@@ -1,8 +1,10 @@
 """Taps the first element on screen whose text or description contains the given words.
-Usage: python3 tap.py 'Try with sample data'   (exit 1 when it is not on screen)"""
+Usage: python3 tap.py 'Try with sample data' [last]   (exit 1 when it is not on screen)
+With "last", the last match is tapped (a sheet drawn over the page comes last)."""
 import html, re, subprocess, sys, time
 
 want = sys.argv[1].lower()
+last = len(sys.argv) > 2 and sys.argv[2] == "last"
 for attempt in range(6):
     subprocess.run(["adb", "shell", "uiautomator", "dump", "/sdcard/ui.xml"], capture_output=True)
     xml = subprocess.run(["adb", "shell", "cat", "/sdcard/ui.xml"], capture_output=True, text=True).stdout
@@ -13,7 +15,8 @@ for attempt in range(6):
         b = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', node)
         if b: nodes.append((text, desc, b))
     # an exact label first (the "P&L" tab, not the "Meesho P&L" title), then any that contains it
-    hit = next((n for n in nodes if want in (n[0], n[1])), None) or next((n for n in nodes if want in n[0] or want in n[1]), None)
+    order = list(reversed(nodes)) if last else nodes
+    hit = next((n for n in order if want in (n[0], n[1])), None) or next((n for n in order if want in n[0] or want in n[1]), None)
     if hit:
         b = hit[2]
         x, y = (int(b[1]) + int(b[3])) // 2, (int(b[2]) + int(b[4])) // 2

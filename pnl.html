@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Hisaab: Meesho P&amp;L and reconciliation</title>
+<title>PakkaBill: Meesho P&amp;L and reconciliation</title>
 <script>(function () { try { if (/[?&]embed=1(&|$)/.test(location.search)) document.documentElement.classList.add('embed'); } catch (e) { /* ignore */ } })();</script>
 <style>
 :root {
@@ -392,8 +392,8 @@ details.more[open] > summary { margin-bottom: 10px; }
 <body>
 <header class="band">
   <div class="band-in">
-    <span class="mark" lang="hi" aria-hidden="true">हिसाब</span>
-    <div class="brand"><b>Hisaab</b><span>Meesho P&amp;L and reconciliation</span></div>
+    <span class="mark" lang="hi" aria-hidden="true">पक्का बिल</span>
+    <div class="brand"><b>PakkaBill</b><span>Meesho P&amp;L and reconciliation</span></div>
     <div class="band-biz" id="band-biz"></div>
   </div>
 </header>
@@ -2253,12 +2253,12 @@ details.more[open] > summary { margin-bottom: 10px; }
       rows.push([x.sku, x.pn, x.cat, x.price ? rupeeInput(x.price) : '', x.pcs, c.c == null ? '' : rupeeInput(c.c), c.p == null ? '' : rupeeInput(c.p), c.b == null ? '' : c.b]);
     });
     var csv = rows.map(function (r) { return r.map(function (v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }).join('\r\n');
-    saveBlob('Hisaab_costs.csv', new Blob(['\uFEFF' + csv], { type: 'text/csv' }));
+    saveBlob('PakkaBill_costs.csv', new Blob(['\uFEFF' + csv], { type: 'text/csv' }));
   }
   function backup() {
     var w = S.real, out = { app: 'hisaab', v: 1, at: new Date().toISOString() };
     DOCS.forEach(function (d) { out[d] = toDoc(d, w); });
-    saveBlob('Hisaab_backup_' + new Date().toISOString().slice(0, 10) + '.json', new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' }));
+    saveBlob('PakkaBill_backup_' + new Date().toISOString().slice(0, 10) + '.json', new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' }));
   }
   async function restore(file) {
     try {
@@ -2267,7 +2267,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       S.demo = null;
       DOCS.forEach(function (n) { if (d[n]) { fromDoc(n, d[n], S.real); persist(n); } });
       refresh(); toast('Backup restored');
-    } catch (e) { toast('That is not a Hisaab backup file.', 5000); }
+    } catch (e) { toast('That is not a PakkaBill backup file.', 5000); }
   }
 
   /* ---------------- SKU list for the Costs tab ---------------- */

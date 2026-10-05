@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,74 +66,85 @@ fun familyOf(sku: String): String {
     return if (key.length >= 2) key else sku.lowercase()
 }
 
-@Composable
-fun CostsTab(ui: PnlUi, undoLabel: String?, go: Go, acts: CostActs) {
-    val h = LocalHues.current
+/** The Your SKUs filters, kept by the shell, and the SKUs that match them. */
+class CostFilter(val q: String, val cat: String, val miss: Boolean, val shown: List<CostRow>, val setQ: (String) -> Unit, val setCat: (String) -> Unit, val setMiss: (Boolean) -> Unit)
+
+fun costRows(list: List<CostRow>, q: String, cat: String, miss: Boolean): List<CostRow> {
+    val qq = q.trim().uppercase()
+    return list.filter { x -> (!miss || x.cost == null) && (cat.isBlank() || x.cat == cat) && (qq.isEmpty() || x.sku.uppercase().contains(qq) || x.pn.uppercase().contains(qq)) }
+}
+
+/** The Costs tab as a lazy list: one row per SKU, drawn only when it is on screen. */
+fun LazyListScope.costsTab(ui: PnlUi, undoLabel: String?, go: Go, acts: CostActs, f: CostFilter) {
     val r = ui.report
     val st = ui.state.settings
     val list = r?.costs.orEmpty()
-    var q by rememberSaveable { mutableStateOf("") }
-    var catF by rememberSaveable { mutableStateOf("") }
-    var miss by rememberSaveable { mutableStateOf(false) }
-    DemoBar(ui.sample, go.endDemo)
-    Sheet {
-        H2("Product costs")
-        Txt("Enter what one piece costs you to buy or make, in rupees. For a combo SKU the tool multiplies it by the pieces in the pack.", color = h.ink3)
-        Spacer(Modifier.height(12.dp))
-        Field("Pieces in a combo") {
-            Select(listOf("auto" to "Automatic", "name" to "From the product name", "sku" to "From the SKU letters (BPYG05 = 4)").map { it.first to t(it.second) }, st.packFromSku, { acts.settings(st.copy(packFromSku = it)) }, raw = true)
+    if (ui.sample) block("demo") { DemoBar(true, go.endDemo) }
+    block("cost-set") {
+        val h = LocalHues.current
+        Sheet {
+            H2("Product costs")
+            Txt("Enter what one piece costs you to buy or make, in rupees. For a combo SKU the tool multiplies it by the pieces in the pack.", color = h.ink3)
+            Spacer(Modifier.height(12.dp))
+            Field("Pieces in a combo") {
+                Select(listOf("auto" to "Automatic", "name" to "From the product name", "sku" to "From the SKU letters (BPYG05 = 4)").map { it.first to t(it.second) }, st.packFromSku, { acts.settings(st.copy(packFromSku = it)) }, raw = true)
+            }
+            Small((r?.packNote ?: "") + " " + t("For any SKU that is different, type the right count under Pieces."), Modifier.padding(top = 4.dp))
+            Spacer(Modifier.height(12.dp))
+            Field("Packaging per parcel (₹)") {
+                Inp(rupeeInput(st.pack.takeIf { it > 0 }), { v ->
+                    val p = if (v.isBlank()) 0 else toPaise(v)
+                    if (p == null || p < 0) acts.say("Enter the packaging cost in rupees") else { acts.settings(st.copy(pack = p)); acts.say("Packaging cost saved") }
+                }, money = true, keyboard = KeyboardType.Decimal, placeholder = "0", rawPlaceholder = true)
+            }
+            Small("Poly bag, label and tape for one parcel. Counted once per shipped parcel, RTO parcels included.", Modifier.padding(top = 4.dp))
+            Spacer(Modifier.height(12.dp))
+            Field("Goods you buy come with") {
+                Select(BUY.map { it.first.toString() to t(it.second) }, st.buyGst.toString(), { v ->
+                    val b = v.toInt()
+                    acts.settings(st.copy(buyGst = b))
+                    acts.say(if (b > 0) "Goods counted as bought with a $b% GST bill" else "Goods counted as bought without a GST bill")
+                }, raw = true)
+            }
+            Small(
+                if (st.gstReg) "Enter the cost you paid, including GST. With a GST bill, the GST in it is your input credit: it lowers the GST you pay in cash, so the product costs you the price without GST. Credit beyond the GST on your sales is never paid out; it only pays future GST, so it is not counted as profit. Change it for any SKU below."
+                else "You are not registered under GST (see Settings), so GST on purchases cannot be claimed back and the full price you paid is the cost.",
+                Modifier.padding(top = 4.dp),
+            )
         }
-        Small((r?.packNote ?: "") + " " + t("For any SKU that is different, type the right count under Pieces."), Modifier.padding(top = 4.dp))
-        Spacer(Modifier.height(12.dp))
-        Field("Packaging per parcel (₹)") {
-            Inp(rupeeInput(st.pack.takeIf { it > 0 }), { v ->
-                val p = if (v.isBlank()) 0 else toPaise(v)
-                if (p == null || p < 0) acts.say("Enter the packaging cost in rupees") else { acts.settings(st.copy(pack = p)); acts.say("Packaging cost saved") }
-            }, money = true, keyboard = KeyboardType.Decimal, placeholder = "0", rawPlaceholder = true)
-        }
-        Small("Poly bag, label and tape for one parcel. Counted once per shipped parcel, RTO parcels included.", Modifier.padding(top = 4.dp))
-        Spacer(Modifier.height(12.dp))
-        Field("Goods you buy come with") {
-            Select(BUY.map { it.first.toString() to t(it.second) }, st.buyGst.toString(), { v ->
-                val b = v.toInt()
-                acts.settings(st.copy(buyGst = b))
-                acts.say(if (b > 0) "Goods counted as bought with a $b% GST bill" else "Goods counted as bought without a GST bill")
-            }, raw = true)
-        }
-        Small(
-            if (st.gstReg) "Enter the cost you paid, including GST. With a GST bill, the GST in it is your input credit: it lowers the GST you pay in cash, so the product costs you the price without GST. Credit beyond the GST on your sales is never paid out; it only pays future GST, so it is not counted as profit. Change it for any SKU below."
-            else "You are not registered under GST (see Settings), so GST on purchases cannot be claimed back and the full price you paid is the cost.",
-            Modifier.padding(top = 4.dp),
-        )
     }
-    FillSheet(list, ui, undoLabel, acts)
-    Sheet {
-        val have = list.count { it.cost != null }
-        SheetH("Your SKUs", right = { Small("$have of ${list.size} have a cost") }, h3 = true)
-        Inp(q, {}, placeholder = "Search SKU", onChange = { q = it })
-        Spacer(Modifier.height(8.dp))
-        val cats = list.groupingBy { it.cat }.eachCount()
-        val catOrder = (r?.catList.orEmpty()).filter { (cats[it] ?: 0) > 0 } + cats.keys.filter { it !in (r?.catList.orEmpty()) }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Select(listOf("" to t("All categories")) + catOrder.map { it to "${t(it)} (${cats[it]})" }, catF, { catF = it }, Modifier.weight(1f), raw = true)
-            Spacer(Modifier.width(10.dp))
-            Box(Modifier.weight(1f)) { Check(miss, { miss = it }, "Only missing") }
+    block("fill") { FillSheet(list, ui, undoLabel, acts) }
+    item(key = "skus-top", contentType = "sheet-top") {
+        SheetPart(Part.TOP) {
+            val have = list.count { it.cost != null }
+            SheetH("Your SKUs", right = { Small("$have of ${list.size} have a cost") }, h3 = true)
+            Inp(f.q, {}, placeholder = "Search SKU", onChange = f.setQ)
+            Spacer(Modifier.height(8.dp))
+            val cats = list.groupingBy { it.cat }.eachCount()
+            val catOrder = (r?.catList.orEmpty()).filter { (cats[it] ?: 0) > 0 } + cats.keys.filter { it !in (r?.catList.orEmpty()) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Select(listOf("" to t("All categories")) + catOrder.map { it to "${t(it)} (${cats[it]})" }, f.cat, f.setCat, Modifier.weight(1f), raw = true)
+                Spacer(Modifier.width(10.dp))
+                Box(Modifier.weight(1f)) { Check(f.miss, f.setMiss, "Only missing") }
+            }
+            if (f.shown.isEmpty()) Small(if (ui.hasData) "No SKUs match." else "Upload a payment report to list your SKUs here.", Modifier.padding(vertical = 10.dp))
         }
-        val qq = q.trim().uppercase()
-        val shown = list.filter { x ->
-            (!miss || x.cost == null) && (catF.isBlank() || x.cat == catF) && (qq.isEmpty() || x.sku.uppercase().contains(qq) || x.pn.uppercase().contains(qq))
+    }
+    val shown = f.shown
+    val unique = shown.mapTo(HashSet()) { it.sku }.size == shown.size
+    items(shown.size, key = { if (unique) "c:" + shown[it].sku else "c$it" }, contentType = { "cost-row" }) { i ->
+        val x = shown[i]
+        SheetPart(Part.MID) { CostRowView(x, ui.state.costs[x.sku], st, r?.catList.orEmpty(), acts, first = i == 0) }
+    }
+    item(key = "skus-foot", contentType = "sheet-bottom") {
+        SheetPart(Part.BOTTOM) {
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Btn("Download cost sheet", acts.downloadSheet, small = true)
+                Btn("Upload cost sheet", acts.uploadSheet, small = true)
+            }
+            Small("The cost sheet lists every SKU with its category, the buyer price, pieces and cost per piece. Fill it in Excel and upload it back; a changed category is saved too.", Modifier.padding(top = 8.dp))
         }
-        if (shown.isEmpty()) Small(if (ui.hasData) "No SKUs match." else "Upload a payment report to list your SKUs here.", Modifier.padding(vertical = 10.dp))
-        shown.take(400).forEachIndexed { i, x ->
-            CostRowView(x, ui.state.costs[x.sku], st, r?.catList.orEmpty(), acts, first = i == 0)
-        }
-        if (shown.size > 400) Small("Showing 400 of ${shown.size}. Search to find the rest.")
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Btn("Download cost sheet", acts.downloadSheet, small = true)
-            Btn("Upload cost sheet", acts.uploadSheet, small = true)
-        }
-        Small("The cost sheet lists every SKU with its category, the buyer price, pieces and cost per piece. Fill it in Excel and upload it back; a changed category is saved too.", Modifier.padding(top = 8.dp))
     }
 }
 

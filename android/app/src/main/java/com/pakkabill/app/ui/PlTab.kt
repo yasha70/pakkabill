@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -177,12 +178,11 @@ fun LockBox(what: String, x: Access, go: Go) {
 
 /* ---------------- next steps ---------------- */
 
-private class StepItem(val ok: Boolean, val t: String, val why: String, val d: String, val b: String, val opt: Boolean = false, val act: () -> Unit)
+class StepItem(val ok: Boolean, val t: String, val why: String, val d: String, val b: String, val opt: Boolean = false, val act: () -> Unit)
 
-@Composable
-fun NextSteps(r: Report, ui: PnlUi, flags: Set<String>, go: Go) {
-    if (ui.sample || "steps" in flags) return
-    val h = LocalHues.current
+/** The five next steps, or none when they are hidden or all done. */
+fun stepsFor(r: Report, ui: PnlUi, flags: Set<String>, go: Go): List<StepItem> {
+    if (ui.sample || "steps" in flags) return emptyList()
     val s = r.sum
     val steps = listOf(
         StepItem(r.health.legs > 0, "Add the Meesho payment report", "Profit is worked out from it.", "Payment report added", "Upload") { go.tab("data") },
@@ -191,9 +191,15 @@ fun NextSteps(r: Report, ui: PnlUi, flags: Set<String>, go: Go) {
         StepItem(ui.state.expenses.isNotEmpty(), "Add other costs like packing, rent or staff", "Costs outside Meesho, spread over the month.", "Other costs added", "Add", opt = true) { go.tab("exp") },
         StepItem("dl" in flags, "Download your P&L report", "PDF or Excel, to keep or to share with your CA.", "Report downloaded", "Download PDF") { go.pdf() },
     )
+    return if (steps.all { it.ok }) emptyList() else steps
+}
+
+@Composable
+fun NextSteps(steps: List<StepItem>, go: Go) {
+    if (steps.isEmpty()) return
+    val h = LocalHues.current
     val done = steps.filter { it.ok }
     val open = steps.filter { !it.ok }
-    if (open.isEmpty()) return
     val must = open.count { !it.opt }
     Sheet(padding = 14.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -253,20 +259,22 @@ fun NextSteps(r: Report, ui: PnlUi, flags: Set<String>, go: Go) {
 
 /* ---------------- the P&L tab ---------------- */
 
-@Composable
-fun PlTab(ui: PnlUi, x: Access, flags: Set<String>, go: Go) {
+/** The P&L tab as lazy blocks: only the sheets on screen are drawn. */
+fun LazyListScope.plTab(ui: PnlUi, x: Access, flags: Set<String>, go: Go, panes: Panes) {
     val r = ui.report
-    val h = LocalHues.current
     if (!ui.hasData || r == null || r.empty) {
-        Hero(true, null, go)
-        Sheet {
-            Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                H2("See your real profit in 2 minutes", Modifier.padding(bottom = 6.dp))
-                Txt("Upload the payment report from the Meesho Supplier Panel. PakkaBill takes out every fee, return, RTO, GST and product cost, and shows what you really earned. Or look around with sample data first.", color = h.ink3, align = TextAlign.Center)
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Btn("Upload files", { go.tab("data") }, kind = BtnKind.PRI)
-                    Btn("Try with sample data", go.demo)
+        block("pl-hero") {
+            Hero(true, null, go)
+            val h = LocalHues.current
+            Sheet {
+                Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    H2("See your real profit in 2 minutes", Modifier.padding(bottom = 6.dp))
+                    Txt("Upload the payment report from the Meesho Supplier Panel. PakkaBill takes out every fee, return, RTO, GST and product cost, and shows what you really earned. Or look around with sample data first.", color = h.ink3, align = TextAlign.Center)
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Btn("Upload files", { go.tab("data") }, kind = BtnKind.PRI)
+                        Btn("Try with sample data", go.demo)
+                    }
                 }
             }
         }
@@ -275,71 +283,80 @@ fun PlTab(ui: PnlUi, x: Access, flags: Set<String>, go: Go) {
     val s = r.sum
     val st = ui.state.settings
     val full = ui.sample || x.full
-    Hero(false, r, go)
-    DemoBar(ui.sample, go.endDemo)
-    NextSteps(r, ui, flags, go)
+    block("pl-hero") { Hero(false, r, go) }
+    if (ui.sample) block("demo") { DemoBar(true, go.endDemo) }
+    val steps = stepsFor(r, ui, flags, go)
+    if (steps.isNotEmpty()) block("steps") { NextSteps(steps, go) }
 
     // period, basis and downloads
-    Sheet {
-        Field("Period") {
-            val opts = listOf("all" to t("All data")) + r.months.map { "m:" + it.m to it.label.let { l -> LocalTr.current(l) } } + ("custom" to t("Custom dates"))
-            val cur = when (r.per.mode) { "month" -> "m:" + r.per.m; "custom" -> "custom"; else -> "all" }
-            Select(opts, cur, { v ->
-                when {
-                    v == "all" -> go.select(Sel(mode = "all", basis = r.per.basis))
-                    v == "custom" -> go.pickDates()
-                    else -> go.select(Sel(mode = "month", m = v.removePrefix("m:"), basis = r.per.basis))
-                }
-            }, raw = true)
-        }
-        if (r.per.mode == "custom") {
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Field("From", Modifier.weight(1f)) { Select(listOf("x" to fd(r.per.from)), "x", { go.pickDates() }, raw = true) }
-                Field("To", Modifier.weight(1f)) { Select(listOf("x" to fd(r.per.to)), "x", { go.pickDates() }, raw = true) }
+    block("period") {
+        Sheet {
+            Field("Period") {
+                val tr = LocalTr.current
+                val opts = listOf("all" to t("All data")) + r.months.map { "m:" + it.m to tr(it.label) } + ("custom" to t("Custom dates"))
+                val cur = when (r.per.mode) { "month" -> "m:" + r.per.m; "custom" -> "custom"; else -> "all" }
+                Select(opts, cur, { v ->
+                    when {
+                        v == "all" -> go.select(Sel(mode = "all", basis = r.per.basis))
+                        v == "custom" -> go.pickDates()
+                        else -> go.select(Sel(mode = "month", m = v.removePrefix("m:"), basis = r.per.basis))
+                    }
+                }, raw = true)
             }
+            if (r.per.mode == "custom") {
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Field("From", Modifier.weight(1f)) { Select(listOf("x" to fd(r.per.from)), "x", { go.pickDates() }, raw = true) }
+                    Field("To", Modifier.weight(1f)) { Select(listOf("x" to fd(r.per.to)), "x", { go.pickDates() }, raw = true) }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Small("Count sales by", Modifier.padding(end = 10.dp))
+                Seg(listOf("pay" to t("Payment date"), "order" to t("Order date")), r.per.basis, { b ->
+                    go.select(Sel(mode = r.per.mode, m = r.per.m, from = r.per.from.takeIf { r.per.mode == "custom" }, to = r.per.to.takeIf { r.per.mode == "custom" }, basis = b))
+                }, raw = true)
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Btn("Download Excel", go.excel, Modifier.weight(1f), kind = BtnKind.PRI)
+                Btn("Download PDF", go.pdf, Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(8.dp))
+            Btn("Share on WhatsApp", go.share, Modifier.fillMaxWidth(), kind = BtnKind.WA)
         }
-        Spacer(Modifier.height(10.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Small("Count sales by", Modifier.padding(end = 10.dp))
-            Seg(listOf("pay" to t("Payment date"), "order" to t("Order date")), r.per.basis, { b ->
-                go.select(Sel(mode = r.per.mode, m = r.per.m, from = r.per.from.takeIf { r.per.mode == "custom" }, to = r.per.to.takeIf { r.per.mode == "custom" }, basis = b))
-            }, raw = true)
-        }
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Btn("Download Excel", go.excel, Modifier.weight(1f), kind = BtnKind.PRI)
-            Btn("Download PDF", go.pdf, Modifier.weight(1f))
-        }
-        Spacer(Modifier.height(8.dp))
-        Btn("Share on WhatsApp", go.share, Modifier.fillMaxWidth(), kind = BtnKind.WA)
     }
 
-    if (r.health.legs == 0) Note(NoteKind.BAD) { NoteText("Add the payment report to see profit. The orders report alone has no settlement amounts.") }
+    if (r.health.legs == 0) block("no-pay") { Note(NoteKind.BAD) { NoteText("Add the payment report to see profit. The orders report alone has no settlement amounts.") } }
 
-    Slip(r)
-    PlNotes(r, st.returnDefault, st.rtoDefault, go)
-    if (!full) { LockBox("pl", x, go); return }
+    block("slip") { Slip(r) }
+    if (s.missing.isNotEmpty() || s.rdef > 0 || s.revPend > 0 || s.unexpl > 0) block("notes") { PlNotes(r, st.returnDefault, st.rtoDefault, go) }
+    if (!full) { block("lock") { LockBox("pl", x, go) }; return }
 
-    Ledger(r, st.biz)
-    ReturnsSheet(r)
-    CategorySheet(r)
-    Details("How profit ties to money received", "bridge", open = true) {
-        Kv(r.bridge.map { KvRow(it.l, it.v, bold = it.k != null) })
-        Spacer(Modifier.height(10.dp))
-        Small("Money received is the sum of Final Settlement Amount plus ads, referral and compensation entries. It should match the Meesho credits in your bank for the same payment dates.")
+    block("ledger") { Ledger(r, st.biz) }
+    if ((r.returns?.done ?: 0) > 0) block("returns") { ReturnsSheet(r) }
+    if (r.categories.isNotEmpty()) block("cats") { CategorySheet(r) }
+    block("bridge") {
+        Details("How profit ties to money received", "bridge", open = true) {
+            Kv(r.bridge.map { KvRow(it.l, it.v, bold = it.k != null) })
+            Spacer(Modifier.height(10.dp))
+            Small("Money received is the sum of Final Settlement Amount plus ads, referral and compensation entries. It should match the Meesho credits in your bank for the same payment dates.")
+        }
     }
-    GstSheet(r)
-    SkuSheet(r)
-    if (r.monthly.size > 1) Details("Month by month", "months") {
-        Table(
-            listOf(Col("Month", 96.dp, false), Col("Net sales", 110.dp), Col("Gross profit", 110.dp), Col("Meesho charges", 120.dp), Col("Net profit", 110.dp), Col("Received", 110.dp)),
-            r.monthly.map { m ->
-                listOf(Cell(t(m.label)), Cell(mny(m.NS)), Cell(mny(m.GP)), Cell(mny(m.MCx)), Cell(mny(m.NP), if (m.NP < 0) h.neg else Color.Unspecified, bold = true), Cell(mny(m.payout)))
-            },
-        )
-        Spacer(Modifier.height(8.dp))
-        Small("Counted by " + (if (r.per.basis == "order") "order date" else "payment date") + ". Monthly expenses are included in each month.")
+    block("gst") { GstSheet(r) }
+    skuSheet(r, panes)
+    if (r.monthly.size > 1) block("months") {
+        val h = LocalHues.current
+        Details("Month by month", "months") {
+            Table(
+                listOf(Col("Month", 96.dp, false), Col("Net sales", 110.dp), Col("Gross profit", 110.dp), Col("Meesho charges", 120.dp), Col("Net profit", 110.dp), Col("Received", 110.dp)),
+                r.monthly.map { m ->
+                    listOf(Cell(t(m.label)), Cell(mny(m.NS)), Cell(mny(m.GP)), Cell(mny(m.MCx)), Cell(mny(m.NP), if (m.NP < 0) h.neg else Color.Unspecified, bold = true), Cell(mny(m.payout)))
+                },
+            )
+            Spacer(Modifier.height(8.dp))
+            Small("Counted by " + (if (r.per.basis == "order") "order date" else "payment date") + ". Monthly expenses are included in each month.")
+        }
     }
 }
 
@@ -614,30 +631,53 @@ private fun GstSheet(r: Report) {
     }
 }
 
-@Composable
-private fun SkuSheet(r: Report) {
-    val h = LocalHues.current
+/** Profit by SKU: one lazy row per SKU, all scrolling sideways together. */
+private fun LazyListScope.skuSheet(r: Report, panes: Panes) {
     val s = r.sum
-    Details("Profit by SKU", "skus") {
-        Table(
-            listOf(
-                Col("SKU", 160.dp, false), Col("Orders", 70.dp), Col("Pieces", 70.dp), Col("Returns and RTO", 110.dp), Col("Delivered", 86.dp), Col("Net sales", 110.dp),
-                Col("Profit", 110.dp), Col("Per delivered order", 120.dp), Col("Price now", 90.dp), Col("Break-even price", 120.dp),
-            ),
-            r.skus.map { x ->
+    val open = panes.isOpen("skus", false)
+    val cols = listOf(
+        Col("SKU", 160.dp, false), Col("Orders", 70.dp), Col("Pieces", 70.dp), Col("Returns and RTO", 110.dp), Col("Delivered", 86.dp), Col("Net sales", 110.dp),
+        Col("Profit", 110.dp), Col("Per delivered order", 120.dp), Col("Price now", 90.dp), Col("Break-even price", 120.dp),
+    )
+    if (!open) { block("skus-h") { Sheet { DetailsHead("Profit by SKU", false) { panes.toggle("skus", false) } } }; return }
+    item(key = "skus-h", contentType = "sheet-top") {
+        SheetPart(Part.TOP) {
+            DetailsHead("Profit by SKU", true) { panes.toggle("skus", false) }
+            Spacer(Modifier.height(10.dp))
+            TableHead(cols, panes.scroll("skus"))
+        }
+    }
+    items(r.skus.size, key = { "sku:$it" }, contentType = { "sku-row" }) { i ->
+        val x = r.skus[i]
+        val h = LocalHues.current
+        SheetPart(Part.MID) {
+            TableRow(
+                cols,
                 listOf(
                     Cell(x.sku + if (x.pcs > 1) "  ·  " + t("pack of ${x.pcs}") else "", bold = true, sub = x.pn.ifBlank { null }), Cell("${x.sold}"), Cell("${x.units}"), Cell("${x.retRto}"),
                     Cell("${x.delivered}"), Cell(mny(x.NS)), Cell(mny(x.contrib), if (x.contrib < 0) h.neg else Color.Unspecified),
                     Cell(if (x.delivered > 0) mny(x.perOrder) else "–", if (x.perOrder < 0) h.neg else Color.Unspecified),
                     Cell(if (x.sold > 0) rs(x.avgPrice, true) else ""), Cell(if (x.sold > 0) rs(x.breakEven, true) else "", if (x.sold > 0 && x.breakEven > x.avgPrice) h.neg else Color.Unspecified),
-                )
-            },
-            totals = listOf(
+                ),
+                panes.scroll("skus"),
+            )
+        }
+    }
+    item(key = "skus-f", contentType = "sheet-bottom") {
+        val h = LocalHues.current
+        SheetPart(Part.BOTTOM) {
+            TableRow(
+                cols,
                 listOf(Cell(t("Not tied to a SKU (ads, referral, account credits, expenses)")), Cell(""), Cell(""), Cell(""), Cell(""), Cell(""), Cell(mny(s.unalloc), if (s.unalloc < 0) h.neg else Color.Unspecified), Cell(""), Cell(""), Cell("")),
+                panes.scroll("skus"), total = true,
+            )
+            TableRow(
+                cols,
                 listOf(Cell(t("Net profit")), Cell("${s.sales}"), Cell("${s.pieces}"), Cell(""), Cell("${s.del}"), Cell(mny(s.NS)), Cell(mny(s.NP), if (s.NP < 0) h.neg else Color.Unspecified),
                     Cell(if (s.del > 0) mny(s.perDel) else ""), Cell(""), Cell("")),
-            ),
-        )
-        Small("SKU profit is after cost of goods, Meesho charges and packaging, before ads and other expenses. Per delivered order is that profit divided by the orders delivered and kept: returned and RTO orders are left out of the count, but the money lost on them stays in the profit. Price now is what buyers paid per order on average. Break-even price is the customer price where the SKU’s profit per order would be zero, with the same returns, GST and charges; red means it is above today’s price, so the SKU loses money.", Modifier.padding(top = 8.dp))
+                panes.scroll("skus"), total = true, last = true,
+            )
+            Small("SKU profit is after cost of goods, Meesho charges and packaging, before ads and other expenses. Per delivered order is that profit divided by the orders delivered and kept: returned and RTO orders are left out of the count, but the money lost on them stays in the profit. Price now is what buyers paid per order on average. Break-even price is the customer price where the SKU’s profit per order would be zero, with the same returns, GST and charges; red means it is above today’s price, so the SKU loses money.", Modifier.padding(top = 8.dp))
+        }
     }
 }
