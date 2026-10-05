@@ -15,11 +15,18 @@ cap() { sleep "$2"; adb exec-out screencap -p > "$OUT/$1.png"; }
 tap() { python3 android/ci/tap.py "$1" $2 | tee -a "$R"; }
 # opens a page from the More sheet of the bottom bar
 more() { tap "More"; sleep 1; tap "$1" last; }
-# frames drawn and janky frames since the last reset, while scrolling
-frames() { echo "$1: $(adb shell dumpsys gfxinfo $PKG | grep -E 'Total frames rendered|Janky frames:|90th percentile|99th percentile' | tr -d '\r' | tr -s ' ' | tr '\n' ';')" >> "$R"; }
+# frames drawn, janky frames and where the time went (app thread or drawing), since the last reset
+frames() { echo "$1: $(adb shell dumpsys gfxinfo ${2:-$PKG} | grep -E 'Total frames rendered|Janky frames:|50th percentile|90th percentile|Number Slow UI thread|Number Slow issue draw|Number Frame deadline missed|50th gpu|90th gpu' | tr -d '\r' | tr -s ' ' | tr '\n' ';')" >> "$R"; }
 up() { adb shell input swipe 540 1900 540 500 350; }
 top() { for i in 1 2 3 4 5 6; do adb shell input swipe 540 500 540 1900 120; done; }
 alive() { echo "$1 running: $(adb shell pidof $PKG | tr -d '\r')" >> "$R"; }
+
+echo "== this emulator, for comparison: the phone's own Settings app" >> "$R"
+adb shell am start -W -a android.settings.SETTINGS > /dev/null; sleep 4
+adb shell dumpsys gfxinfo com.android.settings reset > /dev/null
+for i in 1 2 3 4 5 6; do up; sleep 1; done
+frames "Settings app scroll" com.android.settings
+adb shell input keyevent KEYCODE_HOME; sleep 1
 
 adb shell am start -W -n $PKG/.MainActivity
 cap 01-start 8
@@ -110,11 +117,30 @@ tap "Costs"; sleep 3
 adb shell dumpsys gfxinfo $PKG reset > /dev/null
 for i in 1 2 3 4 5 6; do up; sleep 1; done
 frames "Release Costs scroll"
-tap "P&L"; sleep 1; top
+tap "P&L"; sleep 1; tap "P&L"; sleep 2
 tap "How to use"; cap 82-release-guide 4
 tap "हिंदी"; cap 83-release-hindi 5
 alive release
 adb logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime: |PakkaBill P&L" | head -30 >> "$R"
 adb logcat -d > "$OUT/logcat-full.txt"
 grep -iE "pakkabill|AndroidRuntime|FATAL|rhino|svg" "$OUT/logcat-full.txt" | tail -300 > "$OUT/logcat.txt"
+
+# the same scrolling with the app the website offers now, when it is older than this one
+OLD=$(grep -o '"versionCode": *[0-9]*' download/app.json | grep -o '[0-9]*$')
+NEW=$(grep -o 'versionCode = [0-9]*' android/app/build.gradle.kts | grep -o '[0-9]*$')
+if [ -n "$OLD" ] && [ -n "$NEW" ] && [ "$OLD" -lt "$NEW" ]; then
+  echo "== the website's app (versionCode $OLD) for comparison" >> "$R"
+  adb uninstall $PKG
+  adb install -r download/PakkaBill.apk 2>&1 | tail -1 >> "$R"
+  adb shell am start -W -n $PKG/.MainActivity; sleep 8
+  tap "Try with sample data"; sleep 25
+  adb shell dumpsys gfxinfo $PKG reset > /dev/null
+  for i in 1 2 3 4 5 6 7 8; do up; sleep 1; done
+  frames "Old app P&L scroll"
+  tap "Costs"; sleep 3
+  adb shell dumpsys gfxinfo $PKG reset > /dev/null
+  for i in 1 2 3 4 5 6; do up; sleep 1; done
+  frames "Old app Costs scroll"
+  cap 90-old-costs 1
+fi
 exit 0

@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -333,8 +334,8 @@ fun LazyListScope.plTab(ui: PnlUi, x: Access, flags: Set<String>, go: Go, panes:
     if (s.missing.isNotEmpty() || s.rdef > 0 || s.revPend > 0 || s.unexpl > 0) block("notes") { PlNotes(r, st.returnDefault, st.rtoDefault, go) }
     if (!full) { block("lock") { LockBox("pl", x, go) }; return }
 
-    block("ledger") { Ledger(r, st.biz) }
-    if ((r.returns?.done ?: 0) > 0) block("returns") { ReturnsSheet(r) }
+    ledger(r, st.biz)
+    returnsSheet(r, panes)
     if (r.categories.isNotEmpty()) block("cats") { CategorySheet(r) }
     block("bridge") {
         Details("How profit ties to money received", "bridge", open = true) {
@@ -420,38 +421,50 @@ private fun PlNotes(r: Report, retDef: String, rtoDef: String, go: Go) {
     }
 }
 
-/* .ledger: the statement on ruled paper with a red margin */
-@Composable
-private fun Ledger(r: Report, biz: String) {
-    val h = LocalHues.current
-    val f = LocalFonts.current
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp)).background(h.sheet).border(1.dp, h.rule, RoundedCornerShape(3.dp))
-            .drawBehind {
-                drawLine(h.margin.copy(alpha = 0.85f), Offset(22.dp.toPx(), 0f), Offset(22.dp.toPx(), size.height), 1.5.dp.toPx())
-                drawLine(h.margin.copy(alpha = 0.45f), Offset(26.dp.toPx(), 0f), Offset(26.dp.toPx(), size.height), 1.dp.toPx())
-            }.padding(bottom = 6.dp),
-    ) {
-        val line: Modifier.() -> Modifier = { this.drawBehind { drawLine(h.rule, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx()) } }
-        Column(Modifier.fillMaxWidth().drawBehind { drawLine(h.rule2, Offset(0f, size.height), Offset(size.width, size.height), 1.5.dp.toPx()) }.padding(start = 40.dp, end = 14.dp, top = 14.dp, bottom = 10.dp)) {
-            H2("Profit and loss statement", size = 18.4.sp)
-            Small((if (biz.isNotBlank()) "$biz, " else "") + r.per.label + ", counted by " + (if (r.per.basis == "order") "order date" else "payment date"))
+/* .ledger: the statement on ruled paper with a red margin, one lazy row per line */
+
+/** A slice of the ledger: paper, sides and the red margin; [top] and [bottom] add those edges. */
+private fun Modifier.ledgerSlice(h: Hues, top: Boolean = false, bottom: Boolean = false) =
+    fillMaxWidth().padding(top = if (top) Gap else 0.dp).background(h.sheet).drawBehind {
+        val w = 1.dp.toPx()
+        drawLine(h.margin.copy(alpha = 0.85f), Offset(22.dp.toPx(), 0f), Offset(22.dp.toPx(), size.height), 1.5.dp.toPx())
+        drawLine(h.margin.copy(alpha = 0.45f), Offset(26.dp.toPx(), 0f), Offset(26.dp.toPx(), size.height), 1.dp.toPx())
+        drawRect(h.rule, size = Size(w, size.height))
+        drawRect(h.rule, Offset(size.width - w, 0f), Size(w, size.height))
+        if (top) drawRect(h.rule, size = Size(size.width, w))
+        if (bottom) drawRect(h.rule, Offset(0f, size.height - w), Size(size.width, w))
+    }
+
+private fun Modifier.ruled(h: Hues) = drawBehind { drawLine(h.rule, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx()) }
+
+private fun LazyListScope.ledger(r: Report, biz: String) {
+    item(key = "led-h", contentType = "led-h") {
+        val h = LocalHues.current
+        Column(Modifier.ledgerSlice(h, top = true)) {
+            Column(Modifier.fillMaxWidth().drawBehind { drawLine(h.rule2, Offset(0f, size.height), Offset(size.width, size.height), 1.5.dp.toPx()) }.padding(start = 40.dp, end = 14.dp, top = 14.dp, bottom = 10.dp)) {
+                H2("Profit and loss statement", size = 18.4.sp)
+                Small((if (biz.isNotBlank()) "$biz, " else "") + r.per.label + ", counted by " + (if (r.per.basis == "order") "order date" else "payment date"))
+            }
+            Row(Modifier.fillMaxWidth().ruled(h).padding(start = 40.dp, end = 14.dp, top = 6.dp, bottom = 6.dp)) {
+                Txt("Particulars", size = 12.8.sp, weight = FontWeight.SemiBold, color = h.ink3, modifier = Modifier.weight(1f))
+                Txt("Amount (₹)", size = 12.8.sp, weight = FontWeight.SemiBold, color = h.ink3)
+            }
         }
-        Row(Modifier.fillMaxWidth().line().padding(start = 40.dp, end = 14.dp, top = 6.dp, bottom = 6.dp)) {
-            Txt("Particulars", size = 12.8.sp, weight = FontWeight.SemiBold, color = h.ink3, modifier = Modifier.weight(1f))
-            Txt("Amount (₹)", size = 12.8.sp, weight = FontWeight.SemiBold, color = h.ink3)
-        }
-        r.lines.forEach { l ->
+    }
+    items(r.lines.size, key = { "led:$it" }, contentType = { "led-" + r.lines[it].k }) { i ->
+        val l = r.lines[i]
+        val h = LocalHues.current
+        Box(Modifier.ledgerSlice(h)) {
             when (l.k) {
-                "sec" -> Box(Modifier.fillMaxWidth().line().padding(start = 40.dp, end = 14.dp, top = 14.dp, bottom = 7.dp)) { Txt(l.l, weight = FontWeight.SemiBold, head = true, color = h.carbon) }
-                "row" -> Row(Modifier.fillMaxWidth().line().padding(start = 40.dp, end = 14.dp, top = 7.dp, bottom = 7.dp)) {
+                "sec" -> Box(Modifier.fillMaxWidth().ruled(h).padding(start = 40.dp, end = 14.dp, top = 14.dp, bottom = 7.dp)) { Txt(l.l, weight = FontWeight.SemiBold, head = true, color = h.carbon) }
+                "row" -> Row(Modifier.fillMaxWidth().ruled(h).padding(start = 40.dp, end = 14.dp, top = 7.dp, bottom = 7.dp)) {
                     Txt(l.l, color = h.ink2, modifier = Modifier.weight(1f).padding(start = 12.dp, end = 12.dp))
                     Txt(mny(l.v), color = if (l.v < 0) h.neg else h.ink, raw = true)
                 }
                 else -> {
                     val np = l.k == "np"
                     Row(
-                        Modifier.fillMaxWidth().let { if (np) it else it.line() }.background(if (l.k == "gp") h.carbonSoft else Color.Transparent)
+                        Modifier.fillMaxWidth().let { if (np) it else it.ruled(h) }.background(if (l.k == "gp") h.carbonSoft else Color.Transparent)
                             .padding(start = 40.dp, end = 14.dp, top = if (np) 12.dp else 7.dp, bottom = if (np) 12.dp else 7.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -469,116 +482,140 @@ private fun Ledger(r: Report, biz: String) {
                 }
             }
         }
+    }
+    item(key = "led-f", contentType = "led-f") {
+        val h = LocalHues.current
         val s = r.sum
         val foot = buildList {
             add(t("Brackets mean a cost or a deduction."))
             if (s.REGD) add(t("Sales and charges are shown without GST; the GST section below has the tax."))
             if (s.rlu > 0) add(t(pl(s.rlu, "returned piece") + " counted as not resellable, so their cost (" + rs(s.rlv) + ") stays in cost of goods."))
         }
-        Box(Modifier.padding(start = 40.dp, end = 14.dp, top = 8.dp, bottom = 4.dp)) { Txt(foot.joinToString(" "), size = 13.6.sp, color = h.ink3, raw = true) }
+        Box(Modifier.ledgerSlice(h, bottom = true).padding(start = 40.dp, end = 14.dp, top = 8.dp, bottom = 10.dp)) { Txt(foot.joinToString(" "), size = 13.6.sp, color = h.ink3, raw = true) }
     }
 }
 
-/* Returns, RTO and exchanges: total, one card each, and the details under it */
-@Composable
-private fun ReturnsSheet(r: Report) {
+/* Returns, RTO and exchanges: total, one card each (one lazy row each), and the details under it */
+
+private fun rvKeys(r: Report): List<String> = buildList { add("rto"); add("ret"); add("exch"); if ((r.returns?.G?.lost?.n ?: 0) > 0) add("lost") }
+private val RV_HEAD = mapOf("rto" to "RTO", "ret" to "Returns", "exch" to "Exchanges", "lost" to "Lost")
+
+private fun LazyListScope.returnsSheet(r: Report, panes: Panes) {
     val rv = r.returns ?: return
     if (rv.done == 0) return
-    val h = LocalHues.current
-    val G = rv.G
-    val keys = buildList { add("rto"); add("ret"); add("exch"); if (G.lost.n > 0) add("lost") }
-    val head = mapOf("rto" to "RTO", "ret" to "Returns", "exch" to "Exchanges", "lost" to "Lost")
-    val sub = mapOf("rto" to "Came back undelivered", "ret" to "Customer sent it back", "exch" to "Swapped for size or colour", "lost" to "Lost by the courier")
-    val acc = mapOf("rto" to h.warn, "ret" to h.neg, "exch" to h.carbon, "lost" to h.ink3)
-    fun g(k: String) = when (k) { "rto" -> G.rto; "ret" -> G.ret; "exch" -> G.exch; else -> G.lost }
-    fun of(k: String) = when (k) { "rto" -> Triple(rv.rtoRate, rv.done, "shipped"); "ret" -> Triple(rv.retRate, rv.delivered, "delivered"); "exch" -> Triple(rv.exchRate, rv.delivered, "delivered"); else -> Triple(rv.lostRate, rv.done, "shipped") }
-    Details("Returns, RTO and exchanges", "returns", open = true) {
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(h.paper).border(1.dp, h.rule, RoundedCornerShape(6.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Txt("Total money lost", weight = FontWeight.SemiBold, color = h.ink2, modifier = Modifier.weight(1f))
-            Txt(rs(rv.loss, true), size = 22.4.sp, head = true, weight = FontWeight.SemiBold, color = if (rv.loss > 0) h.neg else h.ink, raw = true)
-        }
-        Spacer(Modifier.height(12.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            keys.forEach { k ->
-                val gg = g(k)
-                val (rate, total, word) = of(k)
-                val lines = listOf("Return shipping fee" to gg.retFee, "Forward shipping" to gg.fwdShip, "Meesho fees kept" to gg.fees, "Packing" to gg.pack, "Stock not resellable" to gg.stock, "Paid back by Meesho" to -gg.back)
-                    .filter { Math.round(it.second / 100.0) != 0L }
-                Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(h.sheet).border(1.dp, h.rule, RoundedCornerShape(6.dp))
-                        .drawBehind { drawRect(acc[k]!!, size = androidx.compose.ui.geometry.Size(size.width, 4.dp.toPx())) }.padding(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 12.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.Top) {
-                        Column(Modifier.weight(1f)) {
-                            Txt(head[k]!!, size = 17.6.sp, head = true, weight = FontWeight.SemiBold)
-                            Txt(sub[k]!!, size = 12.8.sp, color = h.ink3)
-                        }
-                        Txt(pct(rate), size = 28.8.sp, head = true, weight = FontWeight.SemiBold, color = acc[k]!!, raw = true, lineHeight = 30.sp)
-                    }
-                    Bar(rate.toFloat(), acc[k]!!, Modifier.padding(top = 10.dp, bottom = 6.dp))
-                    Txt("${gg.n} of $total orders $word", size = 13.6.sp, color = h.ink2)
-                    Spacer(Modifier.height(10.dp))
-                    Row(Modifier.fillMaxWidth().drawBehind {
-                        drawLine(h.rule, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f, 6f)))
-                    }.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Txt("Money lost", weight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                        Txt(rs(gg.loss, true), size = 19.2.sp, head = true, weight = FontWeight.SemiBold, color = if (gg.loss > 0) h.neg else h.ink, raw = true)
-                    }
-                    if (gg.n > 0 && gg.loss != 0L) Txt(rs(gg.loss / gg.n, true) + " " + t("per order"), size = 12.8.sp, color = h.ink3, align = TextAlign.End, modifier = Modifier.fillMaxWidth(), raw = true)
-                    if (lines.isNotEmpty()) Column(Modifier.padding(top = 8.dp)) {
-                        lines.forEach { (l, v) ->
-                            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-                                Txt(l, size = 13.6.sp, color = h.ink2, modifier = Modifier.weight(1f))
-                                Txt((if (v < 0) "+ " else "") + rs(kotlin.math.abs(v), true), size = 13.6.sp, color = if (v < 0) h.pos else h.ink2, raw = true)
-                            }
-                        }
-                    } else Txt(if (k == "exch") "Still a sale, no extra fee" else "No fees charged", size = 12.8.sp, color = h.ink3, align = TextAlign.End, modifier = Modifier.fillMaxWidth())
-                }
+    val title = "Returns, RTO and exchanges"
+    if (!panes.isOpen("returns", true)) { block("returns") { Sheet { DetailsHead(title, false) { panes.toggle("returns", true) } } }; return }
+    val keys = rvKeys(r)
+    item(key = "rv-h", contentType = "sheet-top") {
+        val h = LocalHues.current
+        SheetPart(Part.TOP) {
+            DetailsHead(title, true) { panes.toggle("returns", true) }
+            Spacer(Modifier.height(10.dp))
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(h.paper).border(1.dp, h.rule, RoundedCornerShape(6.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Txt("Total money lost", weight = FontWeight.SemiBold, color = h.ink2, modifier = Modifier.weight(1f))
+                Txt(rs(rv.loss, true), size = 22.4.sp, head = true, weight = FontWeight.SemiBold, color = if (rv.loss > 0) h.neg else h.ink, raw = true)
             }
         }
-        val notes = buildList {
-            add("RTO" + (if (G.lost.n > 0) " and lost" else "") + " rates are of parcels shipped; return and exchange rates are of orders delivered.")
-            add("Money lost is what Meesho cut from your payout for these orders (including GST), plus packing and stock you could not resell, less what Meesho paid back.")
-            if (G.exch.n > 0) add("Exchanges are still sales, so only extra return or exchange fees count as lost.")
-            if (G.ret.pending + G.rto.pending > 0) add(pl(G.ret.pending + G.rto.pending, "order") + " are marked returned or RTO but Meesho has not taken the sale back yet, so some fees may still come.")
-            val np = G.rto.noPay + G.ret.noPay + G.exch.noPay
-            if (np > 0) add(pl(np, "order") + " have no payment row yet, so their fees are not counted.")
-            if (rv.transit > 0) add(pl(rv.transit, "order") + " still in transit are left out.")
-            add("RTO parcels and returns count as back in stock unless marked Not resellable in Reconcile or Settings. Counted by " + (if (r.per.basis == "order") "order date" else "payment date") + ".")
+    }
+    items(keys.size, key = { "rv:" + keys[it] }, contentType = { "rv-card" }) { i ->
+        SheetPart(Part.MID) {
+            Spacer(Modifier.height(12.dp))
+            RvCard(r, keys[i])
         }
-        Details("How this is counted", "rv-how", bare = true) { notes.forEach { Small("•  " + t(it), raw = true, modifier = Modifier.padding(vertical = 3.dp)) } }
-        if (rv.cols.isNotEmpty()) Details("Each Meesho fee on returns and RTO", "rv-cols", bare = true) {
-            Table(
-                listOf(Col("Column in Meesho file", 200.dp, false)) + keys.map { Col(head[it]!!, 96.dp) },
-                rv.cols.map { c ->
-                    listOf(Cell(c.label)) + keys.map { k ->
-                        val v = when (k) { "rto" -> c.rto; "ret" -> c.ret; "exch" -> c.exch; else -> c.lost }
-                        Cell(if (v != 0L) mny(v) else "–", if (v < 0) h.neg else Color.Unspecified)
-                    }
-                },
-            )
-            Small("Minus is money Meesho took; plus is money it gave back on these orders.", Modifier.padding(top = 6.dp))
+    }
+    item(key = "rv-f", contentType = "sheet-bottom") { SheetPart(Part.BOTTOM) { RvMore(r, keys) } }
+}
+
+@Composable
+private fun RvCard(r: Report, k: String) {
+    val rv = r.returns ?: return
+    val h = LocalHues.current
+    val G = rv.G
+    val sub = mapOf("rto" to "Came back undelivered", "ret" to "Customer sent it back", "exch" to "Swapped for size or colour", "lost" to "Lost by the courier")
+    val acc = when (k) { "rto" -> h.warn; "ret" -> h.neg; "exch" -> h.carbon; else -> h.ink3 }
+    val gg = when (k) { "rto" -> G.rto; "ret" -> G.ret; "exch" -> G.exch; else -> G.lost }
+    val (rate, total, word) = when (k) { "rto" -> Triple(rv.rtoRate, rv.done, "shipped"); "ret" -> Triple(rv.retRate, rv.delivered, "delivered"); "exch" -> Triple(rv.exchRate, rv.delivered, "delivered"); else -> Triple(rv.lostRate, rv.done, "shipped") }
+    val lines = listOf("Return shipping fee" to gg.retFee, "Forward shipping" to gg.fwdShip, "Meesho fees kept" to gg.fees, "Packing" to gg.pack, "Stock not resellable" to gg.stock, "Paid back by Meesho" to -gg.back)
+        .filter { Math.round(it.second / 100.0) != 0L }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(h.sheet).border(1.dp, h.rule, RoundedCornerShape(6.dp))
+            .drawBehind { drawRect(acc, size = Size(size.width, 4.dp.toPx())) }.padding(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                Txt(RV_HEAD[k]!!, size = 17.6.sp, head = true, weight = FontWeight.SemiBold)
+                Txt(sub[k]!!, size = 12.8.sp, color = h.ink3)
+            }
+            Txt(pct(rate), size = 28.8.sp, head = true, weight = FontWeight.SemiBold, color = acc, raw = true, lineHeight = 30.sp)
         }
-        if (rv.skus.isNotEmpty()) Details("RTO, returns and exchanges by SKU", "rv-sku", bare = true) {
-            fun c(n: Int, r: Double) = if (n > 0) "$n (${pct0(r)})" else "–"
-            Table(
-                listOf(Col("SKU", 150.dp, false), Col("Shipped", 80.dp), Col("RTO", 90.dp), Col("Returns", 90.dp), Col("Exchanges", 96.dp), Col("Money lost", 110.dp)),
-                rv.skus.take(25).map { k ->
-                    listOf(
-                        Cell(k.sku, bold = true, sub = k.pn.ifBlank { null }), Cell("${k.done}"), Cell(c(k.rto + k.lost, k.rtoRate), if (k.rtoRate >= 0.25) h.neg else Color.Unspecified),
-                        Cell(c(k.ret, k.retRate), if (k.retRate >= 0.25) h.neg else Color.Unspecified), Cell(c(k.exch, k.exchRate)), Cell(if (k.loss != 0L) mny(-k.loss) else "–", h.neg),
-                    )
-                },
-            )
-            Small(
-                t("Red is 25% or more.") + " " + (if (rv.skus.size > 25) t("Showing the 25 SKUs that lose the most; the Excel download has all of them.") + " " else "") +
-                    t("A high RTO rate often means buyers change their mind before delivery (try fewer COD orders to far pincodes); a high return rate usually points to size, colour or quality not matching the photos."),
-                Modifier.padding(top = 6.dp), raw = true,
-            )
+        Bar(rate.toFloat(), acc, Modifier.padding(top = 10.dp, bottom = 6.dp))
+        Txt("${gg.n} of $total orders $word", size = 13.6.sp, color = h.ink2)
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth().drawBehind {
+            drawLine(h.rule, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f, 6f)))
+        }.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Txt("Money lost", weight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Txt(rs(gg.loss, true), size = 19.2.sp, head = true, weight = FontWeight.SemiBold, color = if (gg.loss > 0) h.neg else h.ink, raw = true)
         }
+        if (gg.n > 0 && gg.loss != 0L) Txt(rs(gg.loss / gg.n, true) + " " + t("per order"), size = 12.8.sp, color = h.ink3, align = TextAlign.End, modifier = Modifier.fillMaxWidth(), raw = true)
+        if (lines.isNotEmpty()) Column(Modifier.padding(top = 8.dp)) {
+            lines.forEach { (l, v) ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                    Txt(l, size = 13.6.sp, color = h.ink2, modifier = Modifier.weight(1f))
+                    Txt((if (v < 0) "+ " else "") + rs(kotlin.math.abs(v), true), size = 13.6.sp, color = if (v < 0) h.pos else h.ink2, raw = true)
+                }
+            }
+        } else Txt(if (k == "exch") "Still a sale, no extra fee" else "No fees charged", size = 12.8.sp, color = h.ink3, align = TextAlign.End, modifier = Modifier.fillMaxWidth())
+    }
+}
+
+@Composable
+private fun RvMore(r: Report, keys: List<String>) {
+    val rv = r.returns ?: return
+    val h = LocalHues.current
+    val G = rv.G
+    val notes = buildList {
+        add("RTO" + (if (G.lost.n > 0) " and lost" else "") + " rates are of parcels shipped; return and exchange rates are of orders delivered.")
+        add("Money lost is what Meesho cut from your payout for these orders (including GST), plus packing and stock you could not resell, less what Meesho paid back.")
+        if (G.exch.n > 0) add("Exchanges are still sales, so only extra return or exchange fees count as lost.")
+        if (G.ret.pending + G.rto.pending > 0) add(pl(G.ret.pending + G.rto.pending, "order") + " are marked returned or RTO but Meesho has not taken the sale back yet, so some fees may still come.")
+        val np = G.rto.noPay + G.ret.noPay + G.exch.noPay
+        if (np > 0) add(pl(np, "order") + " have no payment row yet, so their fees are not counted.")
+        if (rv.transit > 0) add(pl(rv.transit, "order") + " still in transit are left out.")
+        add("RTO parcels and returns count as back in stock unless marked Not resellable in Reconcile or Settings. Counted by " + (if (r.per.basis == "order") "order date" else "payment date") + ".")
+    }
+    Details("How this is counted", "rv-how", bare = true) { notes.forEach { Small("•  " + t(it), raw = true, modifier = Modifier.padding(vertical = 3.dp)) } }
+    if (rv.cols.isNotEmpty()) Details("Each Meesho fee on returns and RTO", "rv-cols", bare = true) {
+        Table(
+            listOf(Col("Column in Meesho file", 200.dp, false)) + keys.map { Col(RV_HEAD[it]!!, 96.dp) },
+            rv.cols.map { c ->
+                listOf(Cell(c.label)) + keys.map { k ->
+                    val v = when (k) { "rto" -> c.rto; "ret" -> c.ret; "exch" -> c.exch; else -> c.lost }
+                    Cell(if (v != 0L) mny(v) else "–", if (v < 0) h.neg else Color.Unspecified)
+                }
+            },
+        )
+        Small("Minus is money Meesho took; plus is money it gave back on these orders.", Modifier.padding(top = 6.dp))
+    }
+    if (rv.skus.isNotEmpty()) Details("RTO, returns and exchanges by SKU", "rv-sku", bare = true) {
+        fun c(n: Int, r: Double) = if (n > 0) "$n (${pct0(r)})" else "–"
+        Table(
+            listOf(Col("SKU", 150.dp, false), Col("Shipped", 80.dp), Col("RTO", 90.dp), Col("Returns", 90.dp), Col("Exchanges", 96.dp), Col("Money lost", 110.dp)),
+            rv.skus.take(25).map { k ->
+                listOf(
+                    Cell(k.sku, bold = true, sub = k.pn.ifBlank { null }), Cell("${k.done}"), Cell(c(k.rto + k.lost, k.rtoRate), if (k.rtoRate >= 0.25) h.neg else Color.Unspecified),
+                    Cell(c(k.ret, k.retRate), if (k.retRate >= 0.25) h.neg else Color.Unspecified), Cell(c(k.exch, k.exchRate)), Cell(if (k.loss != 0L) mny(-k.loss) else "–", h.neg),
+                )
+            },
+        )
+        Small(
+            t("Red is 25% or more.") + " " + (if (rv.skus.size > 25) t("Showing the 25 SKUs that lose the most; the Excel download has all of them.") + " " else "") +
+                t("A high RTO rate often means buyers change their mind before delivery (try fewer COD orders to far pincodes); a high return rate usually points to size, colour or quality not matching the photos."),
+            Modifier.padding(top = 6.dp), raw = true,
+        )
     }
 }
 
