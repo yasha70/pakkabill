@@ -1121,6 +1121,10 @@ details.more[open] > summary { margin-bottom: 10px; }
     var K = { S: 0, R: 0, OUT: 0, T: 0, D: 0, CP: 0, CL: 0, RC: 0, O: 0, F: 0, fwd: 0, rst: 0, loss: 0, pack: 0, fu: 0, ru: 0, lu: 0, rlu: 0, rlv: 0, parcels: 0, retn: 0, rton: 0, rdef: 0, sales: 0, legs: 0, unexpl: 0, revPend: 0, revPendV: 0, AD: 0, ADG: 0, REF: 0, ADJ: 0 };
     var CH = {}; CHARGE_CATS.forEach(function (c) { CH[c] = { v: 0, g: 0 }; });
     var COLS = {}, SK = {}, NC = {};
+    // each order's sale less its reversal over all files, whatever the period: an order sold in
+    // August and returned in September is not a delivered order in the August view either
+    var ORDNET = {};
+    for (var oi = 0; oi < P.length; oi++) ORDNET[P[oi].id] = (ORDNET[P[oi].id] || 0) + P[oi].s + P[oi].r;
     function sk(sku, pn) { var k = sku || '(no SKU)'; return SK[k] || (SK[k] = { sku: k, pn: pn || '', sold: 0, units: 0, retU: 0, rto: 0, S: 0, R: 0, OUT: 0, COGS: 0, MC: 0, OCR: 0, TX: 0, pack: 0 }); }
     for (var i = 0; i < P.length; i++) {
       var p = P[i], d = per.basis === 'order' ? (p.od || p.pd) : p.pd;
@@ -1159,10 +1163,8 @@ details.more[open] > summary { margin-bottom: 10px; }
       if (L.nc[i]) NC[p.sku || '(no SKU)'] = (NC[p.sku || '(no SKU)'] || 0) + L.nc[i];
       s.S += p.s; s.R += p.r; s.OUT += out; s.COGS += cg; s.MC += mc; s.OCR += ocr; s.TX += tx; s.pack += L.pack[i];
       s.sold += L.sale[i]; s.units += L.fu[i]; s.retU += L.ru[i] + L.rlu[i]; s.rto += L.rto[i];
-      // each order's sale and its reversal, to count the orders that were delivered and kept
-      if (!s.ord) s.ord = {};
-      var so = s.ord[p.id] || (s.ord[p.id] = { s: 0, r: 0, sale: 0 });
-      so.s += p.s; so.r += p.r; so.sale += L.sale[i];
+      // orders sold in this period that were delivered and kept (sale never reversed, in any file)
+      if (L.sale[i] > 0) { if (!s.ord) s.ord = {}; s.ord[p.id] = 1; }
     }
     IX.extra.forEach(function (e) {
       if (!inP(e.dt)) return;
@@ -1196,7 +1198,7 @@ details.more[open] > summary { margin-bottom: 10px; }
          sales, so they count. Profit per order is the SKU's whole profit, with the money lost on
          returns and RTO already taken out, spread over only these delivered orders. */
       x.delivered = 0;
-      for (var oid in (x.ord || {})) { var oo = x.ord[oid]; if (oo.sale > 0 && oo.s + oo.r > TOL) x.delivered++; }
+      for (var oid in (x.ord || {})) if (ORDNET[oid] > TOL) x.delivered++;
       delete x.ord;
       x.perOrder = x.delivered ? Math.round(x.contrib / x.delivered) : 0;
       var perSold = x.sold ? x.contrib / x.sold : 0;
