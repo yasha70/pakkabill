@@ -122,6 +122,12 @@ class PnlTest {
         assertEquals("मुनाफ़ा-नुकसान", hi.tr("P&L"))
         assertEquals("डिफ़ॉल्ट जैसा (5% GST बिल)", hi.tr("Same as default (5% GST bill)"))
         assertEquals("ABC-12", hi.tr("ABC-12"))
+        // whole labels come straight from the dictionary, spaces kept; the rest still use the website's rules
+        assertEquals("  लागत ", hi.tr("  Costs "))
+        assertEquals("₹1,234", hi.tr("₹1,234"))
+        assertEquals("मुनाफ़ा-नुकसान", hi.tr("P&L"))
+        assertTrue(hi.tr("Cost is missing for 3 SKUs (12 pieces). Profit is overstated until you add them.").contains("3"))
+        assertTrue(hi.tr("Cost is missing for 3 SKUs (12 pieces). Profit is overstated until you add them.").any { it in '\u0900'..'\u097F' })
         val g = Guide.parse(engine.guide())
         assertEquals(10, g.steps.size)
         assertTrue(g.art["welcome"]!!.startsWith("<svg"))

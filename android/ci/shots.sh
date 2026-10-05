@@ -103,6 +103,14 @@ adb shell am start -W -n $PKG/.MainActivity
 cap 80-release-start 8
 tap "Try with sample data"
 cap 81-release-sample 25
+adb shell dumpsys gfxinfo $PKG reset > /dev/null
+for i in 1 2 3 4 5 6 7 8; do up; sleep 1; done
+frames "Release P&L scroll"
+tap "Costs"; sleep 3
+adb shell dumpsys gfxinfo $PKG reset > /dev/null
+for i in 1 2 3 4 5 6; do up; sleep 1; done
+frames "Release Costs scroll"
+tap "P&L"; sleep 1; top
 tap "How to use"; cap 82-release-guide 4
 tap "हिंदी"; cap 83-release-hindi 5
 alive release

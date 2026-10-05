@@ -15,6 +15,8 @@ class Hindi {
     private val scope: ScriptableObject
     private val tr: Function
     private val memo = HashMap<String, String>()
+    // the website's dictionary, for the common case of a whole label: no script run needed
+    private val dict = HashMap<String, String>()
 
     init {
         val cx = Context.enter()
@@ -26,6 +28,12 @@ class Hindi {
             cx.evaluateString(scope, src, "hi.js", 1, null)
             val hi = scope.get("HI18N", scope) as Scriptable
             tr = hi.get("tr", hi) as Function
+            val d = hi.get("dict", hi) as Scriptable
+            for (id in d.ids) {
+                val k = id as? String ?: continue
+                val v = d.get(k, d)
+                if (v is CharSequence && v.isNotEmpty()) dict[k] = v.toString()
+            }
         } finally {
             Context.exit()
         }
@@ -35,6 +43,7 @@ class Hindi {
     fun tr(s: String): String {
         if (s.isBlank()) return s
         memo[s]?.let { return it }
+        exact(s)?.let { memo[s] = it; return it }
         val cx = Context.enter()
         val out = try {
             cx.setInterpretedMode(true)
@@ -49,4 +58,16 @@ class Hindi {
         memo[s] = out
         return out
     }
+
+    /** The same as the website's tr() when the whole text is a dictionary key; null otherwise. */
+    private fun exact(s: String): String? {
+        if (s.none { it in 'A'..'Z' || it in 'a'..'z' }) return s
+        val start = s.indexOfFirst { !it.isWhitespace() }
+        val end = s.indexOfLast { !it.isWhitespace() }
+        val core = s.substring(start, end + 1).replace(WS, " ")
+        val out = dict[core] ?: return null
+        return s.substring(0, start) + out + s.substring(end + 1)
+    }
+
+    private companion object { val WS = Regex("\\s+") }
 }
