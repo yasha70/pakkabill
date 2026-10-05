@@ -41,6 +41,13 @@ val extractEngine = tasks.register("extractEngine") {
         dir.resolve("guide.js").writeText(
             "var GUIDE = (function () {\n" + text.substring(g0, g1) + "\n  return { art: ART, steps: STEPS, terms: TERMS, ui: UI };\n})();\n",
         )
+        // the background doodles (light and dark tiles), same as the website and PakkaBill
+        val d0 = text.indexOf("/* background doodles")
+        require(d0 >= 0) { "background doodles not found in pnl.html" }
+        val urls = Regex("--doodle:url\\(\"data:image/svg\\+xml,([^\"]*)\"\\)").findAll(text.substring(d0)).map { it.groupValues[1] }.toList()
+        fun pct(s: String) = Regex("%([0-9A-Fa-f]{2})").replace(s) { it.groupValues[1].toInt(16).toChar().toString() }
+        dir.resolve("doodle-light.svg").writeText(pct(urls[0]))
+        dir.resolve("doodle-dark.svg").writeText(pct(urls[1]))
         // the Hindi words of the website, so the app switches language the same way
         dir.resolve("hi.js").writeText("var window = this;\n" + hindi.readText())
     }

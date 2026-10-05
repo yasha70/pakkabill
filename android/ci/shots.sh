@@ -37,14 +37,14 @@ up; cap 23-data 1
 top; tap "Costs"; cap 24-costs 3
 up; cap 25-costs 1; up; cap 26-costs 1
 top; tap "Expenses"; cap 27-exp 3
-adb shell input swipe 700 240 100 240 300; sleep 1
+adb shell input swipe 900 345 100 345 300; sleep 1
 tap "Settings"; cap 28-set 3
 up; cap 29-set 1
-top; adb shell input swipe 700 240 100 240 300; sleep 1; tap "How to use"; cap 30-guide 4
+top; adb shell input swipe 900 345 100 345 300; sleep 1; tap "How to use"; cap 30-guide 4
 tap "Next"; cap 31-guide 3
 
 echo "== Hindi" >> "$R"
-top; adb shell input swipe 100 240 900 240 300; sleep 1; tap "P&L"; sleep 1
+top; adb shell input swipe 100 345 900 345 300; sleep 1; tap "P&L"; sleep 1
 tap "हिंदी"; cap 40-hi-pl 6
 up; cap 41-hi-pl 1; up; cap 42-hi-pl 1
 top; tap "EN"; sleep 2

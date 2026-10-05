@@ -126,6 +126,9 @@ class PnlTest {
         assertEquals(10, g.steps.size)
         assertTrue(g.art["welcome"]!!.startsWith("<svg"))
         assertTrue(g.terms.isNotEmpty())
+        // the website's background doodles, light and dark
+        assertTrue(Art.doodle(false).contains("xlink:href=\"#bag\"") || Art.doodle(false).contains("<use xlink:href="))
+        assertTrue(Art.doodle(true).startsWith("<svg") && Art.doodle(true) != Art.doodle(false))
         assertTrue(g.ui["hi"]!!["title"]!!.isNotBlank())
         val r = PnlStore(Files.createTempDirectory("pnl").toFile(), engine).apply { startSample() }.report(Sel()).first
         assertTrue(r.health.pd0.isNotBlank() && r.packNote.isNotBlank() && r.returns!!.cols.isNotEmpty())

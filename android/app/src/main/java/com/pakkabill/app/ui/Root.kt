@@ -68,7 +68,12 @@ import com.pakkabill.app.platform.LocalPlatform
 import com.pakkabill.app.platform.SITE
 import com.pakkabill.app.platform.SystemBack
 import com.pakkabill.app.pnl.PnlController
+import com.pakkabill.core.Art
 import com.pakkabill.core.Report
+import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.platform.LocalDensity
 import com.pakkabill.core.Sel
 import kotlinx.coroutines.launch
 
@@ -136,7 +141,15 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
     )
 
     val h = LocalHues.current
-    Box(Modifier.fillMaxSize().background(h.paper)) {
+    // the website's background doodles: a 300 × 300 tile repeated behind everything, fixed
+    val density = LocalDensity.current
+    val tilePx = with(density) { 300.dp.roundToPx() }
+    val tile = remember(h.dark, tilePx) { platform.svg(Art.doodle(h.dark), tilePx) }
+    Box(
+        Modifier.fillMaxSize().background(h.paper).drawBehind {
+            if (tile != null) drawRect(ShaderBrush(ImageShader(tile, TileMode.Repeated, TileMode.Repeated)))
+        },
+    ) {
         Column(Modifier.fillMaxSize()) {
             Band(ui.state.settings.biz.ifBlank { if (ui.sample) "Sample blouse store" else "" }, login) { accountOpen = true }
             Tabs(tab, { tab = it }, ui.report?.reconcile?.get("issues")?.n ?: 0, lang, { pnl.setLang(it) })
@@ -193,7 +206,7 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
 
         AnimatedVisibility(accountOpen, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut()) {
             SystemBack { accountOpen = false }
-            Column(Modifier.fillMaxSize().background(h.paper)) {
+            Column(Modifier.fillMaxSize().background(h.paper).drawBehind { if (tile != null) drawRect(ShaderBrush(ImageShader(tile, TileMode.Repeated, TileMode.Repeated))) }) {
                 Row(
                     Modifier.fillMaxWidth().background(h.band).windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 8.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
