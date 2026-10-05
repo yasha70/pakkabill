@@ -1,6 +1,5 @@
-package com.pakkabill.app.web
+package com.pakkabill.app.files
 
-import android.app.DownloadManager
 import android.content.ClipData
 import android.content.ContentValues
 import android.content.Context
@@ -9,12 +8,10 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import android.webkit.CookieManager
-import android.webkit.URLUtil
 import androidx.core.content.FileProvider
 import java.io.File
 
-/** A file handed over by the page (a bill PDF, an Excel report, a backup). */
+/** A file PakkaBill made (a P&L PDF, an Excel report, a backup). */
 class PageFile(val name: String, val mime: String, val bytes: ByteArray)
 
 /** Saving, opening and sharing the files PakkaBill makes. */
@@ -103,24 +100,5 @@ object FileActions {
             }
         }
         context.startActivity(Intent.createChooser(intent, title.ifBlank { null }).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }
-
-    /** Ordinary web downloads (not made by the page itself) go through Android's download manager. */
-    fun download(context: Context, url: String, userAgent: String, contentDisposition: String?, mime: String?): String {
-        val name = safeName(URLUtil.guessFileName(url, contentDisposition, mime))
-        val request = DownloadManager.Request(Uri.parse(url)).apply {
-            if (!mime.isNullOrBlank()) setMimeType(mime)
-            addRequestHeader("User-Agent", userAgent)
-            CookieManager.getInstance().getCookie(url)?.let { addRequestHeader("Cookie", it) }
-            setTitle(name)
-            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "PakkaBill/$name")
-            } else {
-                setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, name)
-            }
-        }
-        (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
-        return name
     }
 }

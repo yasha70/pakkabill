@@ -1,24 +1,12 @@
 package com.pakkabill.app
 
-import android.app.DownloadManager
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Color
-import android.net.ConnectivityManager
-import android.net.Network
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
-import android.print.PrintAttributes
-import android.print.PrintManager
-import android.util.Base64
-import android.view.HapticFeedbackConstants
-import android.webkit.JsResult
-import android.webkit.MimeTypeMap
-import android.webkit.ValueCallback
-import android.webkit.WebChromeClient
-import android.webkit.WebView
+import android.provider.OpenableColumns
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -27,15 +15,15 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
-import androidx.browser.customtabs.CustomTabColorSchemeParams
-import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.ColorUtils
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.core.view.doOnLayout
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
@@ -46,66 +34,46 @@ import com.google.android.play.core.install.model.InstallStatus
 import com.google.android.play.core.install.model.UpdateAvailability
 import com.google.android.play.core.review.ReviewManagerFactory
 import com.pakkabill.app.data.AppSettings
-import com.pakkabill.app.ui.AppAction
-import com.pakkabill.app.ui.AppScreen
+import com.pakkabill.app.files.FileActions
+import com.pakkabill.app.files.PageFile
+import com.pakkabill.app.platform.AndroidPlatform
+import com.pakkabill.app.platform.LocalPlatform
+import com.pakkabill.app.ui.LockScreen
 import com.pakkabill.app.ui.PakkaBillTheme
-import com.pakkabill.app.web.FileActions
-import com.pakkabill.app.web.PageFile
-import com.pakkabill.app.web.WebEvents
-import com.pakkabill.app.web.createPakkaWebView
-import com.pakkabill.app.web.parseCssColor
+import com.pakkabill.app.ui.Root
+import com.pakkabill.app.ui.Tab
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 
-class MainActivity : FragmentActivity(), WebEvents {
-
-    private val state = AppState()
-    private lateinit var web: WebView
+class MainActivity : FragmentActivity() {
+    private val app get() = application as PakkaApp
     private lateinit var settings: AppSettings
     private lateinit var biometric: BiometricPrompt
+    private val snackbar = SnackbarHostState()
 
+    private var locked by mutableStateOf(false)
+    private var lockOn by mutableStateOf(false)
+    private var startTab by mutableStateOf(Tab.PNL)
     private var prefsLoaded = false
-    private var lockEnabled = false
     private var authPurpose = Auth.UNLOCK
     private var backgroundAt = 0L
     private var leftForOwnIntentAt = 0L
-    private val startedAt = SystemClock.elapsedRealtime()
-    private var firstLoadDone = false
-
-    // back online after "You are offline": load PakkaBill again by itself
-    private val network = object : ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(network: Network) {
-            runOnUiThread {
-                if (state.failed) {
-                    state.failed = false
-                    web.reload()
-                }
-            }
-        }
-    }
 
     private enum class Auth { UNLOCK, ENABLE, DISABLE }
 
     private val appUpdates by lazy { AppUpdateManagerFactory.create(this) }
     private val updateLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { }
-    private val installListener = InstallStateUpdatedListener { st ->
-        if (st.installStatus() == InstallStatus.DOWNLOADED) promptRestartForUpdate()
-    }
+    private val installListener = InstallStateUpdatedListener { st -> if (st.installStatus() == InstallStatus.DOWNLOADED) promptRestartForUpdate() }
 
-    private var fileCallback: ValueCallback<Array<Uri>>? = null
-    private val pickFiles = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
-        val data = res.data
-        val uris: Array<Uri>? = if (res.resultCode != RESULT_OK || data == null) {
-            null
-        } else {
-            val clip = data.clipData
-            if (clip != null && clip.itemCount > 0) Array(clip.itemCount) { clip.getItemAt(it).uri } else data.data?.let { arrayOf(it) }
+    private val meeshoPicker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> readAndAdd(uris) }
+    private val backupPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@registerForActivityResult
+        lifecycleScope.launch {
+            val text = withContext(Dispatchers.IO) { runCatching { contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull() }
+            if (text.isNullOrBlank()) say("Could not read this backup file.") else app.pnl.restore(text)
         }
-        fileCallback?.onReceiveValue(uris)
-        fileCallback = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -115,68 +83,47 @@ class MainActivity : FragmentActivity(), WebEvents {
             statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
         )
-        // keep the splash until the first screen of PakkaBill is drawn (at most 2.5 seconds)
-        splash.setKeepOnScreenCondition {
-            !prefsLoaded || (!state.firstPaint && SystemClock.elapsedRealtime() - startedAt < 2500)
-        }
+        splash.setKeepOnScreenCondition { !prefsLoaded }
 
         settings = AppSettings(applicationContext)
         biometric = BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 when (authPurpose) {
-                    Auth.UNLOCK -> state.locked = false
-                    Auth.ENABLE -> lifecycleScope.launch { settings.setLock(true); snack("App lock is on") }
-                    Auth.DISABLE -> lifecycleScope.launch { settings.setLock(false); snack("App lock is off") }
+                    Auth.UNLOCK -> locked = false
+                    Auth.ENABLE -> lifecycleScope.launch { settings.setLock(true); say("App lock is on") }
+                    Auth.DISABLE -> lifecycleScope.launch { settings.setLock(false); say("App lock is off") }
                 }
             }
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 if (authPurpose != Auth.UNLOCK && errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
                     errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON && errorCode != BiometricPrompt.ERROR_CANCELED
-                ) {
-                    snack(errString.toString())
-                }
+                ) say(errString.toString())
             }
         })
-        state.canLock = canUseLock()
-
-        web = createPakkaWebView(this, this, ContextCompat.getColor(this, R.color.splash_background))
         lifecycleScope.launch {
             settings.lockEnabled.collect { on ->
-                lockEnabled = on
-                state.lockOn = on
+                lockOn = on
                 if (!prefsLoaded) {
                     prefsLoaded = true
-                    if (on) state.locked = true
+                    if (on) locked = true
                 }
-                hideInRecents(on)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) setRecentsScreenshotEnabled(!on)
             }
         }
-        lifecycleScope.launch {
-            snapshotFlow { state.barColor }.collect { c -> if (c != null) tintSystemBars(c) }
-        }
 
-        // load once the WebView has its real size: pages that measure the screen height (100vh),
-        // like the Meesho P&L frame, would otherwise start at zero height
-        web.doOnLayout { firstLoad() }
-        web.postDelayed({ firstLoad() }, 1500)
-        runCatching { getSystemService(ConnectivityManager::class.java).registerDefaultNetworkCallback(network) }
-
+        val platform = AndroidPlatform(this)
         setContent {
             PakkaBillTheme {
-                AppScreen(
-                    state = state,
-                    web = web,
-                    version = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-                    onRetry = { state.failed = false; web.reload() },
-                    onUnlock = ::unlock,
-                    onExit = ::finish,
-                    onToggleLock = ::toggleLock,
-                    onAction = ::onAppAction,
-                )
+                CompositionLocalProvider(LocalPlatform provides platform) {
+                    if (locked) LockScreen(onUnlock = ::unlock, onExit = ::finish)
+                    else Root(app.pnl, app.account, lockOn, snackbar, startTab)
+                }
             }
         }
 
+        handle(intent)
+        app.account.refresh()
         checkForUpdate()
         maybeAskForReview()
     }
@@ -184,16 +131,36 @@ class MainActivity : FragmentActivity(), WebEvents {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        load(intent, first = false)
+        handle(intent)
+    }
+
+    /** Shortcuts, and Meesho files shared to PakkaBill from another app (Files, WhatsApp, Gmail). */
+    private fun handle(intent: Intent?) {
+        intent ?: return
+        when (intent.action) {
+            ACTION_UPLOAD -> { startTab = Tab.FILES; window.decorView.post { pickMeesho() } }
+            ACTION_COSTS -> startTab = Tab.COSTS
+            Intent.ACTION_SEND -> {
+                @Suppress("DEPRECATION")
+                val uri = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java) else intent.getParcelableExtra(Intent.EXTRA_STREAM)
+                if (uri != null) { startTab = Tab.PNL; readAndAdd(listOf(uri)) }
+            }
+            Intent.ACTION_SEND_MULTIPLE -> {
+                @Suppress("DEPRECATION")
+                val uris = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java) else intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
+                if (!uris.isNullOrEmpty()) { startTab = Tab.PNL; readAndAdd(uris) }
+            }
+            Intent.ACTION_VIEW -> intent.data?.let { if (it.scheme == "content" || it.scheme == "file") { startTab = Tab.PNL; readAndAdd(listOf(it)) } }
+        }
     }
 
     override fun onStart() {
         super.onStart()
-        state.canLock = canUseLock()
         val now = SystemClock.elapsedRealtime()
         val away = backgroundAt > 0 && now - backgroundAt > 60_000
         val ownIntent = leftForOwnIntentAt > 0 && now - leftForOwnIntentAt < 10 * 60_000
-        if (lockEnabled && away && !ownIntent) state.locked = true
+        if (lockOn && away && !ownIntent) locked = true
+        if (away) app.account.refresh()
         leftForOwnIntentAt = 0
         backgroundAt = 0
     }
@@ -205,201 +172,65 @@ class MainActivity : FragmentActivity(), WebEvents {
 
     override fun onDestroy() {
         runCatching { appUpdates.unregisterListener(installListener) }
-        runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(network) }
         super.onDestroy()
     }
 
-    /* ---------------- opening pages ---------------- */
+    /* ---------------- files ---------------- */
 
-    private fun pakkaUrl(intent: Intent?): String? {
-        val d = intent?.data ?: return null
-        return if (d.scheme == "https" && d.host == HOST) d.toString() else null
+    fun leavingForOwnIntent() { leftForOwnIntentAt = SystemClock.elapsedRealtime() }
+
+    fun pickMeesho() {
+        leavingForOwnIntent()
+        runCatching { meeshoPicker.launch(arrayOf("*/*")) }.onFailure { say("No file picker found on this phone.") }
     }
 
-    private fun firstLoad() {
-        if (firstLoadDone) return
-        firstLoadDone = true
-        load(intent, first = true)
+    fun pickBackup() {
+        leavingForOwnIntent()
+        runCatching { backupPicker.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }.onFailure { say("No file picker found on this phone.") }
     }
 
-    private fun load(intent: Intent?, first: Boolean) {
-        if (intent?.getBooleanExtra(EXTRA_SETTINGS, false) == true) state.showSettings = true
-        val url = pakkaUrl(intent)
-        if (first) {
-            web.loadUrl(url ?: START_URL)
-            return
-        }
-        if (url != null) navigate(url)
-    }
-
-    /** Opens a PakkaBill page; a change of screen inside the loaded app does not reload it. */
-    private fun navigate(url: String) {
-        val target = Uri.parse(url)
-        val current = web.url?.let(Uri::parse)
-        val samePage = current?.host == HOST && (target.path.isNullOrEmpty() || target.path == "/")
-        if (samePage && target.fragment != null) {
-            web.evaluateJavascript("location.hash=${JSONObject.quote("#" + target.fragment)}", null)
-        } else {
-            web.loadUrl(url)
-        }
-        state.showSettings = false
-    }
-
-    /* ---------------- WebEvents ---------------- */
-
-    override fun onProgress(progress: Int) {
-        state.progress = progress
-    }
-
-    override fun onHistory(canGoBack: Boolean) {
-        state.canGoBack = canGoBack
-    }
-
-    override fun onFirstPaint() {
-        state.firstPaint = true
-    }
-
-    override fun onLoadFailed(failed: Boolean) {
-        state.failed = failed
-    }
-
-    override fun onCrashed() {
-        // the WebView's renderer was stopped by Android to free memory: start a fresh one
-        recreate()
-    }
-
-    override fun onPageDialog(message: String, confirm: Boolean, result: JsResult) {
-        state.dialog?.result?.cancel()
-        state.dialog = PageDialog(message, confirm, result)
-    }
-
-    override fun onChooseFiles(callback: ValueCallback<Array<Uri>>, params: WebChromeClient.FileChooserParams): Boolean {
-        fileCallback?.onReceiveValue(null)
-        fileCallback = callback
-        val types = params.acceptTypes.orEmpty().flatMap { it.split(',') }.map { it.trim().lowercase() }.filter { it.isNotEmpty() }
-        val mimes = if (types.isNotEmpty() && types.all { '/' in it }) types.distinct() else emptyList()
-        val pick = Intent(Intent.ACTION_GET_CONTENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = mimes.singleOrNull() ?: "*/*"
-            if (mimes.size > 1) putExtra(Intent.EXTRA_MIME_TYPES, mimes.toTypedArray())
-            if (params.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-        }
-        return try {
-            leftForOwnIntentAt = SystemClock.elapsedRealtime()
-            pickFiles.launch(Intent.createChooser(pick, null))
-            true
-        } catch (e: ActivityNotFoundException) {
-            fileCallback = null
-            false
-        }
-    }
-
-    override fun onLeaveApp(uri: Uri) {
-        val scheme = uri.scheme?.lowercase().orEmpty()
-        leftForOwnIntentAt = SystemClock.elapsedRealtime()
-        try {
-            when {
-                scheme == "intent" -> {
-                    val intent = Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME).apply {
-                        addCategory(Intent.CATEGORY_BROWSABLE)
-                        component = null
-                        selector = null
-                    }
-                    try {
-                        startActivity(intent)
-                    } catch (e: ActivityNotFoundException) {
-                        intent.getStringExtra("browser_fallback_url")?.let { openInBrowser(Uri.parse(it)) }
-                    }
-                }
-                scheme == "http" || scheme == "https" -> {
-                    val host = uri.host.orEmpty()
-                    if (host == "wa.me" || host.endsWith("whatsapp.com") || host == "play.google.com") {
-                        startActivity(Intent(Intent.ACTION_VIEW, uri))
-                    } else {
-                        openInBrowser(uri)
-                    }
-                }
-                else -> startActivity(Intent(Intent.ACTION_VIEW, uri)) // upi:, tel:, mailto:, whatsapp:, market: ...
-            }
-        } catch (e: ActivityNotFoundException) {
-            leftForOwnIntentAt = 0
-            snack(
-                if (scheme == "upi") "No UPI app found. Install PhonePe, Google Pay, Paytm or your bank's app and try again."
-                else "No app on this phone can open this link.",
-            )
-        }
-    }
-
-    override fun onDownload(url: String, userAgent: String, contentDisposition: String?, mime: String?) {
-        when {
-            url.startsWith("blob:") -> web.evaluateJavascript("window.__pbSaveUrl && window.__pbSaveUrl(${JSONObject.quote(url)}, '')", null)
-            url.startsWith("data:") -> {
-                val comma = url.indexOf(',')
-                if (comma < 0) return
-                val meta = url.substring(5, comma)
-                val type = meta.substringBefore(';').ifBlank { "application/octet-stream" }
-                val payload = url.substring(comma + 1)
-                val bytes = if (meta.endsWith(";base64")) Base64.decode(payload, Base64.DEFAULT) else Uri.decode(payload).toByteArray()
-                val ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(type) ?: "bin"
-                saveFile(PageFile("PakkaBill-file.$ext", type, bytes))
-            }
-            else -> runCatching {
-                val name = FileActions.download(this, url, userAgent, contentDisposition, mime)
-                snack("Downloading $name")
-            }.onFailure { openInBrowser(Uri.parse(url)) }
-        }
-    }
-
-    /** Messages from the page (see assets/pakkabill-android.js). */
-    override fun onMessage(json: String) {
-        val m = runCatching { JSONObject(json) }.getOrNull() ?: return
-        when (m.optString("t")) {
-            "save" -> {
-                val data = m.optString("data")
-                val name = m.optString("name")
-                val mime = m.optString("mime").ifBlank { "application/octet-stream" }
-                lifecycleScope.launch {
-                    val bytes = withContext(Dispatchers.Default) { runCatching { Base64.decode(data, Base64.DEFAULT) }.getOrNull() }
-                    if (bytes == null) snack("Could not save this file.") else saveFile(PageFile(name, mime, bytes))
+    private fun readAndAdd(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        lifecycleScope.launch {
+            val picked = withContext(Dispatchers.IO) {
+                uris.mapNotNull { uri ->
+                    runCatching {
+                        val size = displaySize(uri)
+                        if (size > MAX_FILE) return@runCatching null
+                        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@runCatching null
+                        displayName(uri) to bytes
+                    }.getOrNull()
                 }
             }
-            "share" -> lifecycleScope.launch {
-                val list = m.optJSONArray("files")
-                val files = withContext(Dispatchers.Default) {
-                    (0 until (list?.length() ?: 0)).mapNotNull { i ->
-                        val f = list!!.optJSONObject(i) ?: return@mapNotNull null
-                        val bytes = runCatching { Base64.decode(f.optString("data"), Base64.DEFAULT) }.getOrNull() ?: return@mapNotNull null
-                        PageFile(f.optString("name").ifBlank { "PakkaBill-file" }, f.optString("type").ifBlank { "application/octet-stream" }, bytes)
-                    }
-                }
-                val text = listOf(m.optString("text"), m.optString("url")).filter { it.isNotBlank() }.joinToString("\n")
-                leftForOwnIntentAt = SystemClock.elapsedRealtime()
-                runCatching { FileActions.share(this@MainActivity, m.optString("title"), text, files) }
-                    .onFailure { snack("Could not open the share menu.") }
-            }
-            "print" -> print(m.optString("title"))
-            "bars" -> parseCssColor(m.optString("color"))?.let { state.barColor = it }
-            "settings" -> state.showSettings = true
-            "toast" -> snack(m.optString("text"))
-            "review" -> askForReview()
-            "haptic" -> web.performHapticFeedback(
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.VIRTUAL_KEY,
-            )
+            if (picked.size < uris.size) say("Some files could not be read (too big or not allowed). Download them again from Meesho.")
+            app.pnl.addFiles(picked)
         }
     }
 
-    /* ---------------- files, printing, links ---------------- */
+    private fun displayName(uri: Uri): String =
+        runCatching {
+            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            }
+        }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/') ?: "Meesho file"
 
-    private fun saveFile(file: PageFile) {
+    private fun displaySize(uri: Uri): Long =
+        runCatching {
+            contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { c ->
+                if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else 0L
+            }
+        }.getOrNull() ?: 0L
+
+    fun saveFile(file: PageFile) {
         lifecycleScope.launch {
             val uri = withContext(Dispatchers.IO) { runCatching { FileActions.saveToDownloads(this@MainActivity, file) }.getOrNull() }
             if (uri == null) {
-                snack("Could not save ${file.name}. Check free space on the phone.")
+                say("Could not save ${file.name}. Check free space on the phone.")
                 return@launch
             }
             val where = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) "Downloads/PakkaBill" else "PakkaBill's files"
-            snack("Saved to $where: ${FileActions.safeName(file.name)}", action = "Open") {
-                leftForOwnIntentAt = SystemClock.elapsedRealtime()
+            say("Saved to $where: ${FileActions.safeName(file.name)}", action = "Open") {
+                leavingForOwnIntent()
                 if (!FileActions.open(this@MainActivity, uri, file.mime)) {
                     runCatching { FileActions.share(this@MainActivity, file.name, "", listOf(file)) }
                 }
@@ -407,57 +238,9 @@ class MainActivity : FragmentActivity(), WebEvents {
         }
     }
 
-    private fun print(title: String) {
-        val name = title.ifBlank { "PakkaBill" }
-        val manager = getSystemService(PRINT_SERVICE) as PrintManager
-        runCatching { manager.print(name, web.createPrintDocumentAdapter(name), PrintAttributes.Builder().build()) }
-            .onFailure { snack("Printing is not available on this phone.") }
-    }
-
-    private fun openInBrowser(uri: Uri) {
-        leftForOwnIntentAt = SystemClock.elapsedRealtime()
-        try {
-            val colors = CustomTabColorSchemeParams.Builder().setToolbarColor(ContextCompat.getColor(this, R.color.brand)).build()
-            CustomTabsIntent.Builder()
-                .setDefaultColorSchemeParams(colors)
-                .setShowTitle(true)
-                .setShareState(CustomTabsIntent.SHARE_STATE_ON)
-                .build()
-                .launchUrl(this, uri)
-        } catch (e: ActivityNotFoundException) {
-            runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }.onFailure { snack("No browser found to open this link.") }
-        }
-    }
-
-    private fun onAppAction(action: AppAction) {
-        when (action) {
-            AppAction.HELP -> navigate("$ORIGIN/#/support")
-            AppAction.PRIVACY -> openInBrowser(Uri.parse(PRIVACY_URL))
-            AppAction.DELETE_ACCOUNT -> navigate("$ORIGIN/#/account?delete=1")
-            AppAction.RATE -> {
-                leftForOwnIntentAt = SystemClock.elapsedRealtime()
-                runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))) }
-                    .onFailure { openInBrowser(Uri.parse(PLAY_URL)) }
-            }
-            AppAction.SHARE_APP -> {
-                leftForOwnIntentAt = SystemClock.elapsedRealtime()
-                FileActions.share(this, "PakkaBill", "PakkaBill: free GST billing for Indian sellers, with Meesho P&L and GSTR-1. $PLAY_URL", emptyList())
-            }
-            AppAction.CLEAR_CACHE -> {
-                web.clearCache(true)
-                snack("Cache cleared. Your bills are safe.")
-            }
-            AppAction.DOWNLOADS -> {
-                leftForOwnIntentAt = SystemClock.elapsedRealtime()
-                runCatching { startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) }
-                    .onFailure { snack("Open the Files app and look in Downloads/PakkaBill.") }
-            }
-        }
-    }
-
     /* ---------------- app lock ---------------- */
 
-    private fun canUseLock(): Boolean =
+    fun canUseLock(): Boolean =
         BiometricManager.from(this).canAuthenticate(BIOMETRIC_WEAK or DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
 
     private fun authenticate(purpose: Auth, title: String) {
@@ -467,38 +250,17 @@ class MainActivity : FragmentActivity(), WebEvents {
             .setSubtitle("Use your fingerprint, face or screen lock")
             .setAllowedAuthenticators(BIOMETRIC_WEAK or DEVICE_CREDENTIAL)
             .build()
-        runCatching { biometric.authenticate(info) }.onFailure {
-            if (purpose == Auth.UNLOCK) state.locked = false
-        }
+        runCatching { biometric.authenticate(info) }.onFailure { if (purpose == Auth.UNLOCK) locked = false }
     }
 
     private fun unlock() {
-        if (!canUseLock()) {
-            // the phone's screen lock was removed: nothing to check against
-            state.locked = false
-            return
-        }
+        if (!canUseLock()) { locked = false; return }
         authenticate(Auth.UNLOCK, "Unlock PakkaBill")
     }
 
-    private fun toggleLock(on: Boolean) {
-        if (!canUseLock()) {
-            snack("Set a screen lock or fingerprint in your phone's Settings first.")
-            return
-        }
+    fun toggleLock(on: Boolean) {
+        if (!canUseLock()) { say("Set a screen lock or fingerprint in your phone's Settings first."); return }
         if (on) authenticate(Auth.ENABLE, "Turn on app lock") else authenticate(Auth.DISABLE, "Turn off app lock")
-    }
-
-    private fun hideInRecents(on: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) setRecentsScreenshotEnabled(!on)
-    }
-
-    /* ---------------- system bars follow the page ---------------- */
-
-    private fun tintSystemBars(color: Int) {
-        val light = ColorUtils.calculateLuminance(color) > 0.5
-        val style = if (light) SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT) else SystemBarStyle.dark(Color.TRANSPARENT)
-        enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
     }
 
     /* ---------------- Google Play: updates and reviews ---------------- */
@@ -506,21 +268,16 @@ class MainActivity : FragmentActivity(), WebEvents {
     private fun checkForUpdate() {
         runCatching {
             appUpdates.appUpdateInfo.addOnSuccessListener { info ->
-                if (info.installStatus() == InstallStatus.DOWNLOADED) {
-                    promptRestartForUpdate()
-                } else if (info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE && info.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)) {
+                if (info.installStatus() == InstallStatus.DOWNLOADED) promptRestartForUpdate()
+                else if (info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE && info.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)) {
                     appUpdates.registerListener(installListener)
-                    runCatching {
-                        appUpdates.startUpdateFlowForResult(info, updateLauncher, AppUpdateOptions.newBuilder(AppUpdateType.FLEXIBLE).build())
-                    }
+                    runCatching { appUpdates.startUpdateFlowForResult(info, updateLauncher, AppUpdateOptions.newBuilder(AppUpdateType.FLEXIBLE).build()) }
                 }
             }
         }
     }
 
-    private fun promptRestartForUpdate() {
-        snack("A new version of PakkaBill is ready.", action = "Restart", long = true) { appUpdates.completeUpdate() }
-    }
+    private fun promptRestartForUpdate() = say("A new version of PakkaBill is ready.", action = "Restart", long = true) { appUpdates.completeUpdate() }
 
     private fun maybeAskForReview() {
         lifecycleScope.launch {
@@ -529,27 +286,23 @@ class MainActivity : FragmentActivity(), WebEvents {
             if (launches >= 8 && days >= 4 && !settings.reviewAsked()) {
                 delay(20_000)
                 settings.markReviewAsked()
-                askForReview()
-            }
-        }
-    }
-
-    private fun askForReview() {
-        runCatching {
-            val manager = ReviewManagerFactory.create(this)
-            manager.requestReviewFlow().addOnCompleteListener { task ->
-                if (task.isSuccessful && !isFinishing) manager.launchReviewFlow(this, task.result)
+                runCatching {
+                    val manager = ReviewManagerFactory.create(this@MainActivity)
+                    manager.requestReviewFlow().addOnCompleteListener { task ->
+                        if (task.isSuccessful && !isFinishing) manager.launchReviewFlow(this@MainActivity, task.result)
+                    }
+                }
             }
         }
     }
 
     /* ---------------- messages ---------------- */
 
-    private fun snack(text: String, action: String? = null, long: Boolean = false, onAction: (() -> Unit)? = null) {
+    fun say(text: String, action: String? = null, long: Boolean = false, onAction: (() -> Unit)? = null) {
         if (text.isBlank()) return
         lifecycleScope.launch {
-            state.snackbar.currentSnackbarData?.dismiss()
-            val result = state.snackbar.showSnackbar(
+            snackbar.currentSnackbarData?.dismiss()
+            val result = snackbar.showSnackbar(
                 message = text,
                 actionLabel = action,
                 withDismissAction = action == null,
@@ -560,7 +313,9 @@ class MainActivity : FragmentActivity(), WebEvents {
     }
 
     companion object {
-        /** Opens the native settings screen (used by the "App settings" button in the web app). */
-        const val EXTRA_SETTINGS = "com.pakkabill.app.SETTINGS"
+        const val ACTION_UPLOAD = "com.pakkabill.app.UPLOAD"
+        const val ACTION_COSTS = "com.pakkabill.app.COSTS"
+        /** Meesho payment files are a few MB; this keeps a wrong pick (a video) from filling memory. */
+        private const val MAX_FILE = 60L * 1024 * 1024
     }
 }

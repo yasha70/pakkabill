@@ -1,5 +1,7 @@
-# The web page calls these through the JavaScript bridge.
--keepclassmembers class com.pakkabill.app.web.JsBridge {
-    @android.webkit.JavascriptInterface <methods>;
-}
--keepattributes JavascriptInterface
+# Rhino (runs the Meesho P&L engine) loads many of its own classes by name.
+-keep class org.mozilla.javascript.** { *; }
+-dontwarn org.mozilla.javascript.**
+-dontwarn javax.lang.model.**
+-dontwarn java.beans.**
+-dontwarn jdk.dynalink.**
+-dontwarn javax.script.**

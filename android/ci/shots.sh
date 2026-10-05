@@ -1,106 +1,86 @@
 #!/usr/bin/env bash
-# Runs on the emulator in GitHub Actions: installs the debug app, drives it and saves screenshots
-# and test results into shots/.
+# Runs on the emulator in GitHub Actions: installs the debug app, drives the native screens and
+# saves screenshots and test results into shots/.
 set -x
 OUT=shots
 mkdir -p "$OUT"
+R="$OUT/results.txt"
 APK=$(ls apk/*.apk | head -1)
+PKG=com.pakkabill.app
 adb install -r "$APK" || exit 1
 adb shell settings put system screen_off_timeout 1800000
 adb shell svc power stayon true
 adb logcat -c
 cap() { sleep "$2"; adb exec-out screencap -p > "$OUT/$1.png"; }
-js() { python3 android/ci/cdp.py "$1" | tee -a "$OUT/results.txt"; }
-open_url() { adb shell am start -W -a android.intent.action.VIEW -d "$1" com.pakkabill.app; }
+tap() { python3 android/ci/tap.py "$1" | tee -a "$R"; }
+swipe_up() { adb shell input swipe 540 1900 540 600 400; }
+check_alive() { echo "$1 running: $(adb shell pidof $PKG | tr -d '\r')" >> "$R"; }
 
-adb shell svc wifi enable
-adb shell svc data enable
-for i in $(seq 1 30); do adb shell ping -c 1 -W 2 pakkabill1.vercel.app >/dev/null 2>&1 && { echo "online after $i tries" >> "$OUT/results.txt"; break; }; sleep 3; done
-adb shell am start -W -n com.pakkabill.app/.MainActivity
-cap 01-start 35
-PID=$(adb shell pidof com.pakkabill.app | tr -d '\r')
-adb forward tcp:9222 localabstract:webview_devtools_remote_$PID
-sleep 2
-echo "== bridge" >> "$OUT/results.txt"
-js 'JSON.stringify({app: typeof window.PakkaBillApp, version: window.PakkaBillApp && PakkaBillApp.version, ua: /PakkaBillApp/.test(navigator.userAgent), print: String(window.print).includes("send"), share: typeof navigator.share, hash: location.hash})'
+adb shell am start -W -n $PKG/.MainActivity
+cap 01-start 8
+check_alive "start"
 
-open_url "https://pakkabill1.vercel.app/#/new"
-cap 02-new-bill 10
-open_url "https://pakkabill1.vercel.app/#/account"
-cap 03-account 10
+echo "== sample data" >> "$R"
+tap "Try with sample data"
+cap 02-sample-pnl 25
+adb logcat -d | grep -E "PakkaBill P&L" | tail -5 >> "$R"
+swipe_up; cap 03-pnl-scroll 2
+swipe_up; cap 04-pnl-scroll2 2
+swipe_up; swipe_up; cap 05-pnl-scroll3 2
 
-echo "== download all my data" >> "$OUT/results.txt"
-js '(function(){var b=document.querySelector("[data-pba=download]"); if(!b) return "no button"; b.click(); return "clicked";})()'
-cap 04-saved-snackbar 5
-adb shell ls -la /sdcard/Download/PakkaBill/ 2>&1 | tee -a "$OUT/results.txt"
+echo "== tabs" >> "$R"
+tap "Costs"; cap 06-costs 3
+tap "MN08"; cap 07-cost-dialog 3
+adb shell input keyevent KEYCODE_BACK; sleep 1
+tap "Files"; cap 08-files 3
+tap "Account"; cap 09-account 3
+tap "P&L settings and expenses"; cap 10-pnl-settings 3
+adb shell input keyevent KEYCODE_BACK; sleep 1
 
-echo "== share a PDF" >> "$OUT/results.txt"
-js 'navigator.share({title:"Bill", text:"Your bill", files:[new File(["%PDF-1.4 test"], "Bill-1.pdf", {type:"application/pdf"})]}).then(function(){return "shared"})'
-cap 05-share-sheet 5
-adb shell input keyevent KEYCODE_BACK
-sleep 2
+echo "== downloads need login" >> "$R"
+tap "P&L"; sleep 2
+adb shell input swipe 540 600 540 1900 300; sleep 1
+tap "Excel"; cap 11-login-asked 3
+adb shell input keyevent KEYCODE_BACK; sleep 1
 
-echo "== confirm dialog" >> "$OUT/results.txt"
-js 'setTimeout(function(){ window.__c = confirm("Delete this bill?"); }, 300); "asked"'
-cap 06-confirm-dialog 3
-adb shell input keyevent KEYCODE_BACK
-sleep 1
-js 'String(window.__c)'
+echo "== own files: Excel payment report and orders CSV, read on the phone" >> "$R"
+adb push android/core/src/test/resources/meesho/pay.xlsx /data/local/tmp/pay.xlsx
+adb push android/core/src/test/resources/meesho/orders.csv /data/local/tmp/orders.csv
+adb shell "run-as $PKG sh -c 'cat /data/local/tmp/pay.xlsx > files/Meesho-payments.xlsx; cat /data/local/tmp/orders.csv > files/Orders.csv'"
+adb shell am start -W -a android.intent.action.VIEW -d "file:///data/data/$PKG/files/Meesho-payments.xlsx" -n $PKG/.MainActivity
+cap 12-adding-file 3
+cap 13-own-file-pnl 20
+adb shell am start -W -a android.intent.action.VIEW -d "file:///data/data/$PKG/files/Orders.csv" -n $PKG/.MainActivity
+cap 14-two-files 20
+tap "Files"; cap 15-files-list 3
+tap "Costs"; cap 16-costs-missing 3
+tap "P&L"; sleep 1
 
-echo "== print" >> "$OUT/results.txt"
-js 'setTimeout(function(){ window.print(); }, 200); "printing"'
-cap 07-print 8
-adb shell input keyevent KEYCODE_BACK
-sleep 3
-
-echo "== UPI link without a UPI app" >> "$OUT/results.txt"
-js 'setTimeout(function(){ location.href = "upi://pay?pa=test@upi&pn=Test&am=1"; }, 200); "upi"'
-cap 08-upi 3
-
-open_url "https://pakkabill1.vercel.app/#/pnl"
-cap 09-pnl 15
-echo "== P&L frame" >> "$OUT/results.txt"
-js '(function(){var f=document.querySelector(".pnl-frame"); if(!f) return "no frame"; var d=f.contentDocument, w=f.contentWindow; return JSON.stringify({src:f.src, h:f.clientHeight, w:f.clientWidth, css:getComputedStyle(f).height, inner:innerHeight, vv:visualViewport&&visualViewport.height, ready:d&&d.readyState, errors:w&&w.__pbErrors, top:window.__pbErrors, ua:navigator.userAgent.slice(-60)});})()'
-echo "== P&L sample and Excel download" >> "$OUT/results.txt"
-js '(function(){var d=document.querySelector(".pnl-frame").contentDocument; var b=d.querySelector("[data-act=demo]"); if(!b) return "no demo button"; b.click(); return "demo";})()'
-sleep 6
-js '(function(){var d=document.querySelector(".pnl-frame").contentDocument; var b=d.querySelector("[data-act=xlsx]"); if(!b) return "no excel button"; b.click(); return "excel";})()'
-cap 09b-pnl-excel 8
-adb shell ls -la /sdcard/Download/PakkaBill/ 2>&1 | tee -a "$OUT/results.txt"
-open_url "https://pakkabill1.vercel.app/#/app"
-cap 10-get-app 8
-
-echo "== native settings" >> "$OUT/results.txt"
-js 'PakkaBillApp.settings(); "opened"'
-cap 11-settings 4
-adb shell input keyevent KEYCODE_BACK
-cap 12-back-from-settings 3
-
+echo "== dark mode" >> "$R"
 adb shell cmd uimode night yes
-cap 13-dark 8
+cap 17-dark 6
 adb shell cmd uimode night no
 sleep 3
 
-adb shell input keyevent KEYCODE_BACK
-cap 14-back-history 3
+echo "== restart: last report shows at once" >> "$R"
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+cap 18-reopen 3
+check_alive "debug"
+adb logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime" | head -20 >> "$R"
 
-echo "== release build (minified) smoke test" >> "$OUT/results.txt"
+echo "== release build (minified) smoke test" >> "$R"
 adb logcat -d > "$OUT/logcat-debug.txt"
-adb uninstall com.pakkabill.app
+adb uninstall $PKG
 adb logcat -c
-adb install -r rel/PakkaBill-release-test.apk 2>&1 | tee -a "$OUT/results.txt"
-adb shell am start -W -n com.pakkabill.app/.MainActivity
-cap 20-release-start 30
-open_url "https://pakkabill1.vercel.app/#/pnl"
-cap 21-release-pnl 15
-adb shell am start -W -n com.pakkabill.app/.MainActivity --ez com.pakkabill.app.SETTINGS true
-cap 22-release-settings 4
-adb shell input keyevent KEYCODE_BACK
-sleep 2
-echo "release running: $(adb shell pidof com.pakkabill.app | tr -d '\r')" >> "$OUT/results.txt"
-adb logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime" | head -20 >> "$OUT/results.txt"
-
-adb shell dumpsys activity activities | grep -E "ResumedActivity" > "$OUT/activity.txt"
+adb install -r rel/PakkaBill-release-test.apk 2>&1 | tee -a "$R"
+adb shell am start -W -n $PKG/.MainActivity
+cap 20-release-start 8
+tap "Try with sample data"
+cap 21-release-sample 30
+swipe_up; cap 22-release-scroll 2
+check_alive "release"
+adb logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime|PakkaBill P&L" | head -30 >> "$R"
 adb logcat -d > "$OUT/logcat-full.txt"
-grep -iE "pakkabill|chromium|AndroidRuntime|FATAL|WebView" "$OUT/logcat-full.txt" | tail -400 > "$OUT/logcat.txt"
+grep -iE "pakkabill|AndroidRuntime|FATAL|rhino" "$OUT/logcat-full.txt" | tail -300 > "$OUT/logcat.txt"
 exit 0

@@ -1,0 +1,177 @@
+package com.pakkabill.app.pnl
+
+import com.pakkabill.core.AddResult
+import com.pakkabill.core.Cost
+import com.pakkabill.core.Expense
+import com.pakkabill.core.PnlEngine
+import com.pakkabill.core.PnlSettings
+import com.pakkabill.core.PnlState
+import com.pakkabill.core.PnlStore
+import com.pakkabill.core.Report
+import com.pakkabill.core.ReportExcel
+import com.pakkabill.core.Sel
+import com.pakkabill.core.json
+import java.io.File
+import java.util.concurrent.Executors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/** Everything the P&L screens draw. */
+data class PnlUi(
+    /** The engine has started (the first report can take a few seconds on older phones). */
+    val ready: Boolean = false,
+    /** Something is being worked out: shown as a progress bar with this text. */
+    val busy: String? = null,
+    val report: Report? = null,
+    val sample: Boolean = false,
+    val state: PnlState = PnlState(),
+    val fileCount: Int = 0,
+) {
+    val hasData get() = sample || fileCount > 0
+}
+
+/**
+ * Runs the Meesho P&L on one background thread (the engine is not thread safe) and keeps the
+ * screens up to date. The last report is kept on the phone so the app opens instantly.
+ */
+class PnlController(private val dir: File, private val scope: CoroutineScope) {
+    // a big stack: the engine works through large Meesho files
+    private val worker = Executors.newSingleThreadExecutor { r -> Thread(null, r, "pnl-engine", 64L shl 20) }.asCoroutineDispatcher()
+    private lateinit var store: PnlStore
+    private val cacheFile = File(dir, "last-report.json")
+
+    private val _ui = MutableStateFlow(PnlUi())
+    val ui: StateFlow<PnlUi> = _ui.asStateFlow()
+
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    val messages: SharedFlow<String> = _messages
+
+    init {
+        dir.mkdirs()
+        scope.launch(worker) {
+            // show the last report straight away, then work it out again with the engine
+            runCatching { json.decodeFromString(Report.serializer(), cacheFile.readText()) }.getOrNull()?.let { cached ->
+                _ui.update { it.copy(report = cached, fileCount = cached.files.size) }
+            }
+            try {
+                store = PnlStore(dir, PnlEngine())
+                _ui.update { it.copy(ready = true) }
+                recompute()
+            } catch (e: Throwable) {
+                _ui.update { it.copy(ready = false, busy = null) }
+                say("The P&L could not start on this phone: ${e.message ?: e.javaClass.simpleName}")
+            }
+        }
+    }
+
+    private fun say(text: String) { _messages.tryEmit(text) }
+
+    /** Runs [block] on the engine thread with a progress text, then works out the report again. */
+    private fun work(busy: String?, block: () -> Unit) {
+        scope.launch(worker) {
+            if (!::store.isInitialized) { say("Still starting. Please try again in a moment."); return@launch }
+            if (busy != null) _ui.update { it.copy(busy = busy) }
+            try {
+                block()
+                recompute()
+            } catch (e: Throwable) {
+                say("Something went wrong: ${e.message ?: e.javaClass.simpleName}")
+            } finally {
+                _ui.update { it.copy(busy = null) }
+            }
+        }
+    }
+
+    private fun recompute() {
+        val sample = store.sample != null
+        val count = store.fileCount()
+        if (!sample && count == 0) {
+            cacheFile.delete()
+            _ui.update { it.copy(report = null, sample = false, state = store.current, fileCount = 0) }
+            return
+        }
+        val t0 = System.currentTimeMillis()
+        val (rep, raw) = store.report()
+        println("PakkaBill P&L: report in ${System.currentTimeMillis() - t0} ms, ${rep.skus.size} SKUs")
+        if (!sample) runCatching { cacheFile.writeText(raw) }
+        _ui.update { it.copy(report = rep, sample = sample, state = store.current, fileCount = count) }
+    }
+
+    /* ---------------- files ---------------- */
+
+    fun addFiles(picked: List<Pair<String, ByteArray>>) {
+        if (picked.isEmpty()) return
+        work(if (picked.size == 1) "Reading ${picked[0].first}" else "Reading ${picked.size} files") {
+            val r: AddResult = store.addFiles(picked)
+            val head = when {
+                r.added == 0 -> "No new Meesho data was added."
+                r.added == 1 -> "1 file added."
+                else -> "${r.added} files added."
+            }
+            say((listOf(head) + r.messages.distinct().take(3)).joinToString(" "))
+        }
+    }
+
+    fun removeFile(id: String) = work("Removing the file") { store.removeFile(id) }
+    fun removeAllFiles() = work("Removing files") { store.removeAllFiles(); say("All uploaded files were removed. Costs and settings are kept.") }
+    fun eraseEverything() = work("Erasing") { store.eraseEverything(); say("Everything in the P&L was erased from this phone.") }
+
+    /* ---------------- sample data ---------------- */
+
+    fun startSample() = work("Opening sample data") { store.startSample() }
+    fun endSample() = work(null) { store.endSample() }
+
+    /* ---------------- period, costs, settings, expenses ---------------- */
+
+    fun select(sel: Sel) = work("Working out ${sel.m ?: "all months"}") { store.update { it.copy(sel = sel) } }
+
+    fun setCost(sku: String, cost: Cost?) = work(null) { store.setCost(sku) { cost } }
+
+    fun saveSettings(s: PnlSettings) = work(null) { store.update { it.copy(settings = s) } }
+
+    fun addExpense(e: Expense) = work(null) {
+        val id = e.id.ifBlank { "x" + System.currentTimeMillis().toString(36) }
+        store.update { st -> st.copy(expenses = st.expenses.filter { it.id != id } + e.copy(id = id)) }
+    }
+
+    fun removeExpense(id: String) = work(null) { store.update { st -> st.copy(expenses = st.expenses.filter { it.id != id }) } }
+
+    /* ---------------- exports ---------------- */
+
+    /** The Excel file for the period on screen, made on the engine thread. */
+    suspend fun excel(): ByteArray? = withContext(worker) {
+        val r = _ui.value.report ?: return@withContext null
+        val st = store.current
+        ReportExcel.build(r, st.settings.biz, st.expenses)
+    }
+
+    /** Costs, expenses and settings as one file. */
+    suspend fun backup(): String = withContext(worker) { store.backup() }
+
+    fun restore(text: String) = work("Restoring") {
+        store.restore(text)
+        say("Backup restored: costs, expenses and settings are back.")
+    }
+
+    /** A file name like "My-Shop_PnL_Sep-2026". */
+    fun fileSlug(): String {
+        val u = _ui.value
+        val biz = u.state.settings.biz.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').take(40).ifBlank { "Meesho" }
+        val r = u.report
+        val tag = when {
+            r == null -> "report"
+            r.per.mode == "month" -> r.per.label.replace(' ', '-')
+            else -> "All-" + (r.months.firstOrNull()?.m ?: "") + "_to_" + (r.months.lastOrNull()?.m ?: "")
+        }
+        return "${biz}_PnL_$tag"
+    }
+}

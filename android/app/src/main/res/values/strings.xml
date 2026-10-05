@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">PakkaBill</string>
-    <string name="shortcut_new_bill">New bill</string>
-    <string name="shortcut_new_bill_long">Make a new GST bill</string>
-    <string name="shortcut_bills">Bills</string>
-    <string name="shortcut_bills_long">See all your bills</string>
-    <string name="shortcut_gst">GST summary</string>
-    <string name="shortcut_gst_long">Tax by month and rate</string>
+    <string name="open_in_pnl">Meesho P&amp;L</string>
     <string name="shortcut_pnl">Meesho P&amp;L</string>
     <string name="shortcut_pnl_long">Profit, returns and RTO</string>
+    <string name="shortcut_upload">Add files</string>
+    <string name="shortcut_upload_long">Add Meesho payment files</string>
+    <string name="shortcut_costs">Costs</string>
+    <string name="shortcut_costs_long">Product costs</string>
 </resources>

@@ -1,4 +1,4 @@
-# Builds PakkaBill for Android (android/): the Play Store bundle (.aab) and the website APK, both
+# Builds PakkaBill for Android (android/): runs the P&L engine tests, then the Play Store bundle (.aab) and the website APK, both
 # unsigned (the signing key stays outside this public repo), plus a debug APK that is tested on an
 # Android emulator with screenshots. Outputs go to the apk-build and apk-shots branches.
 name: Android app
@@ -9,6 +9,7 @@ on:
     branches: [main]
     paths:
       - 'android/**'
+      - 'pnl.html'
       - '.github/workflows/android.yml'
 
 permissions:
@@ -35,7 +36,7 @@ jobs:
 
       - name: Build bundle, release APK and debug APK
         working-directory: android
-        run: gradle :app:bundleRelease :app:assembleRelease :app:assembleDebug --stacktrace
+        run: gradle :core:test :app:bundleRelease :app:assembleRelease :app:assembleDebug --stacktrace
 
       - name: Collect outputs
         run: |
@@ -81,7 +82,6 @@ jobs:
         run: |
           mkdir -p apk rel
           cp apk-all/PakkaBill-debug.apk apk/
-          pip install --quiet websocket-client
           keytool -genkeypair -keystore ci.jks -storepass android -keypass android -alias ci -keyalg RSA -keysize 2048 -validity 30 -dname "CN=CI test"
           BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
           "$BT/apksigner" sign --ks ci.jks --ks-pass pass:android --out rel/PakkaBill-release-test.apk apk-all/PakkaBill-unsigned.apk

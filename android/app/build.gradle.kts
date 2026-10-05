@@ -1,7 +1,6 @@
-// PakkaBill for Android: a native Kotlin + Jetpack Compose (Material 3) app around the PakkaBill
-// web app. Native parts: splash screen, edge-to-edge, fingerprint/face app lock, saving and
-// sharing PDF/Excel files, printing, UPI and WhatsApp hand-off, file upload, app shortcuts,
-// Play in-app updates and reviews. Release builds are unsigned here; they are signed with the
+// PakkaBill for Android: a fully native Kotlin + Jetpack Compose (Material 3) app. No WebView:
+// the Meesho P&L is worked out on the phone by the same engine as the website (see :core), and
+// every screen is drawn natively. Release builds are unsigned here; they are signed with the
 // PakkaBill key outside this public repo (see README "Android app").
 plugins {
     alias(libs.plugins.android.application)
@@ -14,10 +13,10 @@ android {
 
     defaultConfig {
         applicationId = "com.pakkabill.app"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 37
-        versionCode = 2
-        versionName = "2.0"
+        versionCode = 3
+        versionName = "3.0"
     }
 
     buildTypes {
@@ -31,6 +30,12 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // newer Java library calls used by Rhino also work on older Android versions
+        isCoreLibraryDesugaringEnabled = true
+    }
+
+    packaging {
+        resources.excludes += listOf("META-INF/LICENSE*", "META-INF/NOTICE*")
     }
 
     buildFeatures {
@@ -45,6 +50,10 @@ android {
 }
 
 dependencies {
+    implementation(project(":core"))
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.activity.compose)
@@ -55,7 +64,6 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
-    implementation(libs.androidx.webkit)
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.browser)
     implementation(libs.androidx.datastore.preferences)

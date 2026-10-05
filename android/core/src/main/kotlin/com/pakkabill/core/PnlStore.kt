@@ -56,13 +56,19 @@ class PnlStore(private val dir: File, private val engine: PnlEngine) {
     private fun fileJsons(): List<String> = filesDir.listFiles { f -> f.extension == "json" }
         ?.sortedBy { it.lastModified() }?.map { it.readText() } ?: emptyList()
 
-    fun hasData() = sample != null || (filesDir.listFiles()?.isNotEmpty() == true)
+    fun hasData() = sample != null || fileCount() > 0
 
     private fun save() { stateFile.writeText(json.encodeToString(state)) }
 
+    /** What the screens show: the sample store's state while sample data is open. */
+    val current: PnlState get() = sample?.state ?: state
+
+    /** Changes costs, settings, expenses or the period (of the sample store while it is open). */
     fun update(change: (PnlState) -> PnlState) {
+        val smp = sample
+        if (smp != null) { sample = Sample(smp.files, change(smp.state)); return }
         state = change(state)
-        if (sample == null) save()
+        save()
     }
 
     fun startSample() {
@@ -77,6 +83,9 @@ class PnlStore(private val dir: File, private val engine: PnlEngine) {
     }
 
     fun endSample() { sample = null }
+
+    /** Seller's own files (empty while sample data is open). */
+    fun fileCount() = filesDir.listFiles { f -> f.extension == "json" }?.size ?: 0
 
     /** Reads what the seller picked (Excel, CSV, ZIP) and keeps every file with Meesho rows. */
     fun addFiles(picked: List<Pair<String, ByteArray>>): AddResult {
@@ -117,7 +126,7 @@ class PnlStore(private val dir: File, private val engine: PnlEngine) {
     fun eraseEverything() { removeAllFiles(); state = PnlState(); stateFile.delete() }
 
     fun setCost(sku: String, change: (Cost) -> Cost?) = update { s ->
-        val next = change(s.costs[sku] ?: Cost())
+        val next = change(s.costs[sku] ?: Cost())?.let { c -> c.copy(n = c.n?.ifBlank { null }, k = c.k?.ifBlank { null }) }
         val costs = s.costs.toMutableMap()
         if (next == null || (next.c == null && next.p == null && next.k.isNullOrEmpty() && next.n.isNullOrEmpty())) costs.remove(sku) else costs[sku] = next
         s.copy(costs = costs)
