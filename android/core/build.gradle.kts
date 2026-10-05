@@ -20,17 +20,17 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.1") // needed by Gradle 9
 }
 
-val engineOut = layout.buildDirectory.dir("generated/engine")
-val extractEngine by tasks.registering {
+val extractEngine = tasks.register("extractEngine") {
     val html = rootProject.file("../pnl.html")
+    val out = layout.buildDirectory.dir("generated/engine")
     inputs.file(html)
-    outputs.dir(engineOut)
+    outputs.dir(out)
     doLast {
         val text = html.readText()
         val start = text.indexOf("/* Hisaab engine")
         require(start >= 0) { "Meesho P&L engine not found in pnl.html" }
         val end = text.indexOf("</script>", start)
-        val dir = engineOut.get().dir("pakkabill").asFile
+        val dir = out.get().dir("pakkabill").asFile
         dir.mkdirs()
         dir.resolve("engine.js").writeText(text.substring(start, end))
     }
