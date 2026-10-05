@@ -1008,6 +1008,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     r.push(g.net >= 0 ? ['Net GST payable', g.net, 1] : ['Input credit more than GST on sales', g.net, 1]);
     r.push(['Less: TCS already collected by Meesho', -g.tcs]);
     r.push(g.cash >= 0 ? ['GST left to pay in cash', g.cash, 1] : ['GST credit carried forward (nothing to pay in cash)', -g.cash, 1]);
+    if (g.unusable) r.push(['Input credit not counted as profit (only pays future GST)', g.unusable]);
     return r;
   }
   function condOf(x, cfg, marks) {
@@ -1209,7 +1210,11 @@ details.more[open] > summary { margin-bottom: 10px; }
     var NP = GP + MCx + taxExp + credits + adsNet - OPEX;
     // input credit: GST in Meesho charges and ads, and GST paid to suppliers on the goods sold
     var payout = K.F + K.AD + K.REF + K.ADJ, ITC = -(CHG + K.ADG) + K.IG, addBack = claim ? -(K.T + K.D) : 0;
-    var bridgeNP = payout + addBack - (K.OUT - ITC) - COGS - K.IG - OPEX;
+    /* Input credit is never paid out in cash: it can only pay GST on sales. Credit beyond the GST
+       on sales of the period stays in the GST portal for later returns, so it is not profit. */
+    var UNU = REGD ? Math.max(0, ITC - K.OUT) : 0;
+    NP -= UNU;
+    var bridgeNP = payout + addBack - Math.max(0, K.OUT - ITC) - COGS - K.IG - OPEX;
 
     var skus = Object.keys(SK).map(function (k) {
       var x = SK[k];
@@ -1233,7 +1238,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       x.breakEven = x.sold && keep ? Math.max(0, Math.round(x.avgPrice - perSold / (keep * netShare))) : 0;
       return x;
     }).sort(function (a, b) { return b.NS - a.NS || (a.sku < b.sku ? -1 : 1); });
-    var unalloc = K.ADJ + K.REF + adsNet - EXP, skuSum = 0;
+    var unalloc = K.ADJ + K.REF + adsNet - EXP - UNU, skuSum = 0;
     skus.forEach(function (x) { skuSum += x.contrib; });
     K.del = 0; skus.forEach(function (x) { K.del += x.delivered; });
 
@@ -1275,6 +1280,11 @@ details.more[open] > summary { margin-bottom: 10px; }
     row('Packaging (' + K.parcels + ' parcels)', -K.pack);
     EXL.forEach(function (e) { row(e.name + (e.when === 'monthly' ? ' (monthly)' : ''), -e.amt); });
     tot('Total operating expenses', -OPEX);
+    if (UNU) {
+      sec('GST input credit not usable yet');
+      row('Input credit more than GST on sales (kept in the GST portal to pay future GST, not cash)', -UNU);
+      tot('Total credit not counted as profit', -UNU);
+    }
     tot('Net profit', NP, 'np');
 
     var bridge = [];
@@ -1285,13 +1295,13 @@ details.more[open] > summary { margin-bottom: 10px; }
     bridge.push({ l: 'Money received from Meesho', v: payout, k: 'sub' });
     if (addBack) bridge.push({ l: 'Add back: TCS & TDS deducted (you claim these)', v: addBack });
     if (REGD) bridge.push(K.OUT - ITC >= 0 ? { l: 'Less: GST payable (output GST minus input credit)', v: -(K.OUT - ITC) }
-      : { l: 'Add: input credit left over (carried to the next GST return)', v: ITC - K.OUT });
+      : { l: 'GST payable: none (input credit covers it; the extra credit is not counted as profit)', v: 0 });
     bridge.push({ l: 'Less: cost of goods sold', v: -COGS });
     if (K.IG) bridge.push({ l: 'Less: GST paid to suppliers on these goods (claimed back above)', v: -K.IG });
     bridge.push({ l: 'Less: operating expenses', v: -OPEX });
     bridge.push({ l: 'Net profit', v: bridgeNP, k: 'np' });
 
-    var gst = REGD ? { out: K.OUT, itcCh: -CHG, itcAds: -K.ADG, itcGoods: K.IG, itc: ITC, net: K.OUT - ITC, tcs: -K.T, cash: K.OUT - ITC + K.T } : null;
+    var gst = REGD ? { out: K.OUT, itcCh: -CHG, itcAds: -K.ADG, itcGoods: K.IG, itc: ITC, net: K.OUT - ITC, tcs: -K.T, cash: K.OUT - ITC + K.T, unusable: UNU } : null;
     var missing = Object.keys(NC).map(function (k) { return { sku: k, units: NC[k] }; }).sort(function (a, b) { return b.units - a.units; });
 
     var colList = Object.keys(COLS).map(function (k) {
@@ -1302,7 +1312,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     return {
       per: per, REGD: REGD, claim: claim, K: K, CH: CH, cols: colList,
       NS: NS, NR: NR, COGS: COGS, GP: GP, MCx: MCx, taxExp: taxExp, OCR: OCR, credits: credits, adsNet: adsNet,
-      EXL: EXL, EXP: EXP, OPEX: OPEX, NP: NP, payout: payout, ITC: ITC, addBack: addBack,
+      EXL: EXL, EXP: EXP, OPEX: OPEX, NP: NP, payout: payout, ITC: ITC, addBack: addBack, UNU: UNU,
       margin: NR ? NP / NR : 0, returnRate: K.parcels ? (K.retn + K.rton) / K.parcels : 0,
       lines: lines, bridge: bridge, gst: gst, skus: skus, unalloc: unalloc, missing: missing,
       checks: { bridge: bridgeNP === NP, sku: skuSum + unalloc === NP, bridgeNP: bridgeNP, skuSum: skuSum }
@@ -3179,7 +3189,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<div class="fgrid"><label class="f">Goods you buy come with<select class="inp" data-ch="set" data-k="buyGst">' +
       BUY.map(function (o) { return '<option value="' + o[0] + '"' + ((+st.buyGst || 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label></div>' +
       '<p class="small muted" style="margin:0">' + (st.gstReg
-        ? 'Enter the cost you paid, including GST. With a GST bill, the GST in it is your input credit: it lowers the GST you pay in cash, so the product costs you the price without GST. Change it for any SKU below.'
+        ? 'Enter the cost you paid, including GST. With a GST bill, the GST in it is your input credit: it lowers the GST you pay in cash, so the product costs you the price without GST. Credit beyond the GST on your sales is never paid out; it only pays future GST, so it is not counted as profit. Change it for any SKU below.'
         : 'You are not registered under GST (see Settings), so GST on purchases cannot be claimed back and the full price you paid is the cost.') + '</p></section>' + fillHtml() +
       '<section class="sheet"><div class="sheet-h"><h3>Your SKUs</h3><span class="small muted" id="c-sum">' + costSummaryText() + '</span></div>' +
       '<div class="row" style="margin-bottom:4px"><input class="inp" type="search" data-in="cq" placeholder="Search SKU" value="' + esc(S.cf.q) + '" aria-label="Search SKU" style="flex:1 1 200px">' +

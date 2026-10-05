@@ -108,7 +108,7 @@ fun CostsScreen(ui: PnlUi, padding: PaddingValues, act: CostActions) {
                     Text("Goods bought with: ${buyLabel(st.buyGst)}" + if (st.pack > 0) " · Packing ${rsp(st.pack)} per parcel" else "", style = MaterialTheme.typography.labelLarge)
                     Text(
                         if (!st.gstReg) "Not registered under GST, so GST on purchases is part of the cost."
-                        else if (st.buyGst > 0) "GST on your purchase bill comes back as input credit, so products cost the price without GST."
+                        else if (st.buyGst > 0) "GST on your purchase bill is input credit: it pays the GST on your sales. Only the part used counts as profit."
                         else "Bought with a GST bill? Tap to set it: that GST comes back as input credit and lowers the GST you pay in cash.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -348,7 +348,7 @@ private fun DefaultsDialog(st: PnlSettings, onDismiss: () -> Unit, onSave: (PnlS
                     BUY_RATES.forEach { (v, l) -> FilterChip(selected = bill == v, onClick = { bill = v }, label = { Text(l) }) }
                 }
                 Text(
-                    if (st.gstReg) "Enter costs as paid, with GST. With a GST bill that GST is your input credit: it lowers the GST you pay in cash, so the product costs you the price without GST. Change it for any SKU in its cost."
+                    if (st.gstReg) "Enter costs as paid, with GST. With a GST bill that GST is your input credit: it lowers the GST you pay in cash, so the product costs you the price without GST. Credit beyond the GST on your sales is never paid out (it only pays future GST), so it is not counted as profit. Change it for any SKU in its cost."
                     else "You are not registered under GST (P&L settings), so GST on purchases cannot be claimed back.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

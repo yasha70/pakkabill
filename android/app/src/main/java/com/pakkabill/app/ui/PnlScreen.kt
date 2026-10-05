@@ -242,8 +242,11 @@ private fun Insights(r: Report, ui: PnlUi, full: Boolean, act: PnlActions) {
     if (overdue > 0) tips += "${plural(overdue, "order")} delivered but not paid after ${ui.state.settings.overdueDays} days. Raise a ticket with Meesho." to Tone.WARN
     else if (waiting > 0) tips += "${rs(waiting)} of delivered orders is still to be paid by Meesho." to Tone.INFO
     val st = ui.state.settings
-    if (st.gstReg && st.buyGst == 0 && r.gst?.itcGoods == 0L && r.sum.COGS > 0)
-        tips += "If you bought these goods with a 5% GST bill, about ${rs(Math.round(r.sum.COGS * 5.0 / 105))} would come back as input credit. Set it in Costs." to Tone.INFO
+    val g = r.gst
+    if (st.gstReg && st.buyGst == 0 && g != null && g.itcGoods == 0L && r.sum.COGS > 0 && g.net > 0)
+        tips += "Bought these goods with a 5% GST bill? Its input credit would cut the GST you pay in cash by up to ${rs(minOf(Math.round(r.sum.COGS * 5.0 / 105), g.net))}. Set it in Costs." to Tone.INFO
+    if (g != null && g.unusable > 0)
+        tips += "${rs(g.unusable)} of input credit is more than the GST on your sales. It stays in the GST portal for future GST and is not counted as profit." to Tone.WARN
     if (tips.isEmpty()) return
     SectionCard("Insights", subtitle = "Worked out from your files") {
         tips.take(if (full) 6 else 2).forEach { (t, tone) ->
