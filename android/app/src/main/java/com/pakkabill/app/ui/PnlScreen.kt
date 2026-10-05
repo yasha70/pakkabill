@@ -319,7 +319,10 @@ private fun Tiles(r: Report) {
         TileRow {
             StatTile("Profit per delivered order", if (s.del > 0) rsp(s.perDel) else "–", Modifier.weight(1f), valueColor = if (s.NP < 0) x.loss else x.gain)
             val rv = r.returns
-            StatTile("RTO · Return · Exchange", if (rv != null) "${pct(rv.rtoRate)} · ${pct(rv.retRate)} · ${pct(rv.exchRate)}" else "–", Modifier.weight(1f))
+            StatTile(
+                "RTO rate", if (rv != null) pct(rv.rtoRate) else "–", Modifier.weight(1f),
+                hint = rv?.let { "Returns ${pct(it.retRate)} · Exchange ${pct(it.exchRate)}" },
+            )
         }
     }
 }
