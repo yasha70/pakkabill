@@ -1,0 +1,152 @@
+== this emulator, for comparison: the phone's own Settings app
+Settings app scroll: Total frames rendered: 0;Janky frames: 0 (0.00%);50th percentile: 4950ms;90th percentile: 4950ms;Number Slow UI thread: 0;Number Slow issue draw commands: 0;Number Frame deadline missed: 0;Number Frame deadline missed (legacy): 0;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+start running: 2806
+== sample data
+tapped 'try with sample data' at 704,1526
+10-05 12:33:21.875  2806  2881 I System.out: PakkaBill P&L: report in 2102 ms, 8 SKUs
+P&L scroll: Total frames rendered: 69;Janky frames: 69 (100.00%);50th percentile: 150ms;90th percentile: 250ms;Number Slow UI thread: 54;Number Slow issue draw commands: 69;Number Frame deadline missed: 69;Number Frame deadline missed (legacy): 69;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+== tabs
+tapped 'reconcile' at 327,2295
+Reconcile scroll: Total frames rendered: 34;Janky frames: 33 (97.06%);50th percentile: 113ms;90th percentile: 150ms;Number Slow UI thread: 17;Number Slow issue draw commands: 33;Number Frame deadline missed: 33;Number Frame deadline missed (legacy): 34;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'more' at 963,2295
+tapped 'upload' at 600,1346
+tapped 'costs' at 751,2295
+Costs scroll: Total frames rendered: 39;Janky frames: 37 (94.87%);50th percentile: 105ms;90th percentile: 150ms;Number Slow UI thread: 23;Number Slow issue draw commands: 37;Number Frame deadline missed: 37;Number Frame deadline missed (legacy): 39;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'more' at 963,2295
+tapped 'expenses' at 600,1514
+tapped 'more' at 963,2295
+tapped 'settings' at 600,1682
+tapped 'more' at 963,2295
+tapped 'how to use' at 600,1850
+tapped 'next' at 799,1987
+tapped 'more' at 963,2295
+tapped 'pakkabill pro' at 600,2053
+== Hindi
+tapped 'p&l' at 117,2295
+tapped 'हिंदी' at 779,201
+tapped 'en' at 676,201
+== downloads need login
+tapped 'download excel' at 304,2040
+== account
+tapped 'log in' at 1014,202
+== own files
+tapped 'more' at 963,2295
+tapped 'upload' at 600,1346
+== dark mode
+tapped 'p&l' at 117,2295
+tapped 'dark' at 899,202
+tapped 'light' at 899,202
+== restart
+debug running: 5513
+10-05 12:33:02.848  3460  3460 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 12:33:02.877  3460  3460 I AndroidRuntime: Using default boot image
+10-05 12:33:02.877  3460  3460 I AndroidRuntime: Leaving lock profiling enabled
+10-05 12:33:03.354  3460  3460 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 12:33:05.685  3460  3460 D AndroidRuntime: Shutting down VM
+10-05 12:33:56.720  4434  4434 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 12:33:56.742  4434  4434 I AndroidRuntime: Using default boot image
+10-05 12:33:56.742  4434  4434 I AndroidRuntime: Leaving lock profiling enabled
+10-05 12:33:57.153  4434  4434 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 12:33:58.279  4434  4434 D AndroidRuntime: Shutting down VM
+10-05 12:34:06.444  4570  4570 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 12:34:06.447  4570  4570 I AndroidRuntime: Using default boot image
+10-05 12:34:06.447  4570  4570 I AndroidRuntime: Leaving lock profiling enabled
+10-05 12:34:06.526  4570  4570 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 12:34:07.563  4570  4570 D AndroidRuntime: Shutting down VM
+10-05 12:34:10.798  4601  4601 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 12:34:10.802  4601  4601 I AndroidRuntime: Using default boot image
+10-05 12:34:10.802  4601  4601 I AndroidRuntime: Leaving lock profiling enabled
+10-05 12:34:10.879  4601  4601 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 12:34:11.907  4601  4601 D AndroidRuntime: Shutting down VM
+10-05 12:34:17.981  4637  4637 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 12:34:17.985  4637  4637 I AndroidRuntime: Using default boot image
+10-05 12:34:17.985  4637  4637 I AndroidRuntime: Leaving lock profiling enabled
+10-05 12:34:18.062  4637  4637 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 12:34:19.104  4637  4637 D AndroidRuntime: Shutting down VM
+10-05 12:34:28.544  4717  4717 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 12:34:28.547  4717  4717 I AndroidRuntime: Using default boot image
+10-05 12:34:28.548  4717  4717 I AndroidRuntime: Leaving lock profiling enabled
+10-05 12:34:28.631  4717  4717 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 12:34:29.737  4717  4717 D AndroidRuntime: Shutting down VM
+== release build (minified) smoke test
+Serving...
+All files should be loaded. Notifying the device.
+Performing Incremental Install
+Success
+Install command complete in 680 ms
+tapped 'try with sample data' at 704,1526
+Release P&L scroll: Total frames rendered: 67;Janky frames: 67 (100.00%);50th percentile: 113ms;90th percentile: 150ms;Number Slow UI thread: 29;Number Slow issue draw commands: 67;Number Frame deadline missed: 67;Number Frame deadline missed (legacy): 67;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'costs' at 751,2295
+Release Costs scroll: Total frames rendered: 51;Janky frames: 51 (100.00%);50th percentile: 121ms;90th percentile: 150ms;Number Slow UI thread: 22;Number Slow issue draw commands: 51;Number Frame deadline missed: 51;Number Frame deadline missed (legacy): 51;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'p&l' at 117,2295
+tapped 'p&l' at 117,2295
+tapped 'how to use' at 259,800
+tapped 'हिंदी' at 779,201
+release running: 5661
+10-05 12:37:26.957  5743  5743 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 12:37:26.960  5743  5743 I AndroidRuntime: Using default boot image
+10-05 12:37:26.960  5743  5743 I AndroidRuntime: Leaving lock profiling enabled
+10-05 12:37:27.039  5743  5743 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 12:37:28.093  5743  5743 D AndroidRuntime: Shutting down VM
+10-05 12:37:31.200  5661  5684 I System.out: PakkaBill P&L: report in 174 ms, 8 SKUs
+10-05 12:38:06.671  5889  5889 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 12:38:06.674  5889  5889 I AndroidRuntime: Using default boot image
+10-05 12:38:06.674  5889  5889 I AndroidRuntime: Leaving lock profiling enabled
+10-05 12:38:06.750  5889  5889 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 12:38:07.788  5889  5889 D AndroidRuntime: Shutting down VM
+10-05 12:38:20.777  5955  5955 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 12:38:20.780  5955  5955 I AndroidRuntime: Using default boot image
+10-05 12:38:20.780  5955  5955 I AndroidRuntime: Leaving lock profiling enabled
+10-05 12:38:20.861  5955  5955 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 12:38:21.902  5955  5955 D AndroidRuntime: Shutting down VM
+10-05 12:38:23.868  5983  5983 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 12:38:23.872  5983  5983 I AndroidRuntime: Using default boot image
+10-05 12:38:23.872  5983  5983 I AndroidRuntime: Leaving lock profiling enabled
+10-05 12:38:23.957  5983  5983 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 12:38:24.997  5983  5983 D AndroidRuntime: Shutting down VM
+10-05 12:38:27.958  6005  6005 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 12:38:27.962  6005  6005 I AndroidRuntime: Using default boot image
+10-05 12:38:27.962  6005  6005 I AndroidRuntime: Leaving lock profiling enabled
+10-05 12:38:28.048  6005  6005 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 12:38:29.105  6005  6005 D AndroidRuntime: Shutting down VM
+10-05 12:38:34.338  6033  6033 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 12:38:34.341  6033  6033 I AndroidRuntime: Using default boot image
+10-05 12:38:34.341  6033  6033 I AndroidRuntime: Leaving lock profiling enabled
+10-05 12:38:34.421  6033  6033 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+big shop: 3570 payment rows, 4330 order rows, 200 SKUs
+== big shop: new
+tapped 'upload files' at 209,821
+NOT FOUND: 'drop meesho files here'
+tapped 'drop meesho files here' at 540,1515
+tapped 'meesho-big-payments.csv' at 435,605
+NOT ON SCREEN after 301 s: 'real profit'
+new: P&L scroll: Total frames rendered: 59;Janky frames: 58 (98.31%);50th percentile: 109ms;90th percentile: 150ms;Number Slow UI thread: 21;Number Slow issue draw commands: 58;Number Frame deadline missed: 58;Number Frame deadline missed (legacy): 58;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'costs' at 751,2295
+new: open Costs: Total frames rendered: 3;Janky frames: 3 (100.00%);50th percentile: 73ms;90th percentile: 125ms;Number Slow UI thread: 3;Number Slow issue draw commands: 3;Number Frame deadline missed: 3;Number Frame deadline missed (legacy): 3;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+new: Costs scroll: Total frames rendered: 67;Janky frames: 66 (98.51%);50th percentile: 105ms;90th percentile: 150ms;Number Slow UI thread: 30;Number Slow issue draw commands: 66;Number Frame deadline missed: 66;Number Frame deadline missed (legacy): 66;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'reconcile' at 327,2295
+new: open Reconcile: Total frames rendered: 1;Janky frames: 1 (100.00%);50th percentile: 200ms;90th percentile: 200ms;Number Slow UI thread: 1;Number Slow issue draw commands: 1;Number Frame deadline missed: 1;Number Frame deadline missed (legacy): 1;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+new: Reconcile scroll: Total frames rendered: 0;Janky frames: 0 (0.00%);50th percentile: 4950ms;90th percentile: 4950ms;Number Slow UI thread: 0;Number Slow issue draw commands: 0;Number Frame deadline missed: 0;Number Frame deadline missed (legacy): 0;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+10-05 12:37:31.200  5661  5684 I System.out: PakkaBill P&L: report in 174 ms, 8 SKUs
+10-05 12:39:39.572  6118  6139 I System.out: PakkaBill P&L: report in 1245 ms, 200 SKUs
+== the website's app (versionCode 7) for comparison
+Success
+tapped 'try with sample data' at 704,1526
+Old app P&L scroll: Total frames rendered: 65;Janky frames: 63 (96.92%);50th percentile: 121ms;90th percentile: 150ms;Number Slow UI thread: 27;Number Slow issue draw commands: 63;Number Frame deadline missed: 63;Number Frame deadline missed (legacy): 64;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'costs' at 751,2295
+Old app Costs scroll: Total frames rendered: 47;Janky frames: 46 (97.87%);50th percentile: 113ms;90th percentile: 150ms;Number Slow UI thread: 21;Number Slow issue draw commands: 46;Number Frame deadline missed: 46;Number Frame deadline missed (legacy): 46;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+== big shop: old
+tapped 'upload files' at 209,821
+NOT FOUND: 'drop meesho files here'
+tapped 'drop meesho files here' at 540,1515
+tapped 'meesho-big-payments.csv' at 435,605
+NOT ON SCREEN after 301 s: 'real profit'
+old: P&L scroll: Total frames rendered: 57;Janky frames: 56 (98.25%);50th percentile: 113ms;90th percentile: 150ms;Number Slow UI thread: 20;Number Slow issue draw commands: 56;Number Frame deadline missed: 56;Number Frame deadline missed (legacy): 57;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'costs' at 751,2295
+old: open Costs: Total frames rendered: 3;Janky frames: 3 (100.00%);50th percentile: 81ms;90th percentile: 105ms;Number Slow UI thread: 2;Number Slow issue draw commands: 3;Number Frame deadline missed: 3;Number Frame deadline missed (legacy): 3;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+old: Costs scroll: Total frames rendered: 65;Janky frames: 65 (100.00%);50th percentile: 113ms;90th percentile: 150ms;Number Slow UI thread: 28;Number Slow issue draw commands: 65;Number Frame deadline missed: 65;Number Frame deadline missed (legacy): 65;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'reconcile' at 327,2295
+old: open Reconcile: Total frames rendered: 1;Janky frames: 1 (100.00%);50th percentile: 150ms;90th percentile: 150ms;Number Slow UI thread: 1;Number Slow issue draw commands: 1;Number Frame deadline missed: 1;Number Frame deadline missed (legacy): 1;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+old: Reconcile scroll: Total frames rendered: 0;Janky frames: 0 (0.00%);50th percentile: 4950ms;90th percentile: 4950ms;Number Slow UI thread: 0;Number Slow issue draw commands: 0;Number Frame deadline missed: 0;Number Frame deadline missed (legacy): 0;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+10-05 12:45:46.890  7783  7799 I System.out: PakkaBill P&L: report in 169 ms, 8 SKUs
+10-05 12:47:32.678  8027  8050 I System.out: PakkaBill P&L: report in 1282 ms, 200 SKUs
