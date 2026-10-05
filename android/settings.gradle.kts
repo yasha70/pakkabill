@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "PakkaBill"
-include(":app")
+include(":app", ":core")
