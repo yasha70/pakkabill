@@ -62,6 +62,27 @@
 .embed .tabs { top: 0; }
 .embed .only-own { display: none; }
 *, *::before, *::after { box-sizing: inherit; }
+/* accuracy check, money on the way, goal, claims, price check */
+.acc summary { display: flex; align-items: center; gap: 8px; }
+.acc-h, .acc-i { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-weight: 800; font-size: .8rem; color: #fff; flex: none; }
+.acc-h.acc-ok, .acc-ok .acc-i { background: var(--pos); } .acc-h.acc-warn, .acc-warn .acc-i { background: var(--warn); } .acc-h.acc-bad, .acc-bad .acc-i { background: var(--neg); } .acc-info .acc-i { background: var(--carbon); }
+.acc-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
+.acc-list li { display: flex; gap: 10px; align-items: flex-start; }
+.acc-list p { margin: 2px 0 6px; }
+.way h3, .claims h3, .goal b { font-family: var(--f-head); }
+.way-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 8px; }
+.way-g > div { border: 1px solid var(--rule); border-radius: 6px; padding: 10px 12px; display: grid; gap: 2px; }
+.way-g small, .pc-big small { color: var(--ink-3); font-weight: 600; font-size: .82rem; }
+.way-g strong { font-family: var(--f-head); font-size: 1.3rem; }
+.goal-n strong { font-family: var(--f-head); font-size: 1.5rem; } .goal-n .pos, .pc-big .pos { color: var(--pos); } .neg { color: var(--neg); }
+.bar { height: 8px; border-radius: 999px; background: var(--paper); overflow: hidden; margin-top: 6px; } .bar i { display: block; height: 100%; background: var(--carbon); border-radius: 999px; } .bar i.done { background: var(--pos); }
+.cl-row { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rule); flex-wrap: wrap; }
+.cl-amt { font-family: var(--f-head); }
+.pc-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 12px; }
+.pc-in { display: flex; align-items: center; gap: 4px; } .pc-in i { font-style: normal; color: var(--ink-3); } .pc-in .inp { min-width: 0; }
+.pc-big { display: grid; gap: 2px; } .pc-big strong { font-family: var(--f-head); font-size: 2rem; line-height: 1.1; }
+.btn.link { border: 0; background: none; color: var(--carbon); padding: 4px 6px; min-height: 0; }
+
 html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 56px); -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16px/1.5 var(--f-body); font-variant-numeric: tabular-nums; }
 h1, h2, h3 { font-family: var(--f-head); line-height: 1.2; margin: 0; }
@@ -403,6 +424,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   <section class="panel" id="p-rc" role="tabpanel" aria-labelledby="t-rc" hidden></section>
   <section class="panel" id="p-data" role="tabpanel" aria-labelledby="t-data" hidden></section>
   <section class="panel" id="p-costs" role="tabpanel" aria-labelledby="t-costs" hidden></section>
+  <section class="panel" id="p-calc" role="tabpanel" aria-labelledby="t-calc" hidden></section>
   <section class="panel" id="p-exp" role="tabpanel" aria-labelledby="t-exp" hidden></section>
   <section class="panel" id="p-set" role="tabpanel" aria-labelledby="t-set" hidden></section>
   <section class="panel" id="p-guide" role="tabpanel" aria-labelledby="t-guide" hidden></section>
@@ -1473,6 +1495,134 @@ details.more[open] > summary { margin-bottom: 10px; }
     return { pd0: pd0, pd1: pd1, od0: od0, od1: od1, legs: M.pay.length, orders: Object.keys(orders).length, ordRows: Object.keys(M.ord).length, ads: M.ads.length, ref: M.ref.length, adj: M.adj.length, unexpl: unexpl, dups: dups };
   }
 
+  /* ---------------- accuracy: what the numbers rest on ----------------
+     Each check is { k, lvl: 'ok' | 'warn' | 'bad' | 'info', t: title, d: detail, act, n }. Payment dates
+     more than 15 days apart point to a payment file that was not uploaded (Meesho pays every week). */
+  function accuracy(files, M, IX, R, H, cfg, today) {
+    var out = [], mt = 0, nt = 0, fb = 0;
+    (files || []).forEach(function (f) { (f.sheets || []).forEach(function (s) { if (s.type === 'pay') { mt += s.matched || 0; nt += s.n || 0; fb += s.pdFallback || 0; } }); });
+    out.push(R.checks.bridge && R.checks.sku
+      ? { k: 'ties', lvl: 'ok', t: 'Profit ties to the money Meesho paid, to the paisa', d: 'Money received ' + money(R.payout, { sym: '\u20b9' }) + ' = Final Settlement of every payment row, plus ads, referral and compensation entries. Profit by SKU adds up to the total.' }
+      : { k: 'ties', lvl: 'bad', t: 'The totals do not tie', d: 'Please report this to PakkaBill support with your files.' });
+    if (nt) out.push(mt === nt
+      ? { k: 'rows', lvl: 'ok', t: 'Every payment row adds up', d: nt + ' of ' + nt + ' rows add up exactly to Meesho\u2019s Final Settlement Amount.' }
+      : { k: 'rows', lvl: 'warn', t: (nt - mt) + ' of ' + nt + ' payment rows do not add up from Meesho\u2019s columns', d: 'The difference (' + money(Math.abs(R.K.O), { sym: '\u20b9' }) + ' in this period) is its own line, so the total still matches what Meesho paid.' });
+    if (H.dups) out.push({ k: 'dups', lvl: 'ok', t: 'Repeated rows counted once', d: H.dups + ' rows that were in more than one file were skipped.' });
+    var ds = {}; M.pay.forEach(function (p) { if (p.pd) ds[p.pd] = 1; });
+    var dl = Object.keys(ds).sort(), gaps = [];
+    for (var i = 1; i < dl.length; i++) { var g = diffDays(dl[i - 1], dl[i]); if (g > 15) gaps.push({ from: dl[i - 1], to: dl[i], days: g }); }
+    if (gaps.length) out.push({ k: 'gaps', lvl: 'warn', n: gaps.length, gaps: gaps, t: 'A payment file may be missing', d: gaps.map(function (x) { return 'No payments between ' + fmtDate(x.from) + ' and ' + fmtDate(x.to) + ' (' + x.days + ' days)'; }).join('; ') + '. Meesho pays every week: if you were paid in between, download that payment report and add it.', act: 'data' });
+    else if (dl.length > 1) out.push({ k: 'gaps', lvl: 'ok', t: 'No gaps in your payment dates', d: 'Payments from ' + fmtDate(dl[0]) + ' to ' + fmtDate(dl[dl.length - 1]) + ' with no missing week.' });
+    if (today && H.pd1 && diffDays(H.pd1, today) > 10) out.push({ k: 'stale', lvl: 'info', t: 'Newer payments may be waiting', d: 'The latest payment in your files is on ' + fmtDate(H.pd1) + '. Download the newer payment report from Meesho to stay up to date.', act: 'data' });
+    if (fb) out.push({ k: 'nodate', lvl: 'warn', n: fb, t: fb + ' payment rows had no payment date', d: 'Their dispatch or order date was used, so they may sit in a different month.' });
+    if (R.missing.length) out.push({ k: 'costs', lvl: 'bad', n: R.missing.length, t: 'Cost missing for ' + R.missing.length + ' SKU' + (R.missing.length > 1 ? 's' : ''), d: 'Profit looks higher than it really is until every SKU has a cost.', act: 'costs' });
+    else if (R.K.sales) out.push({ k: 'costs', lvl: 'ok', t: 'Every SKU sold has a cost', d: 'Cost of goods is complete for this period.' });
+    if (!H.ordRows) out.push({ k: 'orders', lvl: 'warn', t: 'Orders report not added', d: 'Without it, orders that are not paid yet (in transit, awaiting or overdue payment) cannot be shown.', act: 'data' });
+    if (R.K.rdef) out.push({ k: 'conds', lvl: 'info', n: R.K.rdef, t: R.K.rdef + ' returns and RTO parcels use the default condition', d: 'Mark any that came back damaged, used or wrong as Not resellable for exact stock cost.', act: 'returned' });
+    if (R.K.revPend) out.push({ k: 'revpend', lvl: 'info', n: R.K.revPend, t: R.K.revPend + ' returns not reversed by Meesho yet', d: 'Profit will drop by about ' + money(R.K.revPendV, { sym: '\u20b9' }) + ' of sales when Meesho takes these back.' });
+    var other = 0; IX.list.forEach(function (x) { if (x.st === 'OTHER') other++; });
+    if (other) out.push({ k: 'status', lvl: 'info', n: other, t: other + ' orders have a status PakkaBill does not know', d: 'They are counted by their payments; check them in Reconcile under Other.' });
+    var bad = 0, warn = 0; out.forEach(function (c) { if (c.lvl === 'bad') bad++; else if (c.lvl === 'warn') warn++; });
+    return { checks: out, bad: bad, warn: warn, ok: out.filter(function (c) { return c.lvl === 'ok'; }).length };
+  }
+
+  /* ---------------- price check: profit of one product at a price ----------------
+     o: { price (paise, what the buyer pays), cost (paise per piece, as paid), pcs, pack (per parcel),
+     gst (product GST %), reg (GST registered), buy (GST % on the purchase bill), ship (forward
+     shipping per delivered order, incl. GST), retShip (per customer return, incl. GST), rtoFee (per
+     RTO, incl. GST), rto (share of parcels), ret (share of delivered), comm (Meesho commission %),
+     loss (share of returned and RTO pieces that cannot be sold again) }. Per parcel shipped:
+     RTO parcels come back undelivered, delivered ones are kept or returned; forward shipping is
+     charged on every delivered order, return shipping on returns. With GST registration the GST in
+     the price is paid to the government and the GST in Meesho's charges and on the purchase bill
+     comes back as input credit. TCS and TDS come back too, so they are left out. */
+  function priceCheck(o) {
+    var reg = !!o.reg, g = +o.gst || 0, b = reg ? (+o.buy || 0) : 0;
+    var rto = Math.min(0.95, Math.max(0, +o.rto || 0)), ret = Math.min(0.95, Math.max(0, +o.ret || 0)), loss = Math.min(1, Math.max(0, +o.loss || 0));
+    var dlv = 1 - rto, kept = dlv * (1 - ret), back = dlv * ret;
+    var ex = function (v) { return reg ? v * 100 / 118 : v; };
+    var cost = (+o.cost || 0) * Math.max(1, +o.pcs || 1), costNet = b > 0 ? cost * 100 / (100 + b) : cost;
+    var a = kept * ((reg ? 100 / (100 + g) : 1) - ex((+o.comm || 0) / 100));
+    var fixed = -dlv * ex(+o.ship || 0) - back * ex(+o.retShip || 0) - rto * ex(+o.rtoFee || 0) - kept * costNet - (back + rto) * loss * costNet - (+o.pack || 0);
+    function per(price) { return a * price + fixed; }
+    var P = +o.price || 0, E1 = per(P);
+    function priceFor(target) { return a > 0 ? Math.max(0, Math.round((target * kept - fixed) / a)) : 0; }
+    var rev = kept * (reg ? P * 100 / (100 + g) : P);
+    return {
+      perParcel: Math.round(E1) || 0, perOrder: kept > 0 ? Math.round(E1 / kept) || 0 : 0, margin: rev > 0 ? E1 / rev : 0,
+      breakEven: priceFor(0), priceFor: priceFor, kept: kept,
+      parts: {
+        revenue: Math.round(kept * (reg ? P * 100 / (100 + g) : P)), comm: -Math.round(kept * ex(P * (+o.comm || 0) / 100)),
+        ship: -Math.round(dlv * ex(+o.ship || 0)), retShip: -Math.round(back * ex(+o.retShip || 0)), rtoFee: -Math.round(rto * ex(+o.rtoFee || 0)),
+        goods: -Math.round(kept * costNet), lost: -Math.round((back + rto) * loss * costNet), pack: -Math.round(+o.pack || 0)
+      }
+    };
+  }
+  /* The seller's own averages for the price check, from the report of a period. */
+  function priceDefaults(R, RV, M, cfg) {
+    var K = R.K, CH = R.CH, G = RV ? RV.G : null, gs = {};
+    M.pay.forEach(function (p) { if (p.s > 0) gs[p.g] = (gs[p.g] || 0) + 1; });
+    var gst = +Object.keys(gs).sort(function (x, y) { return gs[y] - gs[x]; })[0] || +cfg.defaultGst || 5;
+    var sales = K.sales || 0;
+    return {
+      gst: gst, reg: !!cfg.gstReg, buy: +cfg.buyGst || 0, pack: +cfg.pack || 0,
+      ship: sales ? Math.round(-(CH.shipfwd.v + CH.shipadj.v) / sales) : 7000,
+      comm: K.S > 0 ? Math.round(-CH.comm.v / K.S * 10000) / 100 : 0,
+      retShip: G && G.ret.n ? Math.round(G.ret.retFee / G.ret.n) : 8000,
+      rtoFee: G && G.rto.n ? Math.round(G.rto.retFee / G.rto.n) : 0,
+      rto: RV && RV.done >= 20 ? RV.rtoRate + RV.lostRate : 0.15, ret: RV && RV.delivered >= 20 ? RV.retRate : 0.1,
+      loss: cfg.returnDefault === 'loss' ? 1 : 0, sales: sales
+    };
+  }
+
+  /* ---------------- money to claim from Meesho ----------------
+     Orders where the seller can ask Meesho for money: returns and RTO parcels marked damaged
+     (Not resellable) with no claim paid yet, lost parcels with no claim paid, delivered orders with
+     no payment past the overdue days, recoveries to check, and payments that do not add up. */
+  function claims(M, IX, REC, cfg) {
+    var out = [], rows = {};
+    REC.rows.forEach(function (r) { rows[r.id] = r; });
+    IX.list.forEach(function (x) {
+      var r = rows[x.id] || {}, q = x.q || 1, goods = x.cost != null ? x.cost * q : 0, value = x.s > 0 ? x.s : r.est || 0;
+      var base = { id: x.id, sku: x.sku, pn: x.pn, od: x.od, st: x.st };
+      function add(type, amt, why) { var c = Object.assign({ type: type, amt: Math.max(0, Math.round(amt)), why: why }, base); c.ticket = ticketText(c); out.push(c); }
+      if ((x.st === 'RETURN' || x.st === 'RTO') && x.cond === 'loss' && !x.condDef && x.cl <= 0)
+        add(x.st === 'RTO' ? 'rtoDamaged' : 'damaged', goods || value, x.st === 'RTO' ? 'RTO parcel came back damaged' : 'Return came back damaged, used or wrong');
+      if (x.st === 'LOST' && x.cl <= 0) add('lost', value || goods, 'Parcel lost, no claim paid yet');
+      if (r.b === 'overdue') add('overdue', r.est || value, 'Delivered, no payment after ' + (+cfg.overdueDays || 21) + ' days');
+      if (x.hasPay && x.rc < 0) add('recovery', -x.rc, 'Meesho recovered money on this order');
+      if (x.hasPay && Math.abs(x.o) > TOL) add('unexplained', Math.abs(x.o), 'Payment does not add up from Meesho\u2019s columns');
+    });
+    out.sort(function (a, b) { return b.amt - a.amt || (a.id < b.id ? -1 : 1); });
+    var by = {};
+    out.forEach(function (c) { var t = by[c.type] || (by[c.type] = { n: 0, amt: 0 }); t.n++; t.amt += c.amt; });
+    return { list: out, by: by, total: out.reduce(function (t, c) { return t + c.amt; }, 0) };
+  }
+  function ticketText(c) {
+    var o = 'Sub order ' + c.id + (c.sku ? ' (SKU ' + c.sku + ')' : '') + (c.od ? ', ordered ' + fmtDate(c.od) : '') + ': ';
+    var amt = money(c.amt, { sym: '\u20b9' });
+    switch (c.type) {
+      case 'damaged': return o + 'the customer return came back damaged, used or with a wrong product. Please process my return claim and compensate the product value (' + amt + '). Photos and the unboxing video are ready.';
+      case 'rtoDamaged': return o + 'the RTO parcel came back damaged. Please process my claim for the product value (' + amt + '). Photos and the unboxing video are ready.';
+      case 'lost': return o + 'the shipment was lost in transit and no claim has been paid yet. Please settle the lost shipment claim (' + amt + ').';
+      case 'overdue': return o + 'the order was delivered but I have not received its payment yet. Please check and release the settlement (about ' + amt + ').';
+      case 'recovery': return o + amt + ' was recovered from my payment. Please share the reason and proof, and reverse it if it was charged by mistake.';
+      default: return o + 'the payment does not add up from the columns in the payment report (difference ' + amt + '). Please explain the difference.';
+    }
+  }
+
+  /* ---------------- money on the way: orders not paid yet ---------------- */
+  function onTheWay(REC) {
+    var paidS = 0, paidF = 0, w = { awaiting: { n: 0, v: 0 }, overdue: { n: 0, v: 0 }, transit: { n: 0, v: 0 } };
+    REC.rows.forEach(function (r) {
+      if (r.b === 'settled' && r.s > 0 && r.r === 0) { paidS += r.s; paidF += r.f; }
+      if (w[r.b]) { w[r.b].n++; w[r.b].v += r.est || 0; }
+    });
+    var ratio = paidS > 0 ? Math.max(0, Math.min(1, paidF / paidS)) : 0;
+    var due = w.awaiting.v + w.overdue.v;
+    return { awaiting: w.awaiting, overdue: w.overdue, transit: w.transit, ratio: ratio, due: Math.round(due * ratio), transitEst: Math.round(w.transit.v * ratio) };
+  }
+
   /* ---------------- sample data in Meesho's real layout ---------------- */
   function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
   function r2(n) { return Math.round(n * 100) / 100; }
@@ -1629,7 +1779,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     monthStart: monthStart, monthEnd: monthEnd, nextMonth: nextMonth, fmtDate: fmtDate, fmtMonth: fmtMonth, money: money,
     skuLetters: skuLetters, nameCount: nameCount, packRule: packRule, piecesOf: piecesOf, normSt: normSt, classify: classify, detect: detect, parsePay: parsePay, parseAds: parseAds, parseAmt: parseAmt, parseOrd: parseOrd,
     calibrate: calibrate, ingest: ingest, merge: merge, index: index, dataMonths: dataMonths, periodFor: periodFor, expFor: expFor,
-    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
+    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
   };
 });
 
@@ -1950,7 +2100,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   A.hasData = hasData;
 
   /* ---------------- rendering hooks (views.js fills A.V) ---------------- */
-  var TABS = [['pl', 'P&L'], ['rc', 'Reconcile'], ['data', 'Upload'], ['costs', 'Costs'], ['exp', 'Expenses'], ['set', 'Settings'], ['guide', 'How to use']];
+  var TABS = [['pl', 'P&L'], ['rc', 'Reconcile'], ['data', 'Upload'], ['costs', 'Costs'], ['calc', 'Price check'], ['exp', 'Expenses'], ['set', 'Settings'], ['guide', 'How to use']];
   A.TABS = TABS;
   function renderChrome() {
     var st = cfg();
@@ -2401,6 +2551,35 @@ details.more[open] > summary { margin-bottom: 10px; }
     var c = W().costs[sku]; row.classList.toggle('miss', !(c && c.c != null));
     if (A.V.costSummary) A.V.costSummary();
   }
+  /* ---------------- price check state (not saved) ---------------- */
+  A.pcState = function () {
+    if (S.pc) return S.pc;
+    var st = cfg(), d = hasData() && S.R.K.sales ? E.priceDefaults(S.R, S.RV, S.M, st) : null;
+    S.pc = { sku: '', price: 49900, cost: 20000, pcs: 1, pack: st.pack || 1000, gst: d ? d.gst : (+st.defaultGst || 5), buy: +st.buyGst || 0,
+      ship: d ? d.ship : 7000, retShip: d ? d.retShip : 8000, rtoFee: d ? d.rtoFee : 0, comm: d ? d.comm : 0, rto: d ? d.rto : 0.15, ret: d ? d.ret : 0.1, loss: d ? d.loss : 0, target: 0, own: !!d };
+    return S.pc;
+  };
+  function pcSku(sku) {
+    var p = A.pcState(); p.sku = sku;
+    var x = S.R.skus.filter(function (s) { return s.sku === sku; })[0];
+    if (!x) return;
+    var c = W().costs[sku] || W().costs[Object.keys(W().costs).filter(function (k) { return k.toUpperCase() === sku.toUpperCase(); })[0]];
+    p.price = x.avgPrice || p.price; p.pcs = x.pcs || 1;
+    if (c && c.c != null) p.cost = +c.c;
+    if (c && c.p != null) p.pack = +c.p;
+    if (c && c.b != null) p.buy = +c.b;
+    var rv = S.RV && S.RV.skus.filter(function (s) { return s.sku === sku; })[0];
+    // a SKU's own RTO and return rates once it has enough orders, otherwise the shop's
+    if (rv && rv.done >= 15) { p.rto = rv.rtoRate; if (rv.delivered >= 15) p.ret = rv.retRate; }
+  }
+  function copyText(text, done) {
+    function fallback() {
+      var t = document.createElement('textarea'); t.value = text; t.setAttribute('readonly', ''); t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select(); try { document.execCommand('copy'); toast(done); } catch (e) { toast('Could not copy. Select the text and copy it.'); } t.remove();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { toast(done); }, fallback); else fallback();
+  }
+
   var ACT = {
     tab: function (el) { setTab(el.getAttribute('data-tab')); },
     demo: startDemo,
@@ -2431,7 +2610,19 @@ details.more[open] > summary { margin-bottom: 10px; }
       refresh(); toast('Everything erased');
     },
     rcb: function (el) { S.rc.b = el.getAttribute('data-b'); S.rc.n = 60; render(); },
-    rcgo: function (el) { if (el.getAttribute('data-b') === 'returned') { try { localStorage.setItem('hisaab:rv', '1'); } catch (e) { /* ignore */ } } S.rc.b = el.getAttribute('data-b'); S.rc.n = 60; S.rc.q = ''; setTab('rc'); },
+    rcgo: function (el) {
+      var b = el.getAttribute('data-b');
+      if (b === 'returned') { try { localStorage.setItem('hisaab:rv', '1'); } catch (e) { /* ignore */ } }
+      if (b === 'claims') { S.rc.ct = ''; b = 'all'; }
+      S.rc.b = b; S.rc.n = 60; S.rc.q = ''; setTab('rc');
+    },
+    clt: function (el) { S.rc.ct = el.getAttribute('data-v'); render(); },
+    copyTicket: function (el) { var c = A.claimsData().list[+el.getAttribute('data-i')]; if (c) copyText(c.ticket, 'Ticket text copied. Paste it in Meesho support.'); },
+    copyClaims: function () {
+      var C = A.claimsData(), t = S.rc.ct, list = C.list.filter(function (c) { return !t || c.type === t; });
+      copyText(list.map(function (c, i) { return (i + 1) + '. ' + c.ticket; }).join('\n\n'), list.length + ' tickets copied.');
+    },
+    goalEdit: function () { S.goalEdit = true; render(); },
     rcMore: function () { S.rc.n += 60; render(); },
     fillSame: function () {
       var gr = fillGroup(), c = toPaise($('#fl-c').value), onlyEmpty = $('#fl-e').checked, w = W();
@@ -2541,12 +2732,35 @@ details.more[open] > summary { margin-bottom: 10px; }
       if (k === 'buyGst' || k === 'gstReg' || k === 'taxCredits' || k === 'returnDefault' || k === 'rtoDefault' || k === 'packFromSku') refresh(); else { recompute(); renderChrome(); }
       toast('Saved');
     },
-    exw: function (el) { var m = $('#ex-m-wrap'); if (m) m.hidden = el.value === 'monthly'; }
+    exw: function (el) { var m = $('#ex-m-wrap'); if (m) m.hidden = el.value === 'monthly'; },
+    goal: function (el) {
+      var v = el.value.trim() === '' ? 0 : toPaise(el.value);
+      if (v === null || v < 0) { toast('Enter the goal in rupees'); return; }
+      var st = W().settings;
+      if (v === (+st.goal || 0) && !S.goalEdit) return;
+      st.goal = v; persist('settings'); S.goalEdit = false;
+      // drawn again after the change has finished (the box is still focused now)
+      setTimeout(render, 0); toast(v ? 'Goal saved' : 'Goal removed');
+    },
+    pcsku: function (el) { S.pc = null; A.pcState(); if (el.value) pcSku(el.value); render(); },
+    pcgst: function (el) { A.pcState().gst = +el.value; pcOut(); },
+    pcbuy: function (el) { A.pcState().buy = +el.value || 0; pcOut(); }
   };
+  function pcOut() { var o = $('#pc-out'); if (o) { o.innerHTML = A.V.pcOut(); trDom(o); } }
   var IN = {
     rcq: function (el) { S.rc.q = el.value; S.rc.n = 60; var box = $('#rc-list'); if (box) { box.innerHTML = A.V.rcList(); trDom(box); } },
-    cq: function (el) { S.cf.q = el.value; var box = $('#c-list'); if (box) { box.innerHTML = A.V.costRows(); trDom(box); } }
+    cq: function (el) { S.cf.q = el.value; var box = $('#c-list'); if (box) { box.innerHTML = A.V.costRows(); trDom(box); } },
+    pc: function (el) {
+      var k = el.getAttribute('data-k'), p = A.pcState(), v = E.cleanNum(el.value);
+      if (v === null || v < 0) return;
+      if (k === 'pcs') p.pcs = Math.max(1, Math.round(v));
+      else if (k === 'rto' || k === 'ret' || k === 'loss') p[k] = Math.min(100, v) / 100;
+      else if (k === 'comm') p.comm = Math.min(100, v);
+      else p[k] = Math.round(v * 100);
+      pcOut();
+    }
   };
+  document.addEventListener('toggle', function (e) { if (e.target && e.target.id === 'pc-more') S.pcMore = e.target.open; }, true);
   var inT;
   document.addEventListener('click', function (e) {
     var el = e.target.closest('[data-act]'); if (!el) return;
@@ -2911,6 +3125,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<div><small>Profit per delivered order</small><strong class="' + (R.NP < 0 ? 'neg' : '') + '">' + (K.del ? rs(Math.round(R.NP / K.del), true) : '\u2013') + '</strong></div>' +
       '<div><small>RTO \u00b7 Return \u00b7 Exchange</small><strong>' + (S.RV ? pct(S.RV.rtoRate) + ' \u00b7 ' + pct(S.RV.retRate) + ' \u00b7 ' + pct(S.RV.exchRate) : (K.parcels ? pct(R.returnRate) : '0%')) + '</strong></div></div>';
 
+    h += accHtml();
     var notes = '';
     if (R.missing.length) {
       var u = 0; R.missing.forEach(function (x) { u += x.units; });
@@ -2929,7 +3144,9 @@ details.more[open] > summary { margin-bottom: 10px; }
     if (K.unexpl) {
       notes += '<div class="note info"><p>' + (K.unexpl === 1 ? '1 settlement row does' : K.unexpl + ' settlement rows do') + ' not fully add up from Meesho\u2019s own columns: Meesho paid ' + rs(Math.abs(K.O)) + (K.O < 0 ? ' less' : ' more') + ' than they add up to. The difference is shown as its own line, so the total still matches Meesho.</p></div>';
     }
+    if (A.full() && !S.demo) notes += claimTeaser();
     if (notes) h += '<div class="stack no-print">' + notes + '</div>';
+    h += goalHtml() + wayHtml();
     if (!A.full()) return '<div class="stack">' + h + lockHtml('pl') + '</div>';
 
     var lines = '';
@@ -2985,6 +3202,120 @@ details.more[open] > summary { margin-bottom: 10px; }
         '<p class="small muted" style="margin:8px 0 0">Counted by ' + (S.sel.basis === 'order' ? 'order date' : 'payment date') + '. Monthly expenses are included in each month.</p></details>';
     }
     return '<div class="stack">' + h + '</div>';
+  };
+
+  /* ---------------- accuracy check: what the profit rests on ---------------- */
+  function accHtml() {
+    var A2 = E.accuracy((S.demo || S.real).files, S.M, S.IX, S.R, S.H, A.cfg(), new Date().toISOString().slice(0, 10)), ic = { ok: '✓', warn: '!', bad: '×', info: 'i' };
+    var go = { data: ['Upload', 'tab', 'data'], costs: ['Add costs', 'tab', 'costs'], returned: ['Review returns', 'rcgo', 'returned'] };
+    var items = A2.checks.map(function (c) {
+      var b = c.act && go[c.act] ? ' <button class="btn sm" data-act="' + go[c.act][1] + '" data-' + (go[c.act][1] === 'tab' ? 'tab' : 'b') + '="' + go[c.act][2] + '">' + go[c.act][0] + '</button>' : '';
+      return '<li class="acc-' + c.lvl + '"><span class="acc-i" aria-hidden="true">' + ic[c.lvl] + '</span><div><b>' + esc(c.t) + '</b><p class="small muted">' + esc(c.d) + '</p>' + b + '</div></li>';
+    }).join('');
+    var head = A2.bad ? A2.bad + ' thing' + (A2.bad > 1 ? 's' : '') + ' make' + (A2.bad > 1 ? '' : 's') + ' this profit wrong' : A2.warn ? 'Matches Meesho to the paisa. ' + A2.warn + ' thing' + (A2.warn > 1 ? 's' : '') + ' to check' : 'Matches Meesho to the paisa';
+    return '<details class="sheet more acc no-print"' + (A2.bad || A2.warn ? ' open' : '') + '><summary><span class="acc-h acc-' + (A2.bad ? 'bad' : A2.warn ? 'warn' : 'ok') + '">' + (A2.bad ? '×' : A2.warn ? '!' : '✓') + '</span> Accuracy check: ' + esc(head) + '</summary><ul class="acc-list">' + items + '</ul></details>';
+  }
+
+  /* ---------------- money on the way: delivered and shipped, not paid yet ---------------- */
+  function wayHtml() {
+    if (!S.H.ordRows) return '';
+    var w = E.onTheWay(S.REC), due = w.awaiting.n + w.overdue.n;
+    if (!due && !w.transit.n) return '';
+    return '<section class="sheet way"><h3>Money on the way</h3><div class="way-g">' +
+      '<div><small>Delivered, not paid yet</small><strong>' + rs(w.due, true) + '</strong><span class="small muted">' + pl(due, 'order') + ', ' + rs(w.awaiting.v + w.overdue.v, true) + ' order value</span></div>' +
+      '<div><small>Still in transit</small><strong>' + rs(w.transitEst, true) + '</strong><span class="small muted">' + pl(w.transit.n, 'order') + ', if all are delivered</span></div></div>' +
+      '<p class="small muted" style="margin:8px 0 0">After Meesho’s fees: Meesho paid you ' + pct0(w.ratio) + ' of the order value on your settled orders.' + (w.overdue.n ? ' ' + pl(w.overdue.n, 'order') + ' are overdue.' : '') + '</p>' +
+      '<div class="row" style="margin-top:8px"><button class="btn sm" data-act="rcgo" data-b="awaiting">See orders</button>' + (w.overdue.n ? '<button class="btn sm" data-act="rcgo" data-b="overdue">Overdue</button>' : '') + '</div></section>';
+  }
+
+  /* ---------------- monthly profit goal ---------------- */
+  function goalHtml() {
+    if (S.demo || !S.MO.length) return '';
+    var g = +A.cfg().goal || 0, m = S.sel.mode === 'month' ? S.MO.filter(function (x) { return x.m === S.sel.m; })[0] : S.MO[S.MO.length - 1];
+    if (!m) return '';
+    if (!g || S.goalEdit) {
+      return '<section class="sheet goal"><div class="row"><div class="grow"><b>' + (g ? 'Monthly profit goal' : 'Set a monthly profit goal') + '</b><p class="small muted" style="margin:0">See how close each month gets to it.</p></div>' +
+        '<label class="row" style="gap:6px"><span class="small">₹</span><input class="inp" style="width:120px" inputmode="numeric" data-ch="goal" placeholder="50000" value="' + (g ? Math.round(g / 100) : '') + '" aria-label="Profit goal for each month in rupees"></label></div></section>';
+    }
+    var f = Math.max(0, Math.min(1, m.NP / g)), now = new Date(), cur = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    var dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(), left = dim - now.getDate() + 1;
+    var sub = m.NP >= g ? 'Goal reached. Well done!' : Math.round(f * 100) + '% reached' + (m.m === cur ? ' · ' + left + ' days left · ' + rs(Math.round((g - m.NP) / left), true) + ' a day to go' : '');
+    return '<section class="sheet goal"><div class="row"><b class="grow">Goal for ' + E.fmtMonth(m.m) + '</b><button class="btn sm link" data-act="goalEdit">Change</button></div>' +
+      '<div class="goal-n"><strong class="' + (m.NP < 0 ? 'neg' : m.NP >= g ? 'pos' : '') + '">' + rs(m.NP, true) + '</strong> <span class="muted">of ' + rs(g, true) + '</span></div>' +
+      '<div class="bar"><i style="width:' + Math.round(f * 100) + '%"' + (m.NP >= g ? ' class="done"' : '') + '></i></div><p class="small muted" style="margin:6px 0 0">' + esc(sub) + '</p></section>';
+  }
+
+  /* ---------------- money to claim from Meesho (in Reconcile) ---------------- */
+  var CLT = { damaged: 'Damaged returns', rtoDamaged: 'Damaged RTO', lost: 'Lost parcels', overdue: 'Payment overdue', recovery: 'Recoveries to check', unexplained: 'Does not add up' };
+  function claimsData() { return E.claims(S.M, S.IX, S.REC, A.cfg()); }
+  function claimTeaser() {
+    var C = claimsData();
+    if (!C.list.length) return '';
+    return '<div class="note info"><p><b>' + rs(C.total, true) + ' you may get back from Meesho</b> <span>on ' + pl(C.list.length, 'order') + ', with ready-made ticket text for each one.</span></p><button class="btn sm" data-act="rcgo" data-b="claims">See what to claim</button></div>';
+  }
+  function claimsHtml() {
+    var C = claimsData();
+    var tip = '<p class="small muted" style="margin:6px 0 0">Mark returns and RTO parcels that came back damaged, used or wrong as Not resellable below; they show up here to claim.</p>';
+    if (!C.list.length) return '<section class="sheet claims"><h3>Money to claim from Meesho</h3><p class="small" style="margin:4px 0 0">Nothing to claim right now: no damaged returns marked, no lost parcels without a claim, no overdue payments.</p>' + tip + '</section>';
+    var t = S.rc.ct && C.by[S.rc.ct] ? S.rc.ct : '', list = C.list.filter(function (c) { return !t || c.type === t; });
+    var chips = '<button class="chip" data-act="clt" data-v="" aria-pressed="' + !t + '">All<span>' + C.list.length + '</span></button>' + Object.keys(C.by).map(function (k) {
+      return '<button class="chip" data-act="clt" data-v="' + k + '" aria-pressed="' + (t === k) + '">' + CLT[k] + '<span>' + C.by[k].n + '</span></button>';
+    }).join('');
+    var rows = list.slice(0, 40).map(function (c, i) {
+      return '<div class="cl-row"><div class="grow"><b>' + esc(c.id) + '</b> <span class="tag">' + esc(CLT[c.type]) + '</span><div class="small muted">' + (c.sku ? esc(c.sku) + ' · ' : '') + '<span>' + esc(c.why) + '</span>' + (c.od ? '<span> · ordered ' + fd(c.od) + '</span>' : '') + '</div></div>' +
+        '<b class="cl-amt">' + rs(c.amt, true) + '</b><button class="btn sm" data-act="copyTicket" data-i="' + C.list.indexOf(c) + '">Copy ticket</button></div>';
+    }).join('');
+    return '<section class="sheet claims"><div class="row"><h3 class="grow" style="margin:0">Money to claim from Meesho</h3><b>' + rs(t ? C.by[t].amt : C.total, true) + '</b></div>' +
+      '<div class="chips" role="group" aria-label="What to claim" style="margin-top:8px">' + chips + '</div>' + rows +
+      (list.length > 40 ? '<p class="small muted">Showing 40 of ' + list.length + '. Copy all tickets to get every one.</p>' : '') +
+      '<div class="row" style="margin-top:10px"><button class="btn sm pri" data-act="copyClaims">' + (list.length === 1 ? 'Copy ticket' : 'Copy all ' + list.length + ' tickets') + '</button></div>' +
+      '<p class="small muted" style="margin:8px 0 0">Paste the ticket in the Meesho Supplier Panel support section. Claims have time limits, so raise them soon; keep photos and the unboxing video for damaged returns. Amounts are the product cost for damaged and lost parcels and the order value for overdue payments.</p>' + tip + '</section>';
+  }
+  A.claimsData = claimsData;
+
+  /* ---------------- Price check: what to charge, with your own Meesho numbers ---------------- */
+  function pcInp(k, v, label, unit, hint) {
+    return '<label class="f">' + label + '<span class="pc-in">' + (unit === '₹' ? '<i>₹</i>' : '') + '<input class="inp" inputmode="decimal" data-in="pc" data-k="' + k + '" value="' + esc(v) + '">' + (unit === '%' ? '<i>%</i>' : '') + '</span>' + (hint ? '<span class="small muted">' + hint + '</span>' : '') + '</label>';
+  }
+  V.calc = function () {
+    var p = A.pcState(), st = A.cfg();
+    var skus = A.hasData() ? S.R.skus : [];
+    var opts = '<option value="">A new product</option>' + skus.map(function (x) { return '<option value="' + esc(x.sku) + '"' + (p.sku === x.sku ? ' selected' : '') + '>' + esc(x.sku) + (x.pn ? ' · ' + esc(x.pn.slice(0, 40)) : '') + '</option>'; }).join('');
+    var r = function (v) { return A.rupeeInput(v); }, q = function (v) { return String(Math.round(v * 1000) / 10); };
+    var h = '<section class="sheet"><h2>Price check</h2><p class="muted" style="margin:6px 0 12px">What a product really earns you on Meesho at a price, after shipping, returns, RTO, GST and packaging' + (p.own ? ', using your own numbers from your Meesho files' : '') + '. Change any number to try another price.</p>' +
+      (skus.length ? '<label class="f">Product<select class="inp" data-ch="pcsku">' + opts + '</select></label>' : '') +
+      '<div class="pc-g">' + pcInp('price', r(p.price), 'Price the buyer pays', '₹') + pcInp('cost', r(p.cost), 'Your cost per piece', '₹', 'As paid, with GST') +
+      pcInp('pcs', String(p.pcs), 'Pieces in one order', '') + pcInp('pack', r(p.pack), 'Packaging per parcel', '₹') +
+      '<label class="f">Product GST<select class="inp" data-ch="pcgst">' + [0, 3, 5, 12, 18].map(function (g) { return '<option value="' + g + '"' + (+p.gst === g ? ' selected' : '') + '>' + g + '%</option>'; }).join('') + '</select></label>' +
+      '<label class="f">Your purchase bill<select class="inp" data-ch="pcbuy">' + buyOptions(String(p.buy), st) + '</select></label></div>' +
+      '<details class="more" style="margin-top:12px"' + (S.pcMore ? ' open' : '') + ' id="pc-more"><summary>Meesho charges, RTO and returns' + (p.own ? ' (from your files)' : '') + '</summary><div class="pc-g" style="margin-top:10px">' +
+      pcInp('ship', r(p.ship), 'Shipping per order', '₹', 'With GST') + pcInp('retShip', r(p.retShip), 'Return shipping', '₹', 'Per customer return') +
+      pcInp('rtoFee', r(p.rtoFee), 'RTO charge', '₹', 'Per RTO parcel') + pcInp('comm', String(p.comm), 'Meesho commission', '%') +
+      pcInp('rto', q(p.rto), 'RTO', '%', 'Of parcels shipped') + pcInp('ret', q(p.ret), 'Customer returns', '%', 'Of orders delivered') +
+      pcInp('loss', q(p.loss), 'Returns not resellable', '%') + '</div></details>' +
+      '<div class="row" style="margin-top:12px">' + pcInp('target', r(p.target), 'Profit you want per order', '₹') + '</div></section>' +
+      '<div id="pc-out">' + V.pcOut() + '</div>';
+    return '<div class="stack">' + (A.hasData() ? demoBar() : '') + h + '</div>';
+  };
+  V.pcOut = function () {
+    var p = A.pcState(), st = A.cfg(), o = Object.assign({}, p, { reg: !!st.gstReg }), r = E.priceCheck(o);
+    // whole rupees: profit rounded, prices rounded up (below break-even you lose money)
+    var rr = function (v) { return Math.round(v / 100) * 100 || 0; }, up = function (v) { return Math.ceil(v / 100) * 100 || 0; };
+    var po1 = rr(r.perOrder), be = up(r.breakEven);
+    var rows = [0.9, 1, 1.1, 1.2].map(function (f) {
+      var pr = Math.round(p.price * f / 100) * 100, x = E.priceCheck(Object.assign({}, o, { price: pr }));
+      var po = rr(x.perOrder);
+      return '<tr' + (f === 1 ? ' class="tot"' : '') + '><td>' + rs(pr, true) + '</td><td class="n' + (po < 0 ? ' neg' : '') + '">' + rs(po, true) + '</td><td class="n">' + pct(x.margin) + '</td></tr>';
+    }).join('');
+    var parts = r.parts, labels = [['revenue', 'Sales kept, without GST'], ['comm', 'Commission'], ['ship', 'Shipping'], ['retShip', 'Return shipping'], ['rtoFee', 'RTO charges'], ['goods', 'Cost of goods kept by buyers'], ['lost', 'Goods that came back unsellable'], ['pack', 'Packaging']];
+    var want = p.target ? up(r.priceFor(p.target)) : 0;
+    return '<section class="sheet pc-out"><div class="pc-big"><small>Profit per delivered order</small><strong class="' + (po1 < 0 ? 'neg' : 'pos') + '">' + rs(po1, true) + '</strong>' +
+      '<span class="small muted">' + rs(rr(r.perParcel), true) + ' per parcel shipped, after RTO and returns · ' + pct(r.margin) + ' of sales</span></div>' +
+      '<div class="way-g" style="margin-top:12px"><div><small>Break-even price</small><strong class="' + (be > p.price ? 'neg' : '') + '">' + rs(be, true) + '</strong><span class="small muted">' + (be > p.price ? 'Your price is below this, so you lose money' : 'Below this you lose money') + '</span></div>' +
+      (p.target ? '<div><small>Price for ' + rs(p.target, true) + ' per order</small><strong>' + rs(want, true) + '</strong><span class="small muted">What the buyer would pay</span></div>' : '') + '</div>' +
+      '<div class="tw" style="margin-top:12px"><table class="t"><thead><tr><th>Price</th><th class="n">Profit per order</th><th class="n">Margin</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<details class="more" style="margin-top:10px"><summary>How it is worked out (per parcel shipped)</summary>' + kv(labels.filter(function (x) { return parts[x[0]]; }).map(function (x) { return [x[1], parts[x[0]]]; }).concat([['Profit per parcel shipped', r.perParcel, true]])) +
+      '<p class="small muted" style="margin:8px 0 0">' + Math.round(r.kept * 100) + ' of every 100 parcels are delivered and kept. ' + (st.gstReg ? 'GST in the price goes to the government; GST in Meesho’s charges and on a GST purchase bill comes back as input credit. ' : 'Not GST registered (Settings): GST is part of every price and cost. ') + 'TCS and TDS come back, so they are left out. Ads and monthly expenses are not included.</p></details></section>';
   };
 
   /* ---------------- Reconcile ---------------- */
@@ -3047,7 +3378,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     var chips = keys.filter(function (k) { return k === 'all' || C[k].n; }).map(function (k) {
       return '<button class="chip' + (k === 'issues' || k === 'overdue' ? ' alert' : '') + '" data-act="rcb" data-b="' + k + '" aria-pressed="' + (S.rc.b === k) + '">' + BL[k] + '<span>' + (k === 'all' ? total : C[k].n) + '</span></button>';
     }).join('');
-    var h = demoBar() + '<section class="stack"><div class="chips" role="group" aria-label="Filter orders">' + chips + '</div>' +
+    var h = demoBar() + claimsHtml() + '<section class="stack" style="margin-top:14px"><div class="chips" role="group" aria-label="Filter orders">' + chips + '</div>' +
       '<p class="small muted" style="margin:0">' + esc(bucketHelp(S.rc.b)) + '</p>' +
       '<input class="inp" type="search" data-in="rcq" placeholder="Search sub order number or SKU" value="' + esc(S.rc.q) + '" aria-label="Search orders">' +
       '<div id="rc-list">' + V.rcList() + '</div></section>';
