@@ -307,21 +307,42 @@ for (const cfg of settings) {
 /* ---------------------------------------------------------------- 4. the tools built on the report */
 
 {
-  // price check, worked out by hand: ₹500 at 5% GST, cost ₹200, packaging ₹10, shipping ₹70.80 and
-  // return shipping ₹59 (both with 18% GST), 10% RTO, 20% returns
-  const pc = E.priceCheck({ price: 50000, gst: 5, reg: true, cost: 20000, pcs: 1, pack: 1000, ship: 7080, retShip: 5900, rtoFee: 0, rto: 0.1, ret: 0.2, comm: 0, loss: 0, buy: 0 });
-  // per parcel: 0.72 kept x 476.19 - 0.9 x 60 - 0.18 x 50 - 0.72 x 200 - 10 = 125.857
-  eq(pc.perParcel, 12586, 'price check: profit per parcel');
-  eq(pc.perOrder, Math.round(12585.714 / 0.72), 'price check: profit per kept order');
-  eq(pc.breakEven, Math.round(21700 / (0.72 * 100 / 105)), 'price check: break-even price');
-  eq(E.priceCheck({ price: pc.breakEven, gst: 5, reg: true, cost: 20000, pack: 1000, ship: 7080, retShip: 5900, rto: 0.1, ret: 0.2 }).perParcel, 0, 'price check: no profit at the break-even price');
-  const want = pc.priceFor(10000);
-  ok(Math.abs(E.priceCheck({ price: want, gst: 5, reg: true, cost: 20000, pack: 1000, ship: 7080, retShip: 5900, rto: 0.1, ret: 0.2 }).perOrder - 10000) <= 1, 'price check: price for ₹100 per order gives ₹100');
-  // not registered: no GST taken out anywhere
-  eq(E.priceCheck({ price: 50000, gst: 5, reg: false, cost: 20000, pack: 1000, ship: 7080, retShip: 5900, rto: 0.1, ret: 0.2 }).perParcel,
-    Math.round(0.72 * 50000 - 0.9 * 7080 - 0.18 * 5900 - 0.72 * 20000 - 1000), 'price check: not registered');
+  // price check, worked out by hand. Meesho pays ₹400 for a delivered order; the sale value is 1.25 x the
+  // payout (₹500 at 5% GST), TCS + TDS are 0.6% of it and come back; cost ₹200, packaging ₹10; Meesho keeps
+  // ₹118 on a return and ₹59 on an RTO (with 18% GST); 10% RTO, 20% returns.
+  const base = { pay: 40000, q: 1.25, tt: 0.006, claim: true, gst: 5, reg: true, cost: 20000, pcs: 1, pack: 1000, retLoss: 11800, rtoLoss: 5900, rto: 0.1, ret: 0.2, loss: 0, buy: 0 };
+  const pc = E.priceCheck(base);
+  // per payout rupee: 1 - (1.25 x 5/105 - (1.25 - 1 - 0.0075) x 18/118) + 0.0075 = 0.9849677
+  // per parcel: 0.72 x (0.9849677 x 400 - 200) - (0.18 x 100 + 0.1 x 50) - 10 = 106.6707
+  const keep = 1 - (1.25 * 5 / 105 - (1.25 - 1 - 1.25 * 0.006) * 18 / 118) + 1.25 * 0.006;
+  eq(pc.perParcel, Math.round(0.72 * (keep * 40000 - 20000) - 2300 - 1000), 'price check: profit per parcel');
+  eq(pc.perParcel, 10667, 'price check: profit per parcel, by hand');
+  eq(pc.perOrder, Math.round((0.72 * (keep * 40000 - 20000) - 3300) / 0.72), 'price check: profit per kept order');
+  eq(pc.breakEven, Math.ceil(17700 / (0.72 * keep)), 'price check: lowest payout without a loss');
+  ok(Math.abs(E.priceCheck(Object.assign({}, base, { pay: pc.breakEven })).perParcel) <= 1, 'price check: no profit at the lowest payout');
+  ok(Math.abs(E.priceCheck(Object.assign({}, base, { pay: pc.payFor(10000) })).perOrder - 10000) <= 1, 'price check: payout for ₹100 per order gives ₹100');
+  const sp = pc.split;
+  ok(Math.abs(sp.goods + sp.gst + sp.returns + sp.pack + sp.profit - 40000) <= 2, 'price check: the parts add up to the payout', JSON.stringify(sp));
+  eq(pc.saleValue, 50000, 'price check: sale value from the payout');
+  // not registered and TCS/TDS as a cost: nothing taken out or added back
+  eq(E.priceCheck(Object.assign({}, base, { reg: false, claim: false })).perParcel, Math.round(0.72 * (40000 - 20000) - (0.18 * 11800 + 0.1 * 5900) - 1000), 'price check: not registered');
   // the GST on a purchase bill comes back for a registered seller
-  eq(E.priceCheck({ price: 50000, gst: 5, reg: true, buy: 5, cost: 21000, pack: 1000, ship: 7080, retShip: 5900, rto: 0.1, ret: 0.2 }).perParcel, 12586, 'price check: cost without the GST on the bill');
+  eq(E.priceCheck(Object.assign({}, base, { buy: 5, cost: 21000 })).perParcel, 10667, 'price check: cost without the GST on the bill');
+  // half the returned and RTO pieces cannot be sold again
+  eq(E.priceCheck(Object.assign({}, base, { loss: 0.5 })).perParcel, Math.round(0.72 * (keep * 40000 - 20000) - 2300 - 1000 - 0.28 * 0.5 * 20000), 'price check: unsellable returns');
+}
+{
+  // price check from the sample shop's own files: a product's profit per kept order comes out close to
+  // what the report says that product made
+  const all = run([D.payBook, ORD], { costs: D.costs, expenses: D.expenses, cfg: { pack: D.pack } });
+  const REC = E.reconcile(all.M, all.IX, all.cfg), RV = E.returnsView(all.M, all.IX, all.cfg, all.per);
+  for (const x of all.R.skus.filter((k) => k.delivered >= 25)) {
+    const d = E.priceDefaults(all.R, RV, all.M, all.cfg, REC, x.sku), c = D.costs[x.sku] || {};
+    const r = E.priceCheck(Object.assign({}, d, { reg: !!all.cfg.gstReg, cost: c.c, pcs: x.pcs || 1, pack: c.p != null ? c.p : D.pack }));
+    ok(Math.abs(r.perOrder - x.perOrder) <= Math.abs(x.perOrder) * 0.1, 'price check matches the report within 10%: ' + x.sku, r.perOrder + ' vs ' + x.perOrder);
+  }
+  const shop = E.priceDefaults(all.R, RV, all.M, all.cfg, REC);
+  ok(shop.n > 100 && shop.q > 1 && shop.q < 1.6, 'price check: average payout and sale value from the files', JSON.stringify({ n: shop.n, q: shop.q }));
 }
 {
   // accuracy: a missing week of payments is found

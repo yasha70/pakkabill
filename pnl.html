@@ -81,6 +81,13 @@
 .pc-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 12px; }
 .pc-in { display: flex; align-items: center; gap: 4px; } .pc-in i { font-style: normal; color: var(--ink-3); } .pc-in .inp { min-width: 0; }
 .pc-big { display: grid; gap: 2px; } .pc-big strong { font-family: var(--f-head); font-size: 2rem; line-height: 1.1; }
+:root { --s-goods: #6250d6; --s-returns: #eb6834; --s-gst: #1baf7a; --s-pack: #eda100; --s-profit: #008300; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --s-goods: #9085e9; --s-returns: #d95926; --s-gst: #199e70; --s-pack: #c98500; } }
+:root[data-theme="dark"] { --s-goods: #9085e9; --s-returns: #d95926; --s-gst: #199e70; --s-pack: #c98500; }
+.pc-split { display: flex; gap: 2px; height: 14px; margin-top: 8px; } .pc-split i { display: block; min-width: 3px; border-radius: 4px; }
+.pc-leg { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: .92rem; } .pc-leg span { display: inline-flex; align-items: center; gap: 6px; } .pc-leg b { font-family: var(--f-head); }
+.pc-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.s-goods { background: var(--s-goods); } .s-returns { background: var(--s-returns); } .s-gst { background: var(--s-gst); } .s-pack { background: var(--s-pack); } .s-profit { background: var(--s-profit); }
 .btn.link { border: 0; background: none; color: var(--carbon); padding: 4px 6px; min-height: 0; }
 
 html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 56px); -webkit-text-size-adjust: 100%; }
@@ -366,6 +373,7 @@ details.more[open] > summary { margin-bottom: 10px; }
 .tag { display: inline-block; font-size: .78rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--carbon-soft); color: var(--ink-2); }
 .tag.bad { background: transparent; border: 1px solid var(--margin); color: var(--neg); }
 .tag.good { background: transparent; border: 1px solid var(--pos); color: var(--pos); }
+.tag.warn { background: var(--warn-bg); border: 1px solid var(--warn); color: var(--warn); }
 .cond { min-height: 34px; padding: 4px 8px; border: 1px solid var(--rule-2); border-radius: 6px; background: var(--sheet); font-size: .88rem; }
 .cond.def { border-style: dashed; }
 
@@ -1526,53 +1534,65 @@ details.more[open] > summary { margin-bottom: 10px; }
     return { checks: out, bad: bad, warn: warn, ok: out.filter(function (c) { return c.lvl === 'ok'; }).length };
   }
 
-  /* ---------------- price check: profit of one product at a price ----------------
-     o: { price (paise, what the buyer pays), cost (paise per piece, as paid), pcs, pack (per parcel),
-     gst (product GST %), reg (GST registered), buy (GST % on the purchase bill), ship (forward
-     shipping per delivered order, incl. GST), retShip (per customer return, incl. GST), rtoFee (per
-     RTO, incl. GST), rto (share of parcels), ret (share of delivered), comm (Meesho commission %),
-     loss (share of returned and RTO pieces that cannot be sold again) }. Per parcel shipped:
-     RTO parcels come back undelivered, delivered ones are kept or returned; forward shipping is
-     charged on every delivered order, return shipping on returns. With GST registration the GST in
-     the price is paid to the government and the GST in Meesho's charges and on the purchase bill
-     comes back as input credit. TCS and TDS come back too, so they are left out. */
+  /* ---------------- price check: profit of one product, from what Meesho pays ----------------
+     It starts from the payout for one delivered order (the bank settlement Meesho shows in the
+     Supplier Panel when the price is set), not from the price buyers see, which moves with offers and
+     delivery charges. Everything else comes from the seller's own files.
+     o: { pay (paise per delivered order), cost (paise per piece, as paid), pcs, pack (per parcel shipped),
+     reg (GST registered), gst (product GST %), buy (GST % on the purchase bill), q (sale value divided by
+     the payout, on delivered orders), tt (TCS and TDS as a share of the sale value), claim (TCS and TDS
+     come back), retLoss and rtoLoss (what Meesho keeps on a customer return and on an RTO parcel: shipping
+     both ways and fees, incl. GST), rto (RTO and lost, share of parcels shipped), ret (returns, share of
+     orders delivered), loss (share of returned and RTO pieces that cannot be sold again) }.
+     With GST registration, GST on the sale (sale value = payout x q) is paid to the government and the
+     GST in Meesho's fees (sale value - payout - TCS/TDS) and on the purchase bill comes back. */
   function priceCheck(o) {
-    var reg = !!o.reg, g = +o.gst || 0, b = reg ? (+o.buy || 0) : 0;
+    var reg = !!o.reg, g = +o.gst || 0, b = reg ? (+o.buy || 0) : 0, q = Math.max(1, +o.q || 1), tt = Math.min(0.05, Math.max(0, +o.tt || 0));
     var rto = Math.min(0.95, Math.max(0, +o.rto || 0)), ret = Math.min(0.95, Math.max(0, +o.ret || 0)), loss = Math.min(1, Math.max(0, +o.loss || 0));
     var dlv = 1 - rto, kept = dlv * (1 - ret), back = dlv * ret;
     var ex = function (v) { return reg ? v * 100 / 118 : v; };
     var cost = (+o.cost || 0) * Math.max(1, +o.pcs || 1), costNet = b > 0 ? cost * 100 / (100 + b) : cost;
-    var a = kept * ((reg ? 100 / (100 + g) : 1) - ex((+o.comm || 0) / 100));
-    var fixed = -dlv * ex(+o.ship || 0) - back * ex(+o.retShip || 0) - rto * ex(+o.rtoFee || 0) - kept * costNet - (back + rto) * loss * costNet - (+o.pack || 0);
-    function per(price) { return a * price + fixed; }
-    var P = +o.price || 0, E1 = per(P);
-    function priceFor(target) { return a > 0 ? Math.max(0, Math.round((target * kept - fixed) / a)) : 0; }
-    var rev = kept * (reg ? P * 100 / (100 + g) : P);
+    // on each rupee of payout: GST on the sale less the input credit in Meesho's fees, and TCS/TDS that come back
+    var gstRate = reg ? q * g / (100 + g) - Math.max(0, q - 1 - q * tt) * 18 / 118 : 0, taxBack = o.claim ? q * tt : 0;
+    var keep = 1 - gstRate + taxBack;
+    var risk = (back + rto) * loss * costNet + back * ex(+o.retLoss || 0) + rto * ex(+o.rtoLoss || 0), pack = +o.pack || 0;
+    function per(pay) { return kept * (keep * pay - costNet) - risk - pack; }
+    var P = +o.pay || 0, E1 = per(P), perOrder = kept > 0 ? E1 / kept : 0;
+    function payFor(target) { return kept > 0 && keep > 0 ? Math.max(0, Math.ceil((target * kept + kept * costNet + risk + pack) / (kept * keep))) : 0; }
+    function r0(v) { return Math.round(v) || 0; }
     return {
-      perParcel: Math.round(E1) || 0, perOrder: kept > 0 ? Math.round(E1 / kept) || 0 : 0, margin: rev > 0 ? E1 / rev : 0,
-      breakEven: priceFor(0), priceFor: priceFor, kept: kept,
-      parts: {
-        revenue: Math.round(kept * (reg ? P * 100 / (100 + g) : P)), comm: -Math.round(kept * ex(P * (+o.comm || 0) / 100)),
-        ship: -Math.round(dlv * ex(+o.ship || 0)), retShip: -Math.round(back * ex(+o.retShip || 0)), rtoFee: -Math.round(rto * ex(+o.rtoFee || 0)),
-        goods: -Math.round(kept * costNet), lost: -Math.round((back + rto) * loss * costNet), pack: -Math.round(+o.pack || 0)
-      }
+      perParcel: r0(E1), perOrder: r0(perOrder), margin: P > 0 ? perOrder / P : 0, breakEven: payFor(0), payFor: payFor,
+      kept: kept, back: back, rto: rto, keep: keep, saleValue: r0(P * q),
+      // where one payout goes, per order the buyer keeps; the parts add up to the payout
+      split: { goods: r0(costNet), gst: r0(P * (gstRate - taxBack)), returns: kept > 0 ? r0(risk / kept) : 0, pack: kept > 0 ? r0(pack / kept) : 0, profit: r0(perOrder) },
+      gstOut: r0(reg ? P * q * g / (100 + g) : 0), gstIn: r0(reg ? P * Math.max(0, q - 1 - q * tt) * 18 / 118 : 0), taxBack: r0(P * taxBack)
     };
   }
-  /* The seller's own averages for the price check, from the report of a period. */
-  function priceDefaults(R, RV, M, cfg) {
-    var K = R.K, CH = R.CH, G = RV ? RV.G : null, gs = {};
-    M.pay.forEach(function (p) { if (p.s > 0) gs[p.g] = (gs[p.g] || 0) + 1; });
+  /* The seller's own numbers for the price check: the shop's, or one SKU's when it has enough orders. */
+  function priceDefaults(R, RV, M, cfg, REC, sku) {
+    var K = R.K, G = RV ? RV.G : null, gs = {}, up = sku ? String(sku).toUpperCase() : '';
+    M.pay.forEach(function (p) { if (p.s > 0 && (!up || String(p.sku).toUpperCase() === up)) gs[p.g] = (gs[p.g] || 0) + 1; });
     var gst = +Object.keys(gs).sort(function (x, y) { return gs[y] - gs[x]; })[0] || +cfg.defaultGst || 5;
-    var sales = K.sales || 0;
-    return {
-      gst: gst, reg: !!cfg.gstReg, buy: +cfg.buyGst || 0, pack: +cfg.pack || 0,
-      ship: sales ? Math.round(-(CH.shipfwd.v + CH.shipadj.v) / sales) : 7000,
-      comm: K.S > 0 ? Math.round(-CH.comm.v / K.S * 10000) / 100 : 0,
-      retShip: G && G.ret.n ? Math.round(G.ret.retFee / G.ret.n) : 8000,
-      rtoFee: G && G.rto.n ? Math.round(G.rto.retFee / G.rto.n) : 0,
+    function paid(rows) {
+      var n = 0, f = 0, s = 0;
+      rows.forEach(function (r) { if (r.st === 'DELIVERED' && r.b === 'settled' && r.f > 0 && r.s > 0) { n++; f += r.f; s += r.s; } });
+      return { n: n, f: f, s: s };
+    }
+    var rows = REC ? REC.rows : [], all = paid(rows), own = up ? paid(rows.filter(function (r) { return String(r.sku).toUpperCase() === up; })) : all;
+    function kept1(g1, dflt) { return g1 && g1.n ? Math.max(0, Math.round((g1.retFee + g1.fwdShip + g1.fees - g1.back) / g1.n)) : dflt; }
+    var d = {
+      pay: own.n ? Math.round(own.f / own.n) : all.n ? Math.round(all.f / all.n) : 40000, n: own.n,
+      q: own.n >= 3 ? own.s / own.f : all.n >= 5 ? all.s / all.f : 1.2,
+      tt: K.S > 0 ? Math.max(0, (-K.T - K.D) / K.S) : 0.006,
+      gst: gst, reg: !!cfg.gstReg, buy: +cfg.buyGst || 0, pack: +cfg.pack || 0, claim: cfg.taxCredits !== 'expense',
+      retLoss: kept1(G && G.ret, 12000), rtoLoss: kept1(G && G.rto, 3000),
       rto: RV && RV.done >= 20 ? RV.rtoRate + RV.lostRate : 0.15, ret: RV && RV.delivered >= 20 ? RV.retRate : 0.1,
-      loss: cfg.returnDefault === 'loss' ? 1 : 0, sales: sales
+      loss: cfg.returnDefault === 'loss' ? 1 : 0, sales: K.sales || 0
     };
+    // a SKU's own RTO and return rates once it has enough orders
+    var rv = up && RV ? RV.skus.filter(function (x) { return String(x.sku).toUpperCase() === up; })[0] : null;
+    if (rv && rv.done >= 15) { d.rto = rv.rtoRate; if (rv.delivered >= 15) d.ret = rv.retRate; }
+    return d;
   }
 
   /* ---------------- money to claim from Meesho ----------------
@@ -2353,14 +2373,14 @@ details.more[open] > summary { margin-bottom: 10px; }
       askAccess('pnlDl');
       return;
     }
-    busy(kind === 'xlsx' ? 'Building the Excel file' : 'Building the PDF');
+    busy(kind === 'xlsx' ? 'Building the Excel file' : kind === 'easy' ? 'Building your summary' : 'Building the PDF');
     try {
       await libs(kind === 'xlsx' ? ['XLSX'] : ['jsPDF']);
-      if (kind === 'pdf') await pdfFonts();
-      var ctx = { S: S, E: E, w: W(), cfg: cfg() };
+      if (kind !== 'xlsx') await pdfFonts();
+      var ctx = { S: S, E: E, w: W(), cfg: cfg(), kind: kind === 'easy' ? 'summary' : 'report' };
       var blob = kind === 'xlsx' ? window.HX.xlsx(ctx) : window.HX.pdf(ctx);
       busy();
-      await saveBlob(fileSlug() + '.' + kind, blob);
+      await saveBlob(fileSlug() + (kind === 'easy' ? '_Summary.pdf' : '.' + kind), blob);
     } catch (e) {
       busy(); console.error(e);
       toast(e && e.message ? e.message : 'Could not build the file.', 6000);
@@ -2566,23 +2586,24 @@ details.more[open] > summary { margin-bottom: 10px; }
   /* ---------------- price check state (not saved) ---------------- */
   A.pcState = function () {
     if (S.pc) return S.pc;
-    var st = cfg(), d = hasData() && S.R.K.sales ? E.priceDefaults(S.R, S.RV, S.M, st) : null;
-    S.pc = { sku: '', price: 49900, cost: 20000, pcs: 1, pack: st.pack || 1000, gst: d ? d.gst : (+st.defaultGst || 5), buy: +st.buyGst || 0,
-      ship: d ? d.ship : 7000, retShip: d ? d.retShip : 8000, rtoFee: d ? d.rtoFee : 0, comm: d ? d.comm : 0, rto: d ? d.rto : 0.15, ret: d ? d.ret : 0.1, loss: d ? d.loss : 0, target: 0, own: !!d };
+    var st = cfg(), d = hasData() && S.R.K.sales ? E.priceDefaults(S.R, S.RV, S.M, st, S.REC) : null;
+    S.pc = Object.assign({ pay: 40000, n: 0, q: 1.2, tt: 0.006, gst: +st.defaultGst || 5, buy: +st.buyGst || 0, claim: st.taxCredits !== 'expense',
+      retLoss: 12000, rtoLoss: 3000, rto: 0.15, ret: 0.1, loss: st.returnDefault === 'loss' ? 1 : 0 }, d || {}, { sku: '', cost: 20000, pcs: 1, target: 0, own: !!d });
+    S.pc.pack = st.pack || 1000;
+    S.pc.pay = Math.round(S.pc.pay / 100) * 100; // whole rupees, as the Supplier Panel shows it
     return S.pc;
   };
+  /* A product's own numbers: its average payout, sale value, GST rate and return rates from the files; cost and packing from the Costs tab. */
   function pcSku(sku) {
-    var p = A.pcState(); p.sku = sku;
     var x = S.R.skus.filter(function (s) { return s.sku === sku; })[0];
     if (!x) return;
+    var st = cfg(), p = A.pcState();
+    Object.assign(p, E.priceDefaults(S.R, S.RV, S.M, st, S.REC, sku), { sku: sku, own: true, pcs: x.pcs || 1 });
+    p.pay = Math.round(p.pay / 100) * 100;
     var c = W().costs[sku] || W().costs[Object.keys(W().costs).filter(function (k) { return k.toUpperCase() === sku.toUpperCase(); })[0]];
-    p.price = x.avgPrice || p.price; p.pcs = x.pcs || 1;
     if (c && c.c != null) p.cost = +c.c;
-    if (c && c.p != null) p.pack = +c.p;
+    p.pack = c && c.p != null ? +c.p : (st.pack || 0);
     if (c && c.b != null) p.buy = +c.b;
-    var rv = S.RV && S.RV.skus.filter(function (s) { return s.sku === sku; })[0];
-    // a SKU's own RTO and return rates once it has enough orders, otherwise the shop's
-    if (rv && rv.done >= 15) { p.rto = rv.rtoRate; if (rv.delivered >= 15) p.ret = rv.retRate; }
   }
   function copyText(text, done) {
     function fallback() {
@@ -2599,6 +2620,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     basis: function (el) { S.sel.basis = el.getAttribute('data-v'); lsSet('ui', { sel: { basis: S.sel.basis } }); refresh(); },
     xlsx: function (el) { A.markDl(); exportFile('xlsx', el); },
     pdf: function (el) { A.markDl(); exportFile('pdf', el); },
+    pdfEasy: function (el) { A.markDl(); exportFile('easy', el); },
     share: function () { A.shareSummary(); },
     lang: function (el) { setLang(el.getAttribute('data-v')); },
     unlock: function () { askAccess('pnl'); },
@@ -2767,7 +2789,6 @@ details.more[open] > summary { margin-bottom: 10px; }
       if (v === null || v < 0) return;
       if (k === 'pcs') p.pcs = Math.max(1, Math.round(v));
       else if (k === 'rto' || k === 'ret' || k === 'loss') p[k] = Math.min(100, v) / 100;
-      else if (k === 'comm') p.comm = Math.min(100, v);
       else p[k] = Math.round(v * 100);
       pcOut();
     }
@@ -3034,7 +3055,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       { ok: !R.missing.length, t: 'Add product cost for ' + pl(R.missing.length, 'SKU'), why: 'Without costs, profit looks higher than it really is.', d: 'Product costs added', b: 'Add costs', a: 'data-act="tab" data-tab="costs"' },
       { ok: !K.rdef || flag('hisaab:rv'), t: 'Check ' + pl(K.rdef, 'return') + ': resellable or not', why: 'Mark items that came back damaged, so your stock cost is right.', d: 'Returns checked', b: 'Check', a: 'data-act="rcgo" data-b="returned"' },
       { ok: exp, opt: true, t: 'Add other costs like packing, rent or staff', why: 'Costs outside Meesho, spread over the month.', d: 'Other costs added', b: 'Add', a: 'data-act="tab" data-tab="exp"' },
-      { ok: flag('hisaab:dl'), t: 'Download your P&L report', why: 'PDF or Excel, to keep or to share with your CA.', d: 'Report downloaded', b: 'Download PDF', a: 'data-act="pdf"' }
+      { ok: flag('hisaab:dl'), t: 'Download your P&L report', why: 'An easy summary for you, or the full report for your CA.', d: 'Report downloaded', b: 'Easy summary PDF', a: 'data-act="pdfEasy"' }
     ];
     var done = steps.filter(function (x) { return x.ok; }), open = steps.filter(function (x) { return !x.ok; });
     if (!open.length || flag('hisaab:steps')) return '';
@@ -3122,7 +3143,8 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<div class="row"><span class="small muted">Count sales by</span><div class="seg" role="group" aria-label="Count sales by">' +
       '<button data-act="basis" data-v="pay" aria-pressed="' + (S.sel.basis === 'pay') + '">Payment date</button>' +
       '<button data-act="basis" data-v="order" aria-pressed="' + (S.sel.basis === 'order') + '">Order date</button></div></div></div>' +
-      '<div class="dl"><button class="btn pri" data-act="xlsx">Download Excel</button><button class="btn" data-act="pdf">Download PDF</button><button class="btn wa" data-act="share">Share on WhatsApp</button></div></div></section>';
+      '<div class="dl"><button class="btn pri" data-act="pdfEasy">Easy summary PDF</button><button class="btn" data-act="pdf">Full report PDF (for CA)</button><button class="btn" data-act="xlsx">Excel</button><button class="btn wa" data-act="share">Share on WhatsApp</button></div>' +
+      '<p class="small muted" style="margin:6px 0 0">Easy summary: your profit in plain words, on two pages. Full report: the statement your accountant needs.</p></div></section>';
 
     if (!S.H.legs) {
       h += '<div class="note bad"><p>Add the payment report to see profit. The orders report alone has no settlement amounts.</p></div>';
@@ -3285,49 +3307,66 @@ details.more[open] > summary { margin-bottom: 10px; }
   }
   A.claimsData = claimsData;
 
-  /* ---------------- Price check: what to charge, with your own Meesho numbers ---------------- */
+  /* ---------------- Price check: what a product earns, from what Meesho pays per order ----------------
+     The price buyers see moves with offers and delivery charges, so the check starts from the payout
+     (the bank settlement Meesho shows in the Supplier Panel). */
   function pcInp(k, v, label, unit, hint) {
     return '<label class="f">' + label + '<span class="pc-in">' + (unit === '₹' ? '<i>₹</i>' : '') + '<input class="inp" inputmode="decimal" data-in="pc" data-k="' + k + '" value="' + esc(v) + '">' + (unit === '%' ? '<i>%</i>' : '') + '</span>' + (hint ? '<span class="small muted">' + hint + '</span>' : '') + '</label>';
   }
   V.calc = function () {
-    var p = A.pcState(), st = A.cfg();
+    var p = A.pcState(), st = A.cfg(), reg = !!st.gstReg;
     var skus = A.hasData() ? S.R.skus : [];
     var opts = '<option value="">A new product</option>' + skus.map(function (x) { return '<option value="' + esc(x.sku) + '"' + (p.sku === x.sku ? ' selected' : '') + '>' + esc(x.sku) + (x.pn ? ' · ' + esc(x.pn.slice(0, 40)) : '') + '</option>'; }).join('');
     var r = function (v) { return A.rupeeInput(v); }, q = function (v) { return String(Math.round(v * 1000) / 10); };
-    var h = '<section class="sheet"><h2>Price check</h2><p class="muted" style="margin:6px 0 12px">What a product really earns you on Meesho at a price, after shipping, returns, RTO, GST and packaging' + (p.own ? ', using your own numbers from your Meesho files' : '') + '. Change any number to try another price.</p>' +
+    var payHint = p.n ? 'Average of your ' + p.n + ' paid orders' + (p.sku ? ' of this product' : '') : 'The bank settlement Meesho shows when you set the price';
+    var main = '<section class="sheet"><h2>Price check</h2><p class="muted" style="margin:6px 0 12px">Will a product make money? Enter what Meesho pays you for one order: the bank settlement shown in the Supplier Panel when you set the price. Buyer prices change with offers; your payout does not.</p>' +
       (skus.length ? '<label class="f">Product<select class="inp" data-ch="pcsku">' + opts + '</select></label>' : '') +
-      '<div class="pc-g">' + pcInp('price', r(p.price), 'Price the buyer pays', '₹') + pcInp('cost', r(p.cost), 'Your cost per piece', '₹', 'As paid, with GST') +
-      pcInp('pcs', String(p.pcs), 'Pieces in one order', '') + pcInp('pack', r(p.pack), 'Packaging per parcel', '₹') +
-      '<label class="f">Product GST<select class="inp" data-ch="pcgst">' + [0, 3, 5, 12, 18].map(function (g) { return '<option value="' + g + '"' + (+p.gst === g ? ' selected' : '') + '>' + g + '%</option>'; }).join('') + '</select></label>' +
-      '<label class="f">Your purchase bill<select class="inp" data-ch="pcbuy">' + buyOptions(String(p.buy), st) + '</select></label></div>' +
-      '<details class="more" style="margin-top:12px"' + (S.pcMore ? ' open' : '') + ' id="pc-more"><summary>Meesho charges, RTO and returns' + (p.own ? ' (from your files)' : '') + '</summary><div class="pc-g" style="margin-top:10px">' +
-      pcInp('ship', r(p.ship), 'Shipping per order', '₹', 'With GST') + pcInp('retShip', r(p.retShip), 'Return shipping', '₹', 'Per customer return') +
-      pcInp('rtoFee', r(p.rtoFee), 'RTO charge', '₹', 'Per RTO parcel') + pcInp('comm', String(p.comm), 'Meesho commission', '%') +
+      '<div class="pc-g" style="margin-top:10px">' + pcInp('pay', r(p.pay), 'Meesho pays you per order', '₹', payHint) + pcInp('cost', r(p.cost), 'Your cost per piece', '₹', 'What you paid, with GST') +
+      pcInp('pcs', String(p.pcs), 'Pieces in one order', '') + pcInp('pack', r(p.pack), 'Packaging per parcel', '₹') + '</div>' +
+      (reg ? '<div class="pc-g" style="margin-top:10px"><label class="f">Product GST<select class="inp" data-ch="pcgst">' + [0, 3, 5, 12, 18].map(function (g) { return '<option value="' + g + '"' + (+p.gst === g ? ' selected' : '') + '>' + g + '%</option>'; }).join('') + '</select></label>' +
+        '<label class="f">Your purchase bill<select class="inp" data-ch="pcbuy">' + buyOptions(String(p.buy), st) + '</select></label></div>'
+        : '<p class="small muted" style="margin:10px 0 0">Not GST registered (Settings), so there is no GST to pay on sales.</p>') + '</section>';
+    var tune = '<section class="sheet"><h3>Fine-tune</h3>' +
+      '<div class="pc-g" style="margin-top:10px">' + pcInp('target', r(p.target), 'Profit you want per order', '₹', 'See the payout you need for it') + '</div>' +
+      '<details class="more" style="margin-top:12px"' + (S.pcMore ? ' open' : '') + ' id="pc-more"><summary>Returns and RTO' + (p.own ? ' (from your files)' : '') + '</summary><div class="pc-g" style="margin-top:10px">' +
       pcInp('rto', q(p.rto), 'RTO', '%', 'Of parcels shipped') + pcInp('ret', q(p.ret), 'Customer returns', '%', 'Of orders delivered') +
-      pcInp('loss', q(p.loss), 'Returns not resellable', '%') + '</div></details>' +
-      '<div class="row" style="margin-top:12px">' + pcInp('target', r(p.target), 'Profit you want per order', '₹') + '</div></section>' +
-      '<div id="pc-out">' + V.pcOut() + '</div>';
-    return '<div class="stack">' + (A.hasData() ? demoBar() : '') + h + '</div>';
+      pcInp('retLoss', r(p.retLoss), 'Meesho keeps on a return', '₹', 'Shipping both ways and fees') + pcInp('rtoLoss', r(p.rtoLoss), 'Meesho keeps on an RTO', '₹', 'RTO charges') +
+      pcInp('loss', q(p.loss), 'Returns that cannot be sold again', '%') + '</div></details></section>';
+    return '<div class="stack">' + (A.hasData() ? demoBar() : '') + main + '<div id="pc-out">' + V.pcOut() + '</div>' + tune + '</div>';
   };
   V.pcOut = function () {
     var p = A.pcState(), st = A.cfg(), o = Object.assign({}, p, { reg: !!st.gstReg }), r = E.priceCheck(o);
-    // whole rupees: profit rounded, prices rounded up (below break-even you lose money)
+    // whole rupees: profit rounded, payouts needed rounded up
     var rr = function (v) { return Math.round(v / 100) * 100 || 0; }, up = function (v) { return Math.ceil(v / 100) * 100 || 0; };
-    var po1 = rr(r.perOrder), be = up(r.breakEven);
-    var rows = [0.9, 1, 1.1, 1.2].map(function (f) {
-      var pr = Math.round(p.price * f / 100) * 100, x = E.priceCheck(Object.assign({}, o, { price: pr }));
-      var po = rr(x.perOrder);
-      return '<tr' + (f === 1 ? ' class="tot"' : '') + '><td>' + rs(pr, true) + '</td><td class="n' + (po < 0 ? ' neg' : '') + '">' + rs(po, true) + '</td><td class="n">' + pct(x.margin) + '</td></tr>';
+    var po = rr(r.perOrder), be = up(r.breakEven), m = r.margin, want = p.target ? up(r.payFor(p.target)) : 0;
+    var tone = po < 0 ? 'loss' : m < 0.08 ? 'thin' : m < 0.2 ? 'ok' : 'good';
+    var verdict = { loss: 'You lose money on this product', thin: 'Very thin profit', ok: 'Fair profit', good: 'Healthy profit' }[tone];
+    // where the payout goes, per order the buyer keeps
+    var sp = r.split, parts = [['goods', 'Your goods', sp.goods], ['returns', 'Returns and RTO', sp.returns], ['gst', 'GST to pay', sp.gst], ['pack', 'Packaging', sp.pack], ['profit', 'Your profit', sp.profit]];
+    var shown = parts.filter(function (x) { return x[2] > 0; }), tot = shown.reduce(function (t, x) { return t + x[2]; }, 0);
+    var bar = tot > 0 ? '<div class="pc-split" role="img" aria-label="Where the payout goes">' + shown.map(function (x) { return '<i class="s-' + x[0] + '" style="flex:' + x[2] + ' 1 0"></i>'; }).join('') + '</div>' : '';
+    var leg = '<div class="pc-leg">' + shown.map(function (x) { return '<span><i class="s-' + x[0] + '"></i>' + x[1] + ' <b>' + rs(rr(x[2]), true) + '</b></span>'; }).join('') +
+      (sp.gst < 0 ? '<span>GST credit <b>+' + rs(rr(-sp.gst), true) + '</b></span>' : '') + (sp.profit < 0 ? '<span class="neg">Short by <b>' + rs(rr(-sp.profit), true) + '</b></span>' : '') + '</div>';
+    var step = Math.max(1000, Math.round(p.pay * 0.05 / 1000) * 1000);
+    var rows = [-2, -1, 0, 1, 2].map(function (k) {
+      var pay = p.pay + k * step; if (pay <= 0) return '';
+      var x = E.priceCheck(Object.assign({}, o, { pay: pay })), v = rr(x.perOrder);
+      return '<tr' + (k ? '' : ' class="tot"') + '><td>' + rs(pay, true) + '</td><td class="n' + (v < 0 ? ' neg' : '') + '">' + rs(v, true) + '</td><td class="n">' + pct(x.margin) + '</td></tr>';
     }).join('');
-    var parts = r.parts, labels = [['revenue', 'Sales kept, without GST'], ['comm', 'Commission'], ['ship', 'Shipping'], ['retShip', 'Return shipping'], ['rtoFee', 'RTO charges'], ['goods', 'Cost of goods kept by buyers'], ['lost', 'Goods that came back unsellable'], ['pack', 'Packaging']];
-    var want = p.target ? up(r.priceFor(p.target)) : 0;
-    return '<section class="sheet pc-out"><div class="pc-big"><small>Profit per delivered order</small><strong class="' + (po1 < 0 ? 'neg' : 'pos') + '">' + rs(po1, true) + '</strong>' +
-      '<span class="small muted">' + rs(rr(r.perParcel), true) + ' per parcel shipped, after RTO and returns · ' + pct(r.margin) + ' of sales</span></div>' +
-      '<div class="way-g" style="margin-top:12px"><div><small>Break-even price</small><strong class="' + (be > p.price ? 'neg' : '') + '">' + rs(be, true) + '</strong><span class="small muted">' + (be > p.price ? 'Your price is below this, so you lose money' : 'Below this you lose money') + '</span></div>' +
-      (p.target ? '<div><small>Price for ' + rs(p.target, true) + ' per order</small><strong>' + rs(want, true) + '</strong><span class="small muted">What the buyer would pay</span></div>' : '') + '</div>' +
-      '<div class="tw" style="margin-top:12px"><table class="t"><thead><tr><th>Price</th><th class="n">Profit per order</th><th class="n">Margin</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
-      '<details class="more" style="margin-top:10px"><summary>How it is worked out (per parcel shipped)</summary>' + kv(labels.filter(function (x) { return parts[x[0]]; }).map(function (x) { return [x[1], parts[x[0]]]; }).concat([['Profit per parcel shipped', r.perParcel, true]])) +
-      '<p class="small muted" style="margin:8px 0 0">' + Math.round(r.kept * 100) + ' of every 100 parcels are delivered and kept. ' + (st.gstReg ? 'GST in the price goes to the government; GST in Meesho’s charges and on a GST purchase bill comes back as input credit. ' : 'Not GST registered (Settings): GST is part of every price and cost. ') + 'TCS and TDS come back, so they are left out. Ads and monthly expenses are not included.</p></details></section>';
+    var how = [['Meesho pays you', p.pay]];
+    if (st.gstReg) { how.push(['GST on the sale (sale value about ' + rs(r.saleValue, true) + ')', -r.gstOut]); how.push(['GST in Meesho’s fees, which comes back', r.gstIn]); }
+    if (r.taxBack) how.push(['TCS and TDS, which come back', r.taxBack]);
+    how.push(['Your goods', -sp.goods], ['Returns and RTO, shared over the orders kept', -sp.returns], ['Packaging, shared over the orders kept', -sp.pack], ['You keep per order', sp.profit, true]);
+    return '<section class="sheet pc-out"><span class="tag ' + (tone === 'loss' ? 'bad' : tone === 'thin' ? 'warn' : 'good') + '">' + verdict + '</span>' +
+      '<div class="pc-big" style="margin-top:8px"><small>You keep on each order the buyer keeps</small><strong class="' + (po < 0 ? 'neg' : 'pos') + '">' + rs(po, true) + '</strong>' +
+      '<span class="small muted">' + (p.pay > 0 ? pct(m) + ' of the payout. ' : '') + 'After RTO and returns: ' + rs(rr(r.perParcel), true) + ' for every parcel you ship.</span></div>' +
+      (bar ? '<h3 style="margin-top:14px">Where the ' + rs(p.pay, true) + ' payout goes</h3>' + bar + leg : '') +
+      '<div class="way-g" style="margin-top:12px"><div><small>Lowest payout without a loss</small><strong class="' + (be > p.pay ? 'neg' : '') + '">' + rs(be, true) + '</strong><span class="small muted">' + (be > p.pay ? 'Raise your price until Meesho pays at least this' : 'Below this you lose money on each order') + '</span></div>' +
+      (p.target ? '<div><small>Payout for ' + rs(p.target, true) + ' profit per order</small><strong>' + rs(want, true) + '</strong><span class="small muted">Set your price so the bank settlement is this</span></div>' : '') + '</div>' +
+      '<div class="tw" style="margin-top:12px"><table class="t"><thead><tr><th>Meesho pays</th><th class="n">You keep</th><th class="n">Margin</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<details class="more" style="margin-top:10px"><summary>How it is worked out</summary>' + kv(how) +
+      '<p class="small muted" style="margin:8px 0 0">Out of every 100 parcels, ' + Math.round(r.kept * 100) + ' are kept by the buyer, ' + Math.round(r.back * 100) + ' come back as returns and ' + Math.round(r.rto * 100) + ' as RTO. ' +
+      (st.gstReg ? 'The sale value is the payout × ' + (Math.round(p.q * 100) / 100) + (p.own ? ', as in your files' : '') + ': Meesho adds its fees and delivery charges on top of what it pays you. ' : '') + 'Ads and monthly expenses are not included.</p></details></section>';
   };
 
   /* ---------------- Reconcile ---------------- */
@@ -4083,6 +4122,215 @@ details.more[open] > summary { margin-bottom: 10px; }
     function newPage() { doc.addPage(); cursor = TOP + 4; }
     function ensure(h) { if (cursor + h > PH - BOT) newPage(); }
 
+    /* ================= the easy summary: two pages in plain words, for sellers who are not accountants ================= */
+    if (ctx.kind === 'summary') return easySummary();
+    function easySummary() {
+      var NS = R.NS, NP = R.NP, lost = NP < 0, CREAM = [255, 252, 244];
+      // the money story in rupees: the sales, then everything that came out of them, down to the profit
+      var story = [{ l: 'Sales, after returns', v: NS, sub: K.sales + ' orders sold' + (K.retn ? ', ' + K.retn + ' sent back by buyers' : '') }];
+      if (NS - R.NR > 0) story.push({ l: 'GST you collect for the government', v: -(NS - R.NR) });
+      var LBL = { cogs: 'Cost of the products you sold', charges: 'Meesho’s fees and shipping', credit: 'Claims and credits from Meesho', ads: 'Meesho Ads', opex: 'Your expenses', other: 'Taxes and other costs' };
+      groups.forEach(function (g) {
+        var k = kindOf(g.l);
+        if ((g.pre && k === 'rev') || !Math.round(g.tot.v)) return;
+        var e = { l: LBL[k] || g.l, v: g.tot.v };
+        if (k === 'opex') e.subs = g.rows.filter(function (r) { return r.k === 'row' && Math.round(r.v); }).slice(0, 4).map(function (r) { return [r.l, r.v]; });
+        if (k === 'cogs' && K.fu) e.sub = K.fu + ' pieces shipped' + (K.ru ? ', ' + K.ru + ' came back into stock' : '');
+        if (k === 'charges') e.sub = 'Kept by Meesho from your payments';
+        story.push(e);
+      });
+      var gap = NP - story.reduce(function (t, e) { return t + e.v; }, 0);
+      if (Math.abs(gap) > 2) story.push({ l: 'Other', v: gap });
+
+      /* ---------- page 1 ---------- */
+      var BH = 150;
+      fill(INDIGO);
+      doc.moveTo(0, 0); doc.lineTo(PW, 0); doc.lineTo(PW, BH);
+      (function () { var n = Math.round(PW / 14), w = PW / n; for (var i = n; i > 0; i--) { doc.lineTo(i * w - w / 2, BH + 7); doc.lineTo((i - 1) * w, BH); } })();
+      doc.close(); doc.fill();
+      alpha(0.45); fill(BRAND); doc.circle(PW - 30, 10, 120, 'F'); alpha(1);
+      wallpaper(0, 0, PW, BH - 6, { seed: 7707, pad: 14, gap: 48, size: 21, color: WHITE, alpha: 0.12, lw: 0.9 });
+      mark(M - 6, 18, 40, false);
+      ink(WHITE); font(FN.disp, 'bold', 15); doc.text('PakkaBill', M + 36, 40);
+      ink(LAV); font(FN.disp, 'normal', 7.8); doc.text('Your Meesho shop, in plain words', M + 36, 51);
+      (function () { font(FN.disp, 'bold', 7); var lab = 'EASY SUMMARY', w = capsW(lab, 1) + 18, x = PW - M - w; fill(CORAL); doc.roundedRect(x, 28, w, 18, 9, 9, 'F'); ink(WHITE); caps(lab, x + 9, 40, 1); })();
+      ink(WHITE); font(FN.disp, 'bold', 27); doc.text('How did my shop do?', M, 100);
+      ink(LAV); font(FN.serif, 'normal', 10.5); doc.text(a(biz + '  ·  ' + fd(per.from) + ' to ' + fd(per.to)), M, 120);
+
+      // the answer, big
+      var y = BH + 46, LW = 300;
+      ink(GREY); font(FN.serif, 'italic', 13); doc.text(lost ? 'You lost' : 'You made a profit of', M, y);
+      ink(lost ? NEG : POS); font(FN.disp, 'bold', 44); var big = a(rup(Math.abs(NP))); doc.text(big, M, y + 44);
+      var bw = doc.getTextWidth(big);
+      squiggle(M + 2, y + 54, Math.min(bw, 200), CORAL, 1.8, 2.4);
+      alpha(0.95); ink(CORAL); font(FN.hand, 'normal', 15); doc.text(lost ? 'fix this!' : 'pakka!', M + bw + 12, y + 18, { angle: 8 }); alpha(1);
+      ink(INK); font(FN.serif, 'normal', 10.2);
+      var said = NS > 0 ? (lost ? 'Your costs were more than your sales.' : 'You kept ' + RS + (NP / NS * 100).toFixed(1) + ' from every ' + RS + '100 of sales') + (K.del && !lost ? ', or ' + rup(NP / K.del) + ' on each order the buyer kept.' : lost && K.del ? ' That is ' + rup(-NP / K.del) + ' lost on each order the buyer kept.' : '.') : '';
+      var sl = wrap(said, LW); doc.text(sl, M, y + 76);
+      if (R.missing.length) { ink(NEG); font(FN.serif, 'italic', 9); var ml = wrap('The cost of ' + R.missing.length + ' product' + (R.missing.length > 1 ? 's is' : ' is') + ' missing, so this profit shows too high. Add costs on the Costs tab.', LW); doc.text(ml, M, y + 80 + sl.length * 13); sl = sl.concat(ml); }
+
+      // the profit bill
+      function receipt(x, ry, w) {
+        var h = 58, i;
+        story.forEach(function (e) { h += 22 + (e.sub ? 10 : 0) + (e.subs && e.subs.length ? e.subs.length * 12 + 2 : 0); });
+        h += 52;
+        var n = Math.round(w / 9), tw = w / n;
+        fill(CREAM); stroke(RULE); doc.setLineWidth(0.8);
+        doc.moveTo(x, ry + 4);
+        for (i = 0; i < n; i++) { doc.lineTo(x + i * tw + tw / 2, ry); doc.lineTo(x + (i + 1) * tw, ry + 4); }
+        doc.lineTo(x + w, ry + h - 4);
+        for (i = n; i > 0; i--) { doc.lineTo(x + i * tw - tw / 2, ry + h); doc.lineTo(x + (i - 1) * tw, ry + h - 4); }
+        doc.close(); doc.fillStroke();
+        var lx = x + 16, rx = x + w - 16, yy = ry + 24;
+        ink(INK); font(FN.disp, 'bold', 9.5); var t = 'PROFIT BILL'; caps(t, x + w / 2 - capsW(t, 1.8) / 2, yy, 1.8);
+        ink(GREY); font(FN.serif, 'normal', 7.8); doc.text(a(per.label), x + w / 2, yy + 11, { align: 'center' });
+        function dash(yd) { stroke(GREY); doc.setLineWidth(0.6); doc.setLineDashPattern([2, 2], 0); doc.line(lx, yd, rx, yd); doc.setLineDashPattern([], 0); }
+        dash(yy + 19); yy += 38;
+        story.forEach(function (e) {
+          ink(INK); font(FN.serif, 'normal', 9.6); doc.text(a(e.l), lx, yy, { maxWidth: w - 120 });
+          font(FN.disp, 'bold', 10); ink(e.v < 0 ? INK : POS);
+          doc.text((e.v < 0 ? MINUS + ' ' : '+ ') + a(rup(Math.abs(e.v))), rx, yy, { align: 'right' });
+          if (e.sub) { ink(GREY); font(FN.serif, 'italic', 7.8); doc.text(a(e.sub), lx, yy + 10); yy += 10; }
+          (e.subs || []).forEach(function (sb, k) {
+            ink(GREY); font(FN.serif, 'normal', 8); doc.text(a(sb[0]), lx + 10, yy + 12 + k * 12);
+            doc.text(a(rup(Math.abs(sb[1]))), rx - 70, yy + 12 + k * 12, { align: 'right' });
+          });
+          if (e.subs && e.subs.length) yy += e.subs.length * 12 + 2;
+          yy += 22;
+        });
+        dash(yy - 10); dash(yy - 7);
+        ink(INK); font(FN.disp, 'bold', 12); doc.text(lost ? 'Your loss' : 'Your profit', lx, yy + 12);
+        ink(lost ? NEG : POS); font(FN.disp, 'bold', 16); doc.text((lost ? MINUS + ' ' : '= ') + a(rup(Math.abs(NP))), rx, yy + 13, { align: 'right' });
+        ink(GREY); font(FN.serif, 'italic', 7.2); doc.text('Rounded to the nearest rupee', lx, yy + 26);
+        return h;
+      }
+      var ry = y + 92 + sl.length * 13, rh = receipt(M, ry, LW);
+
+      // right column: money that reached the bank, orders, what came back
+      var cx = M + LW + 18, cw = PW - M - cx, cy = BH + 26;
+      var pds = S.PO.map(function (p) { return p.d; }).filter(Boolean).sort();
+      var cards = [
+        ['MEESHO SENT TO YOUR BANK', rup(R.payout), S.PO.length + ' payment' + (S.PO.length === 1 ? '' : 's') + (pds.length ? ', ' + fd(pds[0]) + ' to ' + fd(pds[pds.length - 1]) : ''), 'coins'],
+        ['ORDERS', K.sales + ' sold', K.del + ' kept by buyers', 'bag'],
+        ['CAME BACK', K.rton + ' RTO  ·  ' + K.retn + ' returns', RV_OK ? pc(RV.rtoRate) + ' of parcels and ' + pc(RV.retRate) + ' of deliveries' : 'RTO and customer returns', 'truck']
+      ];
+      cards.forEach(function (c) {
+        fill(WHITE); stroke(RULE); doc.setLineWidth(0.8); doc.roundedRect(cx, cy, cw, 66, 9, 9, 'FD');
+        alpha(0.5); icon(c[3], cx + cw - 22, cy + 22, 22, -0.1, BRAND, 1.1); alpha(1);
+        ink(GREY); font(FN.disp, 'bold', 6.6); caps(c[0], cx + 12, cy + 17, 0.8);
+        ink(INK); font(FN.disp, 'bold', c[1].length > 14 ? 13 : 17); doc.text(a(c[1]), cx + 12, cy + 39);
+        ink(GREY); font(FN.serif, 'normal', 7.8); doc.text(wrap(c[2], cw - 22), cx + 12, cy + 53);
+        cy += 76;
+      });
+      // why profit is not the money Meesho sent
+      fill(SOFT); doc.roundedRect(cx, cy, cw, 128, 9, 9, 'F');
+      ink(INDIGO); font(FN.disp, 'bold', 9.5); doc.text(wrap('Why is profit not the money Meesho sent?', cw - 24), cx + 12, cy + 18);
+      ink(INK); font(FN.serif, 'normal', 8.4);
+      doc.text(wrap('Meesho’s payments are your sales after its fees. Out of them you still paid for the products, packing and your other costs' + (R.REGD ? ', and GST goes to the government' : '') + '. What is left is your profit.', cw - 24), cx + 12, cy + 44);
+      cy += 138;
+      if (tied) stamp(cx + cw / 2, cy + 52, 46, GOLD, -12, 'MATCHED WITH MEESHO', 'TO THE PAISA', 'PAKKA');
+
+      // where every ₹100 went, under the bill
+      var hy = Math.max(ry + rh, cy + 110) + 30;
+      if (hy < PH - BOT - 70) hundred(hy);
+
+      /* ---------- page 2 ---------- */
+      newPage();
+      function head2(t, sub, ic) {
+        ensure(80);
+        var yy = cursor + 24;
+        ink(INK); font(FN.disp, 'bold', 15); doc.text(a(t), M, yy);
+        squiggle(M + 1, yy + 6, Math.min(doc.getTextWidth(a(t)), 110), CORAL, 1.2, 1.8);
+        if (ic) { alpha(0.8); icon(ic, PW - M - 12, yy - 5, 22, -0.12, BRAND, 1.05); alpha(1); }
+        yy += 14;
+        if (sub) { ink(GREY); font(FN.serif, 'italic', 8.8); var l = wrap(sub, CW - 40); doc.text(l, M, yy + 4); yy += l.length * 11; }
+        cursor = yy + 4;
+      }
+      function prodRow(x, i, col) {
+        ensure(40);
+        var yy = cursor + 22;
+        fill(col); doc.circle(M + 10, yy - 4, 9, 'F'); ink(WHITE); font(FN.disp, 'bold', 9); doc.text(String(i + 1), M + 10, yy - 0.8, { align: 'center' });
+        ink(INK); font(FN.disp, 'bold', 10.5); doc.text(a(x.sku), M + 28, yy - 4);
+        ink(GREY); font(FN.serif, 'normal', 8.2); doc.text(a((x.pn || '').slice(0, 60)), M + 28, yy + 7);
+        ink(x.contrib < 0 ? NEG : POS); font(FN.disp, 'bold', 12); doc.text(a((x.contrib < 0 ? MINUS : '') + rup(Math.abs(x.contrib))), PW - M, yy - 3, { align: 'right' });
+        ink(GREY); font(FN.serif, 'normal', 8); doc.text(a(x.sold + ' orders' + (x.delivered ? '  ·  ' + rup(x.perOrder) + ' per order kept' : '')), PW - M, yy + 8, { align: 'right' });
+        stroke(RULE); doc.setLineWidth(0.5); doc.line(M, yy + 15, PW - M, yy + 15);
+        cursor = yy + 15;
+      }
+      var ranked = R.skus.slice().sort(function (p, q) { return q.contrib - p.contrib; });
+      var best = ranked.filter(function (x) { return x.contrib > 0; }).slice(0, 3), worst = ranked.filter(function (x) { return x.contrib < 0; }).reverse().slice(0, 3);
+      if (best.length) { head2('Your best products', 'Profit after the product cost, Meesho’s fees and packing, before ads and monthly expenses.', 'star'); best.forEach(function (x, i) { prodRow(x, i, POS); }); }
+      if (worst.length) { head2('Products that lost money', 'These cost you more than they earned. Raise their price, or stop selling them.', 'percent'); worst.forEach(function (x, i) { prodRow(x, i, NEG); }); }
+
+      // profit month by month (one series, so the title names it and there is no legend)
+      if (S.MO.length > 1) {
+        head2('Profit month by month', 'After every cost, including ads and monthly expenses.', 'chart');
+        var MO = S.MO.slice(-12), ch = 96, lo = 0, hi = 0;
+        MO.forEach(function (m) { hi = Math.max(hi, m.NP); lo = Math.min(lo, m.NP); });
+        ensure(ch + 40);
+        var top = cursor + 22, span = (hi - lo) || 1, sc = ch / span, base = top + hi * sc, slot = CW / MO.length, bw = Math.min(24, slot * 0.5);
+        stroke(GREY); doc.setLineWidth(0.6); doc.line(M, base, PW - M, base);
+        MO.forEach(function (m, i) {
+          var cxm = M + slot * i + slot / 2, hgt = Math.abs(m.NP) * sc, yb = m.NP >= 0 ? base - hgt : base, r = Math.min(4, bw / 2, hgt / 2);
+          if (hgt > 0.5) {
+            fill(m.NP < 0 ? NEG : SEG.np); doc.roundedRect(cxm - bw / 2, yb, bw, hgt, r, r, 'F');
+            if (hgt > r) doc.rect(cxm - bw / 2, m.NP > 0 ? base - Math.min(hgt, r) : base, bw, Math.min(hgt, r), 'F');
+          }
+          ink(INK); font(FN.disp, 'bold', 8); doc.text(a((m.NP < 0 ? MINUS : '') + rup(Math.abs(m.NP))), cxm, m.NP >= 0 ? yb - 4 : yb + hgt + 10, { align: 'center' });
+          ink(GREY); font(FN.disp, 'normal', 8); doc.text(a(E.fmtMonth(m.m)), cxm, base - lo * sc + (lo < 0 ? 22 : 13), { align: 'center' });
+        });
+        cursor = base - lo * sc + (lo < 0 ? 26 : 18);
+      }
+
+      // what to do next, from the shop's own numbers
+      var tips = [];
+      if (R.missing.length) tips.push(['Add the cost of ' + R.missing.length + ' product' + (R.missing.length > 1 ? 's' : '') + ' on the Costs tab. Until then this profit shows too high.', 'tag']);
+      var cl = E.claims ? E.claims(S.M, S.IX, S.REC, st) : null;
+      if (cl && cl.total > 0) tips.push(['Claim ' + rup(cl.total) + ' from Meesho for ' + cl.list.length + ' order' + (cl.list.length > 1 ? 's' : '') + '. Ready-made ticket text is on the Reconcile tab.', 'receipt']);
+      if (worst.length) tips.push([worst.length + ' product' + (worst.length > 1 ? 's' : '') + ' lost money (' + worst.map(function (x) { return x.sku; }).join(', ') + '). Use Price check to find the payout you need, then raise the price or stop them.', 'percent']);
+      if (RV_OK && RV.rtoRate >= 0.12) tips.push(['RTO is ' + pc(RV.rtoRate) + ' of parcels. Call or WhatsApp buyers of cash-on-delivery orders before you ship, and watch the pincodes that send parcels back.', 'truck']);
+      if (RV_OK && RV.retRate >= 0.1) tips.push(['Returns are ' + pc(RV.retRate) + ' of delivered orders. Clear photos, a size chart and honest descriptions bring them down.', 'hanger']);
+      var ads = -(groups.filter(function (g) { return kindOf(g.l) === 'ads'; }).reduce(function (t, g) { return t + g.tot.v; }, 0));
+      if (NS > 0 && ads > NS * 0.08) tips.push(['Ads took ' + pc(ads / NS) + ' of your sales. Keep only the ads that bring orders.', 'mega']);
+      if (!lost && !R.missing.length && NS > 0 && NP / NS >= 0.12) tips.push(['You keep ' + pc(NP / NS) + ' of sales as profit. Keep your best products in stock, and upload next month’s file to keep track.', 'heart']);
+      if (!tips.length) tips.push(['Upload your Meesho payment file every month to see how your shop is doing.', 'calc']);
+      head2('What to do next', '', 'clip');
+      tips.slice(0, 5).forEach(function (t2) {
+        font(FN.serif, 'normal', 9.6); var l = wrap(t2[0], CW - 60), hh = Math.max(30, l.length * 12.5 + 12);
+        ensure(hh + 6);
+        var yy = cursor + 10;
+        stroke(INDIGO); doc.setLineWidth(1); doc.roundedRect(M, yy + 2, 11, 11, 2.5, 2.5, 'S');
+        icon(t2[1], PW - M - 10, yy + 9, 16, 0, GREY, 0.9);
+        ink(INK); font(FN.serif, 'normal', 9.6); doc.text(l, M + 22, yy + 11);
+        cursor = yy + hh;
+      });
+
+      ensure(70);
+      var ey = cursor + 34;
+      ink(CORAL); font(FN.hand, 'normal', 15); doc.text('Keep selling, keep growing!', PW / 2, ey, { align: 'center' });
+      ink(GREY); font(FN.serif, 'italic', 8.4); doc.text(a('Your accountant needs more detail? Download “Full report PDF (for CA)” on the P&L tab.'), PW / 2, ey + 18, { align: 'center' });
+
+      /* ---------- header and footer ---------- */
+      var pages = doc.internal.getNumberOfPages();
+      for (var pi = 1; pi <= pages; pi++) {
+        doc.setPage(pi);
+        if (pi > 1) {
+          mark(M, 15, 22, true);
+          ink(INDIGO); font(FN.disp, 'bold', 10.5); doc.text('PakkaBill', M + 29, 25);
+          ink(GREY); font(FN.disp, 'normal', 7); doc.text('Easy summary', M + 29, 34);
+          ink(INK); font(FN.serif, 'bold', 8.6); doc.text(biz, PW - M, 25, { align: 'right' });
+          ink(GREY); font(FN.disp, 'normal', 7); doc.text(a(per.label), PW - M, 34, { align: 'right' });
+          stroke(RULE); doc.setLineWidth(0.7); doc.line(M, 45, PW - M, 45); stroke(CORAL); doc.setLineWidth(2); doc.line(M, 45, M + 44, 45);
+        }
+        stroke(RULE); doc.setLineWidth(0.7); doc.setLineDashPattern([3, 2.2], 0); doc.line(M + 16, PH - 40, PW - M, PH - 40); doc.setLineDashPattern([], 0);
+        icon('scissor', M + 6, PH - 40, 11, -Math.PI / 2, GREY, 0.8);
+        ink(GREY); font(FN.disp, 'normal', 6.8); doc.text(a('Easy summary made with PakkaBill from your Meesho files  ·  Not an audited statement'), M, PH - 26);
+        ink(INDIGO); font(FN.disp, 'bold', 7.4); doc.text('Page ' + pi + ' of ' + pages, PW - M, PH - 26, { align: 'right' });
+      }
+      doc.setProperties({ title: 'Easy summary - ' + biz + ' - ' + a(per.label), subject: 'Meesho profit in plain words', author: biz, creator: 'PakkaBill' });
+      return doc.output('blob');
+    }
+
     /* ================= page 1: cover ================= */
     var BH = 292;
     fill(INDIGO);
@@ -4134,9 +4382,9 @@ details.more[open] > summary { margin-bottom: 10px; }
       ink(GREY); font(FN.serif, 'normal', 7.6); doc.text(a(t[2]), x + 11, y + 47, { maxWidth: tw - 18 });
     });
 
-    // where every ₹100 of sales went
-    (function () {
-      var y = 466, segs = [], NS = R.NS;
+    // where every ₹100 of sales went (the cover and the easy summary)
+    function hundred(y) {
+      var segs = [], NS = R.NS;
       if (!(NS > 0)) return;
       if (R.NS - R.NR > 0) segs.push({ k: 'gst', l: 'GST to the government', v: R.NS - R.NR });
       var credit = 0;
@@ -4182,7 +4430,8 @@ details.more[open] > summary { margin-bottom: 10px; }
         font(FN.disp, 'bold', 8); doc.text(v, lx + 12 + tw2, ly);
         lx += w;
       });
-    })();
+    }
+    hundred(466);
 
     var tocY = 552;
     cursor = PH; // the next part starts on its own page
