@@ -3719,7 +3719,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       return '<tr><td><b>' + esc(opt.label ? opt.label(g) : g.key) + '</b>' + (hot ? ' <span class="tag bad">High</span>' : '') + (opt.sub ? '<div class="small muted">' + opt.sub(g) + '</div>' : '') + '<div class="small muted">' + pl(g.done, 'order') + '</div></td>' +
         '<td class="rb">' + rRates(g, max) + '</td><td class="n">' + (g.loss ? rs(g.loss, true) : '-') + '</td></tr>';
     }).join('');
-    return '<div class="tw" style="margin-top:10px"><table class="t rtab"><thead><tr><th>' + name + '</th><th>RTO · Returns · Exchanges</th><th class="n">Money lost</th></tr></thead><tbody>' + body + '</tbody></table></div>';
+    return '<div class="tw" style="margin-top:10px"><table class="t rtab"><thead><tr><th>' + name + '</th><th>RTO · Returns · Exchanges</th><th class="n">Loss</th></tr></thead><tbody>' + body + '</tbody></table></div>';
   }
   function rInsight(x) {
     switch (x.k) {

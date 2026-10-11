@@ -785,6 +785,7 @@
     '{n} per parcel shipped, after RTO and returns · {n} of sales': 'भेजे गए प्रति पार्सल {n1}, RTO और रिटर्न के बाद · बिक्री का {n2}',
     'Below this you lose money': 'इससे कम पर नुकसान',
     'Your price is below this, so you lose money': 'आपकी कीमत इससे कम है, इसलिए नुकसान हो रहा है',
+    'Loss': 'नुकसान',
     '{n} orders': '{n} ऑर्डर',
     '{n} order': '{n} ऑर्डर',
     'Why orders come back': 'ऑर्डर वापस क्यों आते हैं',
