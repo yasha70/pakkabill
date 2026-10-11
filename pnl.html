@@ -83,7 +83,8 @@
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --s-rto: #9085e9; --s-ret: #d95926; --s-exch: #199e70; } }
 :root[data-theme="dark"] { --s-rto: #9085e9; --s-ret: #d95926; --s-exch: #199e70; }
 .s-rto { background: var(--s-rto); } .s-ret { background: var(--s-ret); } .s-exch { background: var(--s-exch); }
-.rtab td.rb { min-width: 120px; width: 48%; } .rtab td:first-child { max-width: 150px; } .rtab td:first-child .small:last-child { white-space: nowrap; } .rbl { display: flex; align-items: center; gap: 6px; height: 13px; margin: 2px 0; }
+.rtab td.rb { min-width: 110px; } .rtab td:first-child .small:last-child { white-space: nowrap; } .rtab td:first-child { overflow-wrap: anywhere; }
+.rtab3 { table-layout: fixed; width: 100%; } .rtab3 th:nth-child(1) { width: 31%; } .rtab3 th:nth-child(2) { width: 46%; } .rtab3 th:nth-child(3) { width: 23%; } .rtab3 td, .rtab3 th { padding-left: 6px; padding-right: 6px; } .rtab3 th { white-space: normal; vertical-align: bottom; } .rbl { display: flex; align-items: center; gap: 6px; height: 13px; margin: 2px 0; }
 .rbl i { display: block; height: 8px; border-radius: 0 4px 4px 0; flex: none; } .rbl span { font-size: .78rem; color: var(--ink-2); font-variant-numeric: tabular-nums; } .rv-notes { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: .92rem; }
 .pc-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 12px; }
 .pc-in { display: flex; align-items: center; gap: 4px; } .pc-in i { font-style: normal; color: var(--ink-3); } .pc-in .inp { min-width: 0; }
@@ -3719,7 +3720,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       return '<tr><td><b>' + esc(opt.label ? opt.label(g) : g.key) + '</b>' + (hot ? ' <span class="tag bad">High</span>' : '') + (opt.sub ? '<div class="small muted">' + opt.sub(g) + '</div>' : '') + '<div class="small muted">' + pl(g.done, 'order') + '</div></td>' +
         '<td class="rb">' + rRates(g, max) + '</td><td class="n">' + (g.loss ? rs(g.loss, true) : '-') + '</td></tr>';
     }).join('');
-    return '<div class="tw" style="margin-top:10px"><table class="t rtab"><thead><tr><th>' + name + '</th><th>RTO · Returns · Exchanges</th><th class="n">Loss</th></tr></thead><tbody>' + body + '</tbody></table></div>';
+    return '<div class="tw" style="margin-top:10px"><table class="t rtab rtab3"><thead><tr><th>' + name + '</th><th>RTO · Returns · Exchanges</th><th class="n">Loss</th></tr></thead><tbody>' + body + '</tbody></table></div>';
   }
   function rInsight(x) {
     switch (x.k) {
