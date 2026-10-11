@@ -785,6 +785,17 @@
     '{n} per parcel shipped, after RTO and returns · {n} of sales': 'भेजे गए प्रति पार्सल {n1}, RTO और रिटर्न के बाद · बिक्री का {n2}',
     'Below this you lose money': 'इससे कम पर नुकसान',
     'Your price is below this, so you lose money': 'आपकी कीमत इससे कम है, इसलिए नुकसान हो रहा है',
+    'Rates count orders placed up to {d}.': 'दरें {d} तक के ऑर्डर पर गिनी गई हैं।',
+    '{n} newer orders are left out: they may still come back (in your files, {n} days covers {n} in {n} returns). Money lost counts every order.': '{n1} नए ऑर्डर छोड़े गए हैं: वे अभी लौट सकते हैं (आपकी फ़ाइलों में, {n4} में से {n3} रिटर्न {n2} दिन में आते हैं)। नुकसान में हर ऑर्डर गिना गया है।',
+    '{n} newer order are left out: they may still come back (in your files, {n} days covers {n} in {n} returns). Money lost counts every order.': '{n1} नया ऑर्डर छोड़ा गया है: वह अभी लौट सकता है (आपकी फ़ाइलों में, {n4} में से {n3} रिटर्न {n2} दिन में आते हैं)। नुकसान में हर ऑर्डर गिना गया है।',
+    'All orders are counted, including {n} orders placed after {d} that may still come back, so the rates show lower than they will be.': 'सभी ऑर्डर गिने गए हैं, {d} के बाद के {n} ऑर्डर भी जो अभी लौट सकते हैं, इसलिए दरें असल से कम दिख रही हैं।',
+    'All orders are counted, including {n} order placed after {d} that may still come back, so the rates show lower than they will be.': 'सभी ऑर्डर गिने गए हैं, {d} के बाद का {n} ऑर्डर भी जो अभी लौट सकता है, इसलिए दरें असल से कम दिख रही हैं।',
+    'Count all orders': 'सभी ऑर्डर गिनें',
+    'Count only orders old enough': 'सिर्फ़ पुराने हो चुके ऑर्डर गिनें',
+    'come back {n} of the time (returns and exchanges), against {n} for all their sizes. Check the size chart and fit for this size.': '{n1} बार वापस आते हैं (रिटर्न और एक्सचेंज), जबकि उनके सभी साइज़ में {n2}। इस साइज़ का साइज़ चार्ट और फ़िटिंग जाँचें।',
+    'are exchanged {n} of the time: buyers want another size. Your size chart may run small or large.': '{n} बार एक्सचेंज होते हैं: ग्राहक दूसरा साइज़ चाहते हैं। आपका साइज़ चार्ट छोटा या बड़ा हो सकता है।',
+    'Blouse sizes are read as: {n} to {n} = L, {n} to {n} = XL, {n} to {n} = XXL.': 'ब्लाउज़ के साइज़ ऐसे पढ़े गए: {n1} से {n2} = L, {n3} से {n4} = XL, {n5} से {n6} = XXL।',
+    'Each kind of product has its own sizes, so they are compared within it. Size problems show up as returns and exchanges; RTO happens before the buyer opens the parcel, so it rarely depends on size.': 'हर तरह के प्रोडक्ट के अपने साइज़ होते हैं, इसलिए उनकी तुलना उसी के अंदर की गई है। साइज़ की दिक्कत रिटर्न और एक्सचेंज में दिखती है; RTO ग्राहक के पार्सल खोलने से पहले होता है, इसलिए वह साइज़ पर कम निर्भर करता है।',
     'Loss': 'नुकसान',
     '{n} orders': '{n} ऑर्डर',
     '{n} order': '{n} ऑर्डर',
@@ -1021,6 +1032,7 @@
 
   // Rules for sentences built from pieces (file names, several notes joined in one toast).
   var RULES = [
+    [/^sizes (.+)$/, function (m, z) { return 'साइज़ ' + z; }],
     [/^Recovered for “(.+)”: you can dispute it$/, function (m, r) { return 'कारण “' + r + '” से काटा: आप आपत्ति कर सकते हैं'; }],
     [/^Recovered for “(.+)”: ask Meesho$/, function (m, r) { return 'कारण “' + r + '” से काटा: Meesho से पूछें'; }],
     [/^Recovered without a reason: ask Meesho$/, function () { return 'बिना कारण काटा: Meesho से पूछें'; }],

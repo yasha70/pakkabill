@@ -84,7 +84,7 @@
 :root[data-theme="dark"] { --s-rto: #9085e9; --s-ret: #d95926; --s-exch: #199e70; }
 .s-rto { background: var(--s-rto); } .s-ret { background: var(--s-ret); } .s-exch { background: var(--s-exch); }
 .rtab td.rb { min-width: 110px; } .rtab td:first-child .small:last-child { white-space: nowrap; } .rtab td:first-child { overflow-wrap: anywhere; }
-.rtab3 { table-layout: fixed; width: 100%; } .rtab3 th:nth-child(1) { width: 31%; } .rtab3 th:nth-child(2) { width: 46%; } .rtab3 th:nth-child(3) { width: 23%; } .rtab3 td, .rtab3 th { padding-left: 6px; padding-right: 6px; } .rtab3 th { white-space: normal; vertical-align: bottom; } .rbl { display: flex; align-items: center; gap: 6px; height: 13px; margin: 2px 0; }
+.rtab3 { table-layout: fixed; width: 100%; } .rtab3 th:nth-child(1) { width: 31%; } .rtab3 th:nth-child(2) { width: 46%; } .rtab3 th:nth-child(3) { width: 23%; } .rtab3 td, .rtab3 th { padding-left: 6px; padding-right: 6px; } table.t.rtab3 th { white-space: normal; vertical-align: bottom; } .rbl { display: flex; align-items: center; gap: 6px; height: 13px; margin: 2px 0; }
 .rbl i { display: block; height: 8px; border-radius: 0 4px 4px 0; flex: none; } .rbl span { font-size: .78rem; color: var(--ink-2); font-variant-numeric: tabular-nums; } .rv-notes { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: .92rem; }
 .pc-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 12px; }
 .pc-in { display: flex; align-items: center; gap: 4px; } .pc-in i { font-style: normal; color: var(--ink-3); } .pc-in .inp { min-width: 0; }
@@ -1402,8 +1402,9 @@ details.more[open] > summary { margin-bottom: 10px; }
     var P = M.pay, reg = M.reg;
     function inP(d) { return !!d && d >= per.from && d <= per.to; }
     function grp() { return { n: 0, pcs: 0, retFee: 0, fwdShip: 0, fees: 0, back: 0, pack: 0, stock: 0, stockN: 0, pending: 0, noPay: 0, loss: 0, cols: {} }; }
-    var G = { rto: grp(), ret: grp(), exch: grp(), lost: grp() }, SK = {}, COLK = {}, items = [];
+    var G = { rto: grp(), ret: grp(), exch: grp(), lost: grp() }, SK = {}, COLK = {}, items = [], lastPd = '';
     var done = 0, delivered = 0, transit = 0, cancelled = 0;
+    P.forEach(function (p) { if (p.pd > lastPd) lastPd = p.pd; });
     IX.list.forEach(function (x) {
       var first = x.legs.length ? P[x.legs[0]].pd : '', last = x.legs.length ? P[x.legs[x.legs.length - 1]].pd : '';
       var d = per.basis === 'order' ? (x.od || first) : (last || x.od);
@@ -1462,7 +1463,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     }).filter(function (x) { return x.rto || x.ret || x.exch || x.lost; })
       .sort(function (a, b) { return b.loss - a.loss || (b.rto + b.ret + b.exch) - (a.rto + a.ret + a.exch) || (a.sku < b.sku ? -1 : 1); });
     return {
-      G: G, done: done, delivered: delivered, transit: transit, cancelled: cancelled, cols: cols, skus: skus, items: items,
+      G: G, done: done, delivered: delivered, transit: transit, cancelled: cancelled, cols: cols, skus: skus, items: items, lastPd: lastPd,
       rtoRate: rate(G.rto.n, done), lostRate: rate(G.lost.n, done), retRate: rate(G.ret.n, delivered), exchRate: rate(G.exch.n, delivered),
       loss: G.rto.loss + G.ret.loss + G.exch.loss + G.lost.loss
     };
@@ -1476,7 +1477,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     var u = String(v == null ? '' : v).trim().toUpperCase().replace(/\s+/g, ' ');
     if (!u || u === 'NA' || u === 'N/A' || u === '-') return '';
     if (/^(FREE|FREE ?SIZE|FS|ONE ?SIZE|STANDARD|FREESIZE)$/.test(u)) return 'Free size';
-    var m = { XXL: '2XL', XXXL: '3XL', XXXXL: '4XL', XXXXXL: '5XL', '2 XL': '2XL', '3 XL': '3XL', '4 XL': '4XL', '5 XL': '5XL' };
+    var m = { '2XL': 'XXL', '2 XL': 'XXL', '3XL': 'XXXL', '3 XL': 'XXXL', XXXXL: '4XL', XXXXXL: '5XL', '4 XL': '4XL', '5 XL': '5XL' };
     return m[u] || u;
   }
   function normState(v) {
@@ -1484,7 +1485,16 @@ details.more[open] > summary { margin-bottom: 10px; }
     if (!t) return '';
     return t.replace(/(^|[\s(&-])([a-z])/g, function (a, b, c) { return b + c.toUpperCase(); }).replace(/\bAnd\b/g, 'and');
   }
-  var SIZE_ORDER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL', '7XL'];
+  var SIZE_ORDER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '4XL', '5XL', '6XL', '7XL'];
+  /* Blouse sizes are bust sizes in inches; sellers read them as letter sizes: 26 to 30 is L, 32 to 34 XL, 36 to 40 XXL. */
+  var BLOUSE_SIZES = [[26, 30, 'L'], [31, 34, 'XL'], [35, 40, 'XXL']];
+  function isBlouse(cat, pn) { return cat === 'Blouses' || /\bblouses?\b/i.test(pn || ''); }
+  function groupSize(sz, cat, pn) {
+    if (!sz || !isBlouse(cat, pn) || !/^\d+(\.\d+)?\s*(IN|INCH|INCHES|")?$/.test(sz)) return sz;
+    var n = parseFloat(sz);
+    for (var i = 0; i < BLOUSE_SIZES.length; i++) if (n >= BLOUSE_SIZES[i][0] && n <= BLOUSE_SIZES[i][1]) return BLOUSE_SIZES[i][2];
+    return sz;
+  }
   function sizeCmp(a, b) {
     function rank(x) {
       var i = SIZE_ORDER.indexOf(x); if (i >= 0) return [0, i];
@@ -1498,40 +1508,64 @@ details.more[open] > summary { margin-bottom: 10px; }
   var PRICE_BANDS = [[0, 30000, 'Under ₹300'], [30000, 50000, '₹300 to ₹499'], [50000, 80000, '₹500 to ₹799'], [80000, 120000, '₹800 to ₹1,199'], [120000, 1e15, '₹1,200 and above']];
   var DAY_BANDS = [[0, 7, '0 to 7 days'], [8, 14, '8 to 14 days'], [15, 21, '15 to 21 days'], [22, 30, '22 to 30 days'], [31, 1e9, 'More than 30 days']];
   function dayDiff(a, b) { return Math.round((Date.UTC(+b.slice(0, 4), +b.slice(5, 7) - 1, +b.slice(8, 10)) - Date.UTC(+a.slice(0, 4), +a.slice(5, 7) - 1, +a.slice(8, 10))) / 864e5); }
+  function addDays(d, n) { var t = new Date(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) + n * 864e5); return t.toISOString().slice(0, 10); }
   function returnsDeep(RV, opt) {
     opt = opt || {};
     var items = (RV && RV.items) || [];
-    function agg(keyFn) {
+    var catOf = opt.catOf || function (sku, pn) { return categoryOf(pn || sku); };
+    items.forEach(function (it) { it.cat = catOf(it.sku === '(no SKU)' ? '' : it.sku, it.pn) || 'Other'; it.sz = groupSize(it.size, it.cat, it.pn); });
+    // how long orders take to come back, from this shop's own returns and RTO
+    var gaps = [];
+    items.forEach(function (it) { if ((it.kind === 'ret' || it.kind === 'rto') && it.od && it.back && it.back >= it.od) gaps.push(dayDiff(it.od, it.back)); });
+    gaps.sort(function (a, b) { return a - b; });
+    var win = gaps.length >= 10 ? Math.min(45, Math.max(21, gaps[Math.floor(gaps.length * 0.9)] + 3)) : 30;
+    // orders too new to have come back yet would make the rates look better than they are: count them out
+    var last = opt.last || (RV && RV.lastPd) || '', cut = opt.cut != null ? opt.cut : last ? addDays(last, -win) : '';
+    var recent = cut ? items.filter(function (it) { return it.od && it.od > cut; }).length : 0;
+    var can = opt.cut != null ? !!opt.cut : recent > 0 && items.length - recent >= Math.max(20, items.length * 0.5), useCut = can && !opt.all;
+    items.forEach(function (it) { it.mature = !useCut || !it.od || it.od <= cut; });
+    function agg(list, keyFn) {
       var m = {}, keys = [];
-      items.forEach(function (it) {
+      list.forEach(function (it) {
         var k = keyFn(it); if (k == null || k === '') return;
-        var g = m[k]; if (!g) { g = m[k] = { key: k, done: 0, delivered: 0, rto: 0, ret: 0, exch: 0, lost: 0, loss: 0, value: 0 }; keys.push(k); }
+        var g = m[k]; if (!g) { g = m[k] = { key: k, done: 0, delivered: 0, rto: 0, ret: 0, exch: 0, lost: 0, loss: 0, value: 0, sizes: {} }; keys.push(k); }
+        g.loss += it.loss;
+        if (!it.mature) return;
         g.done++; if (it.kind === 'ok' || it.kind === 'ret' || it.kind === 'exch') g.delivered++;
         if (it.kind !== 'ok') g[it.kind]++;
-        g.loss += it.loss; g.value += it.value;
+        g.value += it.value;
+        if (it.size) g.sizes[it.size] = (g.sizes[it.size] || 0) + 1;
       });
       return keys.map(function (k) {
         var g = m[k];
         g.rtoRate = g.done ? (g.rto + g.lost) / g.done : 0; g.retRate = g.delivered ? g.ret / g.delivered : 0;
         g.exchRate = g.delivered ? g.exch / g.delivered : 0; g.backRate = g.delivered ? (g.ret + g.exch) / g.delivered : 0;
         return g;
-      });
+      }).filter(function (g) { return g.done || g.loss; });
     }
-    var tot = agg(function () { return 'all'; })[0] || { key: 'all', done: 0, delivered: 0, rto: 0, ret: 0, exch: 0, lost: 0, loss: 0, value: 0, rtoRate: 0, retRate: 0, exchRate: 0, backRate: 0 };
-    var bySize = agg(function (it) { return it.size; }).sort(function (a, b) { return sizeCmp(a.key, b.key); });
-    var bySku = agg(function (it) { return it.sku; }).sort(function (a, b) { return b.loss - a.loss || b.done - a.done; });
+    var tot = agg(items, function () { return 'all'; })[0] || { key: 'all', done: 0, delivered: 0, rto: 0, ret: 0, exch: 0, lost: 0, loss: 0, value: 0, rtoRate: 0, retRate: 0, exchRate: 0, backRate: 0, sizes: {} };
+    var bySize = agg(items, function (it) { return it.sz; }).sort(function (a, b) { return sizeCmp(a.key, b.key); });
+    // sizes are only comparable inside one kind of product: one table per category
+    var cats = {};
+    items.forEach(function (it) { if (it.sz) (cats[it.cat] || (cats[it.cat] = [])).push(it); });
+    var bySizeCat = Object.keys(cats).map(function (c) {
+      var list = cats[c], t2 = agg(list, function () { return 'all'; })[0];
+      return { cat: c, blouse: list.some(function (it) { return isBlouse(it.cat, it.pn); }), tot: t2, rows: agg(list, function (it) { return it.sz; }).sort(function (a, b) { return sizeCmp(a.key, b.key); }) };
+    }).filter(function (c) { return c.tot && c.tot.done; }).sort(function (a, b) { return b.tot.done - a.tot.done; });
+    var bySku = agg(items, function (it) { return it.sku; }).sort(function (a, b) { return b.loss - a.loss || b.done - a.done; });
     bySku.forEach(function (g) { var it = items.filter(function (x) { return x.sku === g.key; })[0]; g.pn = it ? it.pn : ''; });
-    var bySkuSize = agg(function (it) { return it.size ? it.sku + '\u0001' + it.size : ''; }).filter(function (g) { return g.delivered >= 5; })
+    var bySkuSize = agg(items, function (it) { return it.sz ? it.sku + '\u0001' + it.sz : ''; }).filter(function (g) { return g.delivered >= 5; })
       .map(function (g) { var kk = g.key.split('\u0001'); g.sku = kk[0]; g.size = kk[1]; return g; })
       .sort(function (a, b) { return b.backRate - a.backRate || b.delivered - a.delivered; });
-    var byState = agg(function (it) { return it.state; }).sort(function (a, b) { return b.done - a.done; });
+    var byState = agg(items, function (it) { return it.state; }).sort(function (a, b) { return b.done - a.done; });
     // an RTO parcel has no sale in the payment report: without the orders report, price it at its product's average
     var avgV = {};
     items.forEach(function (it) { if (it.value > 0) { var a = avgV[it.sku] || (avgV[it.sku] = [0, 0]); a[0] += it.value / (it.q || 1); a[1]++; } });
-    var byPrice = agg(function (it) { var v = it.value > 0 ? it.value / (it.q || 1) : avgV[it.sku] ? avgV[it.sku][0] / avgV[it.sku][1] : 0; if (!(v > 0)) return ''; for (var i = 0; i < PRICE_BANDS.length; i++) if (v < PRICE_BANDS[i][1]) return PRICE_BANDS[i][2]; return ''; })
-      .sort(function (a, b) { return PRICE_BANDS.map(function (x) { return x[2]; }).indexOf(a.key) - PRICE_BANDS.map(function (x) { return x[2]; }).indexOf(b.key); });
-    var byMonth = agg(function (it) { return it.od ? it.od.slice(0, 7) : ''; }).sort(function (a, b) { return a.key < b.key ? -1 : 1; });
-    var byCat = opt.catOf ? agg(function (it) { return opt.catOf(it.sku === '(no SKU)' ? '' : it.sku, it.pn); }).sort(function (a, b) { return b.done - a.done; }) : [];
+    var bandNames = PRICE_BANDS.map(function (x) { return x[2]; });
+    var byPrice = agg(items, function (it) { var v = it.value > 0 ? it.value / (it.q || 1) : avgV[it.sku] ? avgV[it.sku][0] / avgV[it.sku][1] : 0; if (!(v > 0)) return ''; for (var i = 0; i < PRICE_BANDS.length; i++) if (v < PRICE_BANDS[i][1]) return PRICE_BANDS[i][2]; return ''; })
+      .sort(function (a, b) { return bandNames.indexOf(a.key) - bandNames.indexOf(b.key); });
+    var byMonth = agg(items, function (it) { return it.od ? it.od.slice(0, 7) : ''; }).sort(function (a, b) { return a.key < b.key ? -1 : 1; });
+    var byCat = agg(items, function (it) { return it.cat; }).sort(function (a, b) { return b.done - a.done; });
     // how long after the order they come back: order date to the return entry in the payment report
     var days = DAY_BANDS.map(function (b) { return { key: b[2], ret: 0, rto: 0 }; }), dsum = { ret: [0, 0], rto: [0, 0] };
     items.forEach(function (it) {
@@ -1544,12 +1578,17 @@ details.more[open] > summary { margin-bottom: 10px; }
     var cond = { ok: 0, loss: 0, def: 0, stock: 0 };
     items.forEach(function (it) { if (it.kind !== 'ret' && it.kind !== 'rto') return; if (it.cond === 'loss') cond.loss++; else cond.ok++; if (it.condDef) cond.def++; cond.stock += it.stock; });
 
-    /* what stands out */
-    var ins = [], minN = Math.max(8, Math.round(tot.delivered * 0.04));
-    var szHigh = bySize.filter(function (g) { return g.delivered >= minN && g.backRate >= Math.max(tot.backRate * 1.4, tot.backRate + 0.05); }).sort(function (a, b) { return b.backRate - a.backRate; })[0];
-    if (szHigh) ins.push({ k: 'sizeHigh', size: szHigh.key, rate: szHigh.backRate, avg: tot.backRate, n: szHigh.delivered });
-    var szExch = bySize.filter(function (g) { return g.delivered >= minN && g.exch >= 3 && g.exchRate >= Math.max(tot.exchRate * 2, 0.06); }).sort(function (a, b) { return b.exchRate - a.exchRate; })[0];
-    if (szExch && (!szHigh || szExch.key !== szHigh.key)) ins.push({ k: 'sizeExch', size: szExch.key, rate: szExch.exchRate, avg: tot.exchRate });
+    /* what stands out: each size against its own kind of product */
+    var ins = [], hiSz = null, exSz = null;
+    bySizeCat.forEach(function (c) {
+      var T2 = c.tot, minN = Math.max(8, Math.round(T2.delivered * 0.04));
+      c.rows.forEach(function (g) {
+        if (g.delivered >= minN && g.backRate >= Math.max(T2.backRate * 1.4, T2.backRate + 0.05) && (!hiSz || g.backRate - T2.backRate > hiSz.rate - hiSz.avg)) hiSz = { k: 'sizeHigh', cat: c.cat, size: g.key, rate: g.backRate, avg: T2.backRate, n: g.delivered };
+        if (g.delivered >= minN && g.exch >= 3 && g.exchRate >= Math.max(T2.exchRate * 2, 0.06) && (!exSz || g.exchRate > exSz.rate)) exSz = { k: 'sizeExch', cat: c.cat, size: g.key, rate: g.exchRate, avg: T2.exchRate };
+      });
+    });
+    if (hiSz) ins.push(hiSz);
+    if (exSz && (!hiSz || exSz.size !== hiSz.size || exSz.cat !== hiSz.cat)) ins.push(exSz);
     var combo = bySkuSize.filter(function (g) { return g.delivered >= 6 && g.backRate >= Math.max(0.2, tot.backRate * 1.5); })[0];
     if (combo) ins.push({ k: 'skuSize', sku: combo.sku, size: combo.size, rate: combo.backRate, n: combo.delivered });
     var stRto = byState.filter(function (g) { return g.done >= 10 && g.rtoRate >= Math.max(tot.rtoRate * 1.4, tot.rtoRate + 0.05); }).sort(function (a, b) { return b.rtoRate - a.rtoRate; })[0];
@@ -1561,17 +1600,28 @@ details.more[open] > summary { margin-bottom: 10px; }
     }
     var worst = bySku.filter(function (g) { return g.loss > 0; })[0];
     if (worst) ins.push({ k: 'skuLoss', sku: worst.key, loss: worst.loss, retRate: worst.retRate, rtoRate: worst.rtoRate, share: tot.loss > 0 ? worst.loss / tot.loss : 0 });
-    var months = Math.max(1, byMonth.length), perRet = RV && RV.G.ret.n ? RV.G.ret.loss / RV.G.ret.n : 0;
+    var months = Math.max(1, byMonth.filter(function (g) { return g.done; }).length), perRet = RV && RV.G && RV.G.ret.n ? RV.G.ret.loss / RV.G.ret.n : 0;
     var save = Math.round(tot.delivered / months * 0.05 * perRet);
     if (tot.retRate >= 0.07 && save > 0) ins.push({ k: 'save', amt: save, perRet: Math.round(perRet) });
     if (cond.stock > 0) ins.push({ k: 'stock', n: cond.loss, amt: cond.stock });
     if (cond.def && cond.def >= (cond.ok + cond.loss) / 2) ins.push({ k: 'marks', n: cond.def });
 
     return {
-      tot: tot, bySize: bySize, bySku: bySku, bySkuSize: bySkuSize, byState: byState, byPrice: byPrice, byMonth: byMonth, byCat: byCat,
+      tot: tot, bySize: bySize, bySizeCat: bySizeCat, bySku: bySku, bySkuSize: bySkuSize, byState: byState, byPrice: byPrice, byMonth: byMonth, byCat: byCat,
       days: days, avgDays: { ret: dsum.ret[1] ? dsum.ret[0] / dsum.ret[1] : 0, rto: dsum.rto[1] ? dsum.rto[0] / dsum.rto[1] : 0 },
-      cond: cond, insights: ins, hasSize: bySize.length > 0, hasState: byState.length > 0, perOrderLoss: tot.done ? tot.loss / tot.done : 0
+      cond: cond, insights: ins, hasSize: bySize.length > 0, hasState: byState.length > 0, perOrderLoss: items.length ? tot.loss / items.length : 0,
+      recent: useCut ? recent : 0, cut: useCut ? cut : '', can: can, cutAt: can ? cut : '', newer: can ? recent : 0, window: win, last: last
     };
+  }
+
+  /* The first and last dates the reports really have in a period: payment dates (with ads, referral and
+     compensation entries) when counted by payment date, order dates when counted by order date. */
+  function dataSpan(M, per) {
+    var lo = '', hi = '';
+    function see(d) { if (!d || d < per.from || d > per.to) return; if (!lo || d < lo) lo = d; if (d > hi) hi = d; }
+    if (per.basis === 'order') M.pay.forEach(function (p) { see(p.od || p.pd); });
+    else { M.pay.forEach(function (p) { see(p.pd); }); (M.ads || []).concat(M.ref || [], M.adj || []).forEach(function (x) { see(x.dt); }); }
+    return { from: lo || per.from, to: hi || per.to, exact: !!lo };
   }
 
   /* ---------------- reconciliation ---------------- */
@@ -2077,7 +2127,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     monthStart: monthStart, monthEnd: monthEnd, nextMonth: nextMonth, fmtDate: fmtDate, fmtMonth: fmtMonth, money: money,
     skuLetters: skuLetters, nameCount: nameCount, packRule: packRule, piecesOf: piecesOf, normSt: normSt, classify: classify, detect: detect, parsePay: parsePay, parseAds: parseAds, parseAmt: parseAmt, parseOrd: parseOrd,
     calibrate: calibrate, ingest: ingest, merge: merge, index: index, dataMonths: dataMonths, periodFor: periodFor, expFor: expFor,
-    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, recoveries: recoveries, recKind: recKind, returnsDeep: returnsDeep, normSize: normSize, sizeCmp: sizeCmp, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
+    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, recoveries: recoveries, recKind: recKind, returnsDeep: returnsDeep, normSize: normSize, sizeCmp: sizeCmp, groupSize: groupSize, dataSpan: dataSpan, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
   };
 });
 
@@ -2932,6 +2982,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     copyTicket: function (el) { var c = A.claimsData().list[+el.getAttribute('data-i')]; if (c) copyText(c.ticket, 'Ticket text copied. Paste it in Meesho support.'); },
     rvf: function (el) { S.rc.rv = el.getAttribute('data-v'); render(); },
     rtd: function (el) { (S.rt || (S.rt = { dim: '', sku: '' })).dim = el.getAttribute('data-v'); render(); },
+    rtall: function () { var r = S.rt || (S.rt = { dim: '', sku: '' }); r.all = !r.all; render(); },
     copyRec: function (el) { var it = A.recovData().list[+el.getAttribute('data-i')]; if (it && it.ticket) copyText(it.ticket, 'Ticket text copied. Paste it in Meesho support.'); },
     copyRecAll: function () {
       var D = A.recovData(), v = S.rc.rv, list = D.list.filter(function (it) { return it.ticket && (!v || it.verdict === v); });
@@ -3724,8 +3775,8 @@ details.more[open] > summary { margin-bottom: 10px; }
   }
   function rInsight(x) {
     switch (x.k) {
-      case 'sizeHigh': return '<span>Size </span><b>' + esc(x.size) + '</b><span> comes back ' + pct(x.rate) + ' of the time (returns and exchanges), against ' + pct(x.avg) + ' overall. Check the size chart and fit for this size.</span>';
-      case 'sizeExch': return '<span>Size </span><b>' + esc(x.size) + '</b><span> is exchanged ' + pct(x.rate) + ' of the time: buyers want another size. Your size chart may run small or large.</span>';
+      case 'sizeHigh': return '<b>' + esc(x.cat) + '</b><span> in size </span><b>' + esc(x.size) + '</b><span> come back ' + pct(x.rate) + ' of the time (returns and exchanges), against ' + pct(x.avg) + ' for all their sizes. Check the size chart and fit for this size.</span>';
+      case 'sizeExch': return '<b>' + esc(x.cat) + '</b><span> in size </span><b>' + esc(x.size) + '</b><span> are exchanged ' + pct(x.rate) + ' of the time: buyers want another size. Your size chart may run small or large.</span>';
       case 'skuSize': return '<b>' + esc(x.sku) + '</b><span> in size </span><b>' + esc(x.size) + '</b><span> comes back ' + pct(x.rate) + ' of ' + x.n + ' delivered orders. Check this exact size of this product.</span>';
       case 'stateRto': return '<b>' + esc(x.state) + '</b><span>: ' + pct(x.rate) + ' of parcels come back as RTO, against ' + pct(x.avg) + ' overall. Most RTO is cash-on-delivery orders refused at the door.</span>';
       case 'price': return '<span>Price matters: </span><b>' + esc(x.hi) + '</b><span> orders are returned ' + pct(x.hiRate) + ' of the time, </span><b>' + esc(x.lo) + '</b><span> orders ' + pct(x.loRate) + '.</span>';
@@ -3741,14 +3792,19 @@ details.more[open] > summary { margin-bottom: 10px; }
     if (!A.full()) return '<div class="stack">' + lockHtml('ret') + '</div>';
     var RV = S.RV, st = S.rt || (S.rt = { dim: '', sku: '' });
     if (!RV || !RV.done) return '<div class="stack">' + demoBar() + '<section class="sheet"><h2>Returns</h2><p>No delivered, returned or RTO orders in this period yet.</p></section></div>';
-    var D = E.returnsDeep(RV, { catOf: A.catOf }), T = D.tot;
+    var D = E.returnsDeep(RV, { catOf: A.catOf, all: st.all }), T = D.tot;
     var dim = st.dim || (D.hasSize ? 'size' : 'sku');
-    var h = '<section class="sheet"><h2>Why orders come back</h2><p class="muted" style="margin:6px 0 0"><span>' + esc(S.per.label) + '</span><span>, counted by ' + (S.per.basis === 'order' ? 'order date' : 'payment date') + '.</span> <span>Change the period on the P&L tab.</span></p>' +
+    var spn = E.dataSpan(S.M, S.per);
+    var h = '<section class="sheet"><h2>Why orders come back</h2><p class="muted" style="margin:6px 0 0"><span>' + fd(spn.from) + ' to ' + fd(spn.to) + '</span><span>, counted by ' + (S.per.basis === 'order' ? 'order date' : 'payment date') + '.</span> <span>Change the period on the P&L tab.</span></p>' +
       '<div class="way-g" style="margin-top:12px">' +
       '<div><small>RTO</small><strong>' + pct(T.rtoRate) + '</strong><span class="small muted">' + (T.rto + T.lost) + ' of ' + T.done + ' parcels shipped</span></div>' +
       '<div><small>Customer returns</small><strong>' + pct(T.retRate) + '</strong><span class="small muted">' + T.ret + ' of ' + T.delivered + ' delivered</span></div>' +
       '<div><small>Exchanges</small><strong>' + pct(T.exchRate) + '</strong><span class="small muted">' + T.exch + ' of ' + T.delivered + ' delivered</span></div>' +
-      '<div><small>Money lost</small><strong class="neg">' + rs(T.loss, true) + '</strong><span class="small muted">' + rs(D.perOrderLoss, true) + ' per parcel shipped</span></div></div>';
+      '<div><small>Money lost</small><strong class="neg">' + rs(T.loss, true) + '</strong><span class="small muted">' + rs(D.perOrderLoss, true) + ' per parcel shipped</span></div></div>' +
+      (D.can ? '<div class="note' + (st.all ? ' warn' : ' info') + '" style="margin-top:12px"><p>' + (st.all
+        ? '<span>All orders are counted, including ' + pl(D.newer, 'order') + ' placed after ' + fd(D.cutAt) + ' that may still come back, so the rates show lower than they will be.</span>'
+        : '<span>Rates count orders placed up to ' + fd(D.cutAt) + '.</span> <span>' + pl(D.newer, 'newer order') + ' are left out: they may still come back (in your files, ' + D.window + ' days covers 9 in 10 returns). Money lost counts every order.</span>') +
+        '</p><button class="btn sm" data-act="rtall">' + (st.all ? 'Count only orders old enough' : 'Count all orders') + '</button></div>' : '');
     var ins = D.insights.map(rInsight).filter(Boolean);
     if (ins.length) h += '<h3 style="margin-top:16px">What stands out</h3><ul class="rv-notes">' + ins.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul>';
     if (!D.hasSize) h += '<div class="note info" style="margin-top:12px"><p>Upload the Meesho orders report (Orders, Download CSV) to see returns by size and by state.</p><button class="btn sm" data-act="tab" data-tab="data">Upload</button></div>';
@@ -3762,9 +3818,16 @@ details.more[open] > summary { margin-bottom: 10px; }
     var body = '';
     if (dim === 'size') {
       var withSize = D.bySku.filter(function (g) { return RV.items.some(function (it) { return it.sku === g.key && it.size; }); });
-      var DS = st.sku ? E.returnsDeep({ items: RV.items.filter(function (it) { return it.sku === st.sku; }), G: RV.G }) : D;
-      body = '<label class="f" style="margin-top:10px">Product<select class="inp" data-ch="rtsku"><option value="">All products</option>' + withSize.map(function (g) { return '<option value="' + esc(g.key) + '"' + (st.sku === g.key ? ' selected' : '') + '>' + esc(g.key) + (g.pn ? ' · ' + esc(g.pn.slice(0, 40)) : '') + '</option>'; }).join('') + '</select></label>' +
-        rTable(DS.bySize, 'Size', { avg: DS.tot }) + '<p class="small muted" style="margin:8px 0 0">Size problems show up as returns and exchanges. RTO happens before the buyer opens the parcel, so it rarely depends on size.</p>';
+      var inSizes = function (blouse) { return function (g) { var ks = Object.keys(g.sizes).sort(E.sizeCmp); return blouse && (ks.length > 1 || (ks[0] && ks[0] !== g.key)) ? '<span>sizes ' + ks.map(function (k) { return k + ' (' + g.sizes[k] + ')'; }).join(', ') + '</span>' : ''; }; };
+      var bnote = '<p class="small muted" style="margin:6px 0 0">Blouse sizes are read as: 26 to 30 = L, 32 to 34 = XL, 36 to 40 = XXL.</p>';
+      body = '<label class="f" style="margin-top:10px">Product<select class="inp" data-ch="rtsku"><option value="">All products</option>' + withSize.map(function (g) { return '<option value="' + esc(g.key) + '"' + (st.sku === g.key ? ' selected' : '') + '>' + esc(g.key) + (g.pn ? ' · ' + esc(g.pn.slice(0, 40)) : '') + '</option>'; }).join('') + '</select></label>';
+      if (st.sku) {
+        var DS = E.returnsDeep({ items: RV.items.filter(function (it) { return it.sku === st.sku; }), G: RV.G, lastPd: RV.lastPd }, { catOf: A.catOf, cut: D.cut }), b1 = DS.bySizeCat[0];
+        body += (b1 && b1.blouse ? bnote : '') + rTable(DS.bySize, 'Size', { avg: DS.tot, sub: inSizes(b1 && b1.blouse) });
+      } else {
+        body += D.bySizeCat.map(function (c) { return '<h4 style="margin:14px 0 0">' + esc(c.cat) + '</h4>' + (c.blouse ? bnote : '') + rTable(c.rows, 'Size', { avg: c.tot, sub: inSizes(c.blouse) }); }).join('');
+      }
+      body += '<p class="small muted" style="margin:8px 0 0">Each kind of product has its own sizes, so they are compared within it. Size problems show up as returns and exchanges; RTO happens before the buyer opens the parcel, so it rarely depends on size.</p>';
     } else if (dim === 'skuSize') {
       body = rTable(D.bySkuSize, 'Product and size', { avg: T, label: function (g) { return g.sku + ' · ' + g.size; }, empty: 'No product and size with 5 or more delivered orders yet.' }) +
         '<p class="small muted" style="margin:8px 0 0">Each size of each product with 5 or more delivered orders, most returned first.</p>';
@@ -4151,7 +4214,8 @@ details.more[open] > summary { margin-bottom: 10px; }
     var P = [];
     P.push([t(st.biz || 'Meesho seller', ST.title)]);
     P.push([t('Profit and loss statement', ST.sub)]);
-    P.push([t('Period'), t(per.label + ' (' + per.from + ' to ' + per.to + ')')]);
+    var span = E.dataSpan(S.M, per);
+    P.push([t('Period'), t(E.fmtDate(span.from) + ' to ' + E.fmtDate(span.to) + ' (' + (per.basis === 'order' ? 'order' : 'payment') + ' dates in your Meesho reports)')]);
     P.push([t('Counted by'), t(basis)]);
     if (st.gstin) P.push([t('GSTIN'), t(st.gstin)]);
     P.push([t('Generated'), t(today())]);
@@ -4232,14 +4296,17 @@ details.more[open] > summary { margin-bottom: 10px; }
     /* Returns analysis: by size, product and size, state, price, category and month */
     if (RV && RV.done && E.returnsDeep) {
       var DX = E.returnsDeep(RV, { catOf: window.HA.catOf }), pc2 = function (x) { return t((x * 100).toFixed(1) + '%'); };
-      var RA = [[t('Returns analysis', ST.title)], [t('RTO is counted of parcels shipped; returns and exchanges of orders delivered. Money lost is with GST, as Meesho cuts it. Size and state come from the orders report.', ST.note)], []];
+      var RA = [[t('Returns analysis', ST.title)], [t('RTO is counted of parcels shipped; returns and exchanges of orders delivered. Money lost is with GST, as Meesho cuts it, for every order. Size and state come from the orders report. Blouse sizes: 26 to 30 = L, 32 to 34 = XL, 36 to 40 = XXL.', ST.note)]];
+      if (DX.cut) RA.push([t('Rates count orders placed up to ' + E.fmtDate(DX.cut) + '; ' + DX.recent + ' newer orders may still come back and are left out of the rates.', ST.note)]);
+      RA.push([]);
       var block = function (title, rows, lab) {
         if (!rows.length) return;
         RA.push(heads([title, 'Orders', 'Delivered', 'RTO', 'RTO %', 'Returns', 'Return %', 'Exchanges', 'Exchange %', 'Money lost']));
         rows.forEach(function (g) { RA.push([t(lab ? lab(g) : g.key), n(g.done), n(g.delivered), n(g.rto + g.lost), pc2(g.rtoRate), n(g.ret), pc2(g.retRate), n(g.exch), pc2(g.exchRate), m(-g.loss)]); });
         RA.push([]);
       };
-      block('Size', DX.bySize); block('Product and size', DX.bySkuSize, function (g) { return g.sku + ' / ' + g.size; }); block('Product', DX.bySku);
+      DX.bySizeCat.forEach(function (c) { block('Size: ' + c.cat, c.rows, function (g) { var ks = Object.keys(g.sizes).sort(E.sizeCmp); return g.key + (c.blouse && ks.length && (ks.length > 1 || ks[0] !== g.key) ? ' (' + ks.join(', ') + ')' : ''); }); });
+      block('Product and size', DX.bySkuSize, function (g) { return g.sku + ' / ' + g.size; }); block('Product', DX.bySku);
       block('State', DX.byState); block('Price of the order', DX.byPrice); block('Category', DX.byCat); block('Month ordered', DX.byMonth, function (g) { return E.fmtMonth(g.key); });
       X.utils.book_append_sheet(wb, sheet(RA, [32, 9, 10, 8, 9, 9, 10, 10, 11, 13]), 'Returns analysis');
     }
@@ -4548,9 +4615,11 @@ details.more[open] > summary { margin-bottom: 10px; }
     /* ---------- what the report is about ---------- */
     var biz = a(st.biz || '').trim() || 'Meesho seller';
     var basis = per.basis === 'order' ? 'order date' : 'payment date';
-    var reportId = 'PB-PL-' + String(per.from || '').replace(/-/g, '') + '-' + String(per.to || '').replace(/-/g, '');
+    // the first and last dates really in the reports, not the edges of the months picked
+    var span = E.dataSpan(S.M, per), spanTxt = fd(span.from) + ' to ' + fd(span.to);
+    var reportId = 'PB-PL-' + String(span.from || '').replace(/-/g, '') + '-' + String(span.to || '').replace(/-/g, '');
     var made = E.fmtDate(today());
-    var forPeriod = 'for the period ' + fd(per.from) + ' to ' + fd(per.to);
+    var forPeriod = 'for the period ' + spanTxt;
     var tied = !!(R.checks && R.checks.bridge);
 
     // the statement's sections, as the engine laid them out
@@ -4619,7 +4688,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       ink(LAV); font(FN.disp, 'normal', 7.8); doc.text('Your Meesho shop, in plain words', M + 36, 51);
       (function () { font(FN.disp, 'bold', 7); var lab = 'EASY SUMMARY', w = capsW(lab, 1) + 18, x = PW - M - w; fill(CORAL); doc.roundedRect(x, 28, w, 18, 9, 9, 'F'); ink(WHITE); caps(lab, x + 9, 40, 1); })();
       ink(WHITE); font(FN.disp, 'bold', 27); doc.text('How did my shop do?', M, 100);
-      ink(LAV); font(FN.serif, 'normal', 10.5); doc.text(a(biz + '  ·  ' + fd(per.from) + ' to ' + fd(per.to)), M, 120);
+      ink(LAV); font(FN.serif, 'normal', 10.5); doc.text(a(biz + '  ·  ' + spanTxt), M, 120);
 
       // the answer, big
       var y = BH + 46, LW = 300;
@@ -4647,7 +4716,7 @@ details.more[open] > summary { margin-bottom: 10px; }
         doc.close(); doc.fillStroke();
         var lx = x + 16, rx = x + w - 16, yy = ry + 24;
         ink(INK); font(FN.disp, 'bold', 9.5); var t = 'PROFIT BILL'; caps(t, x + w / 2 - capsW(t, 1.8) / 2, yy, 1.8);
-        ink(GREY); font(FN.serif, 'normal', 7.8); doc.text(a(per.label), x + w / 2, yy + 11, { align: 'center' });
+        ink(GREY); font(FN.serif, 'normal', 7.8); doc.text(a(spanTxt), x + w / 2, yy + 11, { align: 'center' });
         function dash(yd) { stroke(GREY); doc.setLineWidth(0.6); doc.setLineDashPattern([2, 2], 0); doc.line(lx, yd, rx, yd); doc.setLineDashPattern([], 0); }
         dash(yy + 19); yy += 38;
         story.forEach(function (e) {
@@ -4783,7 +4852,7 @@ details.more[open] > summary { margin-bottom: 10px; }
           ink(INDIGO); font(FN.disp, 'bold', 10.5); doc.text('PakkaBill', M + 29, 25);
           ink(GREY); font(FN.disp, 'normal', 7); doc.text('Easy summary', M + 29, 34);
           ink(INK); font(FN.serif, 'bold', 8.6); doc.text(biz, PW - M, 25, { align: 'right' });
-          ink(GREY); font(FN.disp, 'normal', 7); doc.text(a(per.label), PW - M, 34, { align: 'right' });
+          ink(GREY); font(FN.disp, 'normal', 7); doc.text(a(spanTxt), PW - M, 34, { align: 'right' });
           stroke(RULE); doc.setLineWidth(0.7); doc.line(M, 45, PW - M, 45); stroke(CORAL); doc.setLineWidth(2); doc.line(M, 45, M + 44, 45);
         }
         stroke(RULE); doc.setLineWidth(0.7); doc.setLineDashPattern([3, 2.2], 0); doc.line(M + 16, PH - 40, PW - M, PH - 40); doc.setLineDashPattern([], 0);
@@ -4791,7 +4860,7 @@ details.more[open] > summary { margin-bottom: 10px; }
         ink(GREY); font(FN.disp, 'normal', 6.8); doc.text(a('Easy summary made with PakkaBill from your Meesho files  ·  Not an audited statement'), M, PH - 26);
         ink(INDIGO); font(FN.disp, 'bold', 7.4); doc.text('Page ' + pi + ' of ' + pages, PW - M, PH - 26, { align: 'right' });
       }
-      doc.setProperties({ title: 'Easy summary - ' + biz + ' - ' + a(per.label), subject: 'Meesho profit in plain words', author: biz, creator: 'PakkaBill' });
+      doc.setProperties({ title: 'Easy summary - ' + biz + ' - ' + a(spanTxt), subject: 'Meesho profit in plain words', author: biz, creator: 'PakkaBill' });
       return doc.output('blob');
     }
 
@@ -4925,7 +4994,7 @@ details.more[open] > summary { margin-bottom: 10px; }
         else return;
         meta.push(l.k);
       });
-      var endDay = fd(per.to);
+      var endDay = fd(span.to);
       ink(GREY); font(FN.serif, 'italic', 7.8); doc.text(a('(Amounts in ' + RS.trim() + ')'), PW - M, cursor + 4, { align: 'right' });
       doc.autoTable({
         startY: cursor + 8, theme: 'plain', margin: { left: M, right: M, top: TOP, bottom: BOT }, rowPageBreak: 'avoid',
@@ -5195,7 +5264,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     var H = S.H || {};
     var pol = [
       ['Source of the figures', 'Prepared from the Meesho payment report' + (H.ordRows ? ' and the orders report' : '') + ' you uploaded' + (H.pd0 ? ', with payment dates from ' + fd(H.pd0) + ' to ' + fd(H.pd1) : '') + '. Every total ties to the paisa with the Final Settlement Amount in those files (Note ' + NOTE.settle + ').'],
-      ['Period and basis', 'Income and costs are counted by ' + basis + ', from ' + fd(per.from) + ' to ' + fd(per.to) + '.'],
+      ['Period and basis', 'Income and costs are counted by ' + basis + '. The ' + (per.basis === 'order' ? 'order' : 'payment') + ' dates in your Meesho reports run from ' + fd(span.from) + ' to ' + fd(span.to) + (span.from !== per.from || span.to !== per.to ? ', inside the period picked (' + fd(per.from) + ' to ' + fd(per.to) + ')' : '') + '.'],
       ['Revenue', 'Sales are taken at the Total Sale Amount Meesho records, including shipping charged to the buyer. Customer returns are taken off when Meesho reverses the sale. ' + (R.REGD ? 'Output GST is taken out at each order’s product GST rate.' : 'GST registration is off in Settings, so sales include GST.')],
       ['Cost of goods sold', 'Your cost per piece (Costs tab) times the pieces shipped. Customer returns count as ' + (st.returnDefault === 'ok' ? 'back in stock' : 'not resellable') + ' and RTO parcels as ' + (st.rtoDefault === 'ok' ? 'back in stock' : 'not resellable') + ', unless marked otherwise in Reconcile. ' + (HA.packNote ? HA.packNote(st) : '')],
       ['Meesho charges', 'Every fee column that makes up the Final Settlement Amount. ' + (R.REGD ? 'Where Meesho shows a fee including GST, 18% GST is taken out as input credit.' : 'Fees include GST.')],
@@ -5269,11 +5338,19 @@ details.more[open] > summary { margin-bottom: 10px; }
         line('Total lost', function (g) { return amt(-g.loss); }, 'grand'),
         line('Lost per order', function (g) { return g.n ? amt(-Math.round(g.loss / g.n)) : '-'; })
       ], { w: { 0: 150 } });
-      var DXP = E.returnsDeep ? E.returnsDeep(RV) : null;
+      var DXP = E.returnsDeep ? E.returnsDeep(RV, { catOf: HA.catOf }) : null;
       if (DXP && DXP.hasSize) {
-        cursor += 8; ensure(60 + DXP.bySize.length * 18); para('By size (from the orders report). The full analysis by product, state and price is on the Returns tab.', { style: 'italic', color: GREY, size: 8 });
-        caTable(['Size', 'Orders', 'RTO', 'Returns', 'Exchanges', 'Money lost'], DXP.bySize.map(function (g) { return { c: [g.key, String(g.done), pc(g.rtoRate), pc(g.retRate), pc(g.exchRate), amt(-g.loss)] }; })
-          .concat([{ c: ['All sizes', String(DXP.bySize.reduce(function (x, g) { return x + g.done; }, 0)), '', '', '', amt(-DXP.bySize.reduce(function (x, g) { return x + g.loss; }, 0))], k: 'tot' }]), { fs: 8 });
+        var srows = [];
+        DXP.bySizeCat.forEach(function (c) {
+          srows.push({ c: [{ content: a(c.cat) + (c.blouse ? '  (blouse sizes: 26 to 30 = L, 32 to 34 = XL, 36 to 40 = XXL)' : ''), colSpan: 6 }], k: 'sec' });
+          c.rows.forEach(function (g) {
+            var ks = Object.keys(g.sizes).sort(E.sizeCmp);
+            srows.push({ c: [g.key + (c.blouse && ks.length && (ks.length > 1 || ks[0] !== g.key) ? ' (' + ks.join(', ') + ')' : ''), String(g.done), pc(g.rtoRate), pc(g.retRate), pc(g.exchRate), amt(-g.loss)], k: 'ind' });
+          });
+        });
+        cursor += 8; ensure(60 + Math.min(srows.length, 12) * 18);
+        para('By size, within each kind of product (sizes from the orders report).' + (DXP.cut ? ' Rates count orders placed up to ' + fd(DXP.cut) + '; ' + DXP.recent + ' newer orders may still come back.' : '') + ' The full analysis is on the Returns tab.', { style: 'italic', color: GREY, size: 8 });
+        caTable(['Size', 'Orders', 'RTO', 'Returns', 'Exchanges', 'Money lost'], srows, { fs: 8 });
       }
     }
 
@@ -5431,7 +5508,7 @@ details.more[open] > summary { margin-bottom: 10px; }
         ink(INDIGO); font(FN.disp, 'bold', 10.5); doc.text('PakkaBill', M + 29, 25);
         ink(GREY); font(FN.disp, 'normal', 7); doc.text('Meesho P&L report', M + 29, 34);
         ink(INK); font(FN.serif, 'bold', 8.6); doc.text(biz, PW - M, 25, { align: 'right' });
-        ink(GREY); font(FN.disp, 'normal', 7); doc.text(a(per.label + (st.gstin ? '  ·  GSTIN ' + st.gstin : '')), PW - M, 34, { align: 'right' });
+        ink(GREY); font(FN.disp, 'normal', 7); doc.text(a(spanTxt + (st.gstin ? '  ·  GSTIN ' + st.gstin : '')), PW - M, 34, { align: 'right' });
         alpha(0.2); ['tag', 'cart', 'receipt', 'box', 'coin'].forEach(function (n, i) { icon(n, PW / 2 - 70 + i * 35, 25, 13, (i % 2 ? 0.2 : -0.2), INDIGO, 0.8); }); alpha(1);
         stroke(RULE); doc.setLineWidth(0.7); doc.line(M, 45, PW - M, 45);
         stroke(CORAL); doc.setLineWidth(2); doc.line(M, 45, M + 44, 45);
@@ -5442,7 +5519,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       doc.text(a('Prepared with PakkaBill from your Meesho files  ·  Not an audited statement  ·  ' + reportId), M, PH - 26);
       ink(INDIGO); font(FN.disp, 'bold', 7.4); doc.text('Page ' + pi + ' of ' + pages, PW - M, PH - 26, { align: 'right' });
     }
-    doc.setProperties({ title: 'Profit and Loss - ' + biz + ' - ' + a(per.label), subject: 'Meesho profit and loss statement', author: biz, creator: 'PakkaBill' });
+    doc.setProperties({ title: 'Profit and Loss - ' + biz + ' - ' + a(spanTxt), subject: 'Meesho profit and loss statement', author: biz, creator: 'PakkaBill' });
     return doc.output('blob');
   };
 })();

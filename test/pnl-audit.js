@@ -417,9 +417,11 @@ for (const cfg of settings) {
 {
   // returns, deep: the same orders and money as the returns view, every cut adding up
   const all = run([D.payBook, ORD], { costs: D.costs, expenses: D.expenses, cfg: { pack: D.pack } });
+  const catOf = (sku, pn) => E.categoryOf(pn || sku);
   for (const basis of ['pay', 'order']) {
     const per = E.periodFor({ mode: 'all', basis }, all.M, all.IX), RV = E.returnsView(all.M, all.IX, all.cfg, per);
-    const X = E.returnsDeep(RV, { catOf: (sku, pn) => E.categoryOf(pn || sku) }), T = X.tot;
+    // every order counted: the same numbers as the returns view
+    const X = E.returnsDeep(RV, { catOf, all: true }), T = X.tot;
     eq(T.done, RV.done, 'returns deep (' + basis + '): parcels');
     eq(T.delivered, RV.delivered, 'returns deep (' + basis + '): delivered');
     eq(T.rto, RV.G.rto.n, 'returns deep (' + basis + '): RTO');
@@ -433,22 +435,43 @@ for (const cfg of settings) {
     }
     const withSize = RV.items.filter((it) => it.size), withState = RV.items.filter((it) => it.state);
     eq(X.bySize.reduce((t, g) => t + g.done, 0), withSize.length, 'returns deep (' + basis + '): by size covers every order with a size');
+    eq(X.bySizeCat.reduce((t, c) => t + c.rows.reduce((u, g) => u + g.done, 0), 0), withSize.length, 'returns deep (' + basis + '): sizes per kind of product cover every order with a size');
     eq(X.byState.reduce((t, g) => t + g.done, 0), withState.length, 'returns deep (' + basis + '): by state covers every order with a state');
     ok(withSize.length > RV.done * 0.9, 'returns deep (' + basis + '): sizes read from the orders report', withSize.length + ' of ' + RV.done);
     const dated = RV.items.filter((it) => (it.kind === 'ret' || it.kind === 'rto') && it.od && it.back && it.back >= it.od).length;
     eq(X.days.reduce((t, b) => t + b.ret + b.rto, 0), dated, 'returns deep (' + basis + '): days to come back counts every dated return and RTO');
+    // blouses: inch sizes read as L, XL and XXL, and kept apart from other products' letter sizes
+    const bl = X.bySizeCat.find((c) => c.blouse);
+    ok(bl && bl.rows.every((g) => ['L', 'XL', 'XXL'].includes(g.key)), 'returns deep (' + basis + '): blouse sizes grouped', bl && bl.rows.map((g) => g.key + JSON.stringify(g.sizes)).join(' '));
+    ok(bl && bl.rows.every((g) => Object.keys(g.sizes).every((z) => E.groupSize(z, 'Blouses', '') === g.key)), 'returns deep (' + basis + '): each blouse size in its group');
+    ok(X.bySizeCat.filter((c) => !c.blouse).every((c) => c.rows.every((g) => Object.keys(g.sizes).every((z) => z === g.key))), 'returns deep (' + basis + '): other products keep their sizes');
+    // orders too new to have come back are left out of the rates, never out of the money
+    const Y = E.returnsDeep(RV, { catOf });
+    ok(Y.cut && Y.recent > 0, 'returns deep (' + basis + '): recent orders found', Y.cut + ' ' + Y.recent);
+    eq(Y.recent, RV.items.filter((it) => it.od && it.od > Y.cut).length, 'returns deep (' + basis + '): orders after the cut');
+    eq(Y.tot.done, RV.done - Y.recent, 'returns deep (' + basis + '): rates on the older orders');
+    ok(Math.abs(Y.tot.loss - RV.loss) <= 1, 'returns deep (' + basis + '): money lost still counts every order');
+    eq(Y.cut, (() => { const d = new Date(RV.lastPd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - Y.window); return d.toISOString().slice(0, 10); })(), 'returns deep (' + basis + '): cut is the window before the last payment');
+    // the report dates: the first and last dates really in the files
+    const sp = E.dataSpan(all.M, per), ds = all.M.pay.map((p) => basis === 'order' ? (p.od || p.pd) : p.pd).concat(basis === 'order' ? [] : all.M.ads.concat(all.M.ref, all.M.adj).map((x) => x.dt)).filter(Boolean).sort();
+    eq(sp.from + ' ' + sp.to, ds[0] + ' ' + ds[ds.length - 1], 'report dates (' + basis + '): first and last date in the reports');
   }
-  // sizes in the order a buyer reads them
-  eq(['XL', '38', 'S', 'Free size', 'M', '2XL', '36', 'XS'].sort(E.sizeCmp).join(','), 'XS,S,M,XL,2XL,36,38,Free size', 'returns deep: size order');
-  eq([E.normSize('xxl'), E.normSize(' free size '), E.normSize('FS'), E.normSize('3 xl'), E.normSize('na'), E.normSize(38)].join(','), '2XL,Free size,Free size,3XL,,38', 'returns deep: sizes read the same way');
+  const sep = E.periodFor({ mode: 'month', m: '2026-09', basis: 'pay' }, all.M, all.IX), sps = E.dataSpan(all.M, sep);
+  ok(sps.from >= '2026-09-01' && sps.to <= '2026-09-30' && sps.exact, 'report dates: one month stays inside it', JSON.stringify(sps));
+  // sizes in the order a buyer reads them, written the way sellers write them
+  eq(['XL', '38', 'S', 'Free size', 'M', 'XXL', '36', 'XS'].sort(E.sizeCmp).join(','), 'XS,S,M,XL,XXL,36,38,Free size', 'returns deep: size order');
+  eq([E.normSize('xxl'), E.normSize('2XL'), E.normSize(' free size '), E.normSize('FS'), E.normSize('3 xl'), E.normSize('na'), E.normSize(38)].join(','), 'XXL,XXL,Free size,Free size,XXXL,,38', 'returns deep: sizes read the same way');
+  eq(['26', '28', '30', '32', '34', '36', '38', '40', '42', 'XL', '38"'].map((z) => E.groupSize(z, 'Blouses', '')).join(','), 'L,L,L,XL,XL,XXL,XXL,XXL,42,XL,XXL', 'blouse sizes: 26 to 30 L, 32 to 34 XL, 36 to 40 XXL');
+  eq(E.groupSize('38', 'Kurtis & suits', 'Rayon Kurti'), '38', 'blouse sizes: only for blouses');
+  eq(E.groupSize('36', '', 'Readymade Cotton Blouse'), 'XXL', 'blouse sizes: known from the product name');
   // a size that comes back much more than the rest is called out
   const items = [];
   for (let i = 0; i < 40; i++) items.push({ kind: i < 4 ? 'ret' : 'ok', sku: 'A', pn: '', q: 1, size: 'M', state: '', od: '2026-08-01', value: 50000, back: '', cond: '', condDef: false, loss: i < 4 ? 10000 : 0, stock: 0 });
   for (let i = 0; i < 20; i++) items.push({ kind: i < 8 ? 'ret' : 'ok', sku: 'A', pn: '', q: 1, size: 'XL', state: '', od: '2026-08-01', value: 50000, back: '', cond: '', condDef: false, loss: i < 8 ? 10000 : 0, stock: 0 });
-  const Y = E.returnsDeep({ items, G: { ret: { n: 12, loss: 120000 } } });
-  const hi = Y.insights.find((x) => x.k === 'sizeHigh');
+  const Z = E.returnsDeep({ items, G: { ret: { n: 12, loss: 120000 } } });
+  const hi = Z.insights.find((x) => x.k === 'sizeHigh');
   ok(hi && hi.size === 'XL' && Math.abs(hi.rate - 0.4) < 1e-9, 'returns deep: the size that comes back most is found', JSON.stringify(hi));
-  ok(Y.insights.some((x) => x.k === 'save' && x.amt === Math.round(60 * 0.05 * 10000)), 'returns deep: savings from 5 fewer returns in 100', JSON.stringify(Y.insights.find((x) => x.k === 'save')));
+  ok(Z.insights.some((x) => x.k === 'save' && x.amt === Math.round(60 * 0.05 * 10000)), 'returns deep: savings from 5 fewer returns in 100', JSON.stringify(Z.insights.find((x) => x.k === 'save')));
 }
 {
   // accuracy: a missing week of payments is found
