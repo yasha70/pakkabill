@@ -415,6 +415,42 @@ for (const cfg of settings) {
   eq(E.recKind('Excess weight charge'), 'weight', 'recovery reason: weight');
 }
 {
+  // returns, deep: the same orders and money as the returns view, every cut adding up
+  const all = run([D.payBook, ORD], { costs: D.costs, expenses: D.expenses, cfg: { pack: D.pack } });
+  for (const basis of ['pay', 'order']) {
+    const per = E.periodFor({ mode: 'all', basis }, all.M, all.IX), RV = E.returnsView(all.M, all.IX, all.cfg, per);
+    const X = E.returnsDeep(RV, { catOf: (sku, pn) => E.categoryOf(pn || sku) }), T = X.tot;
+    eq(T.done, RV.done, 'returns deep (' + basis + '): parcels');
+    eq(T.delivered, RV.delivered, 'returns deep (' + basis + '): delivered');
+    eq(T.rto, RV.G.rto.n, 'returns deep (' + basis + '): RTO');
+    eq(T.ret, RV.G.ret.n, 'returns deep (' + basis + '): returns');
+    eq(T.exch, RV.G.exch.n, 'returns deep (' + basis + '): exchanges');
+    ok(Math.abs(T.loss - RV.loss) <= 1, 'returns deep (' + basis + '): money lost', T.loss + ' vs ' + RV.loss);
+    ok(Math.abs(T.retRate - RV.retRate) < 1e-9 && Math.abs(T.rtoRate - (RV.rtoRate + RV.lostRate)) < 1e-9, 'returns deep (' + basis + '): rates');
+    for (const [name, rows] of [['product', X.bySku], ['category', X.byCat], ['month', X.byMonth]]) {
+      const sum = (k) => rows.reduce((t, g) => t + g[k], 0);
+      ok(sum('done') === T.done && sum('ret') === T.ret && sum('rto') === T.rto && sum('exch') === T.exch && Math.abs(sum('loss') - T.loss) <= rows.length, 'returns deep (' + basis + '): by ' + name + ' adds up');
+    }
+    const withSize = RV.items.filter((it) => it.size), withState = RV.items.filter((it) => it.state);
+    eq(X.bySize.reduce((t, g) => t + g.done, 0), withSize.length, 'returns deep (' + basis + '): by size covers every order with a size');
+    eq(X.byState.reduce((t, g) => t + g.done, 0), withState.length, 'returns deep (' + basis + '): by state covers every order with a state');
+    ok(withSize.length > RV.done * 0.9, 'returns deep (' + basis + '): sizes read from the orders report', withSize.length + ' of ' + RV.done);
+    const dated = RV.items.filter((it) => (it.kind === 'ret' || it.kind === 'rto') && it.od && it.back && it.back >= it.od).length;
+    eq(X.days.reduce((t, b) => t + b.ret + b.rto, 0), dated, 'returns deep (' + basis + '): days to come back counts every dated return and RTO');
+  }
+  // sizes in the order a buyer reads them
+  eq(['XL', '38', 'S', 'Free size', 'M', '2XL', '36', 'XS'].sort(E.sizeCmp).join(','), 'XS,S,M,XL,2XL,36,38,Free size', 'returns deep: size order');
+  eq([E.normSize('xxl'), E.normSize(' free size '), E.normSize('FS'), E.normSize('3 xl'), E.normSize('na'), E.normSize(38)].join(','), '2XL,Free size,Free size,3XL,,38', 'returns deep: sizes read the same way');
+  // a size that comes back much more than the rest is called out
+  const items = [];
+  for (let i = 0; i < 40; i++) items.push({ kind: i < 4 ? 'ret' : 'ok', sku: 'A', pn: '', q: 1, size: 'M', state: '', od: '2026-08-01', value: 50000, back: '', cond: '', condDef: false, loss: i < 4 ? 10000 : 0, stock: 0 });
+  for (let i = 0; i < 20; i++) items.push({ kind: i < 8 ? 'ret' : 'ok', sku: 'A', pn: '', q: 1, size: 'XL', state: '', od: '2026-08-01', value: 50000, back: '', cond: '', condDef: false, loss: i < 8 ? 10000 : 0, stock: 0 });
+  const Y = E.returnsDeep({ items, G: { ret: { n: 12, loss: 120000 } } });
+  const hi = Y.insights.find((x) => x.k === 'sizeHigh');
+  ok(hi && hi.size === 'XL' && Math.abs(hi.rate - 0.4) < 1e-9, 'returns deep: the size that comes back most is found', JSON.stringify(hi));
+  ok(Y.insights.some((x) => x.k === 'save' && x.amt === Math.round(60 * 0.05 * 10000)), 'returns deep: savings from 5 fewer returns in 100', JSON.stringify(Y.insights.find((x) => x.k === 'save')));
+}
+{
   // accuracy: a missing week of payments is found
   const rows = PAY.filter((r, i) => i < 2 || !/^2026-08-(19|26)$/.test(r[col('Payment Date')]));
   const files = [E.ingest('a.xlsx', 0, book(rows).sheets, cfgOf())];

@@ -78,7 +78,13 @@
 .bar { height: 8px; border-radius: 999px; background: var(--paper); overflow: hidden; margin-top: 6px; } .bar i { display: block; height: 100%; background: var(--carbon); border-radius: 999px; } .bar i.done { background: var(--pos); }
 .cl-row { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rule); flex-wrap: wrap; }
 .cl-amt { font-family: var(--f-head); }
-.rv-row { padding: 10px 0; border-top: 1px solid var(--rule); } .rv-notes { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: .92rem; }
+.rv-row { padding: 10px 0; border-top: 1px solid var(--rule); }
+:root { --s-rto: #6250d6; --s-ret: #eb6834; --s-exch: #1baf7a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --s-rto: #9085e9; --s-ret: #d95926; --s-exch: #199e70; } }
+:root[data-theme="dark"] { --s-rto: #9085e9; --s-ret: #d95926; --s-exch: #199e70; }
+.s-rto { background: var(--s-rto); } .s-ret { background: var(--s-ret); } .s-exch { background: var(--s-exch); }
+.rtab td.rb { min-width: 120px; width: 48%; } .rtab td:first-child { max-width: 150px; } .rtab td:first-child .small:last-child { white-space: nowrap; } .rbl { display: flex; align-items: center; gap: 6px; height: 13px; margin: 2px 0; }
+.rbl i { display: block; height: 8px; border-radius: 0 4px 4px 0; flex: none; } .rbl span { font-size: .78rem; color: var(--ink-2); font-variant-numeric: tabular-nums; } .rv-notes { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: .92rem; }
 .pc-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 12px; }
 .pc-in { display: flex; align-items: center; gap: 4px; } .pc-in i { font-style: normal; color: var(--ink-3); } .pc-in .inp { min-width: 0; }
 .pc-big { display: grid; gap: 2px; } .pc-big strong { font-family: var(--f-head); font-size: 2rem; line-height: 1.1; }
@@ -430,6 +436,7 @@ details.more[open] > summary { margin-bottom: 10px; }
 <nav class="tabs" aria-label="Sections"><div class="tabs-wrap"><div class="tabs-in" id="tabs-in" role="tablist"></div><div class="lang-sw" id="lang-sw" role="group" aria-label="Language / भाषा"><button type="button" data-act="lang" data-v="en" lang="en">EN</button><button type="button" data-act="lang" data-v="hi" lang="hi">हिंदी</button></div></div></nav>
 <main id="main">
   <section class="panel" id="p-pl" role="tabpanel" aria-labelledby="t-pl" hidden></section>
+  <section class="panel" id="p-ret" role="tabpanel" aria-labelledby="t-ret" hidden></section>
   <section class="panel" id="p-rc" role="tabpanel" aria-labelledby="t-rc" hidden></section>
   <section class="panel" id="p-data" role="tabpanel" aria-labelledby="t-data" hidden></section>
   <section class="panel" id="p-costs" role="tabpanel" aria-labelledby="t-costs" hidden></section>
@@ -1394,7 +1401,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     var P = M.pay, reg = M.reg;
     function inP(d) { return !!d && d >= per.from && d <= per.to; }
     function grp() { return { n: 0, pcs: 0, retFee: 0, fwdShip: 0, fees: 0, back: 0, pack: 0, stock: 0, stockN: 0, pending: 0, noPay: 0, loss: 0, cols: {} }; }
-    var G = { rto: grp(), ret: grp(), exch: grp(), lost: grp() }, SK = {}, COLK = {};
+    var G = { rto: grp(), ret: grp(), exch: grp(), lost: grp() }, SK = {}, COLK = {}, items = [];
     var done = 0, delivered = 0, transit = 0, cancelled = 0;
     IX.list.forEach(function (x) {
       var first = x.legs.length ? P[x.legs[0]].pd : '', last = x.legs.length ? P[x.legs[x.legs.length - 1]].pd : '';
@@ -1410,6 +1417,9 @@ details.more[open] > summary { margin-bottom: 10px; }
       var s = SK[sk] || (SK[sk] = { sku: sk, pn: x.pn || '', done: 0, delivered: 0, rto: 0, ret: 0, exch: 0, lost: 0, loss: 0, retFee: 0 });
       if (!s.pn && x.pn) s.pn = x.pn;
       s.done++; if (dl) s.delivered++;
+      var o = x.ord, it = { kind: kind, sku: sk, pn: x.pn || '', q: x.q || 1, size: o ? normSize(o.size) : '', state: o ? normState(o.state) : '', od: x.od || '',
+        value: x.s > 0 ? x.s : o ? (o.price || 0) * (o.q || 1) : 0, back: x.ret >= 0 ? P[x.ret].pd : kind === 'rto' || kind === 'lost' ? last : '', cond: x.cond || '', condDef: !!x.condDef, loss: 0, stock: 0 };
+      items.push(it);
       if (kind === 'ok') return;
       var g = G[kind], q = x.q || 1, ro = { retFee: 0, fwdShip: 0, fees: 0, back: 0 };
       g.n++; g.pcs += q * (x.pcs || 1); s[kind]++;
@@ -1436,6 +1446,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       g.retFee += ro.retFee; g.fwdShip += ro.fwdShip; g.fees += ro.fees; g.back += ro.back;
       g.pack += pk; g.stock += stock; if (stock || (x.cond === 'loss' && kind !== 'exch')) g.stockN++;
       g.loss += loss; s.loss += loss; s.retFee += ro.retFee;
+      it.loss = loss; it.stock = stock;
     });
     function rate(a, b) { return b ? a / b : 0; }
     var cols = Object.keys(COLK).map(function (k) {
@@ -1450,9 +1461,115 @@ details.more[open] > summary { margin-bottom: 10px; }
     }).filter(function (x) { return x.rto || x.ret || x.exch || x.lost; })
       .sort(function (a, b) { return b.loss - a.loss || (b.rto + b.ret + b.exch) - (a.rto + a.ret + a.exch) || (a.sku < b.sku ? -1 : 1); });
     return {
-      G: G, done: done, delivered: delivered, transit: transit, cancelled: cancelled, cols: cols, skus: skus,
+      G: G, done: done, delivered: delivered, transit: transit, cancelled: cancelled, cols: cols, skus: skus, items: items,
       rtoRate: rate(G.rto.n, done), lostRate: rate(G.lost.n, done), retRate: rate(G.ret.n, delivered), exchRate: rate(G.exch.n, delivered),
       loss: G.rto.loss + G.ret.loss + G.exch.loss + G.lost.loss
+    };
+  }
+
+
+  /* ---------------- returns, deep: the same orders and money as returnsView, cut every useful way ----------------
+     Rates as in returnsView: RTO and lost of parcels shipped, returns and exchanges of orders delivered.
+     Size and state come from the orders report. */
+  function normSize(v) {
+    var u = String(v == null ? '' : v).trim().toUpperCase().replace(/\s+/g, ' ');
+    if (!u || u === 'NA' || u === 'N/A' || u === '-') return '';
+    if (/^(FREE|FREE ?SIZE|FS|ONE ?SIZE|STANDARD|FREESIZE)$/.test(u)) return 'Free size';
+    var m = { XXL: '2XL', XXXL: '3XL', XXXXL: '4XL', XXXXXL: '5XL', '2 XL': '2XL', '3 XL': '3XL', '4 XL': '4XL', '5 XL': '5XL' };
+    return m[u] || u;
+  }
+  function normState(v) {
+    var t = String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+    if (!t) return '';
+    return t.replace(/(^|[\s(&-])([a-z])/g, function (a, b, c) { return b + c.toUpperCase(); }).replace(/\bAnd\b/g, 'and');
+  }
+  var SIZE_ORDER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL', '7XL'];
+  function sizeCmp(a, b) {
+    function rank(x) {
+      var i = SIZE_ORDER.indexOf(x); if (i >= 0) return [0, i];
+      var n = parseFloat(String(x).replace(/[^\d.]/g, ' ').trim().split(' ')[0]);
+      if (!isNaN(n)) return [1, n];
+      return x === 'Free size' ? [3, 0] : [2, 0];
+    }
+    var ra = rank(a), rb = rank(b);
+    return ra[0] - rb[0] || ra[1] - rb[1] || (a < b ? -1 : a > b ? 1 : 0);
+  }
+  var PRICE_BANDS = [[0, 30000, 'Under ₹300'], [30000, 50000, '₹300 to ₹499'], [50000, 80000, '₹500 to ₹799'], [80000, 120000, '₹800 to ₹1,199'], [120000, 1e15, '₹1,200 and above']];
+  var DAY_BANDS = [[0, 7, '0 to 7 days'], [8, 14, '8 to 14 days'], [15, 21, '15 to 21 days'], [22, 30, '22 to 30 days'], [31, 1e9, 'More than 30 days']];
+  function dayDiff(a, b) { return Math.round((Date.UTC(+b.slice(0, 4), +b.slice(5, 7) - 1, +b.slice(8, 10)) - Date.UTC(+a.slice(0, 4), +a.slice(5, 7) - 1, +a.slice(8, 10))) / 864e5); }
+  function returnsDeep(RV, opt) {
+    opt = opt || {};
+    var items = (RV && RV.items) || [];
+    function agg(keyFn) {
+      var m = {}, keys = [];
+      items.forEach(function (it) {
+        var k = keyFn(it); if (k == null || k === '') return;
+        var g = m[k]; if (!g) { g = m[k] = { key: k, done: 0, delivered: 0, rto: 0, ret: 0, exch: 0, lost: 0, loss: 0, value: 0 }; keys.push(k); }
+        g.done++; if (it.kind === 'ok' || it.kind === 'ret' || it.kind === 'exch') g.delivered++;
+        if (it.kind !== 'ok') g[it.kind]++;
+        g.loss += it.loss; g.value += it.value;
+      });
+      return keys.map(function (k) {
+        var g = m[k];
+        g.rtoRate = g.done ? (g.rto + g.lost) / g.done : 0; g.retRate = g.delivered ? g.ret / g.delivered : 0;
+        g.exchRate = g.delivered ? g.exch / g.delivered : 0; g.backRate = g.delivered ? (g.ret + g.exch) / g.delivered : 0;
+        return g;
+      });
+    }
+    var tot = agg(function () { return 'all'; })[0] || { key: 'all', done: 0, delivered: 0, rto: 0, ret: 0, exch: 0, lost: 0, loss: 0, value: 0, rtoRate: 0, retRate: 0, exchRate: 0, backRate: 0 };
+    var bySize = agg(function (it) { return it.size; }).sort(function (a, b) { return sizeCmp(a.key, b.key); });
+    var bySku = agg(function (it) { return it.sku; }).sort(function (a, b) { return b.loss - a.loss || b.done - a.done; });
+    bySku.forEach(function (g) { var it = items.filter(function (x) { return x.sku === g.key; })[0]; g.pn = it ? it.pn : ''; });
+    var bySkuSize = agg(function (it) { return it.size ? it.sku + '\u0001' + it.size : ''; }).filter(function (g) { return g.delivered >= 5; })
+      .map(function (g) { var kk = g.key.split('\u0001'); g.sku = kk[0]; g.size = kk[1]; return g; })
+      .sort(function (a, b) { return b.backRate - a.backRate || b.delivered - a.delivered; });
+    var byState = agg(function (it) { return it.state; }).sort(function (a, b) { return b.done - a.done; });
+    // an RTO parcel has no sale in the payment report: without the orders report, price it at its product's average
+    var avgV = {};
+    items.forEach(function (it) { if (it.value > 0) { var a = avgV[it.sku] || (avgV[it.sku] = [0, 0]); a[0] += it.value / (it.q || 1); a[1]++; } });
+    var byPrice = agg(function (it) { var v = it.value > 0 ? it.value / (it.q || 1) : avgV[it.sku] ? avgV[it.sku][0] / avgV[it.sku][1] : 0; if (!(v > 0)) return ''; for (var i = 0; i < PRICE_BANDS.length; i++) if (v < PRICE_BANDS[i][1]) return PRICE_BANDS[i][2]; return ''; })
+      .sort(function (a, b) { return PRICE_BANDS.map(function (x) { return x[2]; }).indexOf(a.key) - PRICE_BANDS.map(function (x) { return x[2]; }).indexOf(b.key); });
+    var byMonth = agg(function (it) { return it.od ? it.od.slice(0, 7) : ''; }).sort(function (a, b) { return a.key < b.key ? -1 : 1; });
+    var byCat = opt.catOf ? agg(function (it) { return opt.catOf(it.sku === '(no SKU)' ? '' : it.sku, it.pn); }).sort(function (a, b) { return b.done - a.done; }) : [];
+    // how long after the order they come back: order date to the return entry in the payment report
+    var days = DAY_BANDS.map(function (b) { return { key: b[2], ret: 0, rto: 0 }; }), dsum = { ret: [0, 0], rto: [0, 0] };
+    items.forEach(function (it) {
+      if ((it.kind !== 'ret' && it.kind !== 'rto') || !it.od || !it.back) return;
+      var d = dayDiff(it.od, it.back); if (d < 0) return;
+      for (var i = 0; i < DAY_BANDS.length; i++) if (d <= DAY_BANDS[i][1]) { days[i][it.kind]++; break; }
+      dsum[it.kind][0] += d; dsum[it.kind][1]++;
+    });
+    // returns and RTO marked back in stock or not
+    var cond = { ok: 0, loss: 0, def: 0, stock: 0 };
+    items.forEach(function (it) { if (it.kind !== 'ret' && it.kind !== 'rto') return; if (it.cond === 'loss') cond.loss++; else cond.ok++; if (it.condDef) cond.def++; cond.stock += it.stock; });
+
+    /* what stands out */
+    var ins = [], minN = Math.max(8, Math.round(tot.delivered * 0.04));
+    var szHigh = bySize.filter(function (g) { return g.delivered >= minN && g.backRate >= Math.max(tot.backRate * 1.4, tot.backRate + 0.05); }).sort(function (a, b) { return b.backRate - a.backRate; })[0];
+    if (szHigh) ins.push({ k: 'sizeHigh', size: szHigh.key, rate: szHigh.backRate, avg: tot.backRate, n: szHigh.delivered });
+    var szExch = bySize.filter(function (g) { return g.delivered >= minN && g.exch >= 3 && g.exchRate >= Math.max(tot.exchRate * 2, 0.06); }).sort(function (a, b) { return b.exchRate - a.exchRate; })[0];
+    if (szExch && (!szHigh || szExch.key !== szHigh.key)) ins.push({ k: 'sizeExch', size: szExch.key, rate: szExch.exchRate, avg: tot.exchRate });
+    var combo = bySkuSize.filter(function (g) { return g.delivered >= 6 && g.backRate >= Math.max(0.2, tot.backRate * 1.5); })[0];
+    if (combo) ins.push({ k: 'skuSize', sku: combo.sku, size: combo.size, rate: combo.backRate, n: combo.delivered });
+    var stRto = byState.filter(function (g) { return g.done >= 10 && g.rtoRate >= Math.max(tot.rtoRate * 1.4, tot.rtoRate + 0.05); }).sort(function (a, b) { return b.rtoRate - a.rtoRate; })[0];
+    if (stRto) ins.push({ k: 'stateRto', state: stRto.key, rate: stRto.rtoRate, avg: tot.rtoRate, n: stRto.done });
+    var bands = byPrice.filter(function (g) { return g.delivered >= 10; });
+    if (bands.length >= 2) {
+      var hi = bands.slice().sort(function (a, b) { return b.retRate - a.retRate; })[0], lo = bands.slice().sort(function (a, b) { return a.retRate - b.retRate; })[0];
+      if (hi.key !== lo.key && hi.retRate - lo.retRate >= 0.05) ins.push({ k: 'price', hi: hi.key, hiRate: hi.retRate, lo: lo.key, loRate: lo.retRate });
+    }
+    var worst = bySku.filter(function (g) { return g.loss > 0; })[0];
+    if (worst) ins.push({ k: 'skuLoss', sku: worst.key, loss: worst.loss, retRate: worst.retRate, rtoRate: worst.rtoRate, share: tot.loss > 0 ? worst.loss / tot.loss : 0 });
+    var months = Math.max(1, byMonth.length), perRet = RV && RV.G.ret.n ? RV.G.ret.loss / RV.G.ret.n : 0;
+    var save = Math.round(tot.delivered / months * 0.05 * perRet);
+    if (tot.retRate >= 0.07 && save > 0) ins.push({ k: 'save', amt: save, perRet: Math.round(perRet) });
+    if (cond.stock > 0) ins.push({ k: 'stock', n: cond.loss, amt: cond.stock });
+    if (cond.def && cond.def >= (cond.ok + cond.loss) / 2) ins.push({ k: 'marks', n: cond.def });
+
+    return {
+      tot: tot, bySize: bySize, bySku: bySku, bySkuSize: bySkuSize, byState: byState, byPrice: byPrice, byMonth: byMonth, byCat: byCat,
+      days: days, avgDays: { ret: dsum.ret[1] ? dsum.ret[0] / dsum.ret[1] : 0, rto: dsum.rto[1] ? dsum.rto[0] / dsum.rto[1] : 0 },
+      cond: cond, insights: ins, hasSize: bySize.length > 0, hasState: byState.length > 0, perOrderLoss: tot.done ? tot.loss / tot.done : 0
     };
   }
 
@@ -1959,7 +2076,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     monthStart: monthStart, monthEnd: monthEnd, nextMonth: nextMonth, fmtDate: fmtDate, fmtMonth: fmtMonth, money: money,
     skuLetters: skuLetters, nameCount: nameCount, packRule: packRule, piecesOf: piecesOf, normSt: normSt, classify: classify, detect: detect, parsePay: parsePay, parseAds: parseAds, parseAmt: parseAmt, parseOrd: parseOrd,
     calibrate: calibrate, ingest: ingest, merge: merge, index: index, dataMonths: dataMonths, periodFor: periodFor, expFor: expFor,
-    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, recoveries: recoveries, recKind: recKind, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
+    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, recoveries: recoveries, recKind: recKind, returnsDeep: returnsDeep, normSize: normSize, sizeCmp: sizeCmp, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
   };
 });
 
@@ -2280,7 +2397,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   A.hasData = hasData;
 
   /* ---------------- rendering hooks (views.js fills A.V) ---------------- */
-  var TABS = [['pl', 'P&L'], ['rc', 'Reconcile'], ['data', 'Upload'], ['costs', 'Costs'], ['calc', 'Price check'], ['exp', 'Expenses'], ['set', 'Settings'], ['guide', 'How to use']];
+  var TABS = [['pl', 'P&L'], ['ret', 'Returns'], ['rc', 'Reconcile'], ['data', 'Upload'], ['costs', 'Costs'], ['calc', 'Price check'], ['exp', 'Expenses'], ['set', 'Settings'], ['guide', 'How to use']];
   A.TABS = TABS;
   function renderChrome() {
     var st = cfg();
@@ -2813,6 +2930,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     clt: function (el) { S.rc.ct = el.getAttribute('data-v'); render(); },
     copyTicket: function (el) { var c = A.claimsData().list[+el.getAttribute('data-i')]; if (c) copyText(c.ticket, 'Ticket text copied. Paste it in Meesho support.'); },
     rvf: function (el) { S.rc.rv = el.getAttribute('data-v'); render(); },
+    rtd: function (el) { (S.rt || (S.rt = { dim: '', sku: '' })).dim = el.getAttribute('data-v'); render(); },
     copyRec: function (el) { var it = A.recovData().list[+el.getAttribute('data-i')]; if (it && it.ticket) copyText(it.ticket, 'Ticket text copied. Paste it in Meesho support.'); },
     copyRecAll: function () {
       var D = A.recovData(), v = S.rc.rv, list = D.list.filter(function (it) { return it.ticket && (!v || it.verdict === v); });
@@ -2942,6 +3060,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       // drawn again after the change has finished (the box is still focused now)
       setTimeout(render, 0); toast(v ? 'Goal saved' : 'Goal removed');
     },
+    rtsku: function (el) { (S.rt || (S.rt = { dim: '', sku: '' })).sku = el.value; render(); },
     pcsku: function (el) { S.pc = null; A.pcState(); if (el.value) pcSku(el.value); render(); },
     pcgst: function (el) { A.pcState().gst = +el.value; pcOut(); },
     pcbuy: function (el) { A.pcState().buy = +el.value || 0; pcOut(); }
@@ -3280,7 +3399,9 @@ details.more[open] > summary { margin-bottom: 10px; }
   // Shown in place of the full report when not logged in or not on Pro.
   function lockHtml(what) {
     var x = A.access(), trial = x.trialDays ? ' New accounts get ' + x.trialDays + ' days of Pro free.' : '';
-    var items = what === 'rc'
+    var items = what === 'ret'
+      ? ['Returns, RTO and exchanges by size, product, state and price', 'The sizes and products that come back most', 'Money lost on every return, and what to fix']
+      : what === 'rc'
       ? ['Every order with its Meesho payment, side by side', 'Payments overdue, recoveries and rows that do not add up', 'Mark each return or RTO as resellable or not', 'Search by order ID or SKU']
       : ['Profit and loss statement, line by line', 'RTO, returns and exchanges with every Meesho fee', 'Profit by product and by category, with break-even price', 'GST, TCS and TDS worked out', 'Month by month', 'Download as PDF and Excel'];
     var btn = !x.login ? '<button class="btn pri" data-act="unlock" data-k="' + what + '">Log in or sign up free</button>'
@@ -3289,8 +3410,8 @@ details.more[open] > summary { margin-bottom: 10px; }
     var sk = '';
     for (var i = 0; i < 7; i++) sk += '<div class="lk-row"><i style="width:' + (38 + (i * 23) % 40) + '%"></i><i style="width:' + (14 + (i * 7) % 12) + '%"></i></div>';
     return '<section class="sheet lock" aria-label="Full report locked"><div class="lk-sk" aria-hidden="true">' + sk + '</div><div class="lk-box"><div class="lk-ic" aria-hidden="true">\ud83d\udd12</div>' +
-      '<h2>' + (what === 'rc' ? 'Reconcile every order' : 'See your full report') + '</h2>' +
-      '<p>' + (!x.login ? 'Log in or create a free account, then ' : '') + 'get PakkaBill Pro to open ' + (what === 'rc' ? 'order-by-order reconciliation.' : 'the complete profit and loss report.') + trial + '</p>' +
+      '<h2>' + (what === 'rc' ? 'Reconcile every order' : what === 'ret' ? 'See why orders come back' : 'See your full report') + '</h2>' +
+      '<p>' + (!x.login ? 'Log in or create a free account, then ' : '') + 'get PakkaBill Pro to open ' + (what === 'rc' ? 'order-by-order reconciliation.' : what === 'ret' ? 'the full returns analysis.' : 'the complete profit and loss report.') + trial + '</p>' +
       '<ul>' + items.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul>' + btn + '</div></section>';
   }
   A.lockHtml = lockHtml;
@@ -3581,6 +3702,106 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<details class="more" style="margin-top:10px"><summary>How it is worked out</summary>' + kv(how) +
       '<p class="small muted" style="margin:8px 0 0">Out of every 100 parcels, ' + Math.round(r.kept * 100) + ' are kept by the buyer, ' + Math.round(r.back * 100) + ' come back as returns and ' + Math.round(r.rto * 100) + ' as RTO. ' +
       (st.gstReg ? 'The sale value is the payout × ' + (Math.round(p.q * 100) / 100) + (p.own ? ', as in your files' : '') + ': Meesho adds its fees and delivery charges on top of what it pays you. ' : '') + 'Ads and monthly expenses are not included.</p></details></section>';
+  };
+
+  /* ---------------- Returns: why orders come back, cut by size, product, state, price and time ---------------- */
+  var RDIM = [['size', 'Size'], ['skuSize', 'Size in product'], ['sku', 'Product'], ['state', 'State'], ['price', 'Price'], ['cat', 'Category'], ['month', 'Month'], ['days', 'Days to come back']];
+  function rRates(g, max) {
+    function one(cls, r) { return '<div class="rbl"><i class="' + cls + '" style="width:' + Math.max(r > 0 ? 2 : 0, Math.round(r / max * 75)) + '%"></i><span>' + pct(r) + '</span></div>'; }
+    return one('s-rto', g.rtoRate) + one('s-ret', g.retRate) + one('s-exch', g.exchRate);
+  }
+  function rTable(rows, name, opt) {
+    opt = opt || {};
+    if (!rows.length) return '<p class="small muted" style="margin:10px 0 0">' + (opt.empty || 'Nothing to show for this period.') + '</p>';
+    var max = Math.max(0.05, Math.max.apply(null, rows.map(function (g) { return Math.max(g.rtoRate, g.retRate, g.exchRate); })));
+    var avg = opt.avg, body = rows.map(function (g) {
+      var hot = avg && g.delivered >= 8 && (g.backRate >= Math.max(avg.backRate * 1.4, avg.backRate + 0.05) || g.rtoRate >= Math.max(avg.rtoRate * 1.4, avg.rtoRate + 0.05));
+      return '<tr><td><b>' + esc(opt.label ? opt.label(g) : g.key) + '</b>' + (hot ? ' <span class="tag bad">High</span>' : '') + (opt.sub ? '<div class="small muted">' + opt.sub(g) + '</div>' : '') + '<div class="small muted">' + pl(g.done, 'order') + '</div></td>' +
+        '<td class="rb">' + rRates(g, max) + '</td><td class="n">' + (g.loss ? rs(g.loss, true) : '-') + '</td></tr>';
+    }).join('');
+    return '<div class="tw" style="margin-top:10px"><table class="t rtab"><thead><tr><th>' + name + '</th><th>RTO · Returns · Exchanges</th><th class="n">Money lost</th></tr></thead><tbody>' + body + '</tbody></table></div>';
+  }
+  function rInsight(x) {
+    switch (x.k) {
+      case 'sizeHigh': return '<span>Size </span><b>' + esc(x.size) + '</b><span> comes back ' + pct(x.rate) + ' of the time (returns and exchanges), against ' + pct(x.avg) + ' overall. Check the size chart and fit for this size.</span>';
+      case 'sizeExch': return '<span>Size </span><b>' + esc(x.size) + '</b><span> is exchanged ' + pct(x.rate) + ' of the time: buyers want another size. Your size chart may run small or large.</span>';
+      case 'skuSize': return '<b>' + esc(x.sku) + '</b><span> in size </span><b>' + esc(x.size) + '</b><span> comes back ' + pct(x.rate) + ' of ' + x.n + ' delivered orders. Check this exact size of this product.</span>';
+      case 'stateRto': return '<b>' + esc(x.state) + '</b><span>: ' + pct(x.rate) + ' of parcels come back as RTO, against ' + pct(x.avg) + ' overall. Most RTO is cash-on-delivery orders refused at the door.</span>';
+      case 'price': return '<span>Price matters: </span><b>' + esc(x.hi) + '</b><span> orders are returned ' + pct(x.hiRate) + ' of the time, </span><b>' + esc(x.lo) + '</b><span> orders ' + pct(x.loRate) + '.</span>';
+      case 'skuLoss': return '<b>' + esc(x.sku) + '</b><span> lost you the most on returns and RTO: ' + rs(x.loss, true) + ' (' + pct(x.share) + ' of the total). Returns ' + pct(x.retRate) + ', RTO ' + pct(x.rtoRate) + '.</span>';
+      case 'save': return '<span>Every 5 fewer returns out of 100 delivered orders saves you about </span><b>' + rs(x.amt, true) + ' a month</b>. <span>One return costs you about ' + rs(x.perRet, true) + ' in Meesho charges and packing.</span>';
+      case 'stock': return '<span>' + pl(x.n, 'return') + ' or RTO came back not resellable: ' + rs(x.amt, true) + ' of stock lost. Claim the damaged ones on the Reconcile tab.</span>';
+      case 'marks': return '<span>' + x.n + ' returns and RTO parcels use the default condition. Mark the damaged ones on the Reconcile tab, so the stock loss is right and you can claim them.</span>';
+    }
+    return '';
+  }
+  V.ret = function () {
+    if (!A.hasData()) return empty();
+    if (!A.full()) return '<div class="stack">' + lockHtml('ret') + '</div>';
+    var RV = S.RV, st = S.rt || (S.rt = { dim: '', sku: '' });
+    if (!RV || !RV.done) return '<div class="stack">' + demoBar() + '<section class="sheet"><h2>Returns</h2><p>No delivered, returned or RTO orders in this period yet.</p></section></div>';
+    var D = E.returnsDeep(RV, { catOf: A.catOf }), T = D.tot;
+    var dim = st.dim || (D.hasSize ? 'size' : 'sku');
+    var h = '<section class="sheet"><h2>Why orders come back</h2><p class="muted" style="margin:6px 0 0"><span>' + esc(S.per.label) + '</span><span>, counted by ' + (S.per.basis === 'order' ? 'order date' : 'payment date') + '.</span> <span>Change the period on the P&L tab.</span></p>' +
+      '<div class="way-g" style="margin-top:12px">' +
+      '<div><small>RTO</small><strong>' + pct(T.rtoRate) + '</strong><span class="small muted">' + (T.rto + T.lost) + ' of ' + T.done + ' parcels shipped</span></div>' +
+      '<div><small>Customer returns</small><strong>' + pct(T.retRate) + '</strong><span class="small muted">' + T.ret + ' of ' + T.delivered + ' delivered</span></div>' +
+      '<div><small>Exchanges</small><strong>' + pct(T.exchRate) + '</strong><span class="small muted">' + T.exch + ' of ' + T.delivered + ' delivered</span></div>' +
+      '<div><small>Money lost</small><strong class="neg">' + rs(T.loss, true) + '</strong><span class="small muted">' + rs(D.perOrderLoss, true) + ' per parcel shipped</span></div></div>';
+    var ins = D.insights.map(rInsight).filter(Boolean);
+    if (ins.length) h += '<h3 style="margin-top:16px">What stands out</h3><ul class="rv-notes">' + ins.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul>';
+    if (!D.hasSize) h += '<div class="note info" style="margin-top:12px"><p>Upload the Meesho orders report (Orders, Download CSV) to see returns by size and by state.</p><button class="btn sm" data-act="tab" data-tab="data">Upload</button></div>';
+    h += '</section>';
+
+    // one cut at a time
+    var chips = RDIM.filter(function (d) { return (d[0] !== 'size' && d[0] !== 'skuSize' && d[0] !== 'state') || (d[0] === 'state' ? D.hasState : D.hasSize); }).map(function (d) {
+      return '<button class="chip" data-act="rtd" data-v="' + d[0] + '" aria-pressed="' + (dim === d[0]) + '">' + d[1] + '</button>';
+    }).join('');
+    var legend = '<div class="pc-leg"><span><i class="s-rto"></i>RTO, of parcels shipped</span><span><i class="s-ret"></i>Returns, of delivered</span><span><i class="s-exch"></i>Exchanges, of delivered</span></div>';
+    var body = '';
+    if (dim === 'size') {
+      var withSize = D.bySku.filter(function (g) { return RV.items.some(function (it) { return it.sku === g.key && it.size; }); });
+      var DS = st.sku ? E.returnsDeep({ items: RV.items.filter(function (it) { return it.sku === st.sku; }), G: RV.G }) : D;
+      body = '<label class="f" style="margin-top:10px">Product<select class="inp" data-ch="rtsku"><option value="">All products</option>' + withSize.map(function (g) { return '<option value="' + esc(g.key) + '"' + (st.sku === g.key ? ' selected' : '') + '>' + esc(g.key) + (g.pn ? ' · ' + esc(g.pn.slice(0, 40)) : '') + '</option>'; }).join('') + '</select></label>' +
+        rTable(DS.bySize, 'Size', { avg: DS.tot }) + '<p class="small muted" style="margin:8px 0 0">Size problems show up as returns and exchanges. RTO happens before the buyer opens the parcel, so it rarely depends on size.</p>';
+    } else if (dim === 'skuSize') {
+      body = rTable(D.bySkuSize, 'Product and size', { avg: T, label: function (g) { return g.sku + ' · ' + g.size; }, empty: 'No product and size with 5 or more delivered orders yet.' }) +
+        '<p class="small muted" style="margin:8px 0 0">Each size of each product with 5 or more delivered orders, most returned first.</p>';
+    } else if (dim === 'sku') {
+      body = rTable(D.bySku, 'Product', { avg: T, sub: function (g) { return esc((g.pn || '').slice(0, 48)); } }) + '<p class="small muted" style="margin:8px 0 0">Most money lost first.</p>';
+    } else if (dim === 'state') {
+      body = rTable(D.byState, 'State', { avg: T }) + '<p class="small muted" style="margin:8px 0 0">Most orders first. A state with high RTO usually means many cash-on-delivery orders refused at the door.</p>';
+    } else if (dim === 'price') {
+      body = rTable(D.byPrice, 'Price of the order', { avg: T });
+    } else if (dim === 'cat') {
+      body = rTable(D.byCat, 'Category', { avg: T });
+    } else if (dim === 'month') {
+      body = rTable(D.byMonth, 'Month ordered', { avg: T, label: function (g) { return E.fmtMonth(g.key); } }) + '<p class="small muted" style="margin:8px 0 0">Orders from the latest weeks can still come back, so the newest month may rise.</p>';
+    } else if (dim === 'days') {
+      var dmax = Math.max(1, Math.max.apply(null, D.days.map(function (b) { return Math.max(b.ret, b.rto); })));
+      body = '<div class="tw" style="margin-top:10px"><table class="t rtab"><thead><tr><th>After the order</th><th>Returns · RTO</th></tr></thead><tbody>' + D.days.map(function (b) {
+        return '<tr><td>' + b.key + '</td><td class="rb"><div class="rbl"><i class="s-ret" style="width:' + Math.round(b.ret / dmax * 75) + '%"></i><span>' + b.ret + '</span></div><div class="rbl"><i class="s-rto" style="width:' + Math.round(b.rto / dmax * 75) + '%"></i><span>' + b.rto + '</span></div></td></tr>';
+      }).join('') + '</tbody></table></div>' +
+        '<p class="small muted" style="margin:8px 0 0">' + (D.avgDays.ret ? '<span>Returns reach your payment report about ' + Math.round(D.avgDays.ret) + ' days after the order.</span> ' : '') + (D.avgDays.rto ? '<span>RTO reaches it about ' + Math.round(D.avgDays.rto) + ' days after the order.</span> ' : '') + '<span>Counted from the order date to the return entry in Meesho’s payment report.</span></p>';
+    }
+    h += '<section class="sheet"><h3>Look at it by</h3><div class="chips" role="group" aria-label="Look at returns by" style="margin-top:8px">' + chips + '</div>' + (dim === 'days' ? '<div class="pc-leg"><span><i class="s-ret"></i>Returns</span><span><i class="s-rto"></i>RTO</span></div>' : legend) + body + '</section>';
+
+    // where the money goes on returns and RTO
+    var G = RV.G, parts = [['Return shipping', G.rto.retFee + G.ret.retFee + G.exch.retFee + G.lost.retFee], ['Forward shipping not refunded', G.rto.fwdShip + G.ret.fwdShip + G.lost.fwdShip], ['Commission and fees kept', G.rto.fees + G.ret.fees + G.exch.fees + G.lost.fees],
+      ['Packing', G.rto.pack + G.ret.pack + G.lost.pack], ['Stock not resellable', G.rto.stock + G.ret.stock + G.lost.stock], ['Paid back by Meesho', -(G.rto.back + G.ret.back + G.exch.back + G.lost.back)]].filter(function (x) { return Math.round(x[1]); });
+    h += '<section class="sheet"><h3>Where the money goes</h3><p class="small muted" style="margin:4px 0 0">Everything you lose when an order comes back, with GST, as Meesho cuts it.</p>' +
+      kv(parts.map(function (x) { return [x[0], -x[1]]; }).concat([['Total lost on returns and RTO', -RV.loss, true]])) + '</section>';
+
+    // what helps
+    var has = {}; D.insights.forEach(function (x) { has[x.k] = 1; });
+    var tips = [];
+    if (has.sizeHigh || has.sizeExch || has.skuSize || T.exchRate >= 0.04) tips.push('Show a size chart with body measurements in inches and centimetres, and say how it fits, for example: size up if you are between sizes.');
+    tips.push('Use real photos of the product in daylight. Returns go up when the colour or fabric looks different from the photos.');
+    tips.push('Put the fabric, length and what is in the pack (for example, combo of 2) in the first line of the description.');
+    if (T.rtoRate >= 0.1) tips.push('RTO happens before the buyer sees the product: most are refused cash-on-delivery orders. Dispatch the same day; the longer a parcel takes, the more buyers refuse it.');
+    tips.push('Pack firmly and record a packing video, so damage claims and disputes are paid.');
+    h += '<section class="sheet"><h3>How to bring returns down</h3><ul class="rv-notes">' + tips.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul></section>';
+    return '<div class="stack">' + demoBar() + h + '</div>';
   };
 
   /* ---------------- Reconcile ---------------- */
@@ -4005,6 +4226,21 @@ details.more[open] > summary { margin-bottom: 10px; }
       RT.push([t('SKU', ST.sec), t('Shipped', ST.sec), t('Delivered', ST.sec), t('RTO and lost', ST.sec), t('RTO %', ST.sec), t('Returns', ST.sec), t('Return %', ST.sec), t('Exchanges', ST.sec), t('Exchange %', ST.sec), t('Money lost', ST.sec)]);
       RV.skus.forEach(function (x) { RT.push([t(x.sku), n(x.done), n(x.delivered), n(x.rto + x.lost), pc(x.rtoRate), n(x.ret), pc(x.retRate), n(x.exch), pc(x.exchRate), m(-x.loss)]); });
       X.utils.book_append_sheet(wb, sheet(RT, [40, 14, 16, 14, 12, 11, 11, 11, 11, 13], { xSplit: 1, ySplit: 1 }), 'Returns & RTO');
+    }
+
+    /* Returns analysis: by size, product and size, state, price, category and month */
+    if (RV && RV.done && E.returnsDeep) {
+      var DX = E.returnsDeep(RV, { catOf: window.HA.catOf }), pc2 = function (x) { return t((x * 100).toFixed(1) + '%'); };
+      var RA = [[t('Returns analysis', ST.title)], [t('RTO is counted of parcels shipped; returns and exchanges of orders delivered. Money lost is with GST, as Meesho cuts it. Size and state come from the orders report.', ST.note)], []];
+      var block = function (title, rows, lab) {
+        if (!rows.length) return;
+        RA.push(heads([title, 'Orders', 'Delivered', 'RTO', 'RTO %', 'Returns', 'Return %', 'Exchanges', 'Exchange %', 'Money lost']));
+        rows.forEach(function (g) { RA.push([t(lab ? lab(g) : g.key), n(g.done), n(g.delivered), n(g.rto + g.lost), pc2(g.rtoRate), n(g.ret), pc2(g.retRate), n(g.exch), pc2(g.exchRate), m(-g.loss)]); });
+        RA.push([]);
+      };
+      block('Size', DX.bySize); block('Product and size', DX.bySkuSize, function (g) { return g.sku + ' / ' + g.size; }); block('Product', DX.bySku);
+      block('State', DX.byState); block('Price of the order', DX.byPrice); block('Category', DX.byCat); block('Month ordered', DX.byMonth, function (g) { return E.fmtMonth(g.key); });
+      X.utils.book_append_sheet(wb, sheet(RA, [32, 9, 10, 8, 9, 9, 10, 10, 11, 13]), 'Returns analysis');
     }
 
     /* Month wise */
@@ -5032,6 +5268,12 @@ details.more[open] > summary { margin-bottom: 10px; }
         line('Total lost', function (g) { return amt(-g.loss); }, 'grand'),
         line('Lost per order', function (g) { return g.n ? amt(-Math.round(g.loss / g.n)) : '-'; })
       ], { w: { 0: 150 } });
+      var DXP = E.returnsDeep ? E.returnsDeep(RV) : null;
+      if (DXP && DXP.hasSize) {
+        cursor += 8; ensure(60 + DXP.bySize.length * 18); para('By size (from the orders report). The full analysis by product, state and price is on the Returns tab.', { style: 'italic', color: GREY, size: 8 });
+        caTable(['Size', 'Orders', 'RTO', 'Returns', 'Exchanges', 'Money lost'], DXP.bySize.map(function (g) { return { c: [g.key, String(g.done), pc(g.rtoRate), pc(g.retRate), pc(g.exchRate), amt(-g.loss)] }; })
+          .concat([{ c: ['All sizes', String(DXP.bySize.reduce(function (x, g) { return x + g.done; }, 0)), '', '', '', amt(-DXP.bySize.reduce(function (x, g) { return x + g.loss; }, 0))], k: 'tot' }]), { fs: 8 });
+      }
     }
 
     // Note: GST and tax deducted
