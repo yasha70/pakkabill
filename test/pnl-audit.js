@@ -345,6 +345,76 @@ for (const cfg of settings) {
   ok(shop.n > 100 && shop.q > 1 && shop.q < 1.6, 'price check: average payout and sale value from the files', JSON.stringify({ n: shop.n, q: shop.q }));
 }
 {
+  // recoveries: each kind of recovery is read the way a seller would want it explained
+  const H2 = ['Sub Order No', 'Order Date', 'Payment Date', 'Supplier SKU', 'Product Name', 'Live Order Status', 'Product GST %', 'Quantity',
+    'Final Settlement Amount', 'Total Sale Amount (Incl. Shipping & GST)', 'Shipping Charge (Incl. GST)', 'Claims', 'Recovery', 'Claims Reason', 'Recovery Reason'];
+  // id, pay date, status, sale, shipping, claims, recovery, claims reason, recovery reason
+  const L2 = [
+    ['200000001_1', '2026-08-12', 'Delivered', 500, -80, 0, 0, '', ''],
+    ['200000001_1', '2026-08-26', 'Delivered', 0, 0, 0, -200, '', 'Wrong product dispatched'],
+    ['200000002_1', '2026-08-12', 'Delivered', 500, -80, 0, 0, '', ''],
+    ['200000002_1', '2026-08-19', 'Delivered', 0, 0, 0, -150, '', 'Wrong product'],
+    ['200000002_1', '2026-08-26', 'Delivered', 0, 0, 0, -150, '', 'Wrong product'],
+    ['200000003_1', '2026-08-12', 'Delivered', 500, -80, 0, -900, '', 'Customer complaint'],
+    ['200000004_1', '2026-08-12', 'Lost', 0, 0, 300, 0, 'Shipment lost in transit', ''],
+    ['200000004_1', '2026-09-02', 'Delivered', 0, 0, 0, -300, '', 'Lost claim reversed'],
+    ['200000005_1', '2026-08-12', 'Delivered', 400, -80, 0, -100, '', 'Wrong product'],
+    ['200000005_1', '2026-08-26', 'Delivered', 0, 0, 0, 100, '', 'Recovery reversal'],
+    ['200000006_1', '2026-08-12', 'Delivered', 300, -70, 0, -80, '', ''],
+    ['200000007_1', '2026-08-12', 'Delivered', 300, -70, 0, -40, '', 'Weight discrepancy'],
+    ['200000008_1', '2026-08-12', 'Delivered', 300, -70, 0, -50, '', 'Late dispatch penalty'],
+    ['200000009_1', '2026-08-12', 'Lost', 0, 0, 200, 0, 'Damaged in transit', ''],
+    ['200000009_1', '2026-08-26', 'Lost', 0, 0, 0, -350, '', 'Claim recovery']
+  ];
+  const rows = [H2].concat(L2.map((l) => {
+    const [id, pd, st, sale, ship, cl, rc, cw, rw] = l;
+    return [id, '2026-08-01', pd, 'TOP', 'Cotton Top', st, '5', '1', (sale + ship + cl + rc).toFixed(2), String(sale), String(ship), String(cl), String(rc), cw, rw];
+  }));
+  const adj = [['Date', 'Type', 'Reason', 'Amount (inc GST) INR'], ['2026-08-20', 'Compensation', 'Warehouse damage', '180'], ['2026-08-22', 'Recovery', 'Excess payout recovered', '75'],
+    ['2026-08-25', 'Recovery', 'Weight discrepancy', '40'], ['2026-08-28', 'Recovery', 'Weight discrepancy', '40'], ['2026-09-01', 'Recovery', '', '60']];
+  const bk = { name: 'rec.xlsx', sheets: [{ name: 'Order Payments', rows }, { name: 'Compensation and Recovery', rows: adj }] };
+  const all = run([bk], { cfg: { gstReg: false } });
+  const REC = E.reconcile(all.M, all.IX, all.cfg), RC = E.recoveries(all.M, all.IX, REC, all.cfg);
+  const get = (id) => RC.list.find((x) => x.id === id && !x.acct) || {};
+  const want = [['200000001_1', 'dispute', 20000, 'wrong'], ['200000002_1', 'dispute', 15000, 'wrong', 'twice'], ['200000003_1', 'dispute', 40000, 'other', 'over'],
+    ['200000004_1', 'fair', 0, 'claimBack'], ['200000005_1', 'back', 0], ['200000006_1', 'ask', 8000, 'none'], ['200000007_1', 'dispute', 4000, 'weight'],
+    ['200000008_1', 'ask', 5000, 'penalty'], ['200000009_1', 'dispute', 15000, 'claimBack', 'overClaim']];
+  for (const [id, v, amt, kind, flag] of want) {
+    const it = get(id);
+    eq(it.verdict, v, 'recovery ' + id + ': verdict');
+    eq(it.amt, amt, 'recovery ' + id + ': amount to raise');
+    if (kind) eq(it.kind, kind, 'recovery ' + id + ': reason read as');
+    if (flag) eq(it.flag, flag, 'recovery ' + id + ': found');
+    ok(it.verdict === 'back' || it.verdict === 'fair' ? it.ticket === '' : it.ticket.indexOf(id) >= 0, 'recovery ' + id + ': ticket text');
+  }
+  ok(get('200000001_1').ticket.indexOf('Wrong product dispatched') > 0, 'recovery: the ticket quotes Meesho’s reason');
+  eq(get('200000002_1').took, 30000, 'recovery: both deductions counted');
+  // account level: recoveries written as positive amounts are deductions; a repeat is flagged
+  const acct = RC.list.filter((x) => x.acct);
+  eq(acct.length, 4, 'recovery: account-level entries');
+  eq(acct.map((x) => x.verdict).join(','), 'fair,dispute,dispute,ask'.split(',').sort((a, b) => ({ dispute: 0, ask: 1, fair: 2, back: 3 })[a] - ({ dispute: 0, ask: 1, fair: 2, back: 3 })[b]).join(','), 'recovery: account-level verdicts', acct.map((x) => x.verdict + ':' + x.why).join(' | '));
+  eq(acct.filter((x) => x.flag === 'twice').length, 1, 'recovery: only the repeat is flagged twice');
+  eq(all.R.K.ADJ, 18000 - 7500 - 4000 - 4000 - 6000, 'recovery: account-level total, recoveries as deductions');
+  eq(all.R.K.ADJP, 18000, 'recovery: account-level compensation');
+  eq(all.R.K.ADJN, -21500, 'recovery: account-level recoveries');
+  ok(all.R.lines.some((l) => l.l === 'Account-level recoveries' && l.v === -21500), 'recovery: its own line in the P&L');
+  eq(all.R.payout, all.R.K.F + all.R.K.ADJ, 'recovery: money received includes the account-level entries');
+  // money you may get back: only recoveries worth raising, at the amount worth raising
+  const C = E.claims(all.M, all.IX, REC, all.cfg), cr = C.list.filter((c) => c.type === 'recovery');
+  eq(cr.length, 7, 'recovery: claims list leaves out the fair and paid-back ones');
+  eq(cr.reduce((t, c) => t + c.amt, 0), 20000 + 15000 + 40000 + 8000 + 4000 + 5000 + 15000, 'recovery: amount you may get back');
+  eq(RC.by.back.n, 1, 'recovery: one paid back');
+  eq(RC.net, RC.took - RC.back, 'recovery: net taken');
+  // reconcile: a recovery paid back is not shown as charged
+  const r5 = REC.rows.find((r) => r.id === '200000005_1');
+  ok(r5 && r5.flags.indexOf('recovery') < 0, 'recovery: paid back is not flagged as charged');
+  // reason words
+  eq(E.recKind('Wrongly paid claim, recovered'), 'claimBack', 'recovery reason: wrongly paid is a claim taken back');
+  eq(E.recKind('Customer received damaged product'), 'damaged', 'recovery reason: damaged');
+  eq(E.recKind('Item missing in shipment'), 'missing', 'recovery reason: missing');
+  eq(E.recKind('Excess weight charge'), 'weight', 'recovery reason: weight');
+}
+{
   // accuracy: a missing week of payments is found
   const rows = PAY.filter((r, i) => i < 2 || !/^2026-08-(19|26)$/.test(r[col('Payment Date')]));
   const files = [E.ingest('a.xlsx', 0, book(rows).sheets, cfgOf())];

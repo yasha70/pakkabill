@@ -78,6 +78,7 @@
 .bar { height: 8px; border-radius: 999px; background: var(--paper); overflow: hidden; margin-top: 6px; } .bar i { display: block; height: 100%; background: var(--carbon); border-radius: 999px; } .bar i.done { background: var(--pos); }
 .cl-row { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rule); flex-wrap: wrap; }
 .cl-amt { font-family: var(--f-head); }
+.rv-row { padding: 10px 0; border-top: 1px solid var(--rule); } .rv-notes { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: .92rem; }
 .pc-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 12px; }
 .pc-in { display: flex; align-items: center; gap: 4px; } .pc-in i { font-style: normal; color: var(--ink-3); } .pc-in .inp { min-width: 0; }
 .pc-big { display: grid; gap: 2px; } .pc-big strong { font-family: var(--f-head); font-size: 2rem; line-height: 1.1; }
@@ -583,9 +584,9 @@ details.more[open] > summary { margin-bottom: 10px; }
     else if (/support\s*service|waiver/.test(s)) cat = 'support';
     else if (/penalt/.test(s)) cat = 'penalty';
     else if (/fee|premium|platform|charge/.test(s)) cat = 'fees';
+    else if (/recover/.test(s)) cat = 'recovery';
     else if (/compensation/.test(s)) cat = 'comp';
     else if (/claim/.test(s)) cat = 'claims';
-    else if (/recover/.test(s)) cat = 'recovery';
     else cat = 'other';
     var gst = 'none';
     if (cat === 'sale' || cat === 'ret') gst = 'sale';
@@ -641,7 +642,10 @@ details.more[open] > summary { margin-bottom: 10px; }
       tx: findCol(H, [/transaction\s*id/, /\butr\b/, /transaction/]),
       f: findCol(H, [/final\s*settlement/]),
       lp: findCol(H, [/listing\s*price/]),
-      pt: findCol(H, [/price\s*type/])
+      pt: findCol(H, [/price\s*type/]),
+      wrc: findCol(H, [/recover(y|ies)?\s*reason/, /reason\s*for\s*recover/]),
+      wcl: findCol(H, [/claims?\s*reason/, /reason\s*for\s*claim/]),
+      wcp: findCol(H, [/compensation\s*reason/, /reason\s*for\s*compensation/])
     };
     var idCols = {};
     for (var key0 in c) if (c[key0] >= 0) idCols[c[key0]] = 1;
@@ -697,6 +701,11 @@ details.more[open] > summary { margin-bottom: 10px; }
         lp: c.lp >= 0 ? paise(cleanNum(row[c.lp]) || 0) : 0, pt: txt(row[c.pt])
       };
       if (!rec.pd) { rec.pd = rec.dd || rec.od; pdFallback++; }
+      var why = {}, wv;
+      if ((wv = txt(row[c.wrc]))) why.rc = wv;
+      if ((wv = txt(row[c.wcl]))) why.cl = wv;
+      if ((wv = txt(row[c.wcp]))) why.cp = wv;
+      if (why.rc || why.cl || why.cp) rec.why = why;
       var sum = 0;
       for (var k4 = 0; k4 < m; k4++) {
         if (!best.coef[k4]) continue;
@@ -800,7 +809,9 @@ details.more[open] > summary { margin-bottom: 10px; }
     var c = {
       dt: findCol(H, [/payment\s*date/, /credit\s*date/, /deduction\s*date/, /date/]),
       amt: type === 'ref' ? findCol(H, [/net\s*referral\s*amount/, /net\s*amount/, /referral\s*amount/, /amount/]) : findCol(H, [/amount\s*\(inc/, /net\s*amount/, /amount/]),
-      desc: findCol(H, [/reason/, /description|remark|narration/, /type/, /referral\s*(id|code|name)|supplier|campaign/])
+      desc: findCol(H, [/reason/, /description|remark|narration/, /type/, /referral\s*(id|code|name)|supplier|campaign/]),
+      typ: type === 'adj' ? findCol(H, [/^type$/, /\btype\b/, /category/]) : -1,
+      oid: type === 'adj' ? findCol(H, [/sub\s*order/]) : -1
     };
     var out = [];
     for (var i = hr + 1; i < rows.length; i++) {
@@ -808,8 +819,14 @@ details.more[open] > summary { margin-bottom: 10px; }
       if (!r || !r.length) continue;
       var t = cleanNum(r[c.amt]);
       if (t === null || t === 0) continue;
-      out.push({ dt: toDate(r[c.dt]), t: paise(t), desc: txt(r[c.desc]) });
+      var x = { dt: toDate(r[c.dt]), t: paise(t), desc: txt(r[c.desc]) };
+      if (c.typ >= 0 && c.typ !== c.desc) x.typ = txt(r[c.typ]);
+      if (c.oid >= 0 && digitCount(txt(r[c.oid])) >= 5) x.oid = txt(r[c.oid]);
+      out.push(x);
     }
+    // a file that writes recoveries as positive amounts: when every row typed Recovery is positive, they are deductions
+    var recs = out.filter(function (x) { return /^\s*recover/i.test(x.typ || ''); });
+    if (recs.length && recs.every(function (x) { return x.t > 0; })) recs.forEach(function (x) { x.t = -x.t; });
     return { type: type, recs: out };
   }
 
@@ -847,7 +864,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   function uid(p) { seq++; return (p || 'f') + Date.now().toString(36) + seq.toString(36) + Math.random().toString(36).slice(2, 6); }
 
   function ingest(name, size, sheets, cfg) {
-    var f = { id: uid('f'), name: name, size: size || 0, at: Date.now(), sheets: [], pay: [], ads: [], ref: [], adj: [], ord: [], reg: {}, cats: {} };
+    var f = { id: uid('f'), name: name, size: size || 0, at: Date.now(), pv: 2, sheets: [], pay: [], ads: [], ref: [], adj: [], ord: [], reg: {}, cats: {} };
     var maxPd = '';
     sheets.forEach(function (sh) {
       var rows = sh.rows || [];
@@ -907,6 +924,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     M.cats = {};
     files.forEach(function (f) { for (var k in (f.cats || {})) M.cats[k] = f.cats[k]; });
     M.pk = packInfo(M);
+    M.oldParse = files.some(function (f) { return !(f.pv >= 2) && (f.pay || []).length; }); // read before reasons were kept
     return M;
   }
 
@@ -1229,7 +1247,8 @@ details.more[open] > summary { margin-bottom: 10px; }
     });
     M.ads.forEach(function (a) { if (inP(a.dt)) { K.AD += a.t; if (REGD) K.ADG += a.g; } });
     M.ref.forEach(function (r) { if (inP(r.dt)) K.REF += r.t; });
-    M.adj.forEach(function (r) { if (inP(r.dt)) K.ADJ += r.t; });
+    K.ADJP = 0; K.ADJN = 0;
+    M.adj.forEach(function (r) { if (inP(r.dt)) { K.ADJ += r.t; if (r.t > 0) K.ADJP += r.t; else K.ADJN += r.t; } });
     var EXL = expFor(expenses, per.from, per.to), EXP = 0;
     EXL.forEach(function (e) { EXP += e.amt; });
 
@@ -1306,8 +1325,9 @@ details.more[open] > summary { margin-bottom: 10px; }
       sec('Claims, compensation & recoveries');
       if (K.CP) row('Order compensation', K.CP);
       if (K.CL) row('Claims received', K.CL);
-      if (K.RC) row('Recoveries by Meesho', K.RC);
-      if (K.ADJ) row('Account-level compensation & recovery', K.ADJ);
+      if (K.RC) row('Recoveries on orders', K.RC);
+      if (K.ADJP) row('Account-level compensation', K.ADJP);
+      if (K.ADJN) row('Account-level recoveries', K.ADJN);
       if (K.REF) row('Referral payments', K.REF);
       tot('Total claims & credits', credits);
     }
@@ -1460,7 +1480,8 @@ details.more[open] > summary { margin-bottom: 10px; }
         else b = 'other';
       } else if (x.sale >= 0) b = 'settled';
       else b = 'adjust';
-      if (x.hasPay && x.rc) flags.push('recovery');
+      if (x.hasPay && x.rc < 0) flags.push('recovery');
+      else if (x.hasPay && x.rc > 0) flags.push('recoveryBack');
       if (x.hasPay && Math.abs(x.o) > TOL) flags.push('unexplained');
       if (x.st === 'CANCELLED' && x.s > 0) flags.push('paidCancelled');
       if (b === 'settled' && x.f < 0) flags.push('negative');
@@ -1595,12 +1616,150 @@ details.more[open] > summary { margin-bottom: 10px; }
     return d;
   }
 
+  /* ---------------- recoveries: money Meesho took back, and whether it was right ----------------
+     Order recoveries come from the Recovery column of the payment report, with Meesho's Recovery
+     Reason; account-level ones from the Compensation and Recovery sheet. Each recovery is read as:
+       back     Meesho took it and paid it back (net nothing)
+       fair     Meesho took back a claim it had paid on the order (no more than the claim)
+       dispute  a buyer complaint or weight difference you can contest with proof, the same amount
+                taken twice, more than the order was worth, or more than the claim it paid
+       ask      no reason given, a penalty, or a reason only Meesho can explain
+     Only dispute and ask count as money you may get back. */
+  var REC_KIND = [
+    ['claimBack', /excess\s*(payment|payout|claim)|wrongly\s*paid|paid\s*(twice|in\s*excess)|claim\s*(reversal|reversed|recover)|lost\s*claim|shipment\s*(was\s*)?found|found\s*later/],
+    ['weight', /weight|dimension|volumetric|slab/],
+    ['missing', /missing|short\s*(qty|quantity|item|shipment)|less\s*(qty|quantity)|empty|partial/],
+    ['wrong', /wrong|incorrect|different\s*(product|item|size|colou?r)|mismatch|not\s*as\s*(shown|described)/],
+    ['damaged', /damag|defect|broken|torn|stain|faulty|tamper/],
+    ['quality', /quality|\bused\b|fake|counterfeit|duplicate\s*product|\bold\b/],
+    ['penalty', /penalt|late|delay|breach|\bsla\b|cancel/],
+    ['claimBack', /claim|\blost\b|compensation/],
+    ['shipping', /shipping|logistic|courier|freight/]
+  ];
+  function recKind(t) {
+    var s = String(t || '').toLowerCase();
+    if (!s.trim()) return 'none';
+    for (var i = 0; i < REC_KIND.length; i++) if (REC_KIND[i][1].test(s)) return REC_KIND[i][0];
+    return 'other';
+  }
+  var REC_SAYS = {
+    wrong: 'The buyer said they got a wrong product, size or colour. Meesho refunded the buyer and took the money from you.',
+    damaged: 'The buyer said the product was damaged or defective. Meesho refunded the buyer and took the money from you.',
+    missing: 'The buyer said an item was missing from the parcel. Meesho refunded the buyer and took the money from you.',
+    quality: 'The buyer complained about the quality, or said the product was used or fake.',
+    weight: 'Meesho charged extra shipping because the parcel weighed more than listed.',
+    penalty: 'A penalty, usually for late dispatch or a cancelled order.',
+    shipping: 'Meesho took back a shipping amount.',
+    claimBack: 'Meesho had paid you a claim on this order and took it back.',
+    none: 'Meesho took money from this order without giving a reason.',
+    other: 'Meesho took money from this order for the reason it gives.'
+  };
+  var REC_DO = {
+    wrong: 'If you packed the right product, raise a ticket with your packing video and product photos.',
+    damaged: 'If it left you in good shape, raise a ticket with your packing video. Damage on the way is not your fault.',
+    missing: 'Raise a ticket with your packing video and the packed weight of the parcel.',
+    quality: 'Raise a ticket with your packing video and photos of the product you sent.',
+    weight: 'Raise a ticket with a photo of the packed parcel on a weighing scale.',
+    penalty: 'Check your dispatch dates. If you shipped on time, ask Meesho to reverse it.',
+    shipping: 'Ask Meesho what the shipping amount was for.',
+    claimBack: 'Usually fair. If the parcel never reached the buyer or you, ask Meesho for proof of delivery.',
+    none: 'Ask Meesho for the reason and the proof.',
+    other: 'Ask Meesho to explain it if it does not look right.'
+  };
+  /* rupees, with paise only when there are any */
+  function rsx(p, o) { return money(p, { sym: '\u20b9', noPaise: Math.round(p) % 100 === 0 }); }
+  function recoveries(M, IX, REC, cfg) {
+    var reg = M.reg, rows = {}, out = [], acct = [], sales = 0;
+    (REC ? REC.rows : []).forEach(function (r) { rows[r.id] = r; });
+    IX.list.forEach(function (x) {
+      if (x.s > 0) sales += x.s;
+      if (!x.hasPay) return;
+      var legs = [], cl = 0, clWhy = '';
+      x.legs.forEach(function (i) {
+        var p = M.pay[i], rc = 0;
+        for (var k in p.a) { var cat = (reg[k] || {}).cat; if (cat === 'recovery') rc += p.a[k]; else if (cat === 'claims' || cat === 'comp') cl += p.a[k]; }
+        if (p.why && (p.why.cl || p.why.cp) && !clWhy) clWhy = p.why.cl || p.why.cp;
+        if (rc) legs.push({ pd: p.pd, amt: rc, why: (p.why && p.why.rc) || '', tx: p.tx });
+      });
+      if (!legs.length) return;
+      var took = 0, back = 0, why = '';
+      legs.forEach(function (l) { if (l.amt < 0) { took -= l.amt; if (!why && l.why) why = l.why; } else back += l.amt; });
+      var net = took - back, r = rows[x.id] || {}, value = x.s > 0 ? x.s : r.est || 0;
+      var it = { id: x.id, sku: x.sku, pn: x.pn, od: x.od, st: x.st, legs: legs, took: took, back: back, net: Math.max(0, net), claim: Math.max(0, cl), claimWhy: clWhy,
+        value: value, why: why, kind: recKind(why), first: legs.filter(function (l) { return l.amt < 0; }).map(function (l) { return l.pd; }).sort()[0] || legs[0].pd };
+      // the same amount taken twice
+      var seen = {}, dup = 0;
+      legs.forEach(function (l) { if (l.amt < 0) { if (seen[l.amt]) dup = -l.amt; seen[l.amt] = 1; } });
+      if (net <= TOL) { it.verdict = 'back'; it.amt = 0; it.says = 'Meesho took ' + rsx(took, { sym: '₹' }) + ' and paid it back.'; it.todo = 'Nothing to do.'; }
+      else if (dup && back < dup) { it.verdict = 'dispute'; it.flag = 'twice'; it.amt = dup; it.says = 'Meesho took the same ' + rsx(dup, { sym: '₹' }) + ' twice on this order.'; it.todo = 'Raise a ticket to get the second one back.'; }
+      else if (value > 0 && net > value + TOL) { it.verdict = 'dispute'; it.flag = 'over'; it.amt = net - value; it.says = 'Meesho took ' + rsx(net, { sym: '₹' }) + ', more than the order was worth (' + rsx(value, { sym: '₹' }) + ').'; it.todo = 'Raise a ticket for the extra ' + rsx(net - value, { sym: '₹' }) + '.'; }
+      else if (it.kind === 'claimBack' || (it.kind === 'none' && cl > 0)) {
+        if (cl > 0 && net > cl + TOL) { it.verdict = 'dispute'; it.flag = 'overClaim'; it.amt = net - cl; it.says = 'Meesho took back ' + rsx(net, { sym: '₹' }) + ' but had paid a claim of only ' + rsx(cl, { sym: '₹' }) + '.'; it.todo = 'Raise a ticket for the extra ' + rsx(net - cl, { sym: '₹' }) + '.'; }
+        else { it.verdict = 'fair'; it.amt = 0; it.kind = 'claimBack'; it.says = REC_SAYS.claimBack + (x.st === 'DELIVERED' ? ' The order shows as delivered.' : ''); it.todo = REC_DO.claimBack; }
+      }
+      else if (/^(wrong|damaged|missing|quality|weight)$/.test(it.kind)) { it.verdict = 'dispute'; it.amt = net; it.says = REC_SAYS[it.kind]; it.todo = REC_DO[it.kind]; }
+      else { it.verdict = 'ask'; it.amt = net; it.says = REC_SAYS[it.kind] || REC_SAYS.other; it.todo = REC_DO[it.kind] || REC_DO.other; }
+      it.ticket = recTicket(it);
+      out.push(it);
+    });
+    // account-level recoveries (not tied to one order in the payment report)
+    var seenA = {};
+    (M.adj || []).slice().sort(function (p, q) { return p.dt < q.dt ? -1 : p.dt > q.dt ? 1 : 0; }).forEach(function (a) {
+      if (a.t >= 0) return;
+      var key = a.t + '|' + (a.desc || ''), again = seenA[key]; seenA[key] = 1;
+      var amt = -a.t, kind = recKind((a.desc || '') + ' ' + (a.typ || '').replace(/^\s*recover(y|ies)\s*$/i, '')), it = { acct: true, id: a.oid || '', dt: a.dt, first: a.dt, took: amt, back: 0, net: amt, why: a.desc || '', kind: kind };
+      if (again) { it.verdict = 'dispute'; it.flag = 'twice'; it.amt = amt; it.says = 'The same ' + rsx(amt, { sym: '₹' }) + ' was taken more than once for the same reason.'; it.todo = 'Raise a ticket to get the repeated one back.'; }
+      else if (kind === 'claimBack') { it.verdict = 'fair'; it.amt = 0; it.says = 'Meesho took back a compensation, claim or extra payment it had made.'; it.todo = 'Usually fair. Check that you really got the earlier payment it takes back.'; }
+      else if (/^(wrong|damaged|missing|quality|weight)$/.test(kind)) { it.verdict = 'dispute'; it.amt = amt; it.says = REC_SAYS[kind].replace(' from this order', ''); it.todo = REC_DO[kind]; }
+      else { it.verdict = 'ask'; it.amt = amt; it.says = kind === 'none' ? 'Meesho took money from your account without giving a reason.' : kind === 'penalty' ? REC_SAYS.penalty : 'Meesho took money from your account for the reason it gives.'; it.todo = REC_DO[kind] || REC_DO.other; }
+      it.ticket = recTicket(it);
+      acct.push(it);
+    });
+    var all = out.concat(acct), by = { dispute: { n: 0, amt: 0 }, ask: { n: 0, amt: 0 }, fair: { n: 0, amt: 0 }, back: { n: 0, amt: 0 } }, kinds = {}, skus = {}, months = {};
+    all.forEach(function (it) {
+      var b = by[it.verdict]; b.n++; b.amt += it.verdict === 'back' ? it.took : it.verdict === 'fair' ? it.net : it.amt;
+      if (it.net > 0) {
+        var kk = it.flag === 'twice' ? 'twice' : it.kind, kd = kinds[kk] || (kinds[kk] = { n: 0, amt: 0 }); kd.n++; kd.amt += it.net;
+        var m = (it.first || '').slice(0, 7); if (m) months[m] = (months[m] || 0) + it.net;
+        if (it.sku && /^(wrong|damaged|missing|quality)$/.test(it.kind)) { var sk = skus[it.sku] || (skus[it.sku] = { sku: it.sku, pn: it.pn, n: 0, amt: 0 }); sk.n++; sk.amt += it.net; }
+      }
+    });
+    var order = { dispute: 0, ask: 1, fair: 2, back: 3 };
+    all.sort(function (a, b) { return order[a.verdict] - order[b.verdict] || (b.amt || b.took) - (a.amt || a.took) || (a.first < b.first ? -1 : 1); });
+    var took = all.reduce(function (t, it) { return t + it.took; }, 0), back = all.reduce(function (t, it) { return t + it.back; }, 0);
+    return {
+      list: all, orders: out.length, account: acct.length, took: took, back: back, net: took - back, by: by, kinds: kinds,
+      skus: Object.keys(skus).map(function (k) { return skus[k]; }).sort(function (a, b) { return b.n - a.n || b.amt - a.amt; }),
+      months: Object.keys(months).sort().map(function (m) { return { m: m, amt: months[m] }; }),
+      share: sales > 0 ? (took - back) / sales : 0, sales: sales, oldFiles: !!M.oldParse,
+      noReason: all.filter(function (it) { return it.net > 0 && it.kind === 'none'; }).length
+    };
+  }
+  function recTicket(it) {
+    var amt = rsx(it.amt || it.net, { sym: '₹' }), when = it.first ? ' on ' + fmtDate(it.first) : '', said = it.why ? ' for "' + it.why + '"' : ' without a reason';
+    var o = it.acct ? 'Account-level recovery' + (it.id ? ' (sub order ' + it.id + ')' : '') + when + ': ' : 'Sub order ' + it.id + (it.sku ? ' (SKU ' + it.sku + ')' : '') + ': ';
+    if (it.verdict === 'back' || it.verdict === 'fair') return '';
+    if (it.flag === 'twice') return o + 'the same recovery of ' + amt + ' was charged twice' + said + '. Please refund the duplicate recovery.';
+    if (it.flag === 'over') return o + rsx(it.net, { sym: '₹' }) + ' was recovered' + when + said + ', which is more than the order value of ' + rsx(it.value, { sym: '₹' }) + '. Please refund the extra ' + amt + '.';
+    if (it.flag === 'overClaim') return o + rsx(it.net, { sym: '₹' }) + ' was recovered' + when + said + ', but the claim paid on this order was only ' + rsx(it.claim, { sym: '₹' }) + '. Please refund the extra ' + amt + '.';
+    switch (it.kind) {
+      case 'wrong': return o + amt + ' was recovered' + when + said + '. I dispatched the correct product; my packing video and product photos are attached. Please reverse the recovery.';
+      case 'damaged': return o + amt + ' was recovered' + when + said + '. The product was packed in good condition; my packing video is attached. Please reverse the recovery.';
+      case 'missing': return o + amt + ' was recovered' + when + said + '. The parcel was packed complete; my packing video and the packed weight are attached. Please reverse the recovery.';
+      case 'quality': return o + amt + ' was recovered' + when + said + '. I sent a new product of the listed quality; my packing video and photos are attached. Please reverse the recovery.';
+      case 'weight': return o + amt + ' was recovered' + when + ' for a weight difference. The packed parcel matches the listed weight; a photo of it on a weighing scale is attached. Please reverse the extra shipping charge.';
+      case 'penalty': return o + amt + ' was recovered' + when + said + '. The order was dispatched on time. Please check and reverse the penalty.';
+      default: return o + amt + ' was recovered' + when + said + '. Please share the reason and proof, and reverse it if it was charged by mistake.';
+    }
+  }
+
   /* ---------------- money to claim from Meesho ----------------
      Orders where the seller can ask Meesho for money: returns and RTO parcels marked damaged
      (Not resellable) with no claim paid yet, lost parcels with no claim paid, delivered orders with
      no payment past the overdue days, recoveries to check, and payments that do not add up. */
   function claims(M, IX, REC, cfg) {
-    var out = [], rows = {};
+    var out = [], rows = {}, RV = {};
+    recoveries(M, IX, REC, cfg).list.forEach(function (it) { if (!it.acct) RV[it.id] = it; });
     REC.rows.forEach(function (r) { rows[r.id] = r; });
     IX.list.forEach(function (x) {
       var r = rows[x.id] || {}, q = x.q || 1, goods = x.cost != null ? x.cost * q : 0, value = x.s > 0 ? x.s : r.est || 0;
@@ -1610,7 +1769,8 @@ details.more[open] > summary { margin-bottom: 10px; }
         add(x.st === 'RTO' ? 'rtoDamaged' : 'damaged', goods || value, x.st === 'RTO' ? 'RTO parcel came back damaged' : 'Return came back damaged, used or wrong');
       if (x.st === 'LOST' && x.cl <= 0) add('lost', value || goods, 'Parcel lost, no claim paid yet');
       if (r.b === 'overdue') add('overdue', r.est || value, 'Delivered, no payment after ' + (+cfg.overdueDays || 21) + ' days');
-      if (x.hasPay && x.rc < 0) add('recovery', -x.rc, 'Meesho recovered money on this order');
+      var rv = RV[x.id];
+      if (rv && (rv.verdict === 'dispute' || rv.verdict === 'ask') && rv.amt > 0) { add('recovery', rv.amt, (rv.why ? 'Recovered for \u201c' + rv.why + '\u201d' : 'Recovered without a reason') + (rv.verdict === 'dispute' ? ': you can dispute it' : ': ask Meesho')); out[out.length - 1].ticket = rv.ticket; }
       if (x.hasPay && Math.abs(x.o) > TOL) add('unexplained', Math.abs(x.o), 'Payment does not add up from Meesho\u2019s columns');
     });
     out.sort(function (a, b) { return b.amt - a.amt || (a.id < b.id ? -1 : 1); });
@@ -1799,7 +1959,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     monthStart: monthStart, monthEnd: monthEnd, nextMonth: nextMonth, fmtDate: fmtDate, fmtMonth: fmtMonth, money: money,
     skuLetters: skuLetters, nameCount: nameCount, packRule: packRule, piecesOf: piecesOf, normSt: normSt, classify: classify, detect: detect, parsePay: parsePay, parseAds: parseAds, parseAmt: parseAmt, parseOrd: parseOrd,
     calibrate: calibrate, ingest: ingest, merge: merge, index: index, dataMonths: dataMonths, periodFor: periodFor, expFor: expFor,
-    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
+    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, recoveries: recoveries, recKind: recKind, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
   };
 });
 
@@ -2652,6 +2812,12 @@ details.more[open] > summary { margin-bottom: 10px; }
     },
     clt: function (el) { S.rc.ct = el.getAttribute('data-v'); render(); },
     copyTicket: function (el) { var c = A.claimsData().list[+el.getAttribute('data-i')]; if (c) copyText(c.ticket, 'Ticket text copied. Paste it in Meesho support.'); },
+    rvf: function (el) { S.rc.rv = el.getAttribute('data-v'); render(); },
+    copyRec: function (el) { var it = A.recovData().list[+el.getAttribute('data-i')]; if (it && it.ticket) copyText(it.ticket, 'Ticket text copied. Paste it in Meesho support.'); },
+    copyRecAll: function () {
+      var D = A.recovData(), v = S.rc.rv, list = D.list.filter(function (it) { return it.ticket && (!v || it.verdict === v); });
+      copyText(list.map(function (it, i) { return (i + 1) + '. ' + it.ticket; }).join('\n\n'), list.length + ' tickets copied.');
+    },
     copyClaims: function () {
       var C = A.claimsData(), t = S.rc.ct, list = C.list.filter(function (c) { return !t || c.type === t; });
       copyText(list.map(function (c, i) { return (i + 1) + '. ' + c.ticket; }).join('\n\n'), list.length + ' tickets copied.');
@@ -3307,6 +3473,54 @@ details.more[open] > summary { margin-bottom: 10px; }
   }
   A.claimsData = claimsData;
 
+  /* ---------------- Money Meesho took back: every recovery explained, with what to do ---------------- */
+  var RVV = { dispute: ['Dispute', 'bad'], ask: ['Ask Meesho', 'warn'], fair: ['Fair', 'good'], back: ['Paid back', ''] };
+  var RVK = { wrong: 'Wrong product', damaged: 'Damaged or defective', missing: 'Item missing', quality: 'Quality or used', weight: 'Weight difference', penalty: 'Penalty', shipping: 'Shipping', claimBack: 'Claim taken back', none: 'No reason given', other: 'Other reasons', twice: 'Taken twice' };
+  function recovData() { return E.recoveries(S.M, S.IX, S.REC, A.cfg()); }
+  function recovHtml() {
+    var D = recovData();
+    if (!D.list.length) return '<section class="sheet recov"><h3>Money Meesho took back</h3><p class="small" style="margin:4px 0 0">No recoveries in your files. A recovery is money Meesho takes out of your payment, for example after a buyer complaint.</p></section>';
+    var v = S.rc.rv && D.by[S.rc.rv] && D.by[S.rc.rv].n ? S.rc.rv : '', list = D.list.filter(function (it) { return !v || it.verdict === v; });
+    var chips = '<button class="chip" data-act="rvf" data-v="" aria-pressed="' + !v + '">All<span>' + D.list.length + '</span></button>' + ['dispute', 'ask', 'fair', 'back'].filter(function (k) { return D.by[k].n; }).map(function (k) {
+      return '<button class="chip' + (k === 'dispute' ? ' alert' : '') + '" data-act="rvf" data-v="' + k + '" aria-pressed="' + (v === k) + '">' + RVV[k][0] + '<span>' + D.by[k].n + '</span></button>';
+    }).join('');
+    var tiles = [['dispute', 'You can dispute', 'With proof, you can get this back'], ['ask', 'Ask Meesho about', 'No clear reason yet'], ['fair', 'Fair', 'Claims taken back'], ['back', 'Paid back', 'Taken and returned']]
+      .filter(function (t) { return D.by[t[0]].n; }).map(function (t) {
+        return '<div><small>' + t[1] + '</small><strong class="' + (t[0] === 'dispute' ? 'neg' : '') + '">' + rs(D.by[t[0]].amt, true) + '</strong><span class="small muted"><span>' + pl(D.by[t[0]].n, 'recovery').replace('recoverys', 'recoveries') + '</span> · <span>' + t[2] + '</span></span></div>';
+      }).join('');
+    // what stands out
+    var notes = [], kk = Object.keys(D.kinds).sort(function (a, b) { return D.kinds[b].amt - D.kinds[a].amt; });
+    if (kk.length) notes.push('<li><span>Most money went on: </span><b>' + RVK[kk[0]] + '</b><span> (' + rs(D.kinds[kk[0]].amt, true) + ', ' + pl(D.kinds[kk[0]].n, 'time') + ')</span></li>');
+    if (D.skus.length && D.skus[0].n >= 2) notes.push('<li><b>' + esc(D.skus[0].sku) + '</b><span> had ' + D.skus[0].n + ' buyer complaints. Check its packing, size chart and photos.</span></li>');
+    if (D.sales > 0 && D.net > 0) notes.push('<li><span>Recoveries were ' + pct(D.share) + ' of your sales.</span></li>');
+    if (D.months.length > 1) notes.push('<li><span>By month: </span>' + D.months.map(function (m) { return '<span>' + E.fmtMonth(m.m) + ' ' + rs(m.amt, true) + '</span>'; }).join(' · ') + '</li>');
+    if (D.noReason) notes.push('<li><span>' + pl(D.noReason, 'recovery').replace('recoverys', 'recoveries') + ' came without a reason. Ask Meesho for the reason and the proof.</span></li>');
+    var rows = list.slice(0, 40).map(function (it) {
+      var i = D.list.indexOf(it), vv = RVV[it.verdict], shown = it.verdict === 'back' ? it.took : it.verdict === 'fair' ? it.net : it.amt;
+      return '<div class="rv-row"><div class="row" style="gap:8px;align-items:center"><span class="tag ' + vv[1] + '">' + vv[0] + '</span><b class="grow">' + (it.acct ? 'Account-level' + (it.id ? ' · ' + esc(it.id) : '') : esc(it.id)) + '</b><b class="cl-amt' + (it.verdict === 'dispute' ? ' neg' : '') + '">' + rs(shown, true) + '</b></div>' +
+        '<div class="small muted">' + (it.sku ? esc(it.sku) + ' · ' : '') + (it.first ? '<span>taken on ' + fd(it.first) + '</span>' : '') + (it.amt && it.net > it.amt ? '<span> · ' + rs(it.net, true) + ' taken in all</span>' : '') + '</div>' +
+        '<p class="small" style="margin:4px 0 0"><span class="muted">Meesho’s reason: </span>' + (it.why ? '“' + esc(it.why) + '”' : '<i>none given</i>') + '</p>' +
+        '<p class="small" style="margin:2px 0 0">' + esc(it.says) + '</p><p class="small" style="margin:2px 0 0"><b>What to do: </b><span>' + esc(it.todo) + '</span></p>' +
+        (it.ticket ? '<button class="btn sm" style="margin-top:6px" data-act="copyRec" data-i="' + i + '">Copy ticket</button>' : '') + '</div>';
+    }).join('');
+    var raise = list.filter(function (it) { return it.ticket; });
+    return '<section class="sheet recov"><div class="row"><h3 class="grow" style="margin:0">Money Meesho took back</h3><b>' + rs(D.net, true) + '</b></div>' +
+      '<p class="small muted" style="margin:4px 0 0">A recovery is money Meesho takes out of your payment: mostly after a buyer complaint (wrong, damaged or missing item), for a parcel weight difference, or to take back a claim it paid before. Each one is explained below, with what to do.</p>' +
+      (D.oldFiles ? '<div class="note warn" style="margin-top:8px"><p>Some payment files were added before PakkaBill read Meesho’s reasons. Upload them again to see the reason for each recovery.</p></div>' : '') +
+      '<div class="way-g">' + tiles + '</div>' +
+      (notes.length ? '<ul class="rv-notes">' + notes.join('') + '</ul>' : '') +
+      '<div class="chips" role="group" aria-label="Recoveries" style="margin-top:10px">' + chips + '</div>' + rows +
+      (list.length > 40 ? '<p class="small muted">Showing 40 of ' + list.length + '. Copy all tickets to get every one.</p>' : '') +
+      (raise.length ? '<div class="row" style="margin-top:10px"><button class="btn sm pri" data-act="copyRecAll">' + (raise.length === 1 ? 'Copy ticket' : 'Copy all ' + raise.length + ' tickets') + '</button></div>' : '') +
+      '<details class="more" style="margin-top:10px"><summary>How to win a recovery dispute</summary><ul class="rv-notes">' +
+      '<li>Record a packing video of every order: the product, then the parcel being sealed with the shipping label in view.</li>' +
+      '<li>Photograph the packed parcel on a weighing scale. It answers weight-difference recoveries.</li>' +
+      '<li>Raise the ticket soon after the recovery, with the sub order number, the ticket text from here, the video and the photos.</li>' +
+      '<li>If a product keeps getting complaints, fix it: clearer photos, a size chart, better packing.</li></ul></details>' +
+      '<p class="small muted" style="margin:8px 0 0">Dispute and Ask Meesho are also counted in Money to claim above. Fair and Paid back need nothing from you.</p></section>';
+  }
+  A.recovData = recovData;
+
   /* ---------------- Price check: what a product earns, from what Meesho pays per order ----------------
      The price buyers see moves with offers and delivery charges, so the check starts from the payout
      (the bank settlement Meesho shows in the Supplier Panel). */
@@ -3388,7 +3602,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       other: 'Orders with a status the tool could not place.'
     }[b] || '';
   }
-  var FLAG = { recovery: ['Recovery charged', 'bad'], unexplained: ['Does not add up', 'bad'], paidCancelled: ['Paid but cancelled', 'bad'], negative: ['Negative payout', 'bad'], claim: ['Claim received', 'good'], revPending: ['Sale not reversed yet', ''], overdue: ['Payment overdue', 'bad'] };
+  var FLAG = { recoveryBack: ['Recovery paid back', 'good'], recovery: ['Recovery charged', 'bad'], unexplained: ['Does not add up', 'bad'], paidCancelled: ['Paid but cancelled', 'bad'], negative: ['Negative payout', 'bad'], claim: ['Claim received', 'good'], revPending: ['Sale not reversed yet', ''], overdue: ['Payment overdue', 'bad'] };
 
   function ordRow(r) {
     var tags = r.flags.map(function (f) { var t = FLAG[f]; return t ? '<span class="tag' + (t[1] ? ' ' + t[1] : '') + '">' + t[0] + '</span>' : ''; }).join('');
@@ -3429,7 +3643,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     var chips = keys.filter(function (k) { return k === 'all' || C[k].n; }).map(function (k) {
       return '<button class="chip' + (k === 'issues' || k === 'overdue' ? ' alert' : '') + '" data-act="rcb" data-b="' + k + '" aria-pressed="' + (S.rc.b === k) + '">' + BL[k] + '<span>' + (k === 'all' ? total : C[k].n) + '</span></button>';
     }).join('');
-    var h = demoBar() + claimsHtml() + '<section class="stack" style="margin-top:14px"><div class="chips" role="group" aria-label="Filter orders">' + chips + '</div>' +
+    var h = demoBar() + claimsHtml() + recovHtml() + '<section class="stack" style="margin-top:14px"><div class="chips" role="group" aria-label="Filter orders">' + chips + '</div>' +
       '<p class="small muted" style="margin:0">' + esc(bucketHelp(S.rc.b)) + '</p>' +
       '<input class="inp" type="search" data-in="rcq" placeholder="Search sub order number or SKU" value="' + esc(S.rc.q) + '" aria-label="Search orders">' +
       '<div id="rc-list">' + V.rcList() + '</div></section>';
@@ -3661,7 +3875,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   'use strict';
   var HX = window.HX = {};
   var BL = { settled: 'Paid', awaiting: 'Awaiting payment', overdue: 'Payment overdue', transit: 'In transit', returned: 'Customer return', rto: 'RTO or lost', cancelled: 'Cancelled', adjust: 'Adjustment only', older: 'Before these files', other: 'Other' };
-  var FL = { recovery: 'Recovery charged', unexplained: 'Does not add up', paidCancelled: 'Paid but cancelled', negative: 'Negative payout', claim: 'Claim received', revPending: 'Sale not reversed yet', overdue: 'Payment overdue' };
+  var FL = { recoveryBack: 'Recovery paid back', recovery: 'Recovery charged', unexplained: 'Does not add up', paidCancelled: 'Paid but cancelled', negative: 'Negative payout', claim: 'Claim received', revPending: 'Sale not reversed yet', overdue: 'Payment overdue' };
   function r(p) { return Math.round(p) / 100; }
   function today() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function inPer(S, p) { var d = S.per.basis === 'order' ? (p.od || p.pd) : p.pd; return !!d && d >= S.per.from && d <= S.per.to; }
@@ -3819,6 +4033,19 @@ details.more[open] > summary { margin-bottom: 10px; }
         t(x.cond ? (x.cond === 'ok' ? 'Back in stock' : 'Not resellable') + (x.condDef ? ' (default)' : '') : ''), t(x.flags.map(function (f) { return FL[f] || f; }).join(', '))]);
     });
     X.utils.book_append_sheet(wb, sheet(RC, [24, 12, 22, 30, 14, 18, 8, 12, 13, 12, 12, 11, 12, 11, 13, 18, 30], { xSplit: 1, ySplit: 1 }), 'Reconciliation');
+
+    /* Recoveries: money Meesho took back, each one explained */
+    var RD = E.recoveries(S.M, S.IX, S.REC, st);
+    if (RD.list.length) {
+      var VL = { dispute: 'Dispute', ask: 'Ask Meesho', fair: 'Fair', back: 'Paid back' };
+      var RV2 = [heads(['Sub order no', 'Level', 'SKU', 'Product', 'Status', 'Taken on', 'Meesho reason', 'Taken', 'Paid back', 'Net taken', 'Verdict', 'To get back', 'What it means', 'What to do', 'Ticket text'])];
+      RD.list.forEach(function (it) {
+        RV2.push([t(it.id), t(it.acct ? 'Account' : 'Order'), t(it.sku || ''), t(it.pn || ''), t(it.st ? (E.ST_LABEL[it.st] || it.st) : ''), t(it.first || ''), t(it.why || 'None given'),
+          m(-it.took), m(it.back), m(-it.net), t(VL[it.verdict], it.verdict === 'dispute' ? ST.bold : null), m(it.amt || 0, it.verdict === 'dispute' ? ST.bold : null), t(it.says, ST.note), t(it.todo, ST.note), t(it.ticket || '', ST.note)]);
+      });
+      RV2.push([t('Total', ST.tot), t('', ST.tot), t('', ST.tot), t('', ST.tot), t('', ST.tot), t('', ST.tot), t('', ST.tot), m(-RD.took, ST.tot), m(RD.back, ST.tot), m(-RD.net, ST.tot), t('', ST.tot), m(RD.by.dispute.amt + RD.by.ask.amt, ST.tot)]);
+      X.utils.book_append_sheet(wb, sheet(RV2, [22, 9, 16, 30, 12, 12, 30, 12, 11, 12, 12, 12, 50, 50, 70], { xSplit: 1, ySplit: 1 }), 'Recoveries');
+    }
 
     /* Payouts */
     var PO = [heads(['Payment date', 'Orders', 'Settlements', 'Ads', 'Referral', 'Compensation and recovery', 'Net received', 'Transaction IDs'])];
@@ -4906,6 +5133,14 @@ details.more[open] > summary { margin-bottom: 10px; }
         ink(GREY); font(FN.serif, 'normal', 8.2); doc.text(dl, M + 20, y + 11);
         cursor = y + 4 + dl.length * 10.4;
       });
+      var rd = E.recoveries ? E.recoveries(S.M, S.IX, S.REC, st) : null;
+      if (rd && rd.list.length) {
+        cursor += 10; para('Money Meesho took back (recoveries), each one read for whether to dispute it:', { style: 'bold', size: 8.8 });
+        var rrows = [['dispute', 'You can dispute: buyer complaints you can answer with proof, amounts taken twice or above the order value'], ['ask', 'Ask Meesho: no reason given, penalties and other reasons'], ['fair', 'Fair: claims Meesho had paid and took back'], ['back', 'Paid back by Meesho']]
+          .filter(function (x) { return rd.by[x[0]].n; }).map(function (x) { return { c: [x[1], String(rd.by[x[0]].n), amt(rd.by[x[0]].amt)] }; });
+        rrows.push({ c: ['Net taken back by Meesho', String(rd.list.length), amt(rd.net)], k: 'grand' });
+        caTable(['Recoveries', 'Count', 'Amount (' + RS.trim() + ')'], rrows, { w: { 1: 60, 2: 110 } });
+      }
       var cl = E.claims ? E.claims(S.M, S.IX, S.REC, st) : null;
       if (cl && cl.total > 0) {
         var CLT = { damaged: 'Returns that came back damaged or wrong', rtoDamaged: 'RTO parcels that came back damaged', lost: 'Parcels lost, no claim paid', overdue: 'Delivered, payment overdue', recovery: 'Recoveries to check', unexplained: 'Rows that do not add up' };
