@@ -2334,6 +2334,17 @@ details.more[open] > summary { margin-bottom: 10px; }
     var tag = p.mode === 'month' ? E.fmtMonth(p.m).replace(' ', '-') : p.mode === 'custom' ? p.from + '_to_' + p.to : 'All-' + (S.months[0] || '') + '_to_' + (S.months[S.months.length - 1] || '');
     return biz + '_PnL_' + tag;
   }
+  /* The PDF's fonts (with the ₹ sign) load only when a PDF is made; without them it uses the built-in ones. */
+  var fontsP = null;
+  function pdfFonts() {
+    if (window.HPF) return Promise.resolve();
+    if (!fontsP) fontsP = new Promise(function (res) {
+      var sc = document.createElement('script'), done = function () { res(); };
+      sc.src = 'pnl-pdf-fonts.js'; sc.onload = done; sc.onerror = function () { fontsP = null; res(); };
+      setTimeout(done, 15000); document.head.appendChild(sc);
+    });
+    return fontsP;
+  }
   async function exportFile(kind, btn) {
     if (!hasData()) return;
     if (btn) btn.disabled = true;
@@ -2345,6 +2356,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     busy(kind === 'xlsx' ? 'Building the Excel file' : 'Building the PDF');
     try {
       await libs(kind === 'xlsx' ? ['XLSX'] : ['jsPDF']);
+      if (kind === 'pdf') await pdfFonts();
       var ctx = { S: S, E: E, w: W(), cfg: cfg() };
       var blob = kind === 'xlsx' ? window.HX.xlsx(ctx) : window.HX.pdf(ctx);
       busy();
@@ -3813,29 +3825,182 @@ details.more[open] > summary { margin-bottom: 10px; }
     return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   };
 
-  /* ================= PDF: PakkaBill branded P&L report ================= */
+  /* ================= PDF: the P&L laid out like a CA's statement, in PakkaBill's doodle style =================
+     Cover (headline figures, where every ₹100 of sales went, contents), Statement of Profit and Loss with
+     note numbers, Trading and Profit & Loss Account (Dr. / Cr.), then the numbered notes. Uses the fonts in
+     pnl-pdf-fonts.js (with the ₹ sign) when they loaded, else the PDF's built-in fonts with "Rs.". */
+  // The website's background doodles (design/doodles.py), as path data in a 40 × 40 box; "@w" = own stroke width.
+  var DOODLE = {
+    bag: "M8 13h24l-2 23H10z M14 13v-3a6 6 0 0 1 12 0v3 M15 20a5 5 0 0 0 10 0",
+    cart: "M3 6h5l4 20h20l3-14H10 M11.4 33a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0z M26.4 33a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0z",
+    receipt: "M9 4h22v32l-3.7-2.5-3.6 2.5-3.7-2.5-3.7 2.5-3.6-2.5L9 36z M14 12h12M14 18h12M14 24h7",
+    coin: "M5 20a15 15 0 1 0 30 0a15 15 0 1 0 -30 0z M14 13h12M14 18h12M14 23h4c7 0 7-10 0-10M14 23l9 8",
+    tag: "M22 4h13v13L18 34a3 3 0 0 1-4 0L6 26a3 3 0 0 1 0-4z M27 10.5a2 2 0 1 0 4 0a2 2 0 1 0 -4 0z M13 25l8-8 M12.6 19a1.4 1.4 0 1 0 2.8 0a1.4 1.4 0 1 0 -2.8 0z M18.6 25a1.4 1.4 0 1 0 2.8 0a1.4 1.4 0 1 0 -2.8 0z",
+    box: "M20 4 35 11v18L20 36 5 29V11z M5 11l15 7 15-7M20 18v18M12.5 7.5l15 7",
+    truck: "M3 11h20v16H3zM23 16h7l6 6v5H23z M6.8 30a3.2 3.2 0 1 0 6.4 0a3.2 3.2 0 1 0 -6.4 0z M25.8 30a3.2 3.2 0 1 0 6.4 0a3.2 3.2 0 1 0 -6.4 0z",
+    calc: "M11 3h18a3 3 0 0 1 3 3v28a3 3 0 0 1 -3 3h-18a3 3 0 0 1 -3 -3v-28a3 3 0 0 1 3 -3z M13 9h14v6H13z @3.2 M14 21h.1M20 21h.1M26 21h.1M14 26h.1M20 26h.1M26 26h.1M14 31h.1M20 31h.1M26 31h.1",
+    gst: "M7 9h26a5 5 0 0 1 5 5v12a5 5 0 0 1 -5 5h-26a5 5 0 0 1 -5 -5v-12a5 5 0 0 1 5 -5z @1.8 M13 16.2a4 4 0 1 0 0 7.6V20.5h-2.5M22.6 16.6c-.7-.7-1.5-.9-2.3-.9-1.3 0-2.2.8-2.2 1.8 0 2.6 4.8 1.6 4.8 4.4 0 1.1-1 1.9-2.4 1.9-.9 0-1.8-.3-2.5-1M26.5 16h6M29.5 16v8",
+    qr: "M6.5 5h8a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1 -1.5 1.5h-8a1.5 1.5 0 0 1 -1.5 -1.5v-8a1.5 1.5 0 0 1 1.5 -1.5z M25.5 5h8a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1 -1.5 1.5h-8a1.5 1.5 0 0 1 -1.5 -1.5v-8a1.5 1.5 0 0 1 1.5 -1.5z M6.5 24h8a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1 -1.5 1.5h-8a1.5 1.5 0 0 1 -1.5 -1.5v-8a1.5 1.5 0 0 1 1.5 -1.5z M24 24h4v4M35 24v4M24 33v2h5M33 31v4h2M29 29h2",
+    barcode: "M5 8v24M9 8v24M12 8v24M17 8v24M20 8v24M25 8v24M28 8v24M31 8v24M35 8v24",
+    hanger: "M20 12a4 4 0 1 1 4-4 M20 12v3L4 27a2 2 0 0 0 1 3.5h30A2 2 0 0 0 36 27L20 15",
+    blouse: "M14 5c1 3 3 5 6 5s5-2 6-5l9 5-4 7-4-2v18H11V15l-4 2-4-7z M17 5.5c1 2 2 2.8 3 2.8s2-.8 3-2.8",
+    pie: "M20 5a15 15 0 1 0 15 15H20z M24 2v14h14A14 14 0 0 0 24 2z",
+    chart: "M4 4v32h32 M11 28v-6M18 28v-11M25 28v-8M32 28V11 M9 16l8-7 7 5 10-9M29 5h5v5",
+    cal: "M8 8h24a3 3 0 0 1 3 3v21a3 3 0 0 1 -3 3h-24a3 3 0 0 1 -3 -3v-21a3 3 0 0 1 3 -3z M5 16h30M13 4v8M27 4v8 @3.2 M12 23h.1M20 23h.1M28 23h.1M12 29h.1M20 29h.1",
+    clip: "M10 6h20a3 3 0 0 1 3 3v25a3 3 0 0 1 -3 3h-20a3 3 0 0 1 -3 -3v-25a3 3 0 0 1 3 -3z M15 3h10v6H15z M12 18l2 2 4-4M21 18h7M12 27l2 2 4-4M21 27h7",
+    store: "M4 15 7 5h26l3 10 M6 15v20h28V15 M4 15a4 4 0 0 0 8 0 4 4 0 0 0 8 0 4 4 0 0 0 8 0 4 4 0 0 0 8 0 M16 35v-9h8v9",
+    coins: "M8 10a12 4.5 0 1 0 24 0a12 4.5 0 1 0 -24 0z M8 10v6c0 2.5 5.4 4.5 12 4.5S32 18.5 32 16v-6M8 16v6c0 2.5 5.4 4.5 12 4.5S32 24.5 32 22v-6M8 22v6c0 2.5 5.4 4.5 12 4.5S32 30.5 32 28v-6",
+    star: "M20 4l4.7 9.6 10.6 1.5-7.7 7.5 1.8 10.5L20 28.1l-9.4 5 1.8-10.5-7.7-7.5 10.6-1.5z",
+    phone: "M14 3h12a4 4 0 0 1 4 4v26a4 4 0 0 1 -4 4h-12a4 4 0 0 1 -4 -4v-26a4 4 0 0 1 4 -4z M17 32h6 @1.8 M16 11h8M16 15h8M16 19h2.5c4.5 0 4.5-8 0-8M16 19l6 6",
+    percent: "M31 9 9 31 M7 11.5a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0z M24 28.5a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0z",
+    heart: "M20 34S5 25 5 14.5A7.5 7.5 0 0 1 20 11a7.5 7.5 0 0 1 15 3.5C35 25 20 34 20 34z",
+    invoice: "M9 3h16l7 7v27H9z M25 3v7h7M14 17h13M14 22h13M14 27h8 @3 M26 30h1",
+    scissor: "M4.5 30a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0z M17.5 33a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0z M12 27 30 5M19 29 30 9",
+    mega: "M5 16v8h6l14 8V8L11 16z M11 24l3 10h4l-2-10M30 14a6 6 0 0 1 0 12"
+  };
+
   HX.pdf = function (ctx) {
     var S = ctx.S, E = ctx.E, R = S.R, K = R.K, st = ctx.cfg, per = S.per, RV = S.RV, HA = window.HA || {};
     var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', compress: true });
-    var PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight(), M = 40, CW = PW - 2 * M;
-    // PakkaBill brand
-    var BRAND = [91, 63, 230], INDIGO = [43, 52, 148], CORAL = [255, 122, 89], INK = [42, 37, 64], GREY = [115, 110, 141],
-      SOFT = [240, 236, 255], PAPER = [248, 246, 252], RULE = [226, 218, 242], NEG = [200, 32, 42], POS = [18, 113, 75], GOLD = [245, 196, 83];
-    function a(s) { return String(s == null ? '' : s).replace(/₹/g, 'Rs.').replace(/[–—−]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/·/g, '|').replace(/[^\x20-\x7E]/g, ''); }
-    function mn(p) { return E.money(p, { paren: true }); }
-    function rsx(p) { return 'Rs. ' + E.money(p, { noPaise: true }); }
-    function pc(x) { return (x * 100).toFixed(1) + '%'; }
+    var PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight(), M = 40, CW = PW - 2 * M, TOP = 66, BOT = 58;
+    var INDIGO = [43, 52, 148], BRAND = [91, 63, 230], CORAL = [255, 122, 89], INK = [33, 30, 52], GREY = [108, 104, 132], LAV = [208, 204, 255],
+      SOFT = [240, 236, 255], PAPER = [250, 248, 253], RULE = [222, 216, 238], NEG = [192, 30, 40], POS = [0, 118, 40], GOLD = [245, 196, 83], WHITE = [255, 255, 255];
+    // chart colours, in this order checked for colour-blind separation (dataviz palette validator)
+    var SEG = { cogs: [98, 80, 214], charges: [235, 104, 52], gst: [27, 175, 122], ads: [237, 161, 0], opex: [42, 120, 214], other: [232, 123, 164], np: [0, 131, 0] };
+
+    /* ---------- fonts ---------- */
+    var FN = { serif: 'times', disp: 'helvetica', hand: 'helvetica' }, RS = 'Rs. ', MINUS = '-', okc = null;
+    if (window.HPF && window.HPF.fonts) {
+      try {
+        window.HPF.fonts.forEach(function (f) { doc.addFileToVFS(f.file, f.b64); doc.addFont(f.file, f.name, f.style); });
+        doc.setFont('PBSerif', 'normal'); doc.getTextWidth('₹ 0');
+        FN = { serif: 'PBSerif', disp: 'PBDisplay', hand: 'PBHand' }; RS = '\u20b9'; MINUS = '\u2212'; okc = {};
+        for (var ci = 0; ci < window.HPF.chars.length; ci++) okc[window.HPF.chars.charAt(ci)] = 1;
+      } catch (e) { console.warn('PDF fonts not used', e); }
+    }
+    var SUB = { '\u2018': "'", '\u2019': "'", '\u201c': '"', '\u201d': '"', '\u2013': '-', '\u2014': '-', '\u2212': '-', '\u00b7': '|', '\u2022': '-', '\u2026': '...', '\u20b9': 'Rs.', '\u2713': 'ok', '\u00a0': ' ', '\u2192': '->' };
+    /** Text the fonts can draw: characters they lack are swapped for plain ones or left out. */
+    function a(s) {
+      s = String(s == null ? '' : s);
+      var o = '';
+      for (var i = 0; i < s.length; i++) {
+        var ch = s.charAt(i);
+        if (ch === '\n') o += ch;
+        else if (okc ? okc[ch] : /[\x20-\x7e]/.test(ch)) o += ch;
+        else if (SUB[ch]) o += SUB[ch];
+      }
+      return o.replace(/ {2,}/g, ' ');
+    }
+    function amt(p) { p = Math.round(+p || 0); return p ? E.money(p, { paren: true }) : '-'; } // CA columns: brackets for minus, dash for nil
+    function rup(p) { var v = Math.round((+p || 0) / 100) * 100; return (v < 0 ? MINUS : '') + RS + E.money(Math.abs(v), { noPaise: true }); }
+    function pc(x) { return isFinite(x) ? (x * 100).toFixed(1) + '%' : '-'; }
+    function fd(d) { return d ? E.fmtDate(d) : ''; }
     function fill(c) { doc.setFillColor(c[0], c[1], c[2]); }
     function stroke(c) { doc.setDrawColor(c[0], c[1], c[2]); }
     function ink(c) { doc.setTextColor(c[0], c[1], c[2]); }
-    function font(style, size) { doc.setFont('helvetica', style); doc.setFontSize(size); }
-    var basis = per.basis === 'order' ? 'order date' : 'payment date';
-    var biz = st.biz || 'Meesho seller';
-    var reportId = 'PB-PL-' + String(per.from || '').replace(/-/g, '') + '-' + String(per.to || '').replace(/-/g, '');
+    function font(f, s, z) { doc.setFont(f, s); doc.setFontSize(z); }
+    function alpha(o) { try { doc.setGState(new doc.GState({ opacity: o, 'stroke-opacity': o })); } catch (e) { /* no transparency: draw solid */ } }
+    function capsW(t, sp) { var s = a(t); return doc.getTextWidth(s) + sp * Math.max(0, s.length - 1); }
+    function caps(t, x, y, sp) { doc.text(a(t), x, y, { charSpace: sp }); }
+    function page() { return doc.internal.getCurrentPageInfo().pageNumber; }
+    function wrap(t, w) { return doc.splitTextToSize(a(t), w); }
 
-    // the PakkaBill mark, drawn as shapes (sharp at any size)
-    function logo(x, y, s) {
-      fill(INDIGO); doc.roundedRect(x, y, s, s, s * 0.22, s * 0.22, 'F');
+    /* ---------- doodles: SVG path data drawn as PDF vectors ---------- */
+    function pathTo(d, T) {
+      var tk = d.match(/[a-zA-Z]|-?(?:\d+\.?\d*|\.\d+)/g) || [], i = 0, cmd = 'M', last = '', x = 0, y = 0, sx = 0, sy = 0, kx = 0, ky = 0;
+      function nm() { return parseFloat(tk[i++]); }
+      function mv(px, py) { var p = T(px, py); doc.moveTo(p[0], p[1]); }
+      function ln(px, py) { var p = T(px, py); doc.lineTo(p[0], p[1]); }
+      function cu(a1, b1, a2, b2, a3, b3) { var p = T(a1, b1), q = T(a2, b2), r = T(a3, b3); doc.curveTo(p[0], p[1], q[0], q[1], r[0], r[1]); }
+      function arc(x1, y1, rx, ry, phi, fa, fs, x2, y2) {
+        if (!rx || !ry) return ln(x2, y2);
+        rx = Math.abs(rx); ry = Math.abs(ry);
+        var f = phi * Math.PI / 180, cs = Math.cos(f), sn = Math.sin(f), dx = (x1 - x2) / 2, dy = (y1 - y2) / 2;
+        var xp = cs * dx + sn * dy, yp = -sn * dx + cs * dy, lam = xp * xp / (rx * rx) + yp * yp / (ry * ry);
+        if (lam > 1) { rx *= Math.sqrt(lam); ry *= Math.sqrt(lam); }
+        var nu = rx * rx * ry * ry - rx * rx * yp * yp - ry * ry * xp * xp, de = rx * rx * yp * yp + ry * ry * xp * xp;
+        var co = Math.sqrt(Math.max(0, nu / de)) * (fa === fs ? -1 : 1), cxp = co * rx * yp / ry, cyp = -co * ry * xp / rx;
+        var ccx = cs * cxp - sn * cyp + (x1 + x2) / 2, ccy = sn * cxp + cs * cyp + (y1 + y2) / 2;
+        function ang(ux, uy, vx, vy) { var sg = ux * vy - uy * vx < 0 ? -1 : 1; return sg * Math.acos(Math.max(-1, Math.min(1, (ux * vx + uy * vy) / Math.sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy))))); }
+        var t1 = ang(1, 0, (xp - cxp) / rx, (yp - cyp) / ry), dt = ang((xp - cxp) / rx, (yp - cyp) / ry, (-xp - cxp) / rx, (-yp - cyp) / ry);
+        if (!fs && dt > 0) dt -= 2 * Math.PI; else if (fs && dt < 0) dt += 2 * Math.PI;
+        var n = Math.max(1, Math.ceil(Math.abs(dt) / (Math.PI / 2) - 1e-9)), h = dt / n, k = 4 / 3 * Math.tan(h / 4);
+        function P(ux, uy) { return [ccx + rx * ux * cs - ry * uy * sn, ccy + rx * ux * sn + ry * uy * cs]; }
+        for (var j = 0; j < n; j++) {
+          var a0 = t1 + j * h, a1 = a0 + h, e0x = Math.cos(a0), e0y = Math.sin(a0), e1x = Math.cos(a1), e1y = Math.sin(a1);
+          var c1 = P(e0x - k * e0y, e0y + k * e0x), c2 = P(e1x + k * e1y, e1y - k * e1x), p2 = P(e1x, e1y);
+          cu(c1[0], c1[1], c2[0], c2[1], p2[0], p2[1]);
+        }
+      }
+      while (i < tk.length) {
+        if (/[a-zA-Z]/.test(tk[i])) cmd = tk[i++];
+        var C = cmd.toUpperCase(), rel = cmd !== C, ox = rel ? x : 0, oy = rel ? y : 0;
+        if (C === 'Z') { doc.close(); x = sx; y = sy; last = 'Z'; continue; }
+        if (C === 'M') { x = ox + nm(); y = oy + nm(); sx = x; sy = y; mv(x, y); cmd = rel ? 'l' : 'L'; }
+        else if (C === 'L') { x = ox + nm(); y = oy + nm(); ln(x, y); }
+        else if (C === 'H') { x = ox + nm(); ln(x, y); }
+        else if (C === 'V') { y = oy + nm(); ln(x, y); }
+        else if (C === 'C') { var c1x = ox + nm(), c1y = oy + nm(); kx = ox + nm(); ky = oy + nm(); x = ox + nm(); y = oy + nm(); cu(c1x, c1y, kx, ky, x, y); }
+        else if (C === 'S') { var r1 = /[CS]/.test(last) ? 2 * x - kx : x, r2 = /[CS]/.test(last) ? 2 * y - ky : y; kx = ox + nm(); ky = oy + nm(); x = ox + nm(); y = oy + nm(); cu(r1, r2, kx, ky, x, y); }
+        else if (C === 'Q' || C === 'T') {
+          var qx, qy;
+          if (C === 'Q') { qx = ox + nm(); qy = oy + nm(); } else { qx = /[QT]/.test(last) ? 2 * x - kx : x; qy = /[QT]/.test(last) ? 2 * y - ky : y; }
+          var ex = ox + nm(), ey = oy + nm();
+          cu(x + 2 / 3 * (qx - x), y + 2 / 3 * (qy - y), ex + 2 / 3 * (qx - ex), ey + 2 / 3 * (qy - ey), ex, ey);
+          kx = qx; ky = qy; x = ex; y = ey;
+        } else if (C === 'A') {
+          var arx = nm(), ary = nm(), ph = nm(), fa = nm(), fs = nm(), ax = ox + nm(), ay = oy + nm();
+          arc(x, y, arx, ary, ph, fa, fs, ax, ay); x = ax; y = ay;
+        } else { i++; continue; }
+        last = C;
+      }
+    }
+    /** One doodle centred on (cx, cy), size in pt, turned by rot (radians). */
+    function icon(name, cx, cy, size, rot, col, lw) {
+      var str = DOODLE[name]; if (!str) return;
+      var s = size / 40, c = Math.cos(rot || 0), sn = Math.sin(rot || 0);
+      var T = function (x, y) { x -= 20; y -= 20; return [cx + (x * c - y * sn) * s, cy + (x * sn + y * c) * s]; };
+      stroke(col); doc.setLineCap('round'); doc.setLineJoin('round');
+      str.split('@').forEach(function (part, k) {
+        var w = lw || 1;
+        if (k) { var m = part.match(/^([\d.]+)\s+/); w = w * (+m[1]) / 2.2; part = part.slice(m[0].length); }
+        doc.setLineWidth(w); pathTo(part, T); doc.stroke();
+      });
+      doc.setLineCap('butt'); doc.setLineJoin('miter');
+    }
+    function rng(seed) { return function () { seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+    var NAMES = Object.keys(DOODLE);
+    /** A field of doodles, evenly spread (no two closer than gap), with dots, rings and sparkles between. */
+    function wallpaper(x0, y0, w, h, o) {
+      var r = rng(o.seed || 11), pts = [], names = NAMES.slice(), t, j;
+      for (var i = names.length - 1; i > 0; i--) { j = Math.floor(r() * (i + 1)); t = names[i]; names[i] = names[j]; names[j] = t; }
+      function free(px, py, g, list) { return list.every(function (q) { return (q[0] - px) * (q[0] - px) + (q[1] - py) * (q[1] - py) >= g * g; }); }
+      for (i = 0; i < 2500; i++) { var px = x0 + o.pad + r() * (w - 2 * o.pad), py = y0 + o.pad + r() * (h - 2 * o.pad); if (free(px, py, o.gap, pts)) pts.push([px, py]); }
+      alpha(o.alpha);
+      pts.forEach(function (p, k) { icon(names[k % names.length], p[0], p[1], o.size * (0.86 + r() * 0.28), (r() - 0.5) * 0.8, o.color, o.lw); });
+      var bits = [];
+      for (i = 0; i < 1500; i++) { var bx = x0 + 8 + r() * (w - 16), by = y0 + 8 + r() * (h - 16); if (free(bx, by, o.gap * 0.62, pts) && free(bx, by, o.gap * 0.5, bits)) bits.push([bx, by]); }
+      fill(o.color); stroke(o.color);
+      bits.forEach(function (b, k) {
+        var kind = k % 4; doc.setLineWidth(o.lw * 0.8); doc.setLineCap('round');
+        if (kind === 0) doc.circle(b[0], b[1], 1.1, 'F');
+        else if (kind === 1) doc.circle(b[0], b[1], 2, 'S');
+        else if (kind === 2) { doc.line(b[0] - 3, b[1], b[0] + 3, b[1]); doc.line(b[0], b[1] - 3, b[0], b[1] + 3); }
+        else { doc.moveTo(b[0] - 5, b[1]); doc.curveTo(b[0] - 3.5, b[1] - 2.6, b[0] - 1.5, b[1] - 2.6, b[0], b[1]); doc.curveTo(b[0] + 1.5, b[1] + 2.6, b[0] + 3.5, b[1] + 2.6, b[0] + 5, b[1]); doc.stroke(); }
+      });
+      doc.setLineCap('butt'); alpha(1);
+    }
+    /** A hand-drawn wavy underline. */
+    function squiggle(x, y, w, col, lw, amp) {
+      var n = Math.max(2, Math.round(w / 8)), sw = w / n; amp = amp || 2.4;
+      stroke(col); doc.setLineWidth(lw || 1.3); doc.setLineCap('round');
+      doc.moveTo(x, y);
+      for (var i = 0; i < n; i++) { var x0 = x + i * sw, s = i % 2 ? 1 : -1; doc.curveTo(x0 + sw / 3, y + s * amp, x0 + 2 * sw / 3, y + s * amp, x0 + sw, y); }
+      doc.stroke(); doc.setLineCap('butt');
+    }
+    /** PakkaBill's mark: three bills; on a tile when tile is true. */
+    function mark(x, y, s, tile) {
+      if (tile) { fill(INDIGO); doc.roundedRect(x, y, s, s, s * 0.22, s * 0.22, 'F'); }
       doc.setFillColor(253, 230, 150); doc.roundedRect(x + s * 0.34, y + s * 0.2, s * 0.4, s * 0.52, s * 0.04, s * 0.04, 'F');
       doc.setFillColor(248, 212, 222); doc.roundedRect(x + s * 0.3, y + s * 0.23, s * 0.4, s * 0.52, s * 0.04, s * 0.04, 'F');
       doc.setFillColor(255, 255, 255); doc.roundedRect(x + s * 0.24, y + s * 0.26, s * 0.4, s * 0.52, s * 0.04, s * 0.04, 'F');
@@ -3844,198 +4009,713 @@ details.more[open] > summary { margin-bottom: 10px; }
       doc.setFillColor(160, 166, 212); doc.roundedRect(x + s * 0.3, y + s * 0.54, s * 0.18, s * 0.035, s * 0.017, s * 0.017, 'F');
       doc.roundedRect(x + s * 0.3, y + s * 0.62, s * 0.22, s * 0.035, s * 0.017, s * 0.017, 'F');
     }
-
-    /* ---------- page 1: brand header ---------- */
-    fill(INDIGO); doc.rect(0, 0, PW, 118, 'F');
-    fill(BRAND); doc.triangle(PW * 0.45, 0, PW, 0, PW, 118, 'F');
-    fill(CORAL); doc.rect(0, 118, PW, 3, 'F');
-    logo(M, 26, 44);
-    ink([255, 255, 255]); font('bold', 20); doc.text('PakkaBill', M + 56, 46);
-    font('normal', 9.5); doc.setTextColor(222, 218, 255); doc.text('Meesho Profit & Loss Report', M + 56, 62);
-    font('bold', 15); ink([255, 255, 255]); doc.text(a(biz), PW - M, 42, { align: 'right' });
-    font('normal', 9.5); doc.setTextColor(222, 218, 255);
-    doc.text(a(st.gstin ? 'GSTIN ' + st.gstin : 'GSTIN not added'), PW - M, 58, { align: 'right' });
-    doc.text(a(per.label), PW - M, 74, { align: 'right' });
-    font('normal', 8.5); doc.text(a('Report ' + reportId + '   |   Generated ' + today()), M, 100);
-    doc.text(a('Counted by ' + basis + ' (' + per.from + ' to ' + per.to + ')'), PW - M, 100, { align: 'right' });
-
-    /* ---------- headline cards ---------- */
-    var y = 138, gap = 8, cols = 3, bw = (CW - (cols - 1) * gap) / cols, bh = 52;
-    var cards = [
-      ['NET PROFIT', rsx(R.NP), R.NP < 0 ? NEG : POS, R.NR ? pc(R.margin) + ' of net revenue' : ''],
-      ['NET SALES', rsx(R.NS), INK, K.sales + ' orders sold'],
-      ['RECEIVED FROM MEESHO', rsx(R.payout), INK, 'Settlements, ads and credits'],
-      ['COST OF GOODS', rsx(R.COGS), INK, R.missing.length ? R.missing.length + ' SKU(s) missing a cost' : 'All SKUs have a cost'],
-      ['MEESHO CHARGES', rsx(-R.MCx), INK, 'Commission, shipping and fees (excl. GST)'],
-      ['RTO | RETURN | EXCHANGE', RV ? pc(RV.rtoRate) + ' | ' + pc(RV.retRate) + ' | ' + pc(RV.exchRate) : (K.parcels ? pc(R.returnRate) : '-'), INK, RV ? 'Lost on these: ' + rsx(RV.loss) : '']
-    ];
-    cards.forEach(function (c, i) {
-      var x = M + (i % cols) * (bw + gap), yy = y + Math.floor(i / cols) * (bh + gap);
-      fill(i === 0 ? SOFT : PAPER); stroke(RULE); doc.setLineWidth(0.6); doc.roundedRect(x, yy, bw, bh, 6, 6, 'FD');
-      fill(i === 0 ? BRAND : RULE); doc.rect(x, yy + 8, 2.5, bh - 16, 'F');
-      ink(GREY); font('bold', 7); doc.text(a(c[0]), x + 12, yy + 15);
-      ink(c[2]); font('bold', i === 5 ? 11.5 : 14); doc.text(a(c[1]), x + 12, yy + 33);
-      ink(GREY); font('normal', 7.5); doc.text(a(c[3]), x + 12, yy + 45);
-    });
-    var cursor = y + 2 * bh + gap;
-
-    /* ---------- building blocks ---------- */
-    var sec = 0;
-    function newPage() { doc.addPage(); return 70; }
-    function heading(title, sub) {
-      var yy = cursor + 26;
-      if (yy > PH - 150) yy = newPage();
-      sec++;
-      fill(BRAND); doc.roundedRect(M, yy - 12, 18, 18, 4, 4, 'F');
-      ink([255, 255, 255]); font('bold', 9.5); doc.text(String(sec), M + 9, yy + 1, { align: 'center' });
-      ink(INK); font('bold', 12.5); doc.text(a(title), M + 26, yy + 1.5);
-      stroke(RULE); doc.setLineWidth(0.8); doc.line(M + 26 + doc.getTextWidth(a(title)) + 8, yy - 2, PW - M, yy - 2);
-      if (sub) { ink(GREY); font('normal', 8.3); var sl = doc.splitTextToSize(a(sub), CW - 26); doc.text(sl, M + 26, yy + 15); yy += 10.5 * sl.length + 3; }
-      return yy + 12;
+    /** Text set round a circle: along the top (reading left to right) or along the bottom. */
+    function arcText(t, cx, cy, rad, mid, top, sp) {
+      var s = a(t), ws = [], tot = 0, acc = 0, i;
+      for (i = 0; i < s.length; i++) { ws.push(doc.getTextWidth(s.charAt(i))); tot += ws[i] + (i ? sp : 0); }
+      for (i = 0; i < s.length; i++) {
+        var off = acc + ws[i] / 2, phi = top ? mid - tot / 2 / rad + off / rad : mid + tot / 2 / rad - off / rad;
+        var tx = top ? -Math.sin(phi) : Math.sin(phi), ty = top ? Math.cos(phi) : -Math.cos(phi), turn = top ? phi + Math.PI / 2 : phi - Math.PI / 2;
+        var px = cx + rad * Math.cos(phi) - tx * ws[i] / 2, py = cy + rad * Math.sin(phi) - ty * ws[i] / 2;
+        doc.text(s.charAt(i), px, py, { angle: -turn * 180 / Math.PI });
+        acc += ws[i] + sp;
+      }
     }
-    function negColour(d) { if (d.section === 'body' && typeof d.cell.raw === 'string' && /^\(.*\)$/.test(d.cell.raw)) d.cell.styles.textColor = NEG; }
-    function table(title, sub, hd, rows, numFrom, opt) {
-      var sy = heading(title, sub);
-      var cs = {}; for (var i = numFrom; i < hd.length; i++) cs[i] = { halign: 'right' };
-      doc.autoTable(Object.assign({
-        startY: sy, head: [hd.map(a)], body: rows, theme: 'grid', margin: { left: M, right: M, top: 70, bottom: 52 },
-        styles: { font: 'helvetica', fontSize: 8.3, cellPadding: { top: 4, bottom: 4, left: 6, right: 6 }, textColor: INK, lineColor: RULE, lineWidth: 0.4, overflow: 'linebreak' },
-        headStyles: { fillColor: INDIGO, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
-        alternateRowStyles: { fillColor: PAPER }, columnStyles: cs, didParseCell: negColour
-      }, opt || {}));
+    /** A round rubber stamp, turned by deg. */
+    function stamp(cx, cy, r, col, deg, top, bottom, mid) {
+      var b = deg * Math.PI / 180;
+      alpha(0.92); stroke(col); ink(col); fill(col);
+      doc.setLineWidth(1.8); doc.circle(cx, cy, r, 'S');
+      doc.setLineWidth(0.7); doc.circle(cx, cy, r - 4, 'S'); doc.circle(cx, cy, r - 16, 'S');
+      font(FN.disp, 'bold', 6.6);
+      arcText(top, cx, cy, r - 12.4, -Math.PI / 2 + b, true, 1.1);
+      arcText(bottom, cx, cy, r - 7.6, Math.PI / 2 + b, false, 1.1);
+      [-1, 1].forEach(function (sd) { var ang = b + (sd < 0 ? Math.PI : 0); doc.circle(cx + Math.cos(ang) * (r - 10), cy + Math.sin(ang) * (r - 10), 1.3, 'F'); });
+      font(FN.disp, 'bold', 13);
+      var w = doc.getTextWidth(mid), c = Math.cos(b), sn = Math.sin(b), ox = -w / 2, oy = 1.5;
+      doc.text(mid, cx + ox * c - oy * sn, cy + ox * sn + oy * c, { angle: -deg });
+      // a tick under the word
+      var T = function (x, y) { return [cx + x * c - y * sn, cy + x * sn + y * c]; };
+      doc.setLineWidth(1.6); doc.setLineCap('round'); doc.setLineJoin('round');
+      var p0 = T(-7, 10), p1 = T(-2.5, 14), p2 = T(8, 5.5);
+      doc.moveTo(p0[0], p0[1]); doc.lineTo(p1[0], p1[1]); doc.lineTo(p2[0], p2[1]); doc.stroke();
+      doc.setLineCap('butt'); doc.setLineJoin('miter'); alpha(1);
+    }
+
+    /* ---------- what the report is about ---------- */
+    var biz = a(st.biz || '').trim() || 'Meesho seller';
+    var basis = per.basis === 'order' ? 'order date' : 'payment date';
+    var reportId = 'PB-PL-' + String(per.from || '').replace(/-/g, '') + '-' + String(per.to || '').replace(/-/g, '');
+    var made = E.fmtDate(today());
+    var forPeriod = 'for the period ' + fd(per.from) + ' to ' + fd(per.to);
+    var tied = !!(R.checks && R.checks.bridge);
+
+    // the statement's sections, as the engine laid them out
+    var groups = [], cur = null, gpLine = null;
+    R.lines.forEach(function (l) {
+      if (l.k === 'sec') { cur = { l: l.l, rows: [], tot: null, pre: !gpLine }; groups.push(cur); }
+      else if ((l.k === 'row' || l.k === 'sub') && cur) cur.rows.push(l);
+      else if (l.k === 'tot' && cur) cur.tot = l;
+      else if (l.k === 'gp') gpLine = l;
+    });
+    groups.forEach(function (g) { if (!g.tot) g.tot = { v: g.rows.filter(function (r) { return r.k === 'row'; }).reduce(function (t, r) { return t + r.v; }, 0) }; });
+    function kindOf(l) {
+      return /^revenue/i.test(l) ? 'rev' : /cost of goods/i.test(l) ? 'cogs' : /meesho charges/i.test(l) ? 'charges' : /claim|compensation|recover/i.test(l) ? 'credit'
+        : /marketing|ads/i.test(l) ? 'ads' : /operating|expense/i.test(l) ? 'opex' : 'other';
+    }
+
+    // the notes, numbered before the statement so it can point to them
+    var NOTE = {}, plan = [], RV_OK = !!(RV && RV.done);
+    function plan1(k, t, ic) { plan.push({ k: k, t: t, ic: ic }); NOTE[k] = plan.length; }
+    plan1('policy', 'Basis of preparation and accounting policies', 'clip');
+    plan1('rev', 'Revenue from operations', 'bag');
+    plan1('settle', 'Meesho settlement, column by column', 'receipt');
+    if (RV_OK) plan1('returns', 'Returns, RTO and exchanges', 'truck');
+    plan1('gst', 'GST and tax deducted by Meesho', 'gst');
+    plan1('bridge', 'Net profit and the money received', 'calc');
+    plan1('sku', 'Profit by product (SKU)', 'tag');
+    if (S.MO.length > 1) plan1('months', 'Month by month', 'chart');
+    plan1('payouts', 'Payout register', 'coins');
+    plan1('checks', 'Checks done on your data', 'star');
+    function noteOf(l) { var k = kindOf(l); return NOTE[{ rev: 'rev', cogs: 'sku', charges: 'settle', credit: 'settle', ads: 'settle', opex: 'policy', other: 'gst' }[k]] || ''; }
+
+    var toc = [], cursor = 0;
+    function newPage() { doc.addPage(); cursor = TOP + 4; }
+    function ensure(h) { if (cursor + h > PH - BOT) newPage(); }
+
+    /* ================= page 1: cover ================= */
+    var BH = 292;
+    fill(INDIGO);
+    doc.moveTo(0, 0); doc.lineTo(PW, 0); doc.lineTo(PW, BH);
+    (function () { var n = Math.round(PW / 14), w = PW / n; for (var i = n; i > 0; i--) { doc.lineTo(i * w - w / 2, BH + 7); doc.lineTo((i - 1) * w, BH); } })();
+    doc.close(); doc.fill();
+    alpha(0.45); fill(BRAND); doc.circle(PW - 40, 30, 170, 'F'); alpha(1);
+    wallpaper(0, 0, PW, BH - 6, { seed: 20260927, pad: 16, gap: 52, size: 23, color: WHITE, alpha: 0.12, lw: 0.95 });
+    mark(M - 6, 22, 44, false);
+    ink(WHITE); font(FN.disp, 'bold', 17); doc.text('PakkaBill', M + 40, 47);
+    ink(LAV); font(FN.disp, 'normal', 8); doc.text('Bills, GST and P&L for Meesho sellers', M + 40, 59);
+    (function () {
+      font(FN.disp, 'bold', 7); var lab = 'PROFIT & LOSS REPORT', w = capsW(lab, 1) + 18, x = PW - M - w;
+      fill(CORAL); doc.roundedRect(x, 32, w, 18, 9, 9, 'F'); ink(WHITE); caps(lab, x + 9, 44, 1);
+    })();
+    ink(LAV); font(FN.serif, 'italic', 15); doc.text('Statement of', M, 116);
+    ink(WHITE); font(FN.disp, 'bold', 40); doc.text('Profit & Loss', M, 156);
+    squiggle(M + 2, 168, 150, CORAL, 2, 2.6);
+    ink(WHITE); font(FN.serif, 'normal', 11); doc.text(a(forPeriod), M, 192);
+    ink(LAV); font(FN.disp, 'normal', 8); doc.text(a('Counted by ' + basis + '  ·  Report ' + reportId + '  ·  Made on ' + made), M, 207);
+    ink(LAV); font(FN.disp, 'bold', 7); caps('PREPARED FOR', M, 238, 1.2);
+    ink(WHITE); font(FN.disp, 'bold', biz.length > 34 ? 13 : 17); doc.text(biz, M, 256, { maxWidth: CW - 150 });
+    ink(LAV); font(FN.serif, 'normal', 9); doc.text(a((st.gstin ? 'GSTIN ' + st.gstin : 'GSTIN not added') + '  ·  Meesho seller account'), M, 271);
+    if (tied) stamp(PW - M - 58, 214, 54, GOLD, -13, 'MATCHED WITH MEESHO', 'TO THE PAISA', 'PAKKA');
+
+    // headline figures
+    var y0 = 322;
+    fill(SOFT); doc.roundedRect(M, y0, 206, 120, 10, 10, 'F');
+    alpha(0.16); icon('coins', M + 184, y0 + 100, 34, 0.2, INDIGO, 1.3); alpha(1);
+    ink(INDIGO); font(FN.disp, 'bold', 7.5); caps(R.NP < 0 ? 'NET LOSS' : 'NET PROFIT', M + 16, y0 + 24, 1.2);
+    ink(R.NP < 0 ? NEG : POS); font(FN.disp, 'bold', rup(R.NP).length > 11 ? 24 : 30); doc.text(a(rup(R.NP)), M + 16, y0 + 60);
+    var miss = R.missing.length;
+    ink(miss ? NEG : GREY); font(FN.serif, 'italic', 8.6);
+    if (miss) doc.text(wrap('Cost is missing for ' + miss + ' SKU' + (miss > 1 ? 's' : '') + ', so this profit shows too high. Add costs on the Costs tab.', 150), M + 16, y0 + 80);
+    else doc.text(wrap((R.NR ? pc(R.margin) + ' of net revenue' : '') + (K.del ? ' · ' + rup(Math.round(R.NP / K.del)) + ' per delivered order' : ''), 150), M + 16, y0 + 80);
+    alpha(0.95); ink(CORAL); font(FN.hand, 'normal', 15); doc.text(R.NP < 0 ? 'fix this!' : miss ? 'add costs!' : 'pakka!', M + (miss ? 124 : 150), y0 + 26, { angle: 9 }); alpha(1);
+    var tiles = [
+      ['NET SALES', rup(R.NS), K.sales + ' orders sold'],
+      ['RECEIVED FROM MEESHO', rup(R.payout), S.PO.length + ' payout' + (S.PO.length === 1 ? '' : 's') + ' in the period'],
+      ['DELIVERED ORDERS', String(K.del), 'kept by the buyer, of ' + K.parcels + ' parcels'],
+      ['RTO  ·  RETURNS', RV_OK ? pc(RV.rtoRate) + '  ·  ' + pc(RV.retRate) : (K.parcels ? pc(R.returnRate) : '-'), RV_OK ? rup(RV.loss) + ' lost on them' : 'of parcels shipped']
+    ];
+    var tx0 = M + 218, tw = (PW - M - tx0 - 10) / 2, th = 56;
+    tiles.forEach(function (t, i) {
+      var x = tx0 + (i % 2) * (tw + 10), y = y0 + Math.floor(i / 2) * (th + 8);
+      fill(WHITE); stroke(RULE); doc.setLineWidth(0.8); doc.roundedRect(x, y, tw, th, 8, 8, 'FD');
+      ink(GREY); font(FN.disp, 'bold', 6.4); caps(t[0], x + 11, y + 15, 0.8);
+      ink(INK); font(FN.disp, 'bold', 15); doc.text(a(t[1]), x + 11, y + 34);
+      ink(GREY); font(FN.serif, 'normal', 7.6); doc.text(a(t[2]), x + 11, y + 47, { maxWidth: tw - 18 });
+    });
+
+    // where every ₹100 of sales went
+    (function () {
+      var y = 466, segs = [], NS = R.NS;
+      if (!(NS > 0)) return;
+      if (R.NS - R.NR > 0) segs.push({ k: 'gst', l: 'GST to the government', v: R.NS - R.NR });
+      var credit = 0;
+      groups.forEach(function (g) {
+        if (g.pre && kindOf(g.l) === 'rev') return;
+        var k = kindOf(g.l), v = -g.tot.v;
+        if (k === 'credit' || v < 0) { credit += -v; return; }
+        var lab = { cogs: 'Cost of goods', charges: 'Meesho charges', ads: 'Ads', opex: 'Expenses', other: 'Taxes and other' }[k] || 'Other';
+        var hit = segs.filter(function (s) { return s.k === k; })[0];
+        if (hit) hit.v += v; else segs.push({ k: k, l: lab, v: v });
+      });
+      if (credit) {
+        var host = segs.filter(function (s) { return s.k === 'charges'; })[0] || segs.slice().sort(function (p, q) { return q.v - p.v; })[0];
+        if (!host || host.v < credit) return;
+        host.v -= credit; if (host.k === 'charges') host.l = 'Meesho charges, after claims';
+      }
+      var sum = segs.reduce(function (t, s) { return t + s.v; }, 0);
+      if (Math.abs(sum + R.NP - NS) > 2) return; // only when it adds up exactly
+      var order = ['cogs', 'charges', 'gst', 'ads', 'opex', 'other'];
+      segs.sort(function (p, q) { return order.indexOf(p.k) - order.indexOf(q.k); });
+      if (R.NP > 0) segs.push({ k: 'np', l: 'Net profit', v: R.NP });
+      segs = segs.filter(function (s) { return s.v >= 50; }); // nothing to draw for a nil part (under 50 paise)
+      var total = segs.reduce(function (t, s) { return t + s.v; }, 0);
+      ink(INK); font(FN.disp, 'bold', 11.5); doc.text(a('Where every ' + RS + '100 of sales went'), M, y);
+      ink(GREY); font(FN.serif, 'italic', 8.4);
+      doc.text(a(R.NP > 0 ? 'Out of ' + rup(NS) + ' of net sales, including GST.' : 'Costs were ' + RS + (total / NS * 100).toFixed(1) + ' for every ' + RS + '100 of sales.'), PW - M, y, { align: 'right' });
+      var by = y + 12, bh = 16, gap = 2, free = CW - gap * (segs.length - 1), x = M;
+      segs.forEach(function (s) {
+        var w = Math.max(1, free * s.v / total), c = SEG[s.k] || SEG.other;
+        fill(c); doc.roundedRect(x, by, w, bh, Math.min(3, w / 2), Math.min(3, w / 2), 'F');
+        var lab = RS + (s.v / NS * 100).toFixed(1);
+        font(FN.disp, 'bold', 7.4);
+        if (doc.getTextWidth(a(lab)) + 10 < w) { ink(s.k === 'gst' || s.k === 'ads' || s.k === 'other' ? INK : WHITE); doc.text(a(lab), x + w / 2, by + 10.8, { align: 'center' }); }
+        s.x = x; x += w + gap;
+      });
+      var lx = M, ly = by + bh + 16;
+      segs.forEach(function (s) {
+        font(FN.serif, 'normal', 8); var t = a(s.l + ' '), tw2 = doc.getTextWidth(t), v = a(RS + (s.v / NS * 100).toFixed(1));
+        font(FN.disp, 'bold', 8); var w = 12 + tw2 + doc.getTextWidth(v) + 20;
+        if (lx > M && lx + w - 20 > PW - M) { lx = M; ly += 15; }
+        fill(SEG[s.k] || SEG.other); doc.roundedRect(lx, ly - 7, 8, 8, 2, 2, 'F');
+        ink(INK); font(FN.serif, 'normal', 8); doc.text(t, lx + 12, ly);
+        font(FN.disp, 'bold', 8); doc.text(v, lx + 12 + tw2, ly);
+        lx += w;
+      });
+    })();
+
+    var tocY = 552;
+    cursor = PH; // the next part starts on its own page
+
+    /* ================= page 2: Statement of Profit and Loss ================= */
+    function titleBlock(title) {
+      var y = TOP + 12;
+      ink(INK); font(FN.disp, 'bold', 13); doc.text(biz.toUpperCase(), PW / 2, y, { align: 'center' });
+      ink(GREY); font(FN.serif, 'normal', 8.4); doc.text(a((st.gstin ? 'GSTIN: ' + st.gstin + '  ·  ' : '') + 'Seller on Meesho'), PW / 2, y + 13, { align: 'center' });
+      ink(INK); font(FN.serif, 'bold', 11); doc.text(a(title), PW / 2, y + 32, { align: 'center' });
+      font(FN.serif, 'normal', 9.4); doc.text(a(forPeriod), PW / 2, y + 45, { align: 'center' });
+      squiggle(PW / 2 - 30, y + 53, 60, CORAL, 1.2, 1.8);
+      cursor = y + 60;
+    }
+    newPage();
+    toc.push({ t: 'Statement of Profit and Loss', p: page(), main: true });
+    titleBlock('Statement of Profit and Loss');
+    (function () {
+      var roman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'], si = 0, body = [], meta = [];
+      R.lines.forEach(function (l) {
+        var lab = a(l.l);
+        if (l.k === 'sec') body.push([roman[si++] + '.   ' + lab, String(noteOf(l.l)), '', '']);
+        else if (l.k === 'row' || l.k === 'sub') body.push([lab, '', amt(l.v), '']);
+        else if (l.k === 'tot') body.push([lab, '', '', amt(l.v)]);
+        else if (l.k === 'gp') body.push([lab, '', '', amt(l.v)]);
+        else if (l.k === 'np') body.push([l.v < 0 ? 'Net loss for the period' : 'Net profit for the period', String(NOTE.bridge), '', amt(l.v)]);
+        else return;
+        meta.push(l.k);
+      });
+      var endDay = fd(per.to);
+      ink(GREY); font(FN.serif, 'italic', 7.8); doc.text(a('(Amounts in ' + RS.trim() + ')'), PW - M, cursor + 4, { align: 'right' });
+      doc.autoTable({
+        startY: cursor + 8, theme: 'plain', margin: { left: M, right: M, top: TOP, bottom: BOT }, rowPageBreak: 'avoid',
+        head: [['Particulars', 'Note', { content: a('For the period ended ' + endDay), colSpan: 2, styles: { halign: 'right' } }]],
+        body: body,
+        styles: { font: FN.serif, fontSize: 8.8, textColor: INK, cellPadding: { top: 2.2, bottom: 2.2, left: 6, right: 6 }, overflow: 'linebreak', valign: 'middle' },
+        headStyles: { font: FN.disp, fontStyle: 'bold', fontSize: 7.6, textColor: INDIGO, fillColor: SOFT, cellPadding: { top: 6, bottom: 6, left: 6, right: 6 } },
+        columnStyles: { 1: { halign: 'center', cellWidth: 36 }, 2: { halign: 'right', cellWidth: 100 }, 3: { halign: 'right', cellWidth: 104 } },
+        didParseCell: function (d) {
+          if (d.section !== 'body') return;
+          var k = meta[d.row.index], s = d.cell.styles, c0 = d.column.index === 0;
+          if (k === 'sec') { s.fontStyle = 'bold'; s.textColor = INDIGO; s.cellPadding = { top: 6, bottom: 2.2, left: 6, right: 6 }; if (d.column.index === 1) { s.font = FN.disp; s.fontSize = 8; } }
+          if ((k === 'row' || k === 'sub') && c0) s.cellPadding = { top: 2.2, bottom: 2.2, left: 24, right: 6 };
+          if (k === 'sub') s.fontStyle = 'italic';
+          if (k === 'tot') { s.fontStyle = 'bold'; s.cellPadding = { top: 3, bottom: 3.5, left: c0 ? 24 : 6, right: 6 }; }
+          if (k === 'gp' || k === 'np') { s.fontStyle = 'bold'; s.fillColor = k === 'np' ? SOFT : PAPER; s.fontSize = k === 'np' ? 10.4 : 9.6; s.cellPadding = { top: 5.5, bottom: 5.5, left: 6, right: 6 }; }
+          if (k === 'np' && d.column.index === 3) s.textColor = R.NP < 0 ? NEG : POS;
+        },
+        didDrawCell: function (d) {
+          var c = d.cell, x0 = c.x, x1 = c.x + c.width, col = d.column.index;
+          if (col >= 1) { stroke(RULE); doc.setLineWidth(0.5); doc.line(x0, c.y, x0, c.y + c.height); } // ledger rulings
+          if (d.section === 'head') { stroke(INDIGO); doc.setLineWidth(1); doc.line(x0, c.y, x1, c.y); doc.setLineWidth(0.5); doc.line(x0, c.y + c.height, x1, c.y + c.height); return; }
+          var k = meta[d.row.index];
+          stroke(INK); doc.setLineWidth(0.55);
+          if (k === 'sub' && col === 2) doc.line(x0 + 14, c.y + 0.5, x1 - 4, c.y + 0.5);
+          if (k === 'tot' && col === 2) doc.line(x0 + 14, c.y + 0.5, x1 - 4, c.y + 0.5);
+          if ((k === 'gp' || k === 'np') && col === 3) doc.line(x0 + 14, c.y + 1, x1 - 4, c.y + 1);
+          if (k === 'np' && col === 3) { doc.line(x0 + 14, c.y + c.height - 3, x1 - 4, c.y + c.height - 3); doc.line(x0 + 14, c.y + c.height - 1.2, x1 - 4, c.y + c.height - 1.2); }
+          if (k === 'np') { stroke(INDIGO); doc.setLineWidth(0.8); doc.line(x0, c.y + c.height, x1, c.y + c.height); }
+        }
+      });
+      cursor = doc.lastAutoTable.finalY;
+      ensure(74);
+      var y = cursor + 14;
+      ink(GREY); font(FN.serif, 'italic', 8);
+      doc.text(a('Notes 1 to ' + plan.length + ' form part of this statement. Brackets mean a cost or a deduction; a dash means nil.'), M, y);
+      y += 20;
+      ink(INK); font(FN.serif, 'bold', 9.2); doc.text(a('For ' + biz), PW - M, y, { align: 'right' });
+      font(FN.serif, 'normal', 8.8); doc.text(a('Place: ____________________'), M, y + 22); doc.text(a('Date: ' + made), M, y + 36);
+      stroke(INK); doc.setLineWidth(0.5); doc.line(PW - M - 170, y + 28, PW - M, y + 28);
+      font(FN.serif, 'normal', 8); ink(GREY); doc.text('Proprietor / Partner / Authorised signatory', PW - M, y + 39, { align: 'right' });
+      cursor = y + 44;
+    })();
+
+    /* ================= page 3: Trading and Profit & Loss Account (Dr. / Cr.) ================= */
+    (function () {
+      if (!gpLine) return;
+      function side(list, acc) {
+        list.forEach(function (g) {
+          var tot = g.tot.v, cr = tot >= 0, sg = cr ? 1 : -1, pre = cr ? 'By ' : 'To ', to = cr ? acc.cr : acc.dr;
+          var rows = g.rows.filter(function (r) { return r.k === 'row' || r.k === 'sub'; });
+          if (!rows.length && !tot) return;
+          if (rows.length === 1 && rows[0].k === 'row') to.push({ l: pre + rows[0].l, outer: tot * sg, k: 'single' });
+          else {
+            to.push({ l: pre + g.l, k: 'head' });
+            rows.forEach(function (r, i) {
+              var v = r.v * sg, lab = r.l.replace(/^(less|add):?\s*/i, ''), end = i === rows.length - 1;
+              if (r.k === 'row' && v < 0) { lab = 'Less: ' + lab; v = -v; } // as accountants write it: the word says minus
+              else if (r.k === 'row' && /^less\b/i.test(r.l)) lab = 'Add: ' + lab;
+              to.push({ l: lab, inner: v, outer: end ? tot * sg : null, k: r.k === 'sub' ? 'sub' : 'item', end: end });
+            });
+          }
+          if (cr) acc.tcr += tot; else acc.tdr -= tot;
+        });
+        return acc;
+      }
+      var tr = side(groups.filter(function (g) { return g.pre; }), { dr: [], cr: [], tdr: 0, tcr: 0 });
+      var gp = tr.tcr - tr.tdr;
+      if (gp >= 0) tr.dr.push({ l: 'To Gross profit c/d', outer: gp, k: 'bal' }); else tr.cr.push({ l: 'By Gross loss c/d', outer: -gp, k: 'bal' });
+      tr.total = Math.max(tr.tcr, tr.tdr);
+      var pl = { dr: [], cr: [], tdr: 0, tcr: 0 };
+      if (gp >= 0) { pl.cr.push({ l: 'By Gross profit b/d', outer: gp, k: 'single' }); pl.tcr += gp; } else { pl.dr.push({ l: 'To Gross loss b/d', outer: -gp, k: 'single' }); pl.tdr += -gp; }
+      side(groups.filter(function (g) { return !g.pre; }), pl);
+      var np = pl.tcr - pl.tdr;
+      if (np >= 0) pl.dr.push({ l: 'To Net profit, transferred to capital account', outer: np, k: 'bal' }); else pl.cr.push({ l: 'By Net loss, transferred to capital account', outer: -np, k: 'bal' });
+      pl.total = Math.max(pl.tcr, pl.tdr);
+      if (Math.abs(gp - gpLine.v) > 1 || Math.abs(np - R.NP) > 1) return; // print it only when it balances to the statement
+
+      newPage();
+      toc.push({ t: 'Trading and Profit & Loss Account', p: page(), main: true });
+      titleBlock('Trading and Profit & Loss Account');
+      var big = [tr, pl].some(function (t) { return t.total >= 1e9; }), fsz = big ? 7.2 : 7.9;
+      // Dr. and Cr. stacked on their own, as in a ledger, with the totals on one line
+      function account(t, name) {
+        var n = Math.max(t.dr.length, t.cr.length), est = 70 + n * 18;
+        if (est > PH - BOT - TOP - 20) return accountJoined(t, name);
+        ensure(est);
+        ink(INDIGO); font(FN.disp, 'bold', 8.4); caps(name.toUpperCase(), M, cursor + 16, 1);
+        ink(GREY); font(FN.serif, 'bold', 8.6); doc.text('Dr.', M + capsW(name.toUpperCase(), 1) + 12, cursor + 16);
+        doc.text('Cr.', PW - M, cursor + 16, { align: 'right' });
+        var y0 = cursor + 22, half = CW / 2, iw = big ? 60 : 56, ow = big ? 64 : 60, pg = page(), ends = [];
+        [t.dr, t.cr].forEach(function (list, si) {
+          var x = M + si * half;
+          doc.setPage(pg);
+          doc.autoTable({
+            startY: y0, theme: 'plain', margin: { left: x, right: PW - x - half, top: TOP, bottom: BOT }, rowPageBreak: 'avoid',
+            head: [['Particulars', RS.trim(), RS.trim()]],
+            body: list.map(function (e) { return [a(e.l || ''), e.inner != null ? amt(e.inner) : '', e.outer != null ? amt(e.outer) : '']; }),
+            styles: { font: FN.serif, fontSize: fsz, textColor: INK, cellPadding: { top: 3, bottom: 3, left: 4, right: 4 }, overflow: 'linebreak', valign: 'bottom' },
+            headStyles: { font: FN.disp, fontStyle: 'bold', fontSize: 7.3, textColor: INDIGO, fillColor: SOFT, cellPadding: { top: 6, bottom: 6, left: 4, right: 4 } },
+            columnStyles: { 1: { halign: 'right', cellWidth: iw }, 2: { halign: 'right', cellWidth: ow } },
+            didParseCell: function (dd) {
+              if (dd.section === 'head') { if (dd.column.index) dd.cell.styles.halign = 'right'; return; }
+              var e = list[dd.row.index], st2 = dd.cell.styles;
+              if (e.k === 'head' || e.k === 'bal') st2.fontStyle = 'bold';
+              if ((e.k === 'item' || e.k === 'sub') && dd.column.index === 0) st2.cellPadding = { top: 3, bottom: 3, left: 14, right: 4 };
+              if (e.k === 'sub') st2.fontStyle = 'italic';
+              if (e.k === 'bal' && dd.column.index === 2 && /Net (profit|loss)/.test(e.l)) st2.textColor = /loss/.test(e.l) ? NEG : POS;
+            },
+            didDrawCell: function (dd) {
+              var c = dd.cell, col = dd.column.index, x0 = c.x, x1 = c.x + c.width, yB = c.y + c.height;
+              rules(col, si, x0, x1, c.y, yB);
+              if (dd.section === 'head') { stroke(INK); doc.setLineWidth(0.9); doc.line(x0 - (si && !col ? 2 : 0), c.y, x1, c.y); doc.setLineWidth(0.5); doc.line(x0, yB, x1, yB); return; }
+              var e = list[dd.row.index];
+              stroke(INK); doc.setLineWidth(0.5);
+              if (e.k === 'sub' && col === 1) doc.line(x0 + 8, c.y + 0.5, x1 - 3, c.y + 0.5);
+              if (e.end && col === 1) doc.line(x0 + 8, yB - 0.5, x1 - 3, yB - 0.5);
+            }
+          });
+          ends.push(doc.lastAutoTable.finalY);
+        });
+        var yT = Math.max(ends[0], ends[1]) + 4, th = 20;
+        [0, 1].forEach(function (si) {
+          var x = M + si * half, xs = [x, x + half - iw - ow, x + half - ow, x + half], k;
+          for (k = 0; k < 3; k++) rules(k, si, xs[k], xs[k + 1], ends[si], yT); // carry the column rules down to the totals
+          fill(PAPER); doc.rect(x, yT, half, th, 'F');
+          for (k = 0; k < 3; k++) rules(k, si, xs[k], xs[k + 1], yT, yT + th);
+          stroke(INK); doc.setLineWidth(0.5);
+          doc.line(xs[2] + 6, yT + 1, xs[3] - 3, yT + 1); doc.line(xs[2] + 6, yT + th - 3.2, xs[3] - 3, yT + th - 3.2); doc.line(xs[2] + 6, yT + th - 1.4, xs[3] - 3, yT + th - 1.4);
+          doc.setLineWidth(0.8); doc.line(x - (si ? 2 : 0), yT + th, x + half, yT + th);
+          ink(INK); font(FN.serif, 'bold', fsz); doc.text(amt(t.total), xs[3] - 4, yT + 12.5, { align: 'right' });
+        });
+        cursor = yT + th + 8;
+      }
+      function rules(col, si, x0, x1, yA, yB) {
+        if (yB <= yA) return;
+        stroke(col === 0 ? INK : RULE); doc.setLineWidth(col === 0 ? 0.6 : 0.5); doc.line(x0, yA, x0, yB);
+        if (col === 0 && si === 1) doc.line(x0 - 2, yA, x0 - 2, yB);
+        if (col === 2 && si === 1) { stroke(INK); doc.setLineWidth(0.6); doc.line(x1, yA, x1, yB); }
+      }
+      // one table for both sides, for an account too long for a page (it can run on)
+      function accountJoined(t, name) {
+        ensure(80);
+        ink(INDIGO); font(FN.disp, 'bold', 8.4); caps(name.toUpperCase(), M, cursor + 16, 1);
+        ink(GREY); font(FN.serif, 'bold', 8.6); doc.text('Dr.', M + capsW(name.toUpperCase(), 1) + 12, cursor + 16);
+        doc.text('Cr.', PW - M, cursor + 16, { align: 'right' });
+        var n = Math.max(t.dr.length, t.cr.length), body = [], meta = [];
+        for (var i = 0; i < n; i++) {
+          var d = t.dr[i] || {}, c = t.cr[i] || {};
+          body.push([a(d.l || ''), d.inner != null ? amt(d.inner) : '', d.outer != null ? amt(d.outer) : '', a(c.l || ''), c.inner != null ? amt(c.inner) : '', c.outer != null ? amt(c.outer) : '']);
+          meta.push([d, c]);
+        }
+        body.push(['', '', amt(t.total), '', '', amt(t.total)]); meta.push(null);
+        var cs = {}; [1, 2, 4, 5].forEach(function (k) { cs[k] = { halign: 'right', cellWidth: k % 3 === 1 ? (big ? 60 : 56) : (big ? 64 : 60) }; });
+        doc.autoTable({
+          startY: cursor + 22, theme: 'plain', margin: { left: M, right: M, top: TOP, bottom: BOT }, rowPageBreak: 'avoid',
+          head: [['Particulars', RS.trim(), RS.trim(), 'Particulars', RS.trim(), RS.trim()]], body: body,
+          styles: { font: FN.serif, fontSize: fsz, textColor: INK, cellPadding: { top: 3, bottom: 3, left: 4, right: 4 }, overflow: 'linebreak', valign: 'bottom' },
+          headStyles: { font: FN.disp, fontStyle: 'bold', fontSize: 7.3, textColor: INDIGO, fillColor: SOFT, cellPadding: { top: 6, bottom: 6, left: 4, right: 4 } },
+          columnStyles: cs,
+          didParseCell: function (dd) {
+            if (dd.section === 'head') { if (dd.column.index % 3) dd.cell.styles.halign = 'right'; return; }
+            var m = meta[dd.row.index], s = dd.cell.styles;
+            if (!m) { s.fontStyle = 'bold'; s.fillColor = PAPER; s.cellPadding = { top: 6, bottom: 6, left: 4, right: 4 }; return; }
+            var e = m[dd.column.index < 3 ? 0 : 1] || {};
+            if (e.k === 'head' || e.k === 'bal') s.fontStyle = 'bold';
+            if ((e.k === 'item' || e.k === 'sub') && dd.column.index % 3 === 0) s.cellPadding = { top: 3, bottom: 3, left: 14, right: 4 };
+            if (e.k === 'sub') s.fontStyle = 'italic';
+            if (e.k === 'bal' && dd.column.index % 3 === 2) s.textColor = /Net (profit|loss)/.test(e.l) ? (/loss/.test(e.l) ? NEG : POS) : INK;
+          },
+          didDrawCell: function (dd) {
+            var c = dd.cell, col = dd.column.index, x0 = c.x, x1 = c.x + c.width, yB = c.y + c.height;
+            stroke(col % 3 === 0 ? INK : RULE); doc.setLineWidth(col % 3 === 0 ? 0.6 : 0.5); doc.line(x0, c.y, x0, yB);
+            if (col === 3) { stroke(INK); doc.setLineWidth(0.6); doc.line(x0 - 2, c.y, x0 - 2, yB); }
+            if (col === 5) { stroke(INK); doc.setLineWidth(0.6); doc.line(x1, c.y, x1, yB); }
+            if (dd.section === 'head') { stroke(INK); doc.setLineWidth(0.9); doc.line(x0, c.y, x1, c.y); doc.setLineWidth(0.5); doc.line(x0, yB, x1, yB); return; }
+            var m = meta[dd.row.index];
+            stroke(INK); doc.setLineWidth(0.5);
+            if (!m) {
+              if (col % 3 === 2) { doc.line(x0 + 6, c.y + 1, x1 - 3, c.y + 1); doc.line(x0 + 6, yB - 3, x1 - 3, yB - 3); doc.line(x0 + 6, yB - 1.2, x1 - 3, yB - 1.2); }
+              doc.setLineWidth(0.8); doc.line(x0, yB, x1, yB);
+              return;
+            }
+            var e = m[col < 3 ? 0 : 1] || {};
+            if (e.k === 'sub' && col % 3 === 1) doc.line(x0 + 8, c.y + 0.5, x1 - 3, c.y + 0.5);
+            if (e.end && col % 3 === 1) doc.line(x0 + 8, yB - 0.5, x1 - 3, yB - 0.5);
+          }
+        });
+        cursor = doc.lastAutoTable.finalY + 8;
+      }
+      account(tr, 'Trading Account');
+      cursor += 10;
+      account(pl, 'Profit and Loss Account');
+      ink(GREY); font(FN.serif, 'italic', 8);
+      var tl = wrap('The same figures as the Statement of Profit and Loss, in the two-sided form: what the business spent (Dr.) against what it earned (Cr.). Cost of goods sold is the cost of pieces shipped, net of returns back in stock.', CW);
+      ensure(tl.length * 10 + 10); doc.text(tl, M, cursor + 10); cursor += 10 + tl.length * 10;
+    })();
+
+    /* ================= notes ================= */
+    newPage();
+    toc.push({ t: 'Notes to the statement', p: page(), main: true });
+    ink(INK); font(FN.disp, 'bold', 16); doc.text('Notes to the statement', M, cursor + 14);
+    ink(GREY); font(FN.serif, 'italic', 8.6); doc.text(a(biz + '  ·  ' + forPeriod), M, cursor + 28);
+    cursor += 34;
+    var ni = 0;
+    function noteHead(sub) {
+      var p = plan[ni++];
+      ensure(118);
+      var y = cursor + 28, lab = 'NOTE ' + ni;
+      font(FN.disp, 'bold', 7); var lw = capsW(lab, 0.9) + 16;
+      fill(INDIGO); doc.roundedRect(M, y - 11, lw, 16, 8, 8, 'F'); ink(WHITE); caps(lab, M + 8, y - 0.3, 0.9);
+      ink(INK); font(FN.serif, 'bold', 13); doc.text(a(p.t), M + lw + 9, y + 1);
+      squiggle(M + lw + 10, y + 7, Math.min(doc.getTextWidth(a(p.t)), 86), CORAL, 1.1, 1.7);
+      icon(p.ic, PW - M - 12, y - 3, 24, -0.14, BRAND, 1.05);
+      toc.push({ t: 'Note ' + ni + '  ' + p.t, p: page() });
+      y += 16;
+      if (sub) { ink(GREY); font(FN.serif, 'italic', 8.3); var sl = wrap(sub, CW - 30); doc.text(sl, M, y + 4); y += sl.length * 10.4; }
+      cursor = y;
+    }
+    function caTable(head, rows, o) {
+      o = o || {};
+      var meta = rows.map(function (r) { return r.k || 'row'; }), nf = o.num == null ? 1 : o.num, cs = {};
+      for (var i = nf; i < head.length; i++) cs[i] = { halign: 'right' };
+      Object.keys(o.w || {}).forEach(function (k) { cs[k] = Object.assign(cs[k] || {}, { cellWidth: o.w[k] }); });
+      ensure(60);
+      doc.autoTable({
+        startY: cursor + 8, theme: 'plain', margin: { left: M, right: M, top: TOP, bottom: BOT }, rowPageBreak: 'avoid',
+        head: [head.map(function (h) { return a(h); })],
+        body: rows.map(function (r) { return r.c.map(function (c) { return c && typeof c === 'object' ? c : a(c); }); }),
+        styles: { font: FN.serif, fontSize: o.fs || 8.3, textColor: INK, cellPadding: { top: 3.6, bottom: 3.6, left: 5, right: 5 }, overflow: 'linebreak', valign: 'middle' },
+        headStyles: { font: FN.disp, fontStyle: 'bold', fontSize: o.hfs || 7.2, textColor: INDIGO, fillColor: SOFT, cellPadding: { top: 6, bottom: 6, left: 5, right: 5 }, valign: 'bottom' },
+        columnStyles: cs,
+        didParseCell: function (d) {
+          if (d.section === 'head') { if (d.column.index >= nf) d.cell.styles.halign = 'right'; return; }
+          var k = meta[d.row.index], s = d.cell.styles;
+          if (k === 'tot' || k === 'grand' || k === 'np') s.fontStyle = 'bold';
+          if (k === 'grand' || k === 'np') { s.fillColor = PAPER; s.cellPadding = { top: 6, bottom: 6, left: 5, right: 5 }; }
+          if (k === 'sec') { s.fontStyle = 'bold'; s.textColor = INDIGO; s.cellPadding = { top: 8, bottom: 3, left: 5, right: 5 }; }
+          if (k === 'sub') s.fontStyle = 'italic';
+          if (k === 'ind' && d.column.index === 0) s.cellPadding = { top: 3.6, bottom: 3.6, left: 16, right: 5 };
+          if (k === 'np' && d.column.index >= nf) s.textColor = /^\(/.test(String(d.cell.raw)) ? NEG : POS;
+          if (o.style) o.style(d, k);
+        },
+        didDrawCell: function (d) {
+          var c = d.cell, x0 = c.x, x1 = c.x + c.width, yB = c.y + c.height;
+          if (d.section === 'head') { stroke(INDIGO); doc.setLineWidth(1); doc.line(x0, c.y, x1, c.y); doc.setLineWidth(0.5); doc.line(x0, yB, x1, yB); return; }
+          var k = meta[d.row.index], numc = d.column.index >= nf, has = d.cell.text && d.cell.text.join('') !== '';
+          if (k === 'row' || k === 'ind' || k === 'sub') { stroke(RULE); doc.setLineWidth(0.35); doc.line(x0, yB, x1, yB); }
+          stroke(INK); doc.setLineWidth(0.55);
+          if ((k === 'tot' || k === 'grand' || k === 'np') && numc && has) doc.line(x0 + 6, c.y + 0.6, x1 - 2, c.y + 0.6);
+          if ((k === 'grand' || k === 'np') && numc && has) { doc.line(x0 + 6, yB - 2.8, x1 - 2, yB - 2.8); doc.line(x0 + 6, yB - 1, x1 - 2, yB - 1); }
+          if (o.draw) o.draw(d, k);
+        }
+      });
       cursor = doc.lastAutoTable.finalY;
     }
-    var bold = function (v, extra) { return { content: v, styles: Object.assign({ fontStyle: 'bold' }, extra || {}) }; };
-    var twoCol = { columnStyles: { 1: { halign: 'right', cellWidth: 140 } } };
+    function para(t, o) {
+      o = o || {};
+      font(FN.serif, o.style || 'normal', o.size || 8.6); ink(o.color || INK);
+      var lines = wrap(t, CW - (o.indent || 0)), lh = (o.size || 8.6) * 1.32;
+      lines.forEach(function (l) { ensure(lh + 2); cursor += lh; doc.text(l, M + (o.indent || 0), cursor); });
+      cursor += o.after == null ? 3 : o.after;
+    }
 
-    /* ---------- 1. statement ---------- */
-    var sy = heading('Profit and loss statement', 'Sales and charges exclude GST when GST registration is on. Brackets mean a cost or a deduction.');
-    var kinds = R.lines.map(function (l) { return l.k; });
-    doc.autoTable({
-      startY: sy, head: [['Particulars', 'Amount (Rs.)']], body: R.lines.map(function (l) { return l.k === 'sec' ? [{ content: a(l.l), colSpan: 2 }] : [a(l.l), mn(l.v)]; }),
-      theme: 'plain', margin: { left: M, right: M, top: 70, bottom: 52 },
-      styles: { font: 'helvetica', fontSize: 9.3, cellPadding: { top: 4.2, bottom: 4.2, left: 8, right: 8 }, textColor: INK },
-      headStyles: { fontStyle: 'bold', textColor: [255, 255, 255], fillColor: INDIGO, fontSize: 8.3 },
-      columnStyles: { 1: { halign: 'right', cellWidth: 140 } },
-      didParseCell: function (d) {
-        if (d.section !== 'body') return;
-        var k = kinds[d.row.index];
-        if (k === 'sec') { d.cell.styles.fontStyle = 'bold'; d.cell.styles.textColor = BRAND; d.cell.styles.fillColor = SOFT; d.cell.styles.fontSize = 8.5; }
-        else if (k === 'row') { if (d.column.index === 0) d.cell.styles.cellPadding = { top: 4, bottom: 4, left: 20, right: 8 }; }
-        else { d.cell.styles.fontStyle = 'bold'; if (k === 'gp') d.cell.styles.fillColor = PAPER; if (k === 'np') { d.cell.styles.fontSize = 11.5; d.cell.styles.fillColor = SOFT; } }
-        if (d.column.index === 1 && k !== 'sec' && R.lines[d.row.index].v < 0) d.cell.styles.textColor = NEG;
-      },
-      didDrawCell: function (d) {
-        if (d.section !== 'body') return;
-        var c = d.cell, k = kinds[d.row.index];
-        stroke(RULE); doc.setLineWidth(0.4); doc.line(c.x, c.y + c.height, c.x + c.width, c.y + c.height);
-        if (d.column.index === 1 && (k === 'tot' || k === 'sub' || k === 'gp' || k === 'np')) { stroke(INK); doc.setLineWidth(0.6); doc.line(c.x + 30, c.y + 1, c.x + c.width, c.y + 1); }
-        if (d.column.index === 1 && k === 'np') { stroke(BRAND); doc.setLineWidth(0.8); doc.line(c.x + 30, c.y + c.height - 3, c.x + c.width, c.y + c.height - 3); doc.line(c.x + 30, c.y + c.height - 0.8, c.x + c.width, c.y + c.height - 0.8); }
-      }
+    // Note: basis and policies
+    noteHead('');
+    var H = S.H || {};
+    var pol = [
+      ['Source of the figures', 'Prepared from the Meesho payment report' + (H.ordRows ? ' and the orders report' : '') + ' you uploaded' + (H.pd0 ? ', with payment dates from ' + fd(H.pd0) + ' to ' + fd(H.pd1) : '') + '. Every total ties to the paisa with the Final Settlement Amount in those files (Note ' + NOTE.settle + ').'],
+      ['Period and basis', 'Income and costs are counted by ' + basis + ', from ' + fd(per.from) + ' to ' + fd(per.to) + '.'],
+      ['Revenue', 'Sales are taken at the Total Sale Amount Meesho records, including shipping charged to the buyer. Customer returns are taken off when Meesho reverses the sale. ' + (R.REGD ? 'Output GST is taken out at each order’s product GST rate.' : 'GST registration is off in Settings, so sales include GST.')],
+      ['Cost of goods sold', 'Your cost per piece (Costs tab) times the pieces shipped. Customer returns count as ' + (st.returnDefault === 'ok' ? 'back in stock' : 'not resellable') + ' and RTO parcels as ' + (st.rtoDefault === 'ok' ? 'back in stock' : 'not resellable') + ', unless marked otherwise in Reconcile. ' + (HA.packNote ? HA.packNote(st) : '')],
+      ['Meesho charges', 'Every fee column that makes up the Final Settlement Amount. ' + (R.REGD ? 'Where Meesho shows a fee including GST, 18% GST is taken out as input credit.' : 'Fees include GST.')],
+      ['TCS and TDS', R.claim ? 'TCS (GST) and TDS (section 194-O) deducted by Meesho are claimable in your GST return and income tax return, so they are not a cost.' : 'TCS and TDS deducted by Meesho are counted as a cost, as chosen in Settings.'],
+      ['Expenses', 'Monthly expenses are counted in each month of the period and one-time expenses in their month. Packaging is ' + rup(st.pack || 0) + ' per parcel shipped.'],
+      ['Not an audit', 'This statement is made from the files and costs you entered. It is not audited. Check it with your accountant before you file returns.']
+    ];
+    pol.forEach(function (p, i) {
+      ensure(30);
+      cursor += 6;
+      ink(INDIGO); font(FN.disp, 'bold', 8.4); doc.text((NOTE.policy) + '.' + (i + 1), M, cursor + 9);
+      ink(INK); font(FN.serif, 'bold', 8.8); doc.text(a(p[0]), M + 26, cursor + 9);
+      cursor += 9;
+      para(p[1], { indent: 26, size: 8.4, after: 2 });
     });
-    cursor = doc.lastAutoTable.finalY;
 
-    /* ---------- 2. money received ---------- */
-    table('How profit ties to money received', 'Money received should match the Meesho credits in your bank for the same payment dates.', ['Item', 'Amount (Rs.)'],
-      R.bridge.map(function (b) { return b.k ? [bold(a(b.l)), bold(mn(b.v))] : [a(b.l), mn(b.v)]; }), 1, twoCol);
-
-    /* ---------- 3. GST and tax ---------- */
-    var taxRows = [];
-    if (R.gst) {
-      var g = R.gst;
-      taxRows = E.gstRows(g).map(function (x) { return x[2] ? [bold(x[0]), bold(mn(x[1]))] : [x[0], mn(x[1])]; });
+    // Note: revenue
+    var revG = groups.filter(function (g) { return kindOf(g.l) === 'rev'; })[0];
+    noteHead(K.sales + ' orders sold, ' + K.retn + ' customer returns and ' + K.rton + ' RTO parcels in the period.');
+    if (revG) {
+      caTable(['Particulars', 'Amount (' + RS.trim() + ')'], revG.rows.map(function (r) { return { c: [r.l, amt(r.v)], k: r.k === 'sub' ? 'sub' : 'ind' }; })
+        .concat([{ c: [revG.tot.l || 'Net revenue', amt(revG.tot.v)], k: 'grand' }]), { w: { 1: 130 } });
     }
-    taxRows.push([bold('Tax deducted by Meesho', { textColor: BRAND }), ''], ['TCS collected under GST', mn(-K.T)], ['TDS under section 194-O', mn(-K.D)]);
-    table('GST and tax', (R.gst ? 'Input credit is worked out at 18% on columns Meesho marks as including GST; check it against Meesho\'s monthly tax invoice before filing. ' : 'GST registration is off in Settings, so GST is not split out. ') +
-      (R.claim ? 'TCS and TDS are claimable (GST return and Form 26AS), so they are added back to profit.' : 'TCS and TDS are counted as an expense, as chosen in Settings.'), ['Item', 'Amount (Rs.)'], taxRows, 1, twoCol);
-
-    /* ---------- 4. returns, RTO, exchanges ---------- */
-    if (RV && RV.done) {
-      var G = RV.G, ks = ['rto', 'ret', 'exch'], lab = { rto: 'RTO', ret: 'Customer returns', exch: 'Exchanges', lost: 'Lost' };
-      if (G.lost.n) ks.push('lost');
-      var rate = { rto: RV.rtoRate, ret: RV.retRate, exch: RV.exchRate, lost: RV.lostRate };
-      var line = function (l, f, b) { var r = [b ? bold(l) : l].concat(ks.map(function (k) { var v = f(G[k], k); return b ? bold(v) : v; })); return r; };
-      table('Returns, RTO and exchanges', 'RTO and lost rates are of ' + RV.done + ' parcels shipped; return and exchange rates are of ' + RV.delivered + ' orders delivered. Amounts as Meesho cut them (incl. GST).',
-        ['', ].concat(ks.map(function (k) { return lab[k]; })), [
-          line('Orders', function (g) { return String(g.n); }),
-          line('Rate', function (g, k) { return pc(rate[k]); }, true),
-          line('Return shipping fee', function (g) { return mn(-g.retFee); }),
-          line('Forward shipping', function (g) { return mn(-g.fwdShip); }),
-          line('Commission and fees kept', function (g) { return mn(-g.fees); }),
-          line('Packing', function (g) { return mn(-g.pack); }),
-          line('Stock not resellable', function (g) { return mn(-g.stock); }),
-          line('Paid back by Meesho', function (g) { return mn(g.back); }),
-          line('Total lost', function (g) { return mn(-g.loss); }, true),
-          line('Lost per order', function (g) { return g.n ? mn(-Math.round(g.loss / g.n)) : '-'; })
-        ], 1);
-    }
-
-    /* ---------- 5. categories ---------- */
     if (HA.categoryRows) {
       var cats = HA.categoryRows();
       if (cats.length) {
-        var ct = { NS: 0, p: 0, s: 0 }; cats.forEach(function (c) { ct.NS += c.NS; ct.p += c.profit; ct.s += c.sold; });
-        table('Profit by category', 'Categories come from Meesho product names (changeable in the Costs tab). Profit is before ads and other expenses.',
-          ['Category', 'SKUs', 'Orders', 'Net sales', 'Profit', 'Margin', 'RTO + returns'],
-          cats.map(function (c) { return [a(c.cat), String(c.skus), String(c.sold), mn(c.NS), mn(c.profit), c.NS > 0 ? pc(c.profit / c.NS) : '-', String(c.rto + c.ret)]; })
-            .concat([[bold('All categories'), '', bold(String(ct.s)), bold(mn(ct.NS)), bold(mn(ct.p)), bold(ct.NS > 0 ? pc(ct.p / ct.NS) : ''), '']]), 1);
+        var ct = { NS: 0, s: 0, p: 0 }; cats.forEach(function (c) { ct.NS += c.NS; ct.s += c.sold; ct.p += c.profit; });
+        cursor += 6; para('By category (from Meesho product names; change them on the Costs tab):', { style: 'italic', color: GREY, size: 8.2, after: 0 });
+        caTable(['Category', 'SKUs', 'Orders', 'Net sales', 'Share', 'Profit', 'Margin'],
+          cats.map(function (c) { return { c: [c.cat, String(c.skus), String(c.sold), amt(c.NS), ct.NS ? pc(c.NS / ct.NS) : '-', amt(c.profit), c.NS > 0 ? pc(c.profit / c.NS) : '-'] }; })
+            .concat([{ c: ['All categories', '', String(ct.s), amt(ct.NS), '100.0%', amt(ct.p), ct.NS > 0 ? pc(ct.p / ct.NS) : '-'], k: 'tot' }]), { fs: 8 });
       }
     }
 
-    /* ---------- 6. SKUs ---------- */
-    table('Profit by SKU', 'After cost of goods, Meesho charges and packaging; before ads and other expenses. Per delivered order counts only orders not returned or RTO. Break-even is the buyer price where the SKU makes zero profit.',
-      ['SKU', 'Orders', 'Ret/RTO', 'Delivered', 'Net sales', 'Cost of goods', 'Meesho charges', 'Profit', 'Per delivered order', 'Break-even'],
-      R.skus.map(function (x) { return [a(x.sku) + (x.pcs > 1 ? ' (' + x.pcs + ' pcs)' : ''), String(x.sold), String(x.retU + x.rto), String(x.delivered), mn(x.NS), mn(-x.COGS), mn(x.MC), mn(x.contrib), x.delivered ? mn(x.perOrder) : '', x.sold ? mn(x.breakEven) : '']; })
-        .concat([[{ content: 'Not tied to a SKU (ads, referral, account credits, expenses)', colSpan: 7, styles: { fontStyle: 'bold' } }, bold(mn(R.unalloc), { halign: 'right' }), '', ''],
-          [{ content: 'Net profit (' + R.K.del + ' delivered orders)', colSpan: 7, styles: { fontStyle: 'bold', fillColor: SOFT } }, bold(mn(R.NP), { halign: 'right', fillColor: SOFT }), bold(R.K.del ? mn(Math.round(R.NP / R.K.del)) : '', { halign: 'right', fillColor: SOFT }), { content: '', styles: { fillColor: SOFT } }]]), 1);
+    // Note: settlement column by column, then to the money received
+    noteHead('Every column of Meesho’s payment file in the period. Together they make up the Final Settlement Amount Meesho paid for your orders; ads, referral and compensation entries then give the money received.');
+    (function () {
+      var sv = 0, sg = 0, rows = R.cols.map(function (c) { sv += c.v; sg += c.g; return { c: [c.label, E.CATL[c.cat] || c.cat, amt(c.v), c.g ? amt(-c.g) : '-', amt(c.v - c.g)] }; });
+      rows.push({ c: ['Total of the columns', '', amt(sv), sg ? amt(-sg) : '-', amt(sv - sg)], k: 'tot' });
+      var diff = K.F - sv;
+      if (Math.round(diff)) rows.push({ c: ['Rows that do not add up from Meesho’s columns', '', amt(diff), '', ''], k: 'ind' });
+      rows.push({ c: ['Final Settlement Amount (all payment rows)', '', amt(K.F), '', ''], k: 'grand' });
+      var after = false;
+      R.bridge.forEach(function (b, i) {
+        if (!i) return;
+        if (after) return;
+        if (b.k === 'sub') { rows.push({ c: [b.l, '', amt(b.v), '', ''], k: 'grand' }); after = true; }
+        else rows.push({ c: [b.l, '', amt(b.v), '', ''], k: 'ind' });
+      });
+      caTable(['Column in Meesho file', 'Counted as', 'As in the file', 'GST part', 'Without GST'], rows, { fs: 7.8, w: { 1: 92, 2: 74, 3: 62, 4: 70 } });
+      cursor += 4;
+      para(R.REGD ? 'The GST part of Meesho’s fees is input credit (Note ' + NOTE.gst + '). Match it with Meesho’s monthly tax invoice before filing GSTR-3B.' : 'GST registration is off in Settings, so fees are counted with GST.', { style: 'italic', color: GREY, size: 8 });
+    })();
 
-    /* ---------- 7. months ---------- */
-    if (S.MO.length > 1) {
-      table('Month by month', 'Counted by ' + basis + '. Monthly expenses are included in each month.', ['Month', 'Net sales', 'Gross profit', 'Meesho charges', 'Ads', 'Expenses', 'Net profit', 'Received'],
-        S.MO.map(function (x) { return [E.fmtMonth(x.m), mn(x.NS), mn(x.GP), mn(x.MCx), mn(x.ads), mn(-x.OPEX), bold(mn(x.NP)), mn(x.payout)]; }), 1);
+    // Note: returns, RTO and exchanges
+    if (RV_OK) {
+      var G = RV.G, ks = ['rto', 'ret', 'exch'], lab = { rto: 'RTO', ret: 'Customer returns', exch: 'Exchanges', lost: 'Lost' };
+      if (G.lost.n) ks.push('lost');
+      var rate = { rto: RV.rtoRate, ret: RV.retRate, exch: RV.exchRate, lost: RV.lostRate };
+      noteHead('RTO and lost rates are of ' + RV.done + ' parcels shipped; return and exchange rates are of ' + RV.delivered + ' orders delivered. Amounts are as Meesho cut them, with GST.');
+      var line = function (l, f, k) { return { c: [l].concat(ks.map(function (q) { return f(G[q], q); })), k: k }; };
+      caTable([''].concat(ks.map(function (k) { return lab[k]; })), [
+        line('Orders', function (g) { return String(g.n); }),
+        line('Rate', function (g, k) { return pc(rate[k]); }),
+        line('Return shipping fee', function (g) { return amt(-g.retFee); }, 'ind'),
+        line('Forward shipping', function (g) { return amt(-g.fwdShip); }, 'ind'),
+        line('Commission and fees kept', function (g) { return amt(-g.fees); }, 'ind'),
+        line('Packing', function (g) { return amt(-g.pack); }, 'ind'),
+        line('Stock not resellable', function (g) { return amt(-g.stock); }, 'ind'),
+        line('Paid back by Meesho', function (g) { return amt(g.back); }, 'ind'),
+        line('Total lost', function (g) { return amt(-g.loss); }, 'grand'),
+        line('Lost per order', function (g) { return g.n ? amt(-Math.round(g.loss / g.n)) : '-'; })
+      ], { w: { 0: 150 } });
     }
 
-    /* ---------- 8. payouts ---------- */
-    table('Payouts by date', 'Every payment date in your files; each should match one Meesho credit in your bank.', ['Payment date', 'Orders', 'Settlements', 'Ads', 'Other', 'Net received'],
-      S.PO.map(function (p) { return [p.d || 'No date', String(p.n), mn(p.f), mn(p.ads), mn(p.ref + p.adj), bold(mn(p.net))]; }), 1);
+    // Note: GST and tax deducted
+    noteHead(R.gst ? 'Input credit is worked out at 18% on the fee columns Meesho marks as including GST.' : 'GST registration is off in Settings, so GST is not split out.');
+    (function () {
+      var rows = [];
+      if (R.gst) E.gstRows(R.gst).forEach(function (x) { rows.push({ c: [x[0], amt(x[1])], k: x[2] ? 'tot' : 'ind' }); });
+      rows.push({ c: [{ content: 'Tax deducted by Meesho', colSpan: 2 }], k: 'sec' });
+      rows.push({ c: ['TCS collected under GST (claim in GSTR-3B)', amt(-K.T)], k: 'ind' });
+      rows.push({ c: ['TDS under section 194-O (see Form 26AS)', amt(-K.D)], k: 'ind' });
+      rows.push({ c: ['Total tax deducted', amt(-K.T - K.D)], k: 'grand' });
+      caTable(['Particulars', 'Amount (' + RS.trim() + ')'], rows, { w: { 1: 130 } });
+      cursor += 4;
+      para(R.claim ? 'TCS and TDS are claimable, so they are added back to profit (Note ' + NOTE.bridge + ').' : 'TCS and TDS are counted as a cost, as chosen in Settings.', { style: 'italic', color: GREY, size: 8 });
+    })();
 
-    /* ---------- notes and assumptions ---------- */
-    var notes = [
-      'Source: Meesho payment report' + (S.H && S.H.ordFiles ? ' and orders report' : '') + '. All totals are reconciled to the paisa with Meesho\'s Final Settlement Amount.',
-      'Counted by ' + basis + ', ' + per.from + ' to ' + per.to + '.',
-      'Customer returns count as ' + (st.returnDefault === 'ok' ? 'back in stock' : 'not resellable') + ', RTO parcels as ' + (st.rtoDefault === 'ok' ? 'back in stock' : 'not resellable') + ', unless marked otherwise in Reconcile.'
-    ];
-    if (R.missing.length) notes.push('Cost is missing for ' + R.missing.length + ' SKU(s): ' + R.missing.slice(0, 12).map(function (x) { return x.sku; }).join(', ') + (R.missing.length > 12 ? '...' : '') + '. Profit is overstated until they are added.');
-    if (K.revPend) notes.push(K.revPend + ' returned/RTO orders are not yet reversed by Meesho (' + rsx(K.revPendV) + ' of sales); profit will drop when that is paid out.');
-    if (K.unexpl) notes.push(K.unexpl + ' settlement row(s) do not add up from Meesho\'s own columns; the difference is shown as its own line.');
-    notes.push('This report is prepared from the files and costs you entered and is not an audited statement. Check it with your accountant before filing returns.');
-    var ny = heading('Notes and assumptions');
-    font('normal', 8.4); ink(INK);
-    notes.forEach(function (n) {
-      var nl = doc.splitTextToSize(a(n), CW - 40);
-      if (ny + nl.length * 11 > PH - 60) ny = newPage();
-      fill(BRAND); doc.circle(M + 30, ny - 3, 1.6, 'F');
-      doc.text(nl, M + 38, ny); ny += nl.length * 11 + 4;
-    });
+    // Note: profit and the money received
+    noteHead('How the net profit ties to the money Meesho paid you. The money received should match the Meesho credits in your bank for the same payment dates.');
+    caTable(['Particulars', 'Amount (' + RS.trim() + ')'], R.bridge.map(function (b) { return { c: [b.l, amt(b.v)], k: b.k === 'np' ? 'np' : b.k ? 'tot' : 'ind' }; }), { w: { 1: 130 } });
 
-    /* ---------- running header and footer on every page ---------- */
+    // Note: SKUs
+    noteHead('After cost of goods, Meesho charges and packaging; before ads and other expenses. Per order counts orders kept by the buyer. Break-even is the buyer price at which the product makes no profit.');
+    caTable(['SKU', 'Orders', 'Ret / RTO', 'Kept', 'Net sales', 'Cost of goods', 'Meesho charges', 'Profit', 'Per order', 'Break-even'],
+      R.skus.map(function (x) { return { c: [x.sku + (x.pcs > 1 ? ' (' + x.pcs + ' pcs)' : ''), String(x.sold), String(x.retU + x.rto), String(x.delivered), amt(x.NS), amt(-x.COGS), amt(x.MC), amt(x.contrib), x.delivered ? amt(x.perOrder) : '-', x.sold ? amt(x.breakEven) : '-'] }; })
+        .concat([{ c: [{ content: 'Not tied to a SKU (ads, referral, account credits, expenses)', colSpan: 7 }, amt(R.unalloc), '', ''], k: 'tot' },
+          { c: [{ content: 'Net profit (' + K.del + ' orders kept)', colSpan: 7 }, amt(R.NP), K.del ? amt(Math.round(R.NP / K.del)) : '-', ''], k: 'np' }]),
+      { fs: 7.1, hfs: 6.6, w: { 0: 84 }, style: function (d, k) { if (k === 'row' && d.column.index === 7) d.cell.styles.fontStyle = 'bold'; } });
+
+    // Note: months, with a chart
+    if (NOTE.months) {
+      noteHead('Counted by ' + basis + '. Monthly expenses are included in each month.');
+      (function () {
+        var MO = S.MO.slice(-12), h = 112, top = cursor + 30, base, lo = 0, hi = 0;
+        MO.forEach(function (x) { hi = Math.max(hi, x.NS, x.NP); lo = Math.min(lo, x.NP); });
+        if (hi <= 0) return;
+        ensure(h + 70); top = cursor + 30;
+        var step = Math.pow(10, Math.floor(Math.log10(hi / 3))), tick = [1, 2, 2.5, 5, 10].map(function (m) { return m * step; }).filter(function (t) { return hi / t <= 4; })[0] || step * 10;
+        var tmax = Math.ceil(hi / tick) * tick, tmin = lo < 0 ? -Math.ceil(-lo / tick) * tick : 0, sc = h / (tmax - tmin), px0 = M + 40, pw = CW - 44;
+        base = top + tmax * sc;
+        function compact(p) { var r = p / 100, ab = Math.abs(r); return (r < 0 ? MINUS : '') + RS + (ab >= 1e5 ? (ab / 1e5).toFixed(ab >= 1e6 ? 0 : 1).replace(/\.0$/, '') + 'L' : ab >= 1e3 ? (ab / 1e3).toFixed(ab >= 1e4 ? 0 : 1).replace(/\.0$/, '') + 'K' : ab.toFixed(0)); }
+        font(FN.disp, 'normal', 7); ink(GREY);
+        for (var t = tmin; t <= tmax + 1; t += tick) { var gy = base - t * sc; stroke(t === 0 ? GREY : RULE); doc.setLineWidth(t === 0 ? 0.6 : 0.4); doc.line(px0, gy, px0 + pw, gy); doc.text(a(compact(t)), px0 - 6, gy + 2.4, { align: 'right' }); }
+        var slot = pw / MO.length, bw = Math.min(18, slot * 0.28);
+        function bar(x, v, col) {
+          if (!v) return;
+          var hgt = Math.abs(v) * sc, y = v > 0 ? base - hgt : base, r = Math.min(3, bw / 2, hgt / 2);
+          fill(col); doc.roundedRect(x, y, bw, hgt, r, r, 'F');
+          if (hgt > r) doc.rect(x, v > 0 ? base - Math.min(hgt, r) : base, bw, Math.min(hgt, r), 'F'); // square at the baseline
+        }
+        MO.forEach(function (m, i) {
+          var cx = px0 + slot * i + slot / 2;
+          bar(cx - bw - 1, m.NS, SEG.cogs);
+          bar(cx + 1, m.NP, m.NP < 0 ? NEG : SEG.np);
+          ink(INK); font(FN.disp, 'bold', 7); var vy = m.NP >= 0 ? base - m.NP * sc - 4 : base - m.NP * sc + 9;
+          doc.text(a(compact(m.NP)), cx + 1 + bw / 2, vy, { align: 'center' });
+          ink(GREY); font(FN.disp, 'normal', 7.4); doc.text(a(E.fmtMonth(m.m)), cx, base - tmin * sc + 12, { align: 'center' });
+        });
+        // legend
+        var lx = PW - M - 150, ly = cursor + 14;
+        [[SEG.cogs, 'Net sales'], [SEG.np, 'Net profit']].forEach(function (l, i) {
+          fill(l[0]); doc.roundedRect(lx + i * 75, ly - 7, 8, 8, 2, 2, 'F'); ink(INK); font(FN.serif, 'normal', 8); doc.text(l[1], lx + i * 75 + 12, ly);
+        });
+        cursor = base - tmin * sc + 18;
+      })();
+      caTable(['Month', 'Net sales', 'Gross profit', 'Meesho charges', 'Ads', 'Expenses', 'Net profit', 'Received'],
+        S.MO.map(function (x) { return { c: [E.fmtMonth(x.m), amt(x.NS), amt(x.GP), amt(x.MCx), amt(x.ads), amt(-x.OPEX), amt(x.NP), amt(x.payout)] }; }), { fs: 7.8, style: function (d, k) { if (d.column.index === 6) d.cell.styles.fontStyle = 'bold'; } });
+    }
+
+    // Note: payout register, with a box to tick against the bank statement
+    noteHead('Every payment date in your files. Each should match one Meesho credit in your bank statement: tick the box when it does.');
+    (function () {
+      var tot = { n: 0, f: 0, ads: 0, o: 0, net: 0 };
+      var rows = S.PO.map(function (p) { tot.n += p.n; tot.f += p.f; tot.ads += p.ads; tot.o += p.ref + p.adj; tot.net += p.net; return { c: [p.d ? fd(p.d) : 'No date', String(p.n), amt(p.f), amt(p.ads), amt(p.ref + p.adj), amt(p.net), ''] }; });
+      rows.push({ c: ['Total', String(tot.n), amt(tot.f), amt(tot.ads), amt(tot.o), amt(tot.net), ''], k: 'grand' });
+      caTable(['Payment date', 'Orders', 'Settlements', 'Ads', 'Other', 'Net received', 'Bank'], rows, {
+        w: { 6: 34 }, draw: function (d, k) {
+          if (d.column.index !== 6 || k === 'grand') return;
+          stroke(GREY); doc.setLineWidth(0.6); var c = d.cell; doc.roundedRect(c.x + c.width / 2 - 4, c.y + c.height / 2 - 4, 8, 8, 1.5, 1.5, 'S');
+        }
+      });
+    })();
+
+    // Note: checks
+    noteHead('What PakkaBill checked before making this report.');
+    (function () {
+      var acc = E.accuracy ? E.accuracy(ctx.w.files || [], S.M, S.IX, R, S.H, st, today()) : null;
+      var COL = { ok: POS, warn: [196, 128, 0], bad: NEG, info: INDIGO };
+      (acc ? acc.checks : []).forEach(function (c) {
+        font(FN.serif, 'normal', 8.2); var dl = wrap(c.d, CW - 30), hh = 14 + dl.length * 10.4;
+        ensure(hh + 6); var y = cursor + 14;
+        var col = COL[c.lvl] || INDIGO, ix = M + 7, iy = y - 3.2;
+        fill(col); doc.circle(ix, iy, 6, 'F'); stroke(WHITE); doc.setLineWidth(1.3); doc.setLineCap('round'); doc.setLineJoin('round');
+        if (c.lvl === 'ok') { doc.moveTo(ix - 2.8, iy + 0.2); doc.lineTo(ix - 0.8, iy + 2.2); doc.lineTo(ix + 3, iy - 2); doc.stroke(); }
+        else if (c.lvl === 'bad') { doc.line(ix - 2.3, iy - 2.3, ix + 2.3, iy + 2.3); doc.line(ix + 2.3, iy - 2.3, ix - 2.3, iy + 2.3); }
+        else if (c.lvl === 'warn') { doc.line(ix, iy - 3, ix, iy + 0.6); fill(WHITE); doc.circle(ix, iy + 2.7, 0.75, 'F'); }
+        else { doc.line(ix, iy - 0.6, ix, iy + 3); fill(WHITE); doc.circle(ix, iy - 2.8, 0.75, 'F'); }
+        doc.setLineCap('butt'); doc.setLineJoin('miter');
+        ink(INK); font(FN.serif, 'bold', 8.8); doc.text(a(c.t), M + 20, y);
+        ink(GREY); font(FN.serif, 'normal', 8.2); doc.text(dl, M + 20, y + 11);
+        cursor = y + 4 + dl.length * 10.4;
+      });
+      var cl = E.claims ? E.claims(S.M, S.IX, S.REC, st) : null;
+      if (cl && cl.total > 0) {
+        var CLT = { damaged: 'Returns that came back damaged or wrong', rtoDamaged: 'RTO parcels that came back damaged', lost: 'Parcels lost, no claim paid', overdue: 'Delivered, payment overdue', recovery: 'Recoveries to check', unexplained: 'Rows that do not add up' };
+        cursor += 10; para('Money you may get back from Meesho (raise a ticket for each order; ready-made text is on the Reconcile tab):', { style: 'bold', size: 8.8 });
+        caTable(['Reason', 'Orders', 'Amount (' + RS.trim() + ')'], Object.keys(cl.by).map(function (k) { return { c: [CLT[k] || k, String(cl.by[k].n), amt(cl.by[k].amt)] }; })
+          .concat([{ c: ['Total you may claim', String(cl.list.length), amt(cl.total)], k: 'grand' }]), { w: { 1: 60, 2: 110 } });
+      }
+    })();
+
+    // end of the report
+    ensure(90);
+    (function () {
+      var y = cursor + 40;
+      alpha(0.55); ['receipt', 'box', 'truck', 'coin', 'bag'].forEach(function (n, i) { icon(n, PW / 2 + (i - 2) * 30, y, 16, (i - 2) * 0.12, BRAND, 0.9); }); alpha(1);
+      ink(GREY); font(FN.serif, 'italic', 8.4); doc.text('End of the report', PW / 2, y + 24, { align: 'center' });
+      ink(CORAL); font(FN.hand, 'normal', 14); doc.text('Keep selling, keep growing!', PW / 2, y + 44, { align: 'center' });
+    })();
+
+    /* ---------- contents on the cover, now that the page numbers are known ---------- */
+    doc.setPage(1);
+    (function () {
+      var y = tocY, step = Math.min(13, (PH - BOT - y - 50) / toc.length), h = Math.min(PH - BOT - y - 6, 46 + toc.length * step);
+      fill(PAPER); stroke(RULE); doc.setLineWidth(0.8); doc.roundedRect(M, y, CW, h, 10, 10, 'FD');
+      alpha(0.14); icon('clip', PW - M - 26, y + 26, 30, 0.15, INDIGO, 1.3); alpha(1);
+      ink(INK); font(FN.disp, 'bold', 11.5); doc.text('Inside this report', M + 16, y + 22);
+      var ly = y + 40;
+      toc.forEach(function (e) {
+        var x = M + (e.main ? 16 : 30);
+        ink(e.main ? INK : GREY); font(FN.serif, e.main ? 'bold' : 'normal', e.main ? 9 : 8.4);
+        var t = a(e.t); doc.text(t, x, ly);
+        var tw2 = doc.getTextWidth(t), right = PW - M - 16;
+        font(FN.disp, 'bold', 8.4); ink(INDIGO); doc.text(String(e.p), right, ly, { align: 'right' });
+        stroke(RULE); doc.setLineWidth(0.8); doc.setLineDashPattern([0.6, 2.6], 0); doc.setLineCap('round');
+        doc.line(x + tw2 + 6, ly - 1.5, right - 14, ly - 1.5); doc.setLineDashPattern([], 0); doc.setLineCap('butt');
+        ly += step;
+      });
+    })();
+
+    /* ---------- running header and footer ---------- */
     var pages = doc.internal.getNumberOfPages();
-    for (var i = 1; i <= pages; i++) {
-      doc.setPage(i);
-      if (i > 1) {
-        fill(PAPER); doc.rect(0, 0, PW, 44, 'F'); fill(BRAND); doc.rect(0, 44, PW, 1.5, 'F');
-        logo(M, 11, 22);
-        ink(INDIGO); font('bold', 10.5); doc.text('PakkaBill', M + 30, 22);
-        ink(GREY); font('normal', 7.8); doc.text('Meesho P&L Report', M + 30, 33);
-        ink(INK); font('bold', 9); doc.text(a(biz), PW - M, 22, { align: 'right' });
-        ink(GREY); font('normal', 7.8); doc.text(a(per.label + (st.gstin ? '  |  GSTIN ' + st.gstin : '')), PW - M, 33, { align: 'right' });
+    for (var pi = 1; pi <= pages; pi++) {
+      doc.setPage(pi);
+      if (pi > 1) {
+        mark(M, 15, 22, true);
+        ink(INDIGO); font(FN.disp, 'bold', 10.5); doc.text('PakkaBill', M + 29, 25);
+        ink(GREY); font(FN.disp, 'normal', 7); doc.text('Meesho P&L report', M + 29, 34);
+        ink(INK); font(FN.serif, 'bold', 8.6); doc.text(biz, PW - M, 25, { align: 'right' });
+        ink(GREY); font(FN.disp, 'normal', 7); doc.text(a(per.label + (st.gstin ? '  ·  GSTIN ' + st.gstin : '')), PW - M, 34, { align: 'right' });
+        alpha(0.2); ['tag', 'cart', 'receipt', 'box', 'coin'].forEach(function (n, i) { icon(n, PW / 2 - 70 + i * 35, 25, 13, (i % 2 ? 0.2 : -0.2), INDIGO, 0.8); }); alpha(1);
+        stroke(RULE); doc.setLineWidth(0.7); doc.line(M, 45, PW - M, 45);
+        stroke(CORAL); doc.setLineWidth(2); doc.line(M, 45, M + 44, 45);
       }
-      stroke(RULE); doc.setLineWidth(0.6); doc.line(M, PH - 36, PW - M, PH - 36);
-      ink(GREY); font('normal', 7.5);
-      doc.text(a('Generated with PakkaBill  |  pakkabill1.vercel.app  |  ' + reportId), M, PH - 22);
-      font('bold', 7.5); ink(INDIGO); doc.text('Page ' + i + ' of ' + pages, PW - M, PH - 22, { align: 'right' });
+      stroke(RULE); doc.setLineWidth(0.7); doc.setLineDashPattern([3, 2.2], 0); doc.line(M + 16, PH - 40, PW - M, PH - 40); doc.setLineDashPattern([], 0);
+      icon('scissor', M + 6, PH - 40, 11, -Math.PI / 2, GREY, 0.8);
+      ink(GREY); font(FN.disp, 'normal', 6.8);
+      doc.text(a('Prepared with PakkaBill from your Meesho files  ·  Not an audited statement  ·  ' + reportId), M, PH - 26);
+      ink(INDIGO); font(FN.disp, 'bold', 7.4); doc.text('Page ' + pi + ' of ' + pages, PW - M, PH - 26, { align: 'right' });
     }
-    doc.setProperties({ title: 'P&L report - ' + a(biz) + ' - ' + a(per.label), subject: 'Meesho profit and loss', author: a(biz), creator: 'PakkaBill' });
+    doc.setProperties({ title: 'Profit and Loss - ' + biz + ' - ' + a(per.label), subject: 'Meesho profit and loss statement', author: biz, creator: 'PakkaBill' });
     return doc.output('blob');
   };
 })();
