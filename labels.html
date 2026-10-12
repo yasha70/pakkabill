@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PakkaBill: Meesho label sorter</title>
+<meta name="description" content="Sort Meesho shipping labels by SKU and size, add a pick list and the manifest, and print one PDF. Free, and your files never leave your phone or computer.">
+<link rel="icon" href="icon-192.png">
+<script>(function () { try { if (/[?&]embed=1(&|$)/.test(location.search)) document.documentElement.classList.add('embed'); } catch (e) { /* ignore */ } })();</script>
+<style>
+:root {
+  --paper: #fdf8f3; --sheet: #FFFFFF; --rule: #e2daf2; --rule-2: #cfc4ea;
+  --ink: #2a2540; --ink-2: #5c5776; --ink-3: #736e8d;
+  --carbon: #5b3fe6; --carbon-ink: #FFFFFF; --carbon-soft: #ece6ff;
+  --neg: #c8202a; --pos: #12714b; --pos-bg: #e6f6ee; --warn: #8a5200; --warn-bg: #fff4df; --focus: #ff7a59;
+  --f-head: "Anek Latin", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-body: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
+  box-sizing: border-box; color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #110e20; --sheet: #1b1631; --rule: #3a3160; --rule-2: #4a4078;
+    --ink: #ece8fb; --ink-2: #bdb5d9; --ink-3: #958db3;
+    --carbon: #b3a1ff; --carbon-ink: #140c33; --carbon-soft: #35295e;
+    --neg: #ff8a8f; --pos: #74d8a7; --pos-bg: #15302a; --warn: #f0c26a; --warn-bg: #2b2410; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #110e20; --sheet: #1b1631; --rule: #3a3160; --rule-2: #4a4078;
+  --ink: #ece8fb; --ink-2: #bdb5d9; --ink-3: #958db3;
+  --carbon: #b3a1ff; --carbon-ink: #140c33; --carbon-soft: #35295e;
+  --neg: #ff8a8f; --pos: #74d8a7; --pos-bg: #15302a; --warn: #f0c26a; --warn-bg: #2b2410; color-scheme: dark;
+}
+:root.pbfonts { --f-head: "PB Hind", "Hind", system-ui, -apple-system, "Segoe UI", sans-serif; --f-body: "PB Hind", "Hind", system-ui, -apple-system, "Segoe UI", sans-serif; }
+*, *::before, *::after { box-sizing: inherit; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16px/1.5 var(--f-body); font-variant-numeric: tabular-nums; padding-bottom: env(safe-area-inset-bottom, 0px); }
+h1, h2, h3 { font-family: var(--f-head); line-height: 1.2; margin: 0; }
+h2 { font-size: 1.2rem; }
+a { color: var(--carbon); }
+button, input, select { font: inherit; }
+:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.band { background: #2f3490; color: #fff; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px; }
+.band-in { max-width: 920px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+.band a { color: #fff; font-weight: 700; text-decoration: none; }
+.band .brand { font-family: var(--f-head); font-size: 1.25rem; }
+.band .back { margin-left: auto; font-size: .9rem; opacity: .9; text-decoration: underline; text-underline-offset: 3px; }
+.embed .band { display: none; }
+
+.wrap { max-width: 920px; margin: 0 auto; padding: 16px 16px 40px; display: grid; gap: 16px; }
+.card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 16px; padding: 18px; min-width: 0; }
+.card > h2 { margin-bottom: 10px; }
+.sub { color: var(--ink-2); font-size: .93rem; margin: 4px 0 0; }
+.fine { color: var(--ink-3); font-size: .85rem; }
+
+.hero { position: relative; overflow: hidden; border-radius: 18px; padding: 22px 20px 20px; color: #fff; background: linear-gradient(125deg, #26307f 0%, #4b3bd6 52%, #7c56ee 100%); box-shadow: 0 14px 36px -22px rgba(40, 30, 140, .8); }
+.hero::after { content: ""; position: absolute; right: -70px; top: -90px; width: 240px; height: 240px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 122, 89, .5), rgba(255, 122, 89, 0) 70%); pointer-events: none; }
+.hero-top { position: relative; z-index: 1; display: flex; align-items: flex-start; gap: 12px; }
+.hero-k { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 3px 10px 3px 8px; border-radius: 999px; background: rgba(255, 255, 255, .14); font-size: .72rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.hero-k i { width: 7px; height: 7px; border-radius: 50%; background: #5cf2a6; box-shadow: 0 0 0 3px rgba(92, 242, 166, .25); }
+.hero h1 { font-size: clamp(1.6rem, 5vw, 2.2rem); line-height: 1.08; letter-spacing: -.01em; }
+.hero p { position: relative; z-index: 1; margin: 8px 0 0; max-width: 560px; opacity: .92; font-size: .97rem; }
+.lang { margin-left: auto; display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(255, 255, 255, .16); flex: none; }
+.lang button { border: 0; background: none; color: #fff; border-radius: 999px; padding: 4px 11px; font-weight: 700; font-size: .85rem; cursor: pointer; min-height: 30px; }
+.lang button[aria-pressed="true"] { background: #fff; color: #2f2a8a; }
+.steps { position: relative; z-index: 1; list-style: none; display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 14px 0 0; padding: 0; font-size: .84rem; font-weight: 600; }
+.steps li { display: inline-flex; align-items: center; gap: 6px; background: rgba(255, 255, 255, .13); border-radius: 999px; padding: 4px 11px 4px 5px; }
+.steps b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #fff; color: #3b2fb0; font-size: .75rem; }
+
+.drop { display: block; border: 2px dashed var(--rule-2); border-radius: 14px; padding: 24px 16px; text-align: center; cursor: pointer; background: var(--paper); transition: border-color .12s, background .12s; }
+.drop:hover, .drop.over { border-color: var(--carbon); background: var(--carbon-soft); }
+.drop:focus-within { outline: 2.5px solid var(--focus); outline-offset: 2px; }
+.drop svg { width: 38px; height: 38px; color: var(--carbon); }
+.drop b { display: block; font-family: var(--f-head); font-size: 1.15rem; margin-top: 6px; }
+.drop span { display: block; color: var(--ink-2); font-size: .9rem; margin-top: 2px; }
+.files { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.files li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 12px; background: var(--paper); min-width: 0; }
+.files .fi { width: 34px; height: 34px; border-radius: 9px; background: var(--carbon-soft); color: var(--carbon); display: grid; place-items: center; flex: none; }
+.files .fi svg { width: 18px; height: 18px; }
+.files .fn { min-width: 0; flex: 1; }
+.files .fn b { display: block; font-size: .95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.files .fn span { display: block; font-size: .83rem; color: var(--ink-2); }
+.x { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--rule-2); background: var(--sheet); color: var(--ink-2); cursor: pointer; font-size: 18px; line-height: 1; flex: none; }
+.x:hover { color: var(--neg); border-color: var(--neg); }
+
+.busy { display: grid; gap: 8px; }
+.bar { height: 8px; border-radius: 99px; background: var(--carbon-soft); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--carbon); border-radius: 99px; transition: width .15s; }
+
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.tile { border: 1px solid var(--rule); border-radius: 12px; padding: 10px 12px; background: var(--paper); min-width: 0; }
+.tile span { display: block; font-size: .8rem; color: var(--ink-2); font-weight: 600; }
+.tile b { display: block; font-family: var(--f-head); font-size: 1.6rem; line-height: 1.15; }
+@media (width < 560px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.note { border-left: 3px solid var(--warn); background: var(--warn-bg); padding: 10px 12px; border-radius: 0 10px 10px 0; font-size: .93rem; margin-top: 12px; }
+.note.ok { border-left-color: var(--pos); background: var(--pos-bg); }
+.note.info { border-left-color: var(--carbon); background: var(--carbon-soft); }
+.note b { display: block; }
+.note ul { margin: 6px 0 0; padding-left: 18px; }
+.note li { word-break: break-word; }
+
+.opts { display: grid; gap: 14px; }
+.opt > .lbl { display: block; font-weight: 700; font-size: .92rem; margin-bottom: 6px; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button { border: 1.5px solid var(--rule-2); background: var(--sheet); color: var(--ink); border-radius: 10px; padding: 7px 12px; min-height: 40px; font-weight: 600; font-size: .92rem; cursor: pointer; text-align: left; }
+.seg button small { display: block; font-weight: 400; color: var(--ink-2); font-size: .78rem; }
+.seg button[aria-pressed="true"] { border-color: var(--carbon); background: var(--carbon-soft); color: var(--ink); box-shadow: inset 0 0 0 1px var(--carbon); }
+.seg button[disabled] { opacity: .5; cursor: not-allowed; }
+.chk { display: flex; gap: 10px; align-items: flex-start; font-size: .95rem; cursor: pointer; }
+.chk input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--carbon); flex: none; }
+.chk small { display: block; color: var(--ink-2); font-size: .82rem; }
+
+.acts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 16px; border-radius: 10px; border: 1px solid var(--rule-2); background: var(--sheet); font-weight: 700; cursor: pointer; text-decoration: none; color: var(--ink); }
+.btn:hover { border-color: var(--carbon); }
+.btn svg { width: 18px; height: 18px; flex: none; }
+.btn.pri { background: var(--carbon); border-color: var(--carbon); color: var(--carbon-ink); }
+.btn.pri:hover { filter: brightness(1.08); }
+.btn.big { min-height: 50px; padding: 10px 20px; font-size: 1.02rem; }
+.btn[disabled] { opacity: .55; cursor: progress; }
+.done { margin-top: 12px; }
+.thumbs { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 8px; margin-top: 10px; }
+.thumbs figure { margin: 0; flex: none; text-align: center; font-size: .78rem; color: var(--ink-2); }
+.thumbs canvas { display: block; border: 1px solid var(--rule-2); border-radius: 6px; background: #fff; box-shadow: 0 6px 16px -12px rgba(30, 20, 90, .6); }
+
+.tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.tabs button { border: 0; background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2); border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: .9rem; cursor: pointer; min-height: 36px; }
+.tabs button[aria-pressed="true"] { background: var(--carbon); border-color: var(--carbon); color: var(--carbon-ink); }
+.tw { overflow-x: auto; border: 1px solid var(--rule); border-radius: 12px; }
+table.t { width: 100%; border-collapse: collapse; font-size: .9rem; }
+table.t th, table.t td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--rule); vertical-align: top; }
+table.t th { background: var(--paper); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-2); white-space: nowrap; position: sticky; top: 0; }
+table.t td.n, table.t th.n { text-align: right; white-space: nowrap; }
+table.t tr:last-child td { border-bottom: 0; }
+table.t .grp td { background: var(--carbon-soft); font-weight: 700; font-size: .85rem; }
+table.t .tot td { font-weight: 700; color: var(--ink-2); font-size: .85rem; }
+table.t .sku { font-weight: 700; overflow-wrap: anywhere; }
+table.t .on { display: block; font-size: .8rem; font-weight: 400; color: var(--ink-2); word-break: break-all; }
+table.ord td:nth-child(2) { width: 64%; }
+table.ord td:nth-child(3) { overflow-wrap: anywhere; }
+.pill { display: inline-block; border-radius: 999px; padding: 0 8px; font-size: .75rem; font-weight: 700; background: var(--carbon-soft); color: var(--carbon); white-space: nowrap; }
+.pill.w { background: var(--warn-bg); color: var(--warn); }
+.more { padding: 8px 12px; font-size: .85rem; color: var(--ink-2); }
+
+.how ol { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 6px; }
+.how .priv { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding: 10px 12px; border-radius: 12px; background: var(--pos-bg); font-size: .92rem; }
+.how .priv svg { width: 20px; height: 20px; color: var(--pos); flex: none; margin-top: 2px; }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: #1b1631; color: #fff; padding: 10px 16px; border-radius: 10px; font-weight: 600; font-size: .92rem; z-index: 10; box-shadow: 0 10px 30px -10px rgba(0, 0, 0, .5); max-width: calc(100% - 32px); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<script defer src="labels-libs.js"></script>
+</head>
+<body>
+<header class="band"><div class="band-in"><a class="brand" href="/">PakkaBill</a><a class="back" href="/#/labels">Open PakkaBill</a></div></header>
+<main class="wrap" id="app"></main>
+<script>
+/* PakkaBill label engine: reads the text of Meesho shipping labels and the manifest, and sorts the
+   labels. No browser APIs here, so test/labels-audit.js can run it in Node. */
+(function (root) {
+  'use strict';
+
+  /* ---------------- reading a label ---------------- */
+  var COURIERS = [['Valmo', /\bvalmo\b/i], ['Delhivery', /\bdelhivery\b/i], ['Xpress Bees', /xpress\s*bees/i], ['Ecom Express', /ecom\s*express/i],
+    ['Shadowfax', /shadow\s*fax/i], ['Ekart', /\bekart\b/i], ['DTDC', /\bdtdc\b/i], ['Blue Dart', /blue\s*dart/i], ['Amazon Shipping', /amazon\s*(shipping|transportation)/i],
+    ['India Post', /india\s*post|speed\s*post/i], ['Smartr', /\bsmartr\b/i], ['Elastic Run', /elastic\s*run/i], ['Loadshare', /load\s*share/i],
+    ['Shree Maruti', /shree\s*maruti/i], ['Gati', /\bgati\b/i], ['Shiprocket', /\bshiprocket\b/i]];
+  var KEY = { sku: 'sku', skuid: 'sku', skucode: 'sku', size: 'size', qty: 'qty', quantity: 'qty', color: 'color', colour: 'color', order: 'order', orderno: 'order', orderid: 'order', suborder: 'order' };
+  var STOP = /tax\s*invoice|\binvoice\b|bill\s*to|ship\s*to|sold\s*by|original\s*for|bill\s*of\s*supply/i;
+  var GSTIN = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/;
+  var SEP = String.fromCharCode(1);
+
+  // pdf.js text items -> words with positions (PDF points, y grows upwards)
+  function words(items) {
+    var out = [];
+    (items || []).forEach(function (it) {
+      var str = it && it.str; if (!str || !/\S/.test(str)) return;
+      var tr = it.transform || [1, 0, 0, 1, 0, 0];
+      var h = Math.hypot(tr[2], tr[3]) || it.height || 8, x = tr[4], y = tr[5];
+      // where each word sits inside a longer run of text: rough Helvetica widths per character
+      var cum = [0], tot = 0;
+      for (var i = 0; i < str.length; i++) { tot += charW(str.charAt(i)); cum.push(tot); }
+      var w = it.width || tot * h, re = /\S+/g, m;
+      while ((m = re.exec(str))) out.push({ s: m[0], x: x + w * cum[m.index] / tot, w: w * (cum[m.index + m[0].length] - cum[m.index]) / tot, y: y, h: h });
+    });
+    return out;
+  }
+  function charW(c) { return c === ' ' ? 0.28 : /[A-Z]/.test(c) ? (c === 'I' ? 0.28 : /[MW]/.test(c) ? 0.85 : 0.68) : /[a-z]/.test(c) ? (/[iljtf]/.test(c) ? 0.26 : /[mw]/.test(c) ? 0.8 : 0.53) : /\d/.test(c) ? 0.56 : 0.33; }
+  // words -> lines, top to bottom, each line left to right
+  function lines(ws) {
+    var a = ws.slice().sort(function (p, q) { return q.y - p.y || p.x - q.x; }), out = [], cur = null;
+    a.forEach(function (w) {
+      if (cur && Math.abs(w.y - cur.y) <= Math.max(1.5, 0.45 * Math.min(w.h, cur.h))) { cur.words.push(w); cur.h = Math.max(cur.h, w.h); }
+      else { cur = { y: w.y, h: w.h, words: [w] }; out.push(cur); }
+    });
+    out.forEach(function (l) { l.words.sort(function (p, q) { return p.x - q.x; }); l.text = l.words.map(function (w) { return w.s; }).join(' '); });
+    return out;
+  }
+  // a heading word on its own ("SKU", "Order", "Qty:"), never a value such as "SKU-7" or "SKU123"
+  function keyOf(s) { var w = String(s).toLowerCase().replace(/[.:#]+$/, ''); return /^[a-z]+(-[a-z]+)*$/.test(w) ? KEY[w.replace(/-/g, '')] || null : null; }
+  function cleanTok(s) { return String(s).replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9_]+$/g, '').toUpperCase(); }
+  function digits(s) { return (String(s).match(/\d/g) || []).length; }
+  function isTrackId(s) { return /^[A-Z0-9]{9,24}$/.test(s) && digits(s) >= 6 && !GSTIN.test(s); }
+
+  // The "Product Details" table on a Meesho label: SKU | Size | Qty | Color | Order No.
+  function parseLabel(ls) {
+    var hi = -1, cols = null;
+    for (var i = 0; i < ls.length && hi < 0; i++) {
+      var ks = {}, cs = [];
+      ls[i].words.forEach(function (w) {
+        var k = keyOf(w.s);
+        if (k && !ks[k]) { ks[k] = 1; cs.push({ k: k, x0: w.x, x1: w.x + w.w }); }
+        else if (cs.length) cs[cs.length - 1].x1 = Math.max(cs[cs.length - 1].x1, w.x + w.w); // "No." after "Order"
+      });
+      if (ks.sku && (ks.size || ks.qty)) { hi = i; cols = cs; }
+    }
+    if (hi < 0) return kvLabel(ls);
+    var head = ls[hi];
+    function colOf(w) {
+      var a = w.x, b = w.x + w.w, best = 0, bd = Infinity, bo = -1;
+      cols.forEach(function (c, j) {
+        var ov = Math.min(b, c.x1) - Math.max(a, c.x0), d = ov > 0 ? 0 : Math.max(c.x0 - b, a - c.x1);
+        if (d < bd - 0.01 || (Math.abs(d - bd) <= 0.01 && ov > bo)) { bd = d; bo = ov; best = j; }
+      });
+      return cols[best].k;
+    }
+    var rows = [], prevY = head.y, lastY = head.y, end = hi;
+    for (var j = hi + 1; j < ls.length && j <= hi + 30; j++) {
+      var L = ls[j];
+      if (prevY - L.y > Math.max(3 * head.h, 30)) break;
+      if (STOP.test(L.text)) break;
+      if (L.words.some(function (w) { return keyOf(w.s) === 'sku'; })) break;
+      var cell = {};
+      L.words.forEach(function (w) { var k = colOf(w); cell[k] = cell[k] ? cell[k] + ' ' + w.s : w.s; });
+      var hasQ = cols.some(function (c) { return c.k === 'qty'; });
+      if (cell.sku && (!hasQ || /\d/.test(cell.qty || '') || cell.order)) {
+        rows.push({ sku: cell.sku, size: cell.size || '', qty: cell.qty || '', color: cell.color || '', order: cell.order || '' });
+      } else if (rows.length) {
+        var r = rows[rows.length - 1];
+        if (cell.sku) r.sku += /[-_/]$/.test(r.sku) || /^[-_/]/.test(cell.sku) ? cell.sku : ' ' + cell.sku;
+        if (cell.size) r.size += ' ' + cell.size;
+        if (cell.color) r.color += ' ' + cell.color;
+        if (cell.order) r.order += cell.order;
+        if (cell.qty && !r.qty) r.qty = cell.qty;
+      } else break;
+      prevY = L.y; lastY = L.y; end = j;
+    }
+    rows = rows.map(fixRow).filter(function (r) { return r.sku; });
+    if (!rows.length) return { ok: false, why: 'table' };
+    var cutY = null;
+    for (var k = end + 1; k < ls.length; k++) if (STOP.test(ls[k].text)) { cutY = ls[k].y + ls[k].h * 0.95; break; }
+    return finish({ ok: true, rows: rows, headY: head.y + head.h, lastY: lastY, cutY: cutY }, ls);
+  }
+  // fallback for labels written as "SKU: ABC  Size: M  Qty: 1"
+  function kvLabel(ls) {
+    var txt = ls.map(function (l) { return l.text; }).join('\n');
+    var m = txt.match(/\bSKU(?:\s*(?:ID|Code))?\s*[:\-]\s*(\S+)/i);
+    if (!m) return { ok: false, why: ls.length ? 'table' : 'image' };
+    var sz = txt.match(/\bSize\s*[:\-]\s*(.+?)(?=\s{1,}(?:Qty|Quantity|Colou?r|Order)\b|\n|$)/i);
+    var q = txt.match(/\b(?:Qty|Quantity)\s*[:\-]\s*(\d+)/i), o = txt.match(/\bOrder\s*(?:No\.?|ID)?\s*[:\-]\s*([A-Za-z0-9_]+)/i);
+    var r = fixRow({ sku: m[1], size: sz ? sz[1] : '', qty: q ? q[1] : '', color: '', order: o ? o[1] : '' });
+    return finish({ ok: true, rows: [r], headY: null, lastY: null, cutY: null }, ls);
+  }
+  function fixRow(r) {
+    var q = parseInt(String(r.qty).replace(/[^\d]/g, ''), 10);
+    return { sku: String(r.sku).replace(/\s+/g, ' ').trim(), size: String(r.size).replace(/\s+/g, ' ').trim(), qty: q > 0 && q < 1000 ? q : 1,
+      color: String(r.color).replace(/\s+/g, ' ').trim(), order: String(r.order).replace(/\s+/g, '').replace(/[^A-Za-z0-9_\-]/g, '') };
+  }
+  function finish(res, ls) {
+    var top = ls.filter(function (l) { return res.cutY == null || l.y > res.cutY; });
+    var txt = top.map(function (l) { return l.text; }).join('\n');
+    res.courier = '';
+    for (var i = 0; i < top.length && !res.courier; i++) for (var c = 0; c < COURIERS.length; c++) if (COURIERS[c][1].test(top[i].text)) { res.courier = COURIERS[c][0]; break; }
+    res.pay = /\bCOD\b/.test(txt) ? 'COD' : /prepaid/i.test(txt) ? 'Prepaid' : '';
+    var orders = {}, ids = {};
+    res.rows.forEach(function (r) { (r.order.match(/[A-Za-z0-9]{6,}(?:_\d+)?/g) || []).forEach(function (o) { orders[o.toUpperCase()] = 1; }); });
+    top.forEach(function (l) { l.words.forEach(function (w) { var s = cleanTok(w.s); if (isTrackId(s) && !orders[s]) ids[s] = 1; }); });
+    res.orders = Object.keys(orders); res.ids = Object.keys(ids);
+    return res;
+  }
+
+  /* ---------------- the manifest ---------------- */
+  // Every row of the manifest (lines that start with a serial number) and every ID on it.
+  function parseManifest(pagesLines) {
+    var tokens = {}, rows = [], total = null, couriers = {};
+    pagesLines.forEach(function (ls) {
+      ls.forEach(function (l) {
+        var ids = [];
+        l.words.forEach(function (w) { var s = cleanTok(w.s); if (s.length >= 8 && digits(s) >= 6) { tokens[s] = 1; ids.push(s); var b = s.replace(/_\d+$/, ''); if (b !== s) tokens[b] = 1; } });
+        if (/^\d{1,4}\.?$/.test(l.words[0].s) && ids.length) rows.push({ n: parseInt(l.words[0].s, 10), ids: ids, text: l.text });
+        var m = l.text.match(/total\s*(?:no\.?\s*of\s*)?(?:shipments|orders|packets|parcels|awbs?)?\s*[:\-]?\s*(\d{1,5})\b/i);
+        if (m && total == null) total = parseInt(m[1], 10);
+        COURIERS.forEach(function (c) { if (c[1].test(l.text)) couriers[c[0]] = 1; });
+      });
+    });
+    return { tokens: tokens, rows: rows, total: total, couriers: Object.keys(couriers) };
+  }
+  function keysOf(lab) {
+    var k = {};
+    lab.orders.concat(lab.ids).forEach(function (s) { k[s] = 1; k[s.replace(/_\d+$/, '')] = 1; });
+    return Object.keys(k);
+  }
+  // Which labels are on the manifest, and which manifest rows have no label.
+  function checkManifest(labs, man) {
+    if (!man) return null;
+    var on = [], off = [], all = {};
+    labs.forEach(function (L) {
+      var ks = keysOf(L.lab); ks.forEach(function (k) { all[k] = 1; });
+      (ks.some(function (k) { return man.tokens[k]; }) ? on : off).push(L);
+    });
+    var extra = man.rows.filter(function (r) { return !r.ids.some(function (s) { return all[s] || all[s.replace(/_\d+$/, '')]; }); });
+    return { on: on, off: off, extra: extra, rows: man.rows.length, total: man.total };
+  }
+
+  /* ---------------- sizes and sorting ---------------- */
+  var LETTER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '4XL', '5XL', '6XL', '7XL', '8XL'];
+  var WORDS = { SMALL: 'S', MEDIUM: 'M', LARGE: 'L', EXTRALARGE: 'XL', XLARGE: 'XL', XXLARGE: 'XXL', DOUBLEXL: 'XXL', TRIPLEXL: 'XXXL' };
+  function canonSize(s) {
+    var u = String(s || '').toUpperCase().replace(/\s+/g, ' ').trim();
+    if (!u || /^(NA|N\/A|-|NONE|NIL)$/.test(u)) return '';
+    var c = u.replace(/[\s\-_.]/g, '');
+    if (/^(FREE|FREESIZE|FS|ONESIZE|FREESIZES)$/.test(c)) return 'FREE SIZE';
+    if (WORDS[c]) return WORDS[c];
+    var m = c.match(/^(\d)XL$/);
+    if (m) { var n = +m[1]; return n === 1 ? 'XL' : n === 2 ? 'XXL' : n === 3 ? 'XXXL' : n + 'XL'; }
+    if (/^X{4,8}L$/.test(c)) return (c.length - 1) + 'XL';
+    if (LETTER.indexOf(c) >= 0) return c;
+    return u;
+  }
+  function showSize(c) { return c === 'FREE SIZE' ? 'Free Size' : c; }
+  function sizeKey(c) {
+    var i = LETTER.indexOf(c);
+    if (i >= 0) return [0, i, ''];
+    var m = c.match(/\d+(?:\.\d+)?/);
+    if (m && c !== 'FREE SIZE') return [1, parseFloat(m[0]), c];
+    if (c === 'FREE SIZE') return [3, 0, ''];
+    if (!c) return [4, 0, ''];
+    return [2, 0, c];
+  }
+  function sizeCmp(a, b) {
+    var p = sizeKey(canonSize(a)), q = sizeKey(canonSize(b));
+    return p[0] - q[0] || p[1] - q[1] || (p[2] < q[2] ? -1 : p[2] > q[2] ? 1 : 0);
+  }
+  var coll = (typeof Intl !== 'undefined' && Intl.Collator) ? new Intl.Collator('en', { numeric: true, sensitivity: 'base' }) : null;
+  function skuCmp(a, b) { return coll ? coll.compare(a, b) : (a.toUpperCase() < b.toUpperCase() ? -1 : a.toUpperCase() > b.toUpperCase() ? 1 : 0); }
+  function itemCmp(by) {
+    return function (a, b) { return by === 'size' ? (sizeCmp(a.size, b.size) || skuCmp(a.sku, b.sku)) : (skuCmp(a.sku, b.sku) || sizeCmp(a.size, b.size)); };
+  }
+  function isMixed(lab) {
+    var k = {}; lab.rows.forEach(function (r) { k[r.sku.toUpperCase() + SEP + canonSize(r.size)] = 1; });
+    return Object.keys(k).length > 1;
+  }
+  function courierOrder(labs) {
+    var n = {}; labs.forEach(function (L) { var c = L.lab.courier || 'Other'; n[c] = (n[c] || 0) + 1; });
+    var names = Object.keys(n).sort(function (a, b) { return (a === 'Other') - (b === 'Other') || n[b] - n[a] || (a < b ? -1 : 1); });
+    var r = {}; names.forEach(function (c, i) { r[c] = i; });
+    return { rank: r, names: names, count: n };
+  }
+  // labs: [{lab, i}] -> sorted copy. o: {by:'sku'|'size', courier:bool, mixedLast:bool}
+  function sortLabels(labs, o) {
+    var ic = itemCmp(o.by), co = courierOrder(labs);
+    var a = labs.map(function (L) { return { L: L, items: L.lab.rows.slice().sort(ic), mixed: isMixed(L.lab) ? 1 : 0, c: co.rank[L.lab.courier || 'Other'] }; });
+    a.sort(function (p, q) {
+      if (o.courier && p.c !== q.c) return p.c - q.c;
+      if (o.mixedLast && p.mixed !== q.mixed) return p.mixed - q.mixed;
+      var n = Math.min(p.items.length, q.items.length);
+      for (var i = 0; i < n; i++) { var d = ic(p.items[i], q.items[i]); if (d) return d; }
+      return p.items.length - q.items.length || p.L.i - q.L.i;
+    });
+    return a.map(function (x) { return x.L; });
+  }
+  // SKU x size totals for packing
+  function pickList(labs, by) {
+    var m = {}, sp = {}, ic = itemCmp(by || 'sku');
+    labs.forEach(function (L) {
+      L.lab.rows.forEach(function (r) {
+        var c = canonSize(r.size), k = r.sku.toUpperCase() + SEP + c;
+        if (!m[k]) m[k] = { sku: r.sku, size: showSize(c) || r.size, pcs: 0, orders: 0 };
+        m[k].pcs += r.qty; m[k].orders += 1;
+        var g = r.sku.toUpperCase(); (sp[g] = sp[g] || {})[r.sku] = (sp[g][r.sku] || 0) + 1;
+      });
+    });
+    // one spelling per SKU: the one used most (ties: the one in capitals)
+    var best = {};
+    Object.keys(sp).forEach(function (g) { best[g] = Object.keys(sp[g]).sort(function (a, b) { return sp[g][b] - sp[g][a] || (b === g) - (a === g); })[0]; });
+    return Object.keys(m).map(function (k) { var x = m[k]; x.sku = best[x.sku.toUpperCase()]; return x; }).sort(ic);
+  }
+
+  root.PBL = { words: words, lines: lines, parseLabel: parseLabel, parseManifest: parseManifest, checkManifest: checkManifest, canonSize: canonSize,
+    showSize: showSize, sizeCmp: sizeCmp, skuCmp: skuCmp, itemCmp: itemCmp, sortLabels: sortLabels, pickList: pickList, isMixed: isMixed, courierOrder: courierOrder };
+})(typeof window !== 'undefined' ? window : this);
+</script>
+<script>
+/* PakkaBill label sorter: puts Meesho labels in SKU and size order and makes one PDF with a pick list
+   and the manifest. Everything happens in the browser; no file is sent anywhere. */
+(function () {
+  'use strict';
+  var L = window.PBL, words = L.words, lines = L.lines, parseLabel = L.parseLabel, parseManifest = L.parseManifest, checkManifest = L.checkManifest,
+    canonSize = L.canonSize, showSize = L.showSize, itemCmp = L.itemCmp, sortLabels = L.sortLabels, pickList = L.pickList, isMixed = L.isMixed, courierOrder = L.courierOrder;
+
+  /* ---------------- language ---------------- */
+  var LANG = 'en';
+  try { LANG = localStorage.getItem('hisaab:lang') === 'hi' ? 'hi' : 'en'; } catch (e) { /* ignore */ }
+  var HI = {
+    'Label sorter': 'लेबल सॉर्टर',
+    'Free · your files stay on your device': 'मुफ़्त · आपकी फ़ाइलें आपके फ़ोन में ही रहती हैं',
+    'Put your Meesho labels in SKU and size order, add a pick list and the manifest, and print everything as one PDF.': 'Meesho लेबल को SKU और साइज़ के क्रम में लगाएँ, पिक लिस्ट और मैनिफ़ेस्ट जोड़ें, और सब कुछ एक PDF में प्रिंट करें।',
+    'Add PDFs': 'PDF जोड़ें', 'Check': 'जाँचें', 'Download': 'डाउनलोड',
+    'Add label PDF and manifest PDF': 'लेबल PDF और मैनिफ़ेस्ट PDF जोड़ें',
+    'Tap to choose, or drop files here. You can add many files at once.': 'चुनने के लिए टैप करें, या फ़ाइलें यहाँ छोड़ें। एक साथ कई फ़ाइलें जोड़ सकते हैं।',
+    'Remove': 'हटाएँ',
+    '{n} pages': '{n} पेज', '1 page': '1 पेज',
+    '{n} labels': '{n} लेबल', '1 label': '1 लेबल',
+    '{n} manifest pages': 'मैनिफ़ेस्ट के {n} पेज', '1 manifest page': 'मैनिफ़ेस्ट का 1 पेज',
+    '{n} pages not read': '{n} पेज पढ़े नहीं गए', '1 page not read': '1 पेज पढ़ा नहीं गया',
+    'Reading…': 'पढ़ रहे हैं…',
+    'Reading {n} of {n} pages…': '{n2} में से {n1} पेज पढ़ लिए…',
+    'Making your PDF…': 'आपकी PDF बन रही है…',
+    'Cutting label {n} of {n}…': '{n2} में से {n1} लेबल काटे…',
+    'Labels': 'लेबल', 'Pieces': 'पीस', 'SKUs': 'SKU', 'Couriers': 'कूरियर',
+    'Manifest check': 'मैनिफ़ेस्ट जाँच',
+    'Add the manifest PDF to check that every label is on it, and to print it with your labels.': 'मैनिफ़ेस्ट PDF जोड़ें, ताकि जाँच हो सके कि हर लेबल उसमें है, और वह लेबल के साथ प्रिंट हो जाए।',
+    'All {n} labels are on the manifest.': 'सभी {n} लेबल मैनिफ़ेस्ट में हैं।',
+    '{n} of {n} labels are on the manifest.': '{n2} में से {n1} लेबल मैनिफ़ेस्ट में हैं।',
+    'Not on the manifest — check these before handing over:': 'ये मैनिफ़ेस्ट में नहीं हैं — कूरियर को देने से पहले जाँचें:',
+    'On the manifest but no label was added:': 'मैनिफ़ेस्ट में हैं, पर इनका लेबल नहीं जोड़ा:',
+    'The manifest lists {n} shipments.': 'मैनिफ़ेस्ट में {n} शिपमेंट हैं।',
+    'Pages that could not be read': 'जो पेज पढ़े नहीं गए',
+    'They stay at the end of the PDF in their original order, so nothing is lost.': 'ये PDF के आख़िर में अपने पुराने क्रम में रहेंगे, कुछ छूटेगा नहीं।',
+    'page {n}': 'पेज {n}',
+    'this page is a picture, so its text cannot be read': 'यह पेज एक फ़ोटो है, इसलिए इसका टेक्स्ट पढ़ा नहीं जा सकता',
+    'no SKU table found on this page': 'इस पेज पर SKU वाली टेबल नहीं मिली',
+    'How to arrange': 'कैसे लगाएँ',
+    'Order labels by': 'लेबल का क्रम',
+    'SKU, then size': 'पहले SKU, फिर साइज़', 'Size, then SKU': 'पहले साइज़, फिर SKU',
+    'All sizes of a product together': 'एक प्रोडक्ट के सभी साइज़ साथ', 'All S together, then all M…': 'पहले सारे S, फिर सारे M…',
+    'Keep each courier’s labels together': 'हर कूरियर के लेबल साथ रखें',
+    'Handy when couriers pick up at different times.': 'जब कूरियर अलग-अलग समय पर आते हों, तब काम का।',
+    'Orders with 2 or more products at the end': '2 या ज़्यादा प्रोडक्ट वाले ऑर्डर आख़िर में',
+    'These need a bigger packet and more checking.': 'इनमें बड़ा पैकेट और ज़्यादा जाँच लगती है।',
+    'Page': 'पेज',
+    'Full page': 'पूरा पेज', 'Label and invoice, as Meesho gives it': 'लेबल और बिल, जैसे Meesho देता है',
+    'Label only, 4×6 inch': 'सिर्फ़ लेबल, 4×6 इंच', 'For thermal label printers': 'थर्मल लेबल प्रिंटर के लिए',
+    'Add a pick list page at the start': 'शुरू में पिक लिस्ट का पेज जोड़ें',
+    'How many pieces of each SKU and size to pack, with tick boxes.': 'हर SKU और साइज़ के कितने पीस पैक करने हैं, टिक बॉक्स के साथ।',
+    'Manifest in the PDF': 'PDF में मैनिफ़ेस्ट',
+    'At the end': 'आख़िर में', 'At the start': 'शुरू में', 'Leave out': 'न जोड़ें',
+    'Download sorted PDF': 'सॉर्ट की हुई PDF डाउनलोड करें',
+    'Share PDF': 'PDF शेयर करें', 'Copy pick list': 'पिक लिस्ट कॉपी करें',
+    'Pick list copied. Paste it in WhatsApp for your packer.': 'पिक लिस्ट कॉपी हो गई। पैकिंग वाले को WhatsApp पर भेजें।',
+    'Your PDF is ready: {n} pages.': 'आपकी PDF तैयार है: {n} पेज।',
+    'Download again': 'फिर से डाउनलोड करें',
+    'Print order': 'प्रिंट का क्रम', 'Pick list': 'पिक लिस्ट',
+    'Size': 'साइज़', 'Qty': 'मात्रा', 'Courier': 'कूरियर', 'Order no.': 'ऑर्डर नंबर', 'Pcs': 'पीस', 'Orders': 'ऑर्डर',
+    'Total': 'कुल', 'Other': 'अन्य',
+    'and {n} more': 'और {n}',
+    '2+ products': '2+ प्रोडक्ट',
+    'How it works': 'यह कैसे काम करता है',
+    'In the Meesho Supplier Panel, open Orders → Ready to Ship, select the orders and download the labels. Download the manifest from the same page.': 'Meesho सप्लायर पैनल में Orders → Ready to Ship खोलें, ऑर्डर चुनें और लेबल डाउनलोड करें। उसी पेज से मैनिफ़ेस्ट भी डाउनलोड करें।',
+    'Add both PDFs here. PakkaBill reads the SKU, size, quantity and courier on each label.': 'दोनों PDF यहाँ जोड़ें। PakkaBill हर लेबल से SKU, साइज़, मात्रा और कूरियर पढ़ता है।',
+    'Pick how to arrange them and download one PDF: pick list, labels in order, then the manifest.': 'क्रम चुनें और एक PDF डाउनलोड करें: पिक लिस्ट, क्रम में लेबल, फिर मैनिफ़ेस्ट।',
+    'Your labels never leave this phone or computer. Nothing is uploaded.': 'आपके लेबल इस फ़ोन या कंप्यूटर से बाहर नहीं जाते। कुछ भी अपलोड नहीं होता।',
+    'This file is not a PDF.': 'यह फ़ाइल PDF नहीं है।',
+    'Could not open {x}. It may be damaged or password-protected.': '{x} नहीं खुली। फ़ाइल ख़राब हो सकती है या उस पर पासवर्ड है।',
+    'This file was already added.': 'यह फ़ाइल पहले ही जोड़ी जा चुकी है।',
+    'Still loading the PDF tools. Check your internet and try again.': 'PDF टूल अभी लोड हो रहे हैं। इंटरनेट देखें और फिर कोशिश करें।',
+    'Could not make the PDF: {x}': 'PDF नहीं बन पाई: {x}',
+    'No labels found yet. Add the label PDF from Meesho.': 'अभी कोई लेबल नहीं मिला। Meesho से लेबल वाली PDF जोड़ें।',
+    'Manifest pages keep their own page size.': 'मैनिफ़ेस्ट के पेज अपने साइज़ में ही रहेंगे।',
+    'Preview': 'झलक',
+    'Start again': 'फिर से शुरू करें'
+  };
+  // t('Reading {n} of {n} pages…', 3, 10); in Hindi {n1}/{n2} pick numbers by position. {x} is plain text.
+  function t(s) {
+    var args = [].slice.call(arguments, 1), out = (LANG === 'hi' && HI[s]) || s, i = 0;
+    return out.replace(/\{(n|x)(\d*)\}/g, function (m, k, d) { var v = d ? args[d - 1] : args[i++]; return v == null ? '' : String(v); });
+  }
+  function plural(n, one, many) { return n === 1 ? t(one) : t(many, n); }
+
+  /* ---------------- state ---------------- */
+  var OPTS_KEY = 'pakkabill:labels.opts';
+  var S = { files: [], busy: null, out: null, view: 'order', seq: 0 };
+  S.opts = { by: 'sku', courier: true, mixedLast: true, mode: 'full', pick: true, man: 'end' };
+  try { var so = JSON.parse(localStorage.getItem(OPTS_KEY) || 'null'); if (so) for (var k in S.opts) if (so[k] != null) S.opts[k] = so[k]; } catch (e) { /* ignore */ }
+  function saveOpts() { try { localStorage.setItem(OPTS_KEY, JSON.stringify(S.opts)); } catch (e) { /* ignore */ } }
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function $(s, r) { return (r || document).querySelector(s); }
+  var toastT;
+  function toast(msg) {
+    var el = $('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+    el.textContent = msg; clearTimeout(toastT); toastT = setTimeout(function () { el.remove(); }, 3500);
+  }
+  function fmtDate(d) { try { return d.toLocaleDateString(LANG === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { return d.toDateString(); } }
+
+  // every page of every file, classified
+  function allPages() { var a = []; S.files.forEach(function (f) { (f.pages || []).forEach(function (p) { a.push(p); }); }); return a; }
+  function labelPages() { return allPages().filter(function (p) { return p.kind === 'label'; }); }
+  function manPages() { return allPages().filter(function (p) { return p.kind === 'man'; }); }
+  function badPages() { return allPages().filter(function (p) { return p.kind === 'bad'; }); }
+  function manInfo() { var m = manPages(); return m.length ? parseManifest(m.map(function (p) { return p.lines; })) : null; }
+
+  /* ---------------- reading files ---------------- */
+  function libsReady() {
+    if (window.pdfjsLib && window.PDFLib) { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js'; return Promise.resolve(); }
+    return new Promise(function (res, rej) {
+      var n = 0, iv = setInterval(function () {
+        if (window.pdfjsLib && window.PDFLib) { clearInterval(iv); window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js'; res(); }
+        else if (++n > 150) { clearInterval(iv); rej(new Error('libs')); }
+      }, 100);
+    });
+  }
+  function addFiles(list) {
+    var fs = [].slice.call(list || []);
+    if (!fs.length) return;
+    libsReady().then(function () {
+      var chain = Promise.resolve();
+      fs.forEach(function (file) {
+        chain = chain.then(function () { return readFile(file); });
+      });
+      return chain;
+    }, function () { toast(t('Still loading the PDF tools. Check your internet and try again.')); })
+      .then(function () { S.busy = null; S.out = null; render(); });
+  }
+  function readFile(file) {
+    if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') { toast(t('This file is not a PDF.')); return Promise.resolve(); }
+    if (S.files.some(function (f) { return f.name === file.name && f.size === file.size; })) { toast(t('This file was already added.')); return Promise.resolve(); }
+    var f = { id: ++S.seq, name: file.name, size: file.size, pages: [], n: 0 };
+    S.busy = { msg: t('Reading…'), done: 0, of: 1 }; render();
+    return file.arrayBuffer().then(function (buf) {
+      f.bytes = new Uint8Array(buf);
+      return window.pdfjsLib.getDocument({ data: f.bytes.slice(), isEvalSupported: false }).promise;
+    }).then(function (doc) {
+      f.doc = doc; f.n = doc.numPages;
+      var p = Promise.resolve();
+      for (var i = 1; i <= doc.numPages; i++) (function (i) {
+        p = p.then(function () { return doc.getPage(i); }).then(function (page) {
+          return page.getTextContent().then(function (tc) {
+            var ls = lines(words(tc.items)), lab = parseLabel(ls);
+            f.pages.push({ fid: f.id, pi: i - 1, lab: lab, lines: ls, view: page.view.slice(), rot: page.rotate || 0, man: !lab.ok && ls.some(function (l) { return /\bmanifest\b/i.test(l.text); }) });
+            S.busy = { msg: t('Reading {n} of {n} pages…', i, doc.numPages), done: i, of: doc.numPages }; paintBusy();
+          });
+        });
+      })(i);
+      return p;
+    }).then(function () {
+      classify(f); S.files.push(f);
+    }, function (e) {
+      console.warn('label sorter: read failed', e);
+      toast(t('Could not open {x}. It may be damaged or password-protected.', file.name));
+    });
+  }
+  // label / manifest / unread, page by page
+  function classify(f) {
+    var anyLabel = f.pages.some(function (p) { return p.lab.ok; }), anyMan = f.pages.some(function (p) { return p.man; });
+    var prevMan = false;
+    f.pages.forEach(function (p) {
+      if (p.lab.ok) p.kind = 'label';
+      else if (p.man || (!anyLabel && anyMan) || (prevMan && p.lines.length)) p.kind = 'man';
+      else p.kind = 'bad';
+      prevMan = p.kind === 'man';
+    });
+  }
+  function removeFile(id) {
+    S.files = S.files.filter(function (f) { if (f.id === id && f.doc) f.doc.destroy(); return f.id !== id; });
+    S.out = null; render();
+  }
+  function ordered() {
+    var labs = labelPages().map(function (p, i) { p.i = i; return p; });
+    return sortLabels(labs, S.opts);
+  }
+
+  /* ---------------- making the PDF ---------------- */
+  var LW = 288, LH = 432; // 4 x 6 inch
+  // Where the label is on the page (PDF points), found by drawing the page and finding the ink above the invoice.
+  function labelBox(p) {
+    if (p.box) return Promise.resolve(p.box);
+    var f = fileOf(p.fid), v = p.view, SC = 0.5;
+    return f.doc.getPage(p.pi + 1).then(function (page) {
+      var vp = page.getViewport({ scale: SC, rotation: 0 });
+      var cv = labelBox.cv || (labelBox.cv = document.createElement('canvas'));
+      cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
+      var ctx = cv.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+      return page.render({ canvasContext: ctx, viewport: vp }).promise.then(function () {
+        var W = cv.width, H = cv.height, d = ctx.getImageData(0, 0, W, H).data;
+        function inkRow(y) { for (var x = 0, o = y * W * 4; x < W; x++, o += 4) if (d[o] < 225 || d[o + 1] < 225 || d[o + 2] < 225) return true; return false; }
+        function py(yPt) { return Math.max(0, Math.min(H, Math.round((v[3] - yPt) * SC))); }
+        var lab = p.lab, stop = H;
+        if (lab.cutY != null) {
+          // the widest blank band between the product table and the invoice is where the label ends
+          var from = py(lab.lastY != null ? lab.lastY - 2 : lab.cutY + 40), to = py(lab.cutY), best = null, run = null;
+          for (var y = from; y < to; y++) {
+            if (!inkRow(y)) { if (!run) run = { a: y, b: y }; run.b = y; }
+            else if (run) { if (!best || run.b - run.a > best.b - best.a) best = run; run = null; }
+          }
+          if (run && (!best || run.b - run.a > best.b - best.a)) best = run;
+          stop = best ? best.a + Math.min(3, Math.floor((best.b - best.a) / 2)) : to;
+        }
+        var x0 = W, x1 = -1, y0 = H, y1 = -1;
+        for (var yy = 0; yy < stop; yy++) {
+          for (var x = 0, o = yy * W * 4; x < W; x++, o += 4) {
+            if (d[o] < 225 || d[o + 1] < 225 || d[o + 2] < 225) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (yy < y0) y0 = yy; y1 = yy; }
+          }
+        }
+        var pad = 6, box;
+        if (x1 < 0) box = { x0: v[0], y0: v[1], x1: v[2], y1: v[3] };
+        else box = { x0: Math.max(v[0], v[0] + x0 / SC - pad), x1: Math.min(v[2], v[0] + (x1 + 1) / SC + pad),
+          y1: Math.min(v[3], v[3] - y0 / SC + pad), y0: Math.max(v[1], v[3] - (y1 + 1) / SC - pad) };
+        if (lab.cutY != null) box.y0 = Math.max(box.y0, lab.cutY + 1);
+        p.box = box; return box;
+      });
+    });
+  }
+  // Shrink a copied page to the label and fit it on a 4x6 inch page (turned sideways when that is bigger).
+  function fitPage(P, pg, box) {
+    var w = box.x1 - box.x0, h = box.y1 - box.y0;
+    var s1 = Math.min(LW / w, LH / h), s2 = Math.min(LW / h, LH / w), m;
+    if (s2 > s1 * 1.08) { var s = s2; m = [0, s, -s, 0, s * box.y0 + (LW + h * s) / 2, -s * box.x0 + (LH - w * s) / 2]; }
+    else { var r = s1; m = [r, 0, 0, r, (LW - w * r) / 2 - box.x0 * r, (LH - h * r) / 2 - box.y0 * r]; }
+    pg.setRotation(P.degrees(0));
+    pg.node.normalize();
+    var ctx = pg.doc.context;
+    var a = ctx.register(pg.createContentStream(P.pushGraphicsState(), P.concatTransformationMatrix(m[0], m[1], m[2], m[3], m[4], m[5]), P.rectangle(box.x0, box.y0, w, h), P.clip(), P.endPath()));
+    var b = ctx.register(pg.createContentStream(P.popGraphicsState()));
+    pg.node.wrapContentStreams(a, b);
+    ['Annots', 'TrimBox', 'BleedBox', 'ArtBox'].forEach(function (k) { pg.node.delete(P.PDFName.of(k)); });
+    pg.setMediaBox(0, 0, LW, LH); pg.setCropBox(0, 0, LW, LH);
+  }
+  function fileOf(id) { for (var i = 0; i < S.files.length; i++) if (S.files[i].id === id) return S.files[i]; return null; }
+
+  // Text for the standard PDF fonts: keep what they can print.
+  function pdfText(s) { return String(s == null ? '' : s).replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/×/g, 'x').replace(/·/g, '-').replace(/[^\x20-\x7E]/g, '?'); }
+  function fitText(font, s, size, max) {
+    s = pdfText(s); if (font.widthOfTextAtSize(s, size) <= max) return s;
+    while (s.length > 1 && font.widthOfTextAtSize(s + '...', size) > max) s = s.slice(0, -1);
+    return s + '...';
+  }
+  function drawPick(P, out, fonts, W, H, labs, chk) {
+    var F = fonts.r, B = fonts.b, small = W < 400;
+    var M = small ? 14 : 40, fs = small ? 8 : 10, rh = small ? 13 : 18, ink = P.rgb(0.13, 0.11, 0.25), mute = P.rgb(0.42, 0.40, 0.52), brand = P.rgb(0.357, 0.247, 0.902);
+    var tint = P.rgb(0.93, 0.91, 1), rule = P.rgb(0.84, 0.81, 0.93);
+    var list = pickList(labs, 'sku');
+    var pcs = list.reduce(function (s, r) { return s + r.pcs; }, 0), skus = {};
+    list.forEach(function (r) { skus[r.sku.toUpperCase()] = 1; });
+    var co = courierOrder(labs), today = new Date();
+    var page, y, pageNo = 0, pagesMade = [];
+    var cols = small ? [{ k: 'sku', w: 0.52 }, { k: 'size', w: 0.2 }, { k: 'pcs', w: 0.14, r: 1 }, { k: 'tick', w: 0.14 }]
+      : [{ k: 'sku', w: 0.46 }, { k: 'size', w: 0.18 }, { k: 'pcs', w: 0.11, r: 1 }, { k: 'orders', w: 0.11, r: 1 }, { k: 'tick', w: 0.14 }];
+    var TW = W - 2 * M, x = M; cols.forEach(function (c) { c.x = x; c.wd = TW * c.w; x += c.wd; });
+    var HEAD = { sku: 'SKU', size: 'Size', pcs: 'Pcs', orders: 'Orders', tick: 'Packed' };
+    function newPage() {
+      page = out.addPage([W, H]); pageNo++; pagesMade.push(page);
+      page.drawRectangle({ x: 0, y: H - (small ? 34 : 56), width: W, height: small ? 34 : 56, color: brand });
+      page.drawText('Pick list' + (pageNo > 1 ? ' (continued)' : ''), { x: M, y: H - (small ? 23 : 36), size: small ? 13 : 20, font: B, color: P.rgb(1, 1, 1) });
+      var dt = pdfText(fmtDateEn(today)); page.drawText(dt, { x: W - M - F.widthOfTextAtSize(dt, fs), y: H - (small ? 22 : 34), size: fs, font: F, color: P.rgb(1, 1, 1) });
+      y = H - (small ? 34 : 56) - (small ? 16 : 26);
+      if (pageNo === 1) {
+        var sum = labs.length + (labs.length === 1 ? ' order' : ' orders') + '  -  ' + pcs + (pcs === 1 ? ' piece' : ' pieces') + '  -  ' + Object.keys(skus).length + ' SKU' + (Object.keys(skus).length === 1 ? '' : 's');
+        page.drawText(sum, { x: M, y: y, size: fs + (small ? 1 : 2), font: B, color: ink }); y -= rh;
+        var cl = co.names.map(function (c) { return c + ' ' + co.count[c]; }).join('   ');
+        page.drawText(fitText(F, 'Couriers: ' + cl, fs, TW), { x: M, y: y, size: fs, font: F, color: mute }); y -= rh;
+        if (chk) {
+          var mt = chk.off.length || chk.extra.length ? 'Manifest: ' + chk.on.length + ' of ' + labs.length + ' labels found' + (chk.extra.length ? ', ' + chk.extra.length + ' listed without a label' : '') : 'Manifest: all ' + labs.length + ' labels are on it';
+          page.drawText(fitText(F, mt, fs, TW), { x: M, y: y, size: fs, font: B, color: chk.off.length || chk.extra.length ? P.rgb(0.6, 0.2, 0.1) : P.rgb(0.07, 0.44, 0.29) }); y -= rh;
+        }
+        y -= rh * 0.4;
+      }
+      page.drawRectangle({ x: M, y: y - rh * 0.3, width: TW, height: rh, color: tint });
+      cols.forEach(function (c) { var s = HEAD[c.k], tw = B.widthOfTextAtSize(s, fs - 1); page.drawText(s, { x: c.r ? c.x + c.wd - tw - 4 : c.x + 4, y: y, size: fs - 1, font: B, color: mute }); });
+      y -= rh;
+    }
+    function footer() {
+      pagesMade.forEach(function (pg, i) {
+        var s = 'PakkaBill label sorter  -  page ' + (i + 1) + ' of ' + pagesMade.length;
+        pg.drawText(s, { x: M, y: small ? 8 : 22, size: small ? 6 : 8, font: F, color: mute });
+      });
+    }
+    newPage();
+    var groups = [], g = null;
+    list.forEach(function (r) { if (!g || g.key !== r.sku.toUpperCase()) { g = { key: r.sku.toUpperCase(), rows: [] }; groups.push(g); } g.rows.push(r); });
+    var bottom = small ? 22 : 44;
+    groups.forEach(function (gr) {
+      var need = (gr.rows.length + (gr.rows.length > 1 ? 1 : 0)) * rh;
+      if (y - Math.min(need, rh * 3) < bottom) newPage();
+      var shownOn = pageNo;
+      gr.rows.forEach(function (r, i) {
+        // keep the last size and the SKU total on the same page
+        if (y - rh * (i === gr.rows.length - 1 && gr.rows.length > 1 ? 2 : 1) < bottom) newPage();
+        var showSku = i === 0 || shownOn !== pageNo; shownOn = pageNo;
+        cols.forEach(function (c) {
+          var s = c.k === 'sku' ? (showSku ? r.sku : '') : c.k === 'size' ? (r.size || '-') : c.k === 'pcs' ? String(r.pcs) : c.k === 'orders' ? String(r.orders) : '';
+          if (c.k === 'tick') { page.drawRectangle({ x: c.x + 6, y: y - 2, width: fs + 1, height: fs + 1, borderColor: ink, borderWidth: 0.8 }); return; }
+          var font = c.k === 'sku' || c.k === 'pcs' ? B : F, sz = c.k === 'pcs' ? fs + 1 : fs;
+          s = fitText(font, s, sz, c.wd - 8);
+          var tw = font.widthOfTextAtSize(s, sz);
+          page.drawText(s, { x: c.r ? c.x + c.wd - tw - 4 : c.x + 4, y: y, size: sz, font: font, color: ink });
+        });
+        y -= rh;
+        page.drawLine({ start: { x: M, y: y + rh * 0.62 }, end: { x: M + TW, y: y + rh * 0.62 }, thickness: 0.4, color: rule });
+      });
+      if (gr.rows.length > 1) {
+        if (y - rh < bottom) newPage();
+        var tot = gr.rows.reduce(function (s, r) { return s + r.pcs; }, 0), pc = cols[2], ts = String(tot);
+        page.drawText(fitText(F, 'Total ' + gr.rows[0].sku, fs - 1, cols[0].wd + cols[1].wd - 8), { x: cols[0].x + 4, y: y, size: fs - 1, font: F, color: mute });
+        page.drawText(ts, { x: pc.x + pc.wd - B.widthOfTextAtSize(ts, fs) - 4, y: y, size: fs, font: B, color: mute });
+        y -= rh;
+        page.drawLine({ start: { x: M, y: y + rh * 0.62 }, end: { x: M + TW, y: y + rh * 0.62 }, thickness: 0.8, color: rule });
+      }
+    });
+    if (y - rh * 1.5 >= bottom) {
+      y -= rh * 0.5;
+      page.drawText('Total pieces', { x: cols[0].x + 4, y: y, size: fs, font: B, color: ink });
+      var ps = String(pcs); page.drawText(ps, { x: cols[2].x + cols[2].wd - B.widthOfTextAtSize(ps, fs + 1) - 4, y: y, size: fs + 1, font: B, color: ink });
+    }
+    footer();
+  }
+  function fmtDateEn(d) { var M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']; return d.getDate() + ' ' + M[d.getMonth()] + ' ' + d.getFullYear(); }
+
+  function build() {
+    var P = window.PDFLib, labs = ordered(), bad = badPages(), man = manPages(), o = S.opts, labelOnly = o.mode === 'label';
+    if (!labs.length) { toast(t('No labels found yet. Add the label PDF from Meesho.')); return Promise.resolve(null); }
+    S.busy = { msg: t('Making your PDF…'), done: 0, of: 1 }; render();
+    var out, fonts, copied = {};
+    return P.PDFDocument.create().then(function (d) {
+      out = d;
+      out.setTitle('Meesho labels sorted by SKU and size'); out.setProducer('PakkaBill'); out.setCreator('PakkaBill label sorter');
+      return Promise.all([out.embedFont(P.StandardFonts.Helvetica), out.embedFont(P.StandardFonts.HelveticaBold)]);
+    }).then(function (fx) {
+      fonts = { r: fx[0], b: fx[1] };
+      // copy every page needed from each file in one go, so shared fonts are copied once
+      var need = {};
+      labs.concat(bad).concat(o.man === 'none' ? [] : man).forEach(function (p) { (need[p.fid] = need[p.fid] || []).push(p.pi); });
+      var chain = Promise.resolve();
+      Object.keys(need).forEach(function (fid) {
+        chain = chain.then(function () {
+          var f = fileOf(+fid);
+          return (f.lib ? Promise.resolve(f.lib) : P.PDFDocument.load(f.bytes, { ignoreEncryption: true, updateMetadata: false }).then(function (l) { f.lib = l; return l; }))
+            .then(function (lib) { return out.copyPages(lib, need[fid]); })
+            .then(function (pgs) { pgs.forEach(function (pg, i) { copied[fid + ':' + need[fid][i]] = pg; }); });
+        });
+      });
+      return chain;
+    }).then(function () {
+      var first = labs[0], W = labelOnly ? LW : first.view[2] - first.view[0], H = labelOnly ? LH : first.view[3] - first.view[1];
+      if (first.rot % 180) { var tmp = W; W = H; H = tmp; }
+      if (o.pick) drawPick(P, out, fonts, W, H, labs, manPages().length ? checkManifest(labs, manInfo()) : null);
+      if (o.man === 'start') man.forEach(function (p) { out.addPage(copied[p.fid + ':' + p.pi]); });
+      var seq = labs.concat(bad), chain = Promise.resolve();
+      seq.forEach(function (p, i) {
+        chain = chain.then(function () {
+          var pg = copied[p.fid + ':' + p.pi];
+          if (!labelOnly) { out.addPage(pg); return; }
+          var box = p.kind === 'label' ? labelBox(p) : Promise.resolve({ x0: p.view[0], y0: p.view[1], x1: p.view[2], y1: p.view[3] });
+          return box.then(function (b) {
+            fitPage(P, pg, b); out.addPage(pg);
+            if (i % 5 === 0) { S.busy = { msg: t('Cutting label {n} of {n}…', i + 1, seq.length), done: i + 1, of: seq.length }; paintBusy(); }
+          });
+        });
+      });
+      return chain;
+    }).then(function () {
+      if (o.man === 'end') man.forEach(function (p) { out.addPage(copied[p.fid + ':' + p.pi]); });
+      return out.save({ useObjectStreams: true });
+    }).then(function (bytes) {
+      var d = new Date(), pad = function (n) { return (n < 10 ? '0' : '') + n; };
+      var name = 'meesho-labels-sorted-' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + (labelOnly ? '-4x6' : '') + '.pdf';
+      S.out = { bytes: bytes, blob: new Blob([bytes], { type: 'application/pdf' }), name: name, pages: out.getPageCount() };
+      S.busy = null; return S.out;
+    }).catch(function (e) {
+      console.error('label sorter: build failed', e);
+      S.busy = null; render(); toast(t('Could not make the PDF: {x}', (e && e.message) || e)); return null;
+    });
+  }
+  function download(o) {
+    var url = URL.createObjectURL(o.blob), a = document.createElement('a');
+    a.href = url; a.download = o.name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+  }
+  function canShare() { try { return !!(navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.pdf', { type: 'application/pdf' })] })); } catch (e) { return false; } }
+  function previews(o) {
+    var box = $('#thumbs'); if (!box || !o) return;
+    window.pdfjsLib.getDocument({ data: o.bytes.slice(), isEvalSupported: false }).promise.then(function (doc) {
+      var n = Math.min(doc.numPages, 6), chain = Promise.resolve();
+      for (var i = 1; i <= n; i++) (function (i) {
+        chain = chain.then(function () { return doc.getPage(i); }).then(function (pg) {
+          var v0 = pg.getViewport({ scale: 1 }), sc = 150 / v0.height, vp = pg.getViewport({ scale: sc * (window.devicePixelRatio || 1) });
+          var fig = document.createElement('figure'), cv = document.createElement('canvas');
+          cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height); cv.style.width = Math.round(v0.width * sc) + 'px'; cv.style.height = '150px';
+          fig.appendChild(cv); var cap = document.createElement('figcaption'); cap.textContent = String(i); fig.appendChild(cap); box.appendChild(fig);
+          return pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+        });
+      })(i);
+      return chain.then(function () { doc.destroy(); });
+    }).catch(function (e) { console.warn('preview', e); });
+  }
+  function pickText(labs) {
+    var list = pickList(labs, 'sku'), by = [], g = null, pcs = 0;
+    list.forEach(function (r) { pcs += r.pcs; if (!g || g.k !== r.sku.toUpperCase()) { g = { k: r.sku.toUpperCase(), sku: r.sku, parts: [], n: 0 }; by.push(g); } g.parts.push((r.size || '-') + ' ' + r.pcs); g.n += r.pcs; });
+    var s = t('Pick list') + ' · ' + fmtDate(new Date()) + '\n' + plural(labs.length, '1 label', '{n} labels') + ' · ' + pcs + ' ' + t('Pcs') + '\n\n';
+    return s + by.map(function (b) { return '▪ ' + b.sku + ': ' + b.parts.join(', ') + ' (' + b.n + ')'; }).join('\n');
+  }
+
+  /* ---------------- views ---------------- */
+  var ICO = {
+    up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15l3-3 3 3"/></svg>',
+    file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>',
+    dl: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>',
+    share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>',
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
+  };
+  function seg(name, val, items) {
+    return '<div class="seg" role="group">' + items.map(function (it) {
+      return '<button type="button" data-act="opt" data-k="' + name + '" data-v="' + it[0] + '" aria-pressed="' + (String(val) === String(it[0])) + '"' + (it[3] ? ' disabled' : '') + '>' + esc(t(it[1])) + (it[2] ? '<small>' + esc(t(it[2])) + '</small>' : '') + '</button>';
+    }).join('') + '</div>';
+  }
+  function chk(name, val, label, help) {
+    return '<label class="chk"><input type="checkbox" data-act="chk" data-k="' + name + '"' + (val ? ' checked' : '') + '><span>' + esc(t(label)) + (help ? '<small>' + esc(t(help)) + '</small>' : '') + '</span></label>';
+  }
+  function heroHtml() {
+    return '<section class="hero"><div class="hero-top"><div><p class="hero-k" style="margin:0 0 8px"><i></i>' + esc(t('Free · your files stay on your device')) + '</p><h1>' + esc(t('Label sorter')) + '</h1></div>' +
+      '<div class="lang" role="group" aria-label="Language"><button type="button" data-act="lang" data-v="en" aria-pressed="' + (LANG === 'en') + '">EN</button><button type="button" data-act="lang" data-v="hi" aria-pressed="' + (LANG === 'hi') + '" lang="hi">हिं</button></div></div>' +
+      '<p>' + esc(t('Put your Meesho labels in SKU and size order, add a pick list and the manifest, and print everything as one PDF.')) + '</p>' +
+      '<ol class="steps"><li><b>1</b>' + esc(t('Add PDFs')) + '</li><li><b>2</b>' + esc(t('Check')) + '</li><li><b>3</b>' + esc(t('Download')) + '</li></ol></section>';
+  }
+  function filesHtml() {
+    var h = '<section class="card"><label class="drop" id="drop"><input type="file" class="sr" data-act="file" accept="application/pdf,.pdf" multiple>' + ICO.up +
+      '<b>' + esc(t('Add label PDF and manifest PDF')) + '</b><span>' + esc(t('Tap to choose, or drop files here. You can add many files at once.')) + '</span></label>';
+    if (S.files.length) {
+      h += '<ul class="files">' + S.files.map(function (f) {
+        var nl = 0, nm = 0, nb = 0; f.pages.forEach(function (p) { if (p.kind === 'label') nl++; else if (p.kind === 'man') nm++; else nb++; });
+        var bits = [plural(f.n, '1 page', '{n} pages')];
+        if (nl) bits.push(plural(nl, '1 label', '{n} labels'));
+        if (nm) bits.push(plural(nm, '1 manifest page', '{n} manifest pages'));
+        if (nb) bits.push(plural(nb, '1 page not read', '{n} pages not read'));
+        return '<li><span class="fi">' + ICO.file + '</span><span class="fn"><b>' + esc(f.name) + '</b><span>' + esc(bits.join(' · ')) + '</span></span><button type="button" class="x" data-act="rm" data-id="' + f.id + '" aria-label="' + esc(t('Remove')) + ' ' + esc(f.name) + '">×</button></li>';
+      }).join('') + '</ul>';
+    }
+    return h + '<div id="busy"></div></section>';
+  }
+  function busyHtml() {
+    if (!S.busy) return '';
+    var pc = S.busy.of ? Math.round(100 * S.busy.done / S.busy.of) : 0;
+    return '<div class="busy" role="status" aria-live="polite" style="margin-top:12px"><span>' + esc(S.busy.msg) + '</span><div class="bar"><i style="width:' + pc + '%"></i></div></div>';
+  }
+  function paintBusy() { var b = $('#busy'); if (b) b.innerHTML = busyHtml(); }
+  function resultHtml() {
+    var labs = ordered(), bad = badPages(), man = manInfo(), o = S.opts;
+    if (!labs.length && !bad.length && !man) return '';
+    var pcs = 0, skus = {};
+    labs.forEach(function (p) { p.lab.rows.forEach(function (r) { pcs += r.qty; skus[r.sku.toUpperCase()] = 1; }); });
+    var co = courierOrder(labs);
+    var h = '<section class="card"><div class="tiles">' +
+      '<div class="tile"><span>' + esc(t('Labels')) + '</span><b>' + labs.length + '</b></div>' +
+      '<div class="tile"><span>' + esc(t('Pieces')) + '</span><b>' + pcs + '</b></div>' +
+      '<div class="tile"><span>' + esc(t('SKUs')) + '</span><b>' + Object.keys(skus).length + '</b></div>' +
+      '<div class="tile"><span>' + esc(t('Couriers')) + '</span><b>' + co.names.length + '</b></div></div>';
+    if (!labs.length) h += '<div class="note"><b>' + esc(t('No labels found yet. Add the label PDF from Meesho.')) + '</b></div>';
+    // manifest
+    if (labs.length) {
+      if (!man) h += '<div class="note info"><b>' + esc(t('Manifest check')) + '</b>' + esc(t('Add the manifest PDF to check that every label is on it, and to print it with your labels.')) + '</div>';
+      else {
+        var c = checkManifest(labs, man), good = !c.off.length && !c.extra.length;
+        h += '<div class="note ' + (good ? 'ok' : '') + '"><b>' + esc(t('Manifest check')) + ': ' + esc(c.off.length ? t('{n} of {n} labels are on the manifest.', c.on.length, labs.length) : t('All {n} labels are on the manifest.', labs.length)) + '</b>';
+        if (c.rows) h += '<span class="fine">' + esc(t('The manifest lists {n} shipments.', c.rows)) + '</span>';
+        if (c.off.length) h += '<p style="margin:8px 0 0">' + esc(t('Not on the manifest — check these before handing over:')) + '</p><ul>' + c.off.slice(0, 30).map(function (p) { return '<li>' + esc(p.lab.rows[0].sku) + ' · ' + esc(showSize(canonSize(p.lab.rows[0].size)) || '-') + ' · ' + esc(p.lab.orders[0] || p.lab.ids[0] || '') + ' (' + esc(fileOf(p.fid).name) + ', ' + esc(t('page {n}', p.pi + 1)) + ')</li>'; }).join('') + '</ul>';
+        if (c.extra.length) h += '<p style="margin:8px 0 0">' + esc(t('On the manifest but no label was added:')) + '</p><ul>' + c.extra.slice(0, 30).map(function (r) { return '<li>' + esc(r.ids.join(' · ')) + '</li>'; }).join('') + '</ul>';
+        h += '</div>';
+      }
+    }
+    if (bad.length) {
+      h += '<div class="note"><b>' + esc(t('Pages that could not be read')) + '</b>' + esc(t('They stay at the end of the PDF in their original order, so nothing is lost.')) + '<ul>' + bad.slice(0, 30).map(function (p) {
+        return '<li>' + esc(fileOf(p.fid).name) + ', ' + esc(t('page {n}', p.pi + 1)) + ': ' + esc(t(p.lab.why === 'image' ? 'this page is a picture, so its text cannot be read' : 'no SKU table found on this page')) + '</li>';
+      }).join('') + (bad.length > 30 ? '<li>' + esc(t('and {n} more', bad.length - 30)) + '</li>' : '') + '</ul></div>';
+    }
+    h += '</section>';
+    if (!labs.length) return h;
+    // options and download
+    h += '<section class="card"><h2>' + esc(t('How to arrange')) + '</h2><div class="opts">' +
+      '<div class="opt"><span class="lbl">' + esc(t('Order labels by')) + '</span>' + seg('by', o.by, [['sku', 'SKU, then size', 'All sizes of a product together'], ['size', 'Size, then SKU', 'All S together, then all M…']]) + '</div>' +
+      (co.names.length > 1 ? chk('courier', o.courier, 'Keep each courier’s labels together', 'Handy when couriers pick up at different times.') : '') +
+      chk('mixedLast', o.mixedLast, 'Orders with 2 or more products at the end', 'These need a bigger packet and more checking.') +
+      '<div class="opt"><span class="lbl">' + esc(t('Page')) + '</span>' + seg('mode', o.mode, [['full', 'Full page', 'Label and invoice, as Meesho gives it'], ['label', 'Label only, 4×6 inch', 'For thermal label printers']]) + '</div>' +
+      chk('pick', o.pick, 'Add a pick list page at the start', 'How many pieces of each SKU and size to pack, with tick boxes.') +
+      '<div class="opt"><span class="lbl">' + esc(t('Manifest in the PDF')) + '</span>' + seg('man', o.man, [['end', 'At the end', '', !man], ['start', 'At the start', '', !man], ['none', 'Leave out', '', !man]]) +
+      (man && o.mode === 'label' && o.man !== 'none' ? '<p class="fine" style="margin:6px 0 0">' + esc(t('Manifest pages keep their own page size.')) + '</p>' : '') + '</div>' +
+      '</div><div class="acts"><button type="button" class="btn pri big" data-act="make"' + (S.busy ? ' disabled' : '') + '>' + ICO.dl + esc(t('Download sorted PDF')) + '</button>' +
+      (canShare() ? '<button type="button" class="btn big" data-act="share"' + (S.busy ? ' disabled' : '') + '>' + ICO.share + esc(t('Share PDF')) + '</button>' : '') +
+      '<button type="button" class="btn big" data-act="copy">' + ICO.copy + esc(t('Copy pick list')) + '</button></div>';
+    if (S.out) h += '<div class="note ok done" role="status"><b>' + esc(t('Your PDF is ready: {n} pages.', S.out.pages)) + '</b><button type="button" class="btn" style="margin-top:8px" data-act="again">' + ICO.dl + esc(t('Download again')) + '</button><div class="thumbs" id="thumbs" aria-label="' + esc(t('Preview')) + '"></div></div>';
+    h += '</section>';
+    // order and pick list
+    h += '<section class="card"><div class="tabs" role="group"><button type="button" data-act="view" data-v="order" aria-pressed="' + (S.view === 'order') + '">' + esc(t('Print order')) + '</button><button type="button" data-act="view" data-v="pick" aria-pressed="' + (S.view === 'pick') + '">' + esc(t('Pick list')) + '</button></div>';
+    h += S.view === 'pick' ? pickHtml(labs) : orderHtml(labs);
+    return h + '</section>';
+  }
+  function orderHtml(labs) {
+    var o = S.opts, MAX = 400, h = '<div class="tw"><table class="t ord"><thead><tr><th class="n">#</th><th>SKU</th><th>' + esc(t('Size')) + '</th><th class="n">' + esc(t('Qty')) + '</th></tr></thead><tbody>';
+    var lastC = null, n = 0, ic = itemCmp(o.by), many = courierOrder(labs).names.length > 1;
+    labs.slice(0, MAX).forEach(function (p) {
+      var c = p.lab.courier || 'Other', mixed = isMixed(p.lab);
+      if (o.courier && many && c !== lastC) { h += '<tr class="grp"><td colspan="4">' + esc(c === 'Other' ? t('Other') : c) + '</td></tr>'; lastC = c; }
+      var rows = p.lab.rows.slice().sort(ic);
+      n++;
+      h += '<tr><td class="n">' + n + '</td><td class="sku">' + rows.map(function (r) { return esc(r.sku); }).join('<br>') + (mixed ? ' <span class="pill w">' + esc(t('2+ products')) + '</span>' : '') + '<span class="on">' + esc(c === 'Other' ? t('Other') : c) + (p.lab.orders[0] ? ' · ' + esc(p.lab.orders[0]) : '') + '</span></td><td>' + rows.map(function (r) { return esc(showSize(canonSize(r.size)) || r.size || '-'); }).join('<br>') +
+        '</td><td class="n">' + rows.map(function (r) { return r.qty > 1 ? '<b>×' + r.qty + '</b>' : '1'; }).join('<br>') + '</td></tr>';
+    });
+    h += '</tbody></table>';
+    if (labs.length > MAX) h += '<div class="more">' + esc(t('and {n} more', labs.length - MAX)) + '</div>';
+    return h + '</div>';
+  }
+  function pickHtml(labs) {
+    var list = pickList(labs, 'sku'), h = '<div class="tw"><table class="t"><thead><tr><th>SKU</th><th>' + esc(t('Size')) + '</th><th class="n">' + esc(t('Pcs')) + '</th><th class="n">' + esc(t('Orders')) + '</th></tr></thead><tbody>';
+    var g = null, tot = 0, all = 0;
+    function close() { if (g && g.n > 1) h += '<tr class="tot"><td colspan="2">' + esc(t('Total')) + ' ' + esc(g.sku) + '</td><td class="n">' + tot + '</td><td></td></tr>'; }
+    list.forEach(function (r) {
+      if (!g || g.k !== r.sku.toUpperCase()) { close(); g = { k: r.sku.toUpperCase(), sku: r.sku, n: 0 }; tot = 0; }
+      g.n++; tot += r.pcs; all += r.pcs;
+      h += '<tr><td class="sku">' + (g.n === 1 ? esc(r.sku) : '') + '</td><td>' + esc(r.size || '-') + '</td><td class="n"><b>' + r.pcs + '</b></td><td class="n">' + r.orders + '</td></tr>';
+    });
+    close();
+    h += '<tr class="grp"><td colspan="2">' + esc(t('Total')) + '</td><td class="n">' + all + '</td><td class="n">' + labs.length + '</td></tr>';
+    return h + '</tbody></table></div>';
+  }
+  function howHtml() {
+    return '<section class="card how"><h2>' + esc(t('How it works')) + '</h2><ol>' +
+      '<li>' + esc(t('In the Meesho Supplier Panel, open Orders → Ready to Ship, select the orders and download the labels. Download the manifest from the same page.')) + '</li>' +
+      '<li>' + esc(t('Add both PDFs here. PakkaBill reads the SKU, size, quantity and courier on each label.')) + '</li>' +
+      '<li>' + esc(t('Pick how to arrange them and download one PDF: pick list, labels in order, then the manifest.')) + '</li></ol>' +
+      '<div class="priv">' + ICO.lock + '<span>' + esc(t('Your labels never leave this phone or computer. Nothing is uploaded.')) + '</span></div>' +
+      (S.files.length ? '<div class="acts"><button type="button" class="btn" data-act="reset">' + esc(t('Start again')) + '</button></div>' : '') + '</section>';
+  }
+  function render() {
+    var app = $('#app'), y = window.scrollY;
+    document.documentElement.lang = LANG === 'hi' ? 'hi' : 'en-IN';
+    app.innerHTML = heroHtml() + filesHtml() + resultHtml() + howHtml();
+    paintBusy();
+    if (S.out) previews(S.out);
+    window.scrollTo(0, y);
+  }
+
+  /* ---------------- events ---------------- */
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-act]'); if (!b || b.tagName === 'INPUT') return;
+    var a = b.getAttribute('data-act');
+    if (a === 'lang') { LANG = b.getAttribute('data-v'); try { localStorage.setItem('hisaab:lang', LANG); } catch (x) { /* ignore */ } render(); }
+    else if (a === 'rm') removeFile(+b.getAttribute('data-id'));
+    else if (a === 'opt') { var k = b.getAttribute('data-k'), v = b.getAttribute('data-v'); if (S.opts[k] !== v) { S.opts[k] = v; saveOpts(); S.out = null; render(); } }
+    else if (a === 'view') { S.view = b.getAttribute('data-v'); render(); }
+    else if (a === 'make' || a === 'share') {
+      build().then(function (o) {
+        render(); if (!o) return;
+        if (a === 'share' && canShare()) navigator.share({ files: [new File([o.blob], o.name, { type: 'application/pdf' })], title: o.name }).catch(function () { /* closed */ });
+        else download(o);
+        var d = $('.done'); if (d && d.scrollIntoView) d.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
+    }
+    else if (a === 'again') { if (S.out) download(S.out); }
+    else if (a === 'copy') {
+      var txt = pickText(ordered());
+      (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () { toast(t('Pick list copied. Paste it in WhatsApp for your packer.')); }, function () {
+        var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast(t('Pick list copied. Paste it in WhatsApp for your packer.')); } catch (x) { /* ignore */ } ta.remove();
+      });
+    }
+    else if (a === 'reset') { S.files.forEach(function (f) { if (f.doc) f.doc.destroy(); }); S.files = []; S.out = null; render(); }
+  });
+  document.addEventListener('change', function (e) {
+    var el = e.target, a = el.getAttribute && el.getAttribute('data-act');
+    if (a === 'file') { addFiles(el.files); el.value = ''; }
+    else if (a === 'chk') { S.opts[el.getAttribute('data-k')] = el.checked; saveOpts(); S.out = null; render(); }
+  });
+  // files dropped anywhere on the page are added (and never open in the browser instead)
+  ['dragenter', 'dragover'].forEach(function (ev) { document.addEventListener(ev, function (e) { e.preventDefault(); var d = $('#drop'); if (d) d.classList.add('over'); }); });
+  document.addEventListener('dragleave', function (e) { if (!e.relatedTarget) { var d = $('#drop'); if (d) d.classList.remove('over'); } });
+  document.addEventListener('drop', function (e) { e.preventDefault(); var d = $('#drop'); if (d) d.classList.remove('over'); addFiles(e.dataTransfer && e.dataTransfer.files); });
+
+  /* ---------------- inside PakkaBill: follow its colours and fonts ---------------- */
+  (function () {
+    var pd = null; try { pd = window.parent && window.parent !== window ? window.parent.document : null; } catch (e) { pd = null; }
+    if (!pd) return;
+    var sync = function () { var th = pd.documentElement.getAttribute('data-theme'); if (th === 'light' || th === 'dark') document.documentElement.setAttribute('data-theme', th); else document.documentElement.removeAttribute('data-theme'); };
+    sync(); try { new MutationObserver(sync).observe(pd.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); } catch (e) { /* ignore */ }
+    try {
+      var css = '';
+      for (var i = 0; i < pd.styleSheets.length; i++) { var rs; try { rs = pd.styleSheets[i].cssRules; } catch (e) { continue; } for (var j = 0; j < rs.length; j++) if (rs[j].type === 5 && /PB Hind/.test(rs[j].cssText)) css += rs[j].cssText + '\n'; }
+      if (css) { var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st); document.documentElement.classList.add('pbfonts'); }
+    } catch (e) { /* ignore */ }
+  })();
+  if (!document.documentElement.classList.contains('embed')) { try { var th = localStorage.getItem('pb-theme'); if (th === 'light' || th === 'dark') document.documentElement.setAttribute('data-theme', th); } catch (e) { /* ignore */ } }
+
+  render();
+})();
+</script>
+</body>
+</html>

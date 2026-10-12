@@ -7,7 +7,7 @@
 // stays findable. The app's API, the APK download and app links are not matched at all.
 
 export const config = {
-  matcher: ['/', '/index.html', '/pnl.html', '/admin', '/admin.html', '/about', '/about.html', '/terms', '/terms.html',
+  matcher: ['/', '/index.html', '/pnl.html', '/labels.html', '/admin', '/admin.html', '/about', '/about.html', '/terms', '/terms.html',
     '/privacy', '/privacy.html', '/refund', '/refund.html', '/contact', '/contact.html', '/delete-account', '/delete-account.html'],
 };
 

@@ -7,6 +7,7 @@ GST tax invoices and GSTR-1 JSON for Indian sellers. One static page that works 
 - GSTR-1 JSON built from Meesho's sales, sales return and tax invoice reports.
 - Meesho listing: the bulk catalog upload Excel from catalogue photos and a Meesho template.
 - Meesho P&L: profit and loss and payment reconciliation from Meesho's payment report, with Excel and PDF.
+- Label sorter: Meesho shipping labels in SKU and size order, with a pick list and the manifest, as one PDF.
 - Everything stays in the browser on the device. No server, no accounts, no data leaves the phone or laptop.
 
 ## Deploying
@@ -80,6 +81,20 @@ Excel and PDF.
 - `pnl-libs.js` SheetJS (xlsx-js-style), jsPDF, jsPDF-AutoTable and JSZip, loaded only by `pnl.html`.
 - Uploaded reports stay on the device in the `hisaab` IndexedDB; costs, expenses, return marks and
   settings in localStorage under `hisaab.v1.`. Settings > Download backup moves them to another device.
+
+## Label sorter
+
+`#/labels` (also `/labels.html` on its own) takes the label PDFs Meesho gives for Ready to Ship orders
+and the manifest PDF, reads the Product Details table on each label (SKU, size, quantity, colour, order
+number) and the courier, and makes one PDF: a pick list (pieces of each SKU and size, with tick boxes),
+the labels in SKU-then-size or size-then-SKU order (optionally grouped by courier, orders with two or
+more products last), then the manifest. Labels are checked against the manifest both ways. "Label
+only, 4×6 inch" cuts each label away from its invoice for thermal printers. Pages it cannot read are
+kept at the end in their original order.
+
+- `labels.html` the whole tool; the engine (first script) runs in Node for `test/labels-audit.js`.
+- `labels-libs.js` PDF.js 3.11.174 (reads text, `isEvalSupported: false`) and pdf-lib 1.17.1 (builds the
+  PDF); `pdf.worker.min.js` is PDF.js's worker. Files never leave the device.
 
 ## PakkaBill Pro (paid plans)
 
