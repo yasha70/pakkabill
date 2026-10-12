@@ -103,6 +103,11 @@ each courier), Excel (CSV) or WhatsApp text. With labels only, the chart is made
 - `labels.html` the whole tool; the engine (first script) runs in Node for `test/labels-audit.js`.
 - `labels-libs.js` PDF.js 3.11.174 (reads text, `isEvalSupported: false`) and pdf-lib 1.17.1 (builds the
   PDF); `pdf.worker.min.js` is PDF.js's worker. Files never leave the device.
+- `labels-pdf.js` the designed PDF pages (packing chart, first page of the sorted PDF) in the P&L PDF's
+  doodle style: indigo band with doodles, PakkaBill mark, size cards, size split bar, size-mix bars and a
+  "PAKKA" stamp when the manifest matches Meesho's picklist. It uses PakkaBill's fonts from
+  `pnl-pdf-fonts.js` through `pdf-fontkit.js` (fontkit 1.1.1, MIT). All three load only when a PDF is made;
+  without them the plain pages in `labels.html` are used.
 
 ## PakkaBill Pro (paid plans)
 

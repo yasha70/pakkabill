@@ -990,14 +990,54 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     }
     return { newPage: newPage, line: line, gap: gap, table: table, done: done, colors: { mute: mute, ok: P.rgb(0.07, 0.44, 0.29), warn: P.rgb(0.6, 0.2, 0.1) } };
   }
+  /* The designed PDF pages (labels-pdf.js) and PakkaBill's fonts (pnl-pdf-fonts.js through pdf-fontkit.js) load
+     only when a PDF is made. Without them (offline before first use) the plain pages above are used. */
+  var assetsP = null;
+  function loadScript(src) { return new Promise(function (res) { var el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = res; document.head.appendChild(el); }); }
+  function pdfAssets() {
+    return assetsP || (assetsP = Promise.all([window.PBPDF ? 0 : loadScript('labels-pdf.js'), window.HPF ? 0 : loadScript('pnl-pdf-fonts.js'), window.fontkit ? 0 : loadScript('pdf-fontkit.js')]));
+  }
+  var RANGE = { L: '26-30', XL: '32-34', XXL: '36-40' };
+  // what the designed chart pages show: from the manifest (with each courier) or from the labels in the sorted PDF
+  function chartDoc(src, forLabels, chk) {
+    var man = src.man, bl = blouseOn(src.items), all = chartFor(src, 'all'), cs = couriersOf(src.items), pc = !forLabels && src.from === 'man' ? pickCheck(man) : null;
+    var pct = function (v) { return all.grand ? Math.round(1000 * v / all.grand) / 10 + '%' : '0%'; };
+    var kp = [{ label: 'PIECES TO PACK', value: all.grand, note: (all.parcels != null ? all.parcels + (forLabels ? ' labels' : ' parcels') + '  ·  ' : '') + all.rows.length + ' SKUs' }];
+    if (bl) ['L', 'XL', 'XXL'].forEach(function (k) { kp.push({ label: 'SIZE ' + k, value: all.totals[k] || 0, note: pct(all.totals[k] || 0) + '  ·  ' + RANGE[k] + ' in', size: k }); });
+    else kp.push({ label: forLabels ? 'LABELS' : 'PARCELS', value: all.parcels != null ? all.parcels : '-', icon: 'box' }, { label: 'SKUS', value: all.rows.length, icon: 'tag' }, { label: 'COURIERS', value: cs.names.length || '-', icon: 'truck' });
+    var notes = [];
+    if (bl && all.mapped.length) notes.push({ text: 'Sizes counted as  -  ' + mappedText(all, '   ') + '. A free-size range counts by its middle.', kind: 'muted' });
+    if (pc) notes.push(pc.same ? { text: 'Checked: every SKU and size matches Meesho\'s own picklist in the manifest (' + pc.pieces + ' pieces).', kind: 'ok' }
+      : { text: 'Not the same as Meesho\'s picklist in the manifest: ' + pc.diffs.length + ' differences. See them in PakkaBill before packing.', kind: 'warn' });
+    if (chk) notes.push(chk.off.length || chk.extra.length ? { text: 'Manifest: ' + chk.on.length + ' of ' + chk.on.concat(chk.off).length + ' labels found' + (chk.extra.length ? ', ' + chk.extra.length + ' listed without a label' : '') + '. Check them before handing over.', kind: 'warn' }
+      : { text: 'Every label is on the Meesho manifest.', kind: 'ok' });
+    var date = (man && man.date) || fmtDateEn(new Date());
+    return {
+      kicker: 'Ready to pack,', title: 'Packing chart', pill: forLabels ? 'LABELS IN ORDER' : 'PACKING CHART', date: date, blouse: bl,
+      tagline: forLabels ? 'Packing chart for your sorted Meesho labels' : 'Packing chart from your Meesho manifest',
+      sub: (bl ? 'Blouse sizes as L / XL / XXL' : 'Every size as written') + '  ·  ' + date,
+      forName: (man && man.supplier) || '', forLine: forLabels ? all.parcels + ' labels sorted by SKU and size  ·  ' + cs.names.length + (cs.names.length === 1 ? ' courier' : ' couriers')
+        : (src.from === 'man' ? 'From the Meesho manifest' : src.from === 'labels' ? 'From the labels' : 'From the picklist') + (all.parcels != null ? '  ·  ' + all.parcels + ' parcels' : '') + (cs.names.length ? '  ·  ' + cs.names.length + (cs.names.length === 1 ? ' courier' : ' couriers') : ''),
+      main: all, kpis: kp, notes: notes, tableSub: 'Most pieces first' + (forLabels ? '. The labels follow in SKU and size order.' : '. One table for each courier follows.'),
+      sections: forLabels || cs.names.length < 2 ? [] : cs.names.map(function (c) { var ch = chartFor(src, c); return { title: c, sub: ch.parcels + ' parcels  ·  ' + ch.grand + ' pieces', chart: ch }; }),
+      stamp: pc && pc.same ? { top: 'MATCHED WITH MEESHO', bottom: 'PICKLIST  ' + pc.pieces + ' PCS' } : chk && !chk.off.length && !chk.extra.length ? { top: 'EVERY LABEL ON THE', bottom: 'MEESHO MANIFEST' } : null,
+      footer: 'Made with PakkaBill from your Meesho ' + (forLabels ? 'labels' : 'manifest') + '  ·  not a Meesho document',
+      end: forLabels ? '' : 'Pack pakka, ship fast!'
+    };
+  }
   // The packing chart as its own PDF: all parcels, then one table per courier.
   function chartPdf() {
     var src = chartSource(), P = window.PDFLib; if (!src || !P) return Promise.resolve(null);
-    var out, man = src.man, bl = blouseOn(src.items);
-    return P.PDFDocument.create().then(function (d) {
-      out = d; out.setTitle('Packing chart'); out.setProducer('PakkaBill'); out.setCreator('PakkaBill label sorter');
-      return Promise.all([out.embedFont(P.StandardFonts.Helvetica), out.embedFont(P.StandardFonts.HelveticaBold)]);
-    }).then(function (fx) {
+    return pdfAssets().then(function () { return P.PDFDocument.create(); }).then(function (out) {
+      out.setTitle('Packing chart'); out.setProducer('PakkaBill'); out.setCreator('PakkaBill label sorter');
+      var drawn = window.PBPDF ? window.PBPDF.draw(P, out, chartDoc(src, false), 595.28, 841.89) : plainChart(P, out, src);
+      return drawn.then(function () { return out.save({ useObjectStreams: true }); });
+    }).then(function (bytes) { return { blob: new Blob([bytes], { type: 'application/pdf' }), name: 'packing-chart-' + stamp() + '.pdf' }; });
+  }
+  // the same chart with plain pages, when the designed pages could not load
+  function plainChart(P, out, src) {
+    var man = src.man, bl = blouseOn(src.items);
+    return Promise.all([out.embedFont(P.StandardFonts.Helvetica), out.embedFont(P.StandardFonts.HelveticaBold)]).then(function (fx) {
       var cw = chartWriter(P, out, { r: fx[0], b: fx[1] }, 595.28, 841.89, { title: 'Packing chart' + (bl ? '  -  L / XL / XXL' : ''), short: 'Packing chart', right: (man && man.date) || fmtDateEn(new Date()) });
       var all = chartFor(src, 'all'), cs = couriersOf(src.items);
       cw.newPage();
@@ -1012,8 +1052,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       if (pc) cw.line(pc.same ? 'Checked: same as Meesho\'s picklist in the manifest (' + pc.pieces + ' pieces).' : 'Not the same as Meesho\'s picklist in the manifest: ' + pc.diffs.length + ' differences, see PakkaBill.', { bold: true, size: 8, color: pc.same ? cw.colors.ok : cw.colors.warn });
       if (cs.names.length > 1) { cw.gap(0.6); cs.names.forEach(function (c) { var ch = chartFor(src, c); cw.table(ch, c, ch.parcels + ' parcels  -  ' + ch.grand + ' pieces', true); }); }
       cw.done('PakkaBill packing chart');
-      return out.save({ useObjectStreams: true });
-    }).then(function (bytes) { return { blob: new Blob([bytes], { type: 'application/pdf' }), name: 'packing-chart-' + stamp() + '.pdf' }; });
+    });
   }
   function chartCsv() {
     var src = chartSource(); if (!src) return null;
@@ -1038,7 +1077,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     if (!labs.length) { toast(t('No labels found yet. Add the label PDF from Meesho.')); return Promise.resolve(null); }
     S.busy = { msg: t('Making your PDF…'), done: 0, of: 1 }; render();
     var out, fonts, copied = {};
-    return P.PDFDocument.create().then(function (d) {
+    return pdfAssets().then(function () { return P.PDFDocument.create(); }).then(function (d) {
       out = d;
       out.setTitle('Meesho labels sorted by SKU and size'); out.setProducer('PakkaBill'); out.setCreator('PakkaBill label sorter');
       return Promise.all([out.embedFont(P.StandardFonts.Helvetica), out.embedFont(P.StandardFonts.HelveticaBold)]);
@@ -1062,8 +1101,10 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       if (first.rot % 180) { var tmp = W; W = H; H = tmp; }
       if (o.pick) {
         var items = [], chk = manPages().length ? checkManifest(labs, manInfo()) : null;
-        labs.forEach(function (p) { p.lab.rows.forEach(function (r) { items.push({ sku: r.sku, size: r.size, qty: r.qty }); }); });
+        labs.forEach(function (p) { p.lab.rows.forEach(function (r) { items.push({ sku: r.sku, size: r.size, qty: r.qty, courier: p.lab.courier || 'Other', pid: p.fid + ':' + p.pi }); }); });
         var bl = blouseOn(items), ch = packChart(items, { blouse: bl, sort: o.chartSort }), small = W < 400;
+        // the designed chart (labels-pdf.js); plain pages when it did not load, a plain list when there are very many sizes
+        if (window.PBPDF && ch.cols.length <= (small ? 9 : 12)) return window.PBPDF.draw(P, out, chartDoc({ from: 'labels', items: items, man: manInfo(), parcels: labs.length }, true, chk), W, H);
         if (ch.cols.length > (small ? 5 : 9)) drawPick(P, out, fonts, W, H, labs, chk);
         else {
           var cw = chartWriter(P, out, fonts, W, H, { title: 'Packing chart', right: fmtDateEn(new Date()) }), co = courierOrder(labs);
@@ -1077,6 +1118,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
           cw.done('PakkaBill label sorter');
         }
       }
+    }).then(function () {
       if (o.man === 'start') man.forEach(function (p) { out.addPage(copied[p.fid + ':' + p.pi]); });
       var seq = labs.concat(bad), chain = Promise.resolve();
       seq.forEach(function (p, i) {

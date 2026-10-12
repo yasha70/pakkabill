@@ -168,6 +168,24 @@
       ]
     },
     {
+      "source": "/labels-pdf.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/pdf-fontkit.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/pdf.worker.min.js",
       "headers": [
         {
