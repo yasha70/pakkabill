@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>PakkaBill: Meesho label sorter</title>
-<meta name="description" content="Sort Meesho shipping labels by SKU and size, add a pick list and the manifest, and print one PDF. Free, and your files never leave your phone or computer.">
+<title>PakkaBill: Meesho labels and packing chart</title>
+<meta name="description" content="Packing chart from the Meesho manifest (blouse sizes as L, XL, XXL), Meesho labels sorted by SKU and size, and one PDF to print. Free, and your files never leave your phone or computer.">
 <link rel="icon" href="icon-192.png">
 <script>(function () { try { if (/[?&]embed=1(&|$)/.test(location.search)) document.documentElement.classList.add('embed'); } catch (e) { /* ignore */ } })();</script>
 <style>
@@ -135,6 +135,12 @@ table.t th { background: var(--paper); font-size: .78rem; text-transform: upperc
 table.t td.n, table.t th.n { text-align: right; white-space: nowrap; }
 table.t tr:last-child td { border-bottom: 0; }
 table.t .grp td { background: var(--carbon-soft); font-weight: 700; font-size: .85rem; }
+table.chart td.n, table.chart th.n { text-align: center; min-width: 3.2em; }
+table.chart td.z { color: var(--ink-3); opacity: .55; }
+table.chart td.n:last-child, table.chart th.n:last-child { text-align: right; }
+table.chart .grand td { background: var(--carbon-soft); font-weight: 800; border-top: 2px solid var(--rule-2); }
+.chips button small { font-weight: 600; opacity: .75; }
+@media (width < 560px) { table.chart th, table.chart td { padding: 8px 5px; font-size: .86rem; } table.chart td.n, table.chart th.n { min-width: 2.3em; } table.chart th:first-child, table.chart td:first-child { padding-left: 9px; } }
 table.t .tot td { font-weight: 700; color: var(--ink-2); font-size: .85rem; }
 table.t .sku { font-weight: 700; overflow-wrap: anywhere; }
 table.t .on { display: block; font-size: .8rem; font-weight: 400; color: var(--ink-2); word-break: break-all; }
@@ -166,7 +172,9 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     ['Shadowfax', /shadow\s*fax/i], ['Ekart', /\bekart\b/i], ['DTDC', /\bdtdc\b/i], ['Blue Dart', /blue\s*dart/i], ['Amazon Shipping', /amazon\s*(shipping|transportation)/i],
     ['India Post', /india\s*post|speed\s*post/i], ['Smartr', /\bsmartr\b/i], ['Elastic Run', /elastic\s*run/i], ['Loadshare', /load\s*share/i],
     ['Shree Maruti', /shree\s*maruti/i], ['Gati', /\bgati\b/i], ['Shiprocket', /\bshiprocket\b/i]];
-  var KEY = { sku: 'sku', skuid: 'sku', skucode: 'sku', size: 'size', qty: 'qty', quantity: 'qty', color: 'color', colour: 'color', order: 'order', orderno: 'order', orderid: 'order', suborder: 'order' };
+  var KEY = { sku: 'sku', skuid: 'sku', skucode: 'sku', size: 'size', qty: 'qty', quantity: 'qty', total: 'qty', color: 'color', colour: 'color',
+    order: 'order', orderno: 'order', orderid: 'order', suborder: 'order', sub: 'order', s: 'sn', sno: 'sn', sr: 'sn', srno: 'sn', serial: 'sn',
+    awb: 'awb', awbno: 'awb', tracking: 'awb', packed: 'packed' };
   var STOP = /tax\s*invoice|\binvoice\b|bill\s*to|ship\s*to|sold\s*by|original\s*for|bill\s*of\s*supply/i;
   var GSTIN = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/;
   var SEP = String.fromCharCode(1);
@@ -203,42 +211,54 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   function digits(s) { return (String(s).match(/\d/g) || []).length; }
   function isTrackId(s) { return /^[A-Z0-9]{9,24}$/.test(s) && digits(s) >= 6 && !GSTIN.test(s); }
 
-  // The "Product Details" table on a Meesho label: SKU | Size | Qty | Color | Order No.
-  function parseLabel(ls) {
-    var hi = -1, cols = null;
-    for (var i = 0; i < ls.length && hi < 0; i++) {
+  // The heading line of a table (the first line with headings that pass `test`); columns from its words.
+  function findHead(ls, test) {
+    for (var i = 0; i < ls.length; i++) {
       var ks = {}, cs = [];
       ls[i].words.forEach(function (w) {
         var k = keyOf(w.s);
         if (k && !ks[k]) { ks[k] = 1; cs.push({ k: k, x0: w.x, x1: w.x + w.w }); }
         else if (cs.length) cs[cs.length - 1].x1 = Math.max(cs[cs.length - 1].x1, w.x + w.w); // "No." after "Order"
       });
-      if (ks.sku && (ks.size || ks.qty)) { hi = i; cols = cs; }
+      if (test(ks)) return { i: i, cols: cs, ks: ks };
     }
-    if (hi < 0) return kvLabel(ls);
-    var head = ls[hi];
-    function colOf(w) {
-      var a = w.x, b = w.x + w.w, best = 0, bd = Infinity, bo = -1;
-      cols.forEach(function (c, j) {
-        var ov = Math.min(b, c.x1) - Math.max(a, c.x0), d = ov > 0 ? 0 : Math.max(c.x0 - b, a - c.x1);
-        if (d < bd - 0.01 || (Math.abs(d - bd) <= 0.01 && ov > bo)) { bd = d; bo = ov; best = j; }
-      });
-      return cols[best].k;
-    }
+    return null;
+  }
+  var isItemHead = function (ks) { return ks.sku && (ks.size || ks.qty); };
+  // the column a word belongs to: the heading it sits under, or the nearest one
+  function colOf(w, cols) {
+    var a = w.x, b = w.x + w.w, best = 0, bd = Infinity, bo = -1;
+    cols.forEach(function (c, j) {
+      var ov = Math.min(b, c.x1) - Math.max(a, c.x0), d = ov > 0 ? 0 : Math.max(c.x0 - b, a - c.x1);
+      if (d < bd - 0.01 || (Math.abs(d - bd) <= 0.01 && ov > bo)) { bd = d; bo = ov; best = j; }
+    });
+    return cols[best].k;
+  }
+  function cellsOf(L, cols) {
+    var cell = {};
+    L.words.forEach(function (w) { var k = colOf(w, cols); cell[k] = cell[k] ? cell[k] + ' ' + w.s : w.s; });
+    return cell;
+  }
+  function joinSku(a, b) { return a + (/[-_/(]$/.test(a) || /^[-_/)]/.test(b) ? '' : ' ') + b; }
+
+  // The "Product Details" table on a Meesho label: SKU | Size | Qty | Color | Order No.
+  function parseLabel(ls) {
+    var h = findHead(ls, isItemHead);
+    if (!h) return kvLabel(ls);
+    var hi = h.i, cols = h.cols, head = ls[hi];
     var rows = [], prevY = head.y, lastY = head.y, end = hi;
     for (var j = hi + 1; j < ls.length && j <= hi + 30; j++) {
       var L = ls[j];
       if (prevY - L.y > Math.max(3 * head.h, 30)) break;
       if (STOP.test(L.text)) break;
       if (L.words.some(function (w) { return keyOf(w.s) === 'sku'; })) break;
-      var cell = {};
-      L.words.forEach(function (w) { var k = colOf(w); cell[k] = cell[k] ? cell[k] + ' ' + w.s : w.s; });
+      var cell = cellsOf(L, cols);
       var hasQ = cols.some(function (c) { return c.k === 'qty'; });
       if (cell.sku && (!hasQ || /\d/.test(cell.qty || '') || cell.order)) {
         rows.push({ sku: cell.sku, size: cell.size || '', qty: cell.qty || '', color: cell.color || '', order: cell.order || '' });
       } else if (rows.length) {
         var r = rows[rows.length - 1];
-        if (cell.sku) r.sku += /[-_/]$/.test(r.sku) || /^[-_/]/.test(cell.sku) ? cell.sku : ' ' + cell.sku;
+        if (cell.sku) r.sku = joinSku(r.sku, cell.sku);
         if (cell.size) r.size += ' ' + cell.size;
         if (cell.color) r.color += ' ' + cell.color;
         if (cell.order) r.order += cell.order;
@@ -281,20 +301,97 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   }
 
   /* ---------------- the manifest ---------------- */
-  // Every row of the manifest (lines that start with a serial number) and every ID on it.
+  /* Meesho's Supplier Manifest PDF: first "Picklist" pages (SKU | Color | Size | Total Quantity), then one
+     table per courier ("Courier : Valmo"; S. No. | Sub Order No. | AWB | SKU | Qty. | Size | Packed) where
+     the sub order number, AWB and size can run over two or three lines of one row. */
+  function pageKind(ls) {
+    var top = ls.slice(0, 8).map(function (l) { return l.text; }).join('\n');
+    var h = findHead(ls, isItemHead);
+    if (h && /^\s*pick\s*list\b/im.test(top)) return 'pick';
+    if (h && (h.ks.awb || h.ks.sn || h.ks.packed)) return 'courier';
+    if (!h && /\bmanifest\b/i.test(ls.map(function (l) { return l.text; }).join('\n'))) return 'other';
+    return null;
+  }
+  function courierName(s) {
+    for (var c = 0; c < COURIERS.length; c++) if (COURIERS[c][1].test(s)) return COURIERS[c][0];
+    return String(s).replace(/\s+/g, ' ').trim();
+  }
+  var PAGE_NO = /^\(?\s*\d{1,4}\s*\)$|^page\s+\d+(\s+of\s+\d+)?$/i;
+  // one page of the manifest -> {kind, rows, courier, supplier, date}
+  function manifestPage(ls) {
+    var kind = pageKind(ls), out = { kind: kind, rows: [], courier: '', supplier: '', date: '' };
+    ls.slice(0, 8).forEach(function (l) {
+      var m;
+      if ((m = l.text.match(/courier\s*(?:partner|name)?\s*:\s*(.+)$/i)) && !out.courier) out.courier = courierName(m[1]);
+      if ((m = l.text.match(/supplier\s*name\s*:\s*(.+)$/i)) && !out.supplier) out.supplier = m[1].trim();
+      if ((m = l.text.match(/^date\s*:\s*(.+)$/i)) && !out.date) out.date = m[1].trim();
+    });
+    if (kind !== 'pick' && kind !== 'courier') return out;
+    var h = findHead(ls, isItemHead), cols = h.cols, cur = null, prevY = ls[h.i].y;
+    for (var j = h.i + 1; j < ls.length; j++) {
+      var L = ls[j];
+      if (PAGE_NO.test(L.text)) break;
+      var cell = cellsOf(L, cols), near = prevY - L.y <= 2.6 * Math.max(L.h, 6);
+      var sn = kind === 'courier' && cell.sn && cell.sn.match(/^(\d{1,5})\.?$/);
+      var start = kind === 'courier' ? !!sn : !!(cell.sku && /\d/.test(cell.qty || ''));
+      if (start) {
+        cur = { n: sn ? +sn[1] : out.rows.length + 1, sku: cell.sku || '', size: cell.size || '', qty: cell.qty || '', color: cell.color || '', order: cell.order || '', awb: cell.awb || '', courier: out.courier };
+        out.rows.push(cur);
+      } else if (cur && near) {
+        if (cell.sku) cur.sku = joinSku(cur.sku, cell.sku);
+        if (cell.size) cur.size += ' ' + cell.size;
+        if (cell.color) cur.color += ' ' + cell.color;
+        if (cell.order) cur.order += cell.order;
+        if (cell.awb) cur.awb += cell.awb;
+        if (cell.qty && !cur.qty) cur.qty = cell.qty;
+      } else if (cur) break;
+      else continue;
+      prevY = L.y;
+    }
+    out.rows = out.rows.map(function (r) {
+      var f = fixRow(r); f.n = r.n; f.courier = r.courier; f.awb = String(r.awb).replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      f.ids = [f.order.toUpperCase(), f.awb].filter(function (x) { return x.length >= 6; });
+      return f;
+    }).filter(function (r) { return r.sku; });
+    return out;
+  }
+  // The whole manifest: its rows (one per parcel), the picklist, and every ID on it.
   function parseManifest(pagesLines) {
-    var tokens = {}, rows = [], total = null, couriers = {};
+    var tokens = {}, rows = [], pick = [], loose = [], total = null, couriers = {}, supplier = '', date = '';
     pagesLines.forEach(function (ls) {
+      var pg = manifestPage(ls);
+      if (pg.supplier && !supplier) supplier = pg.supplier;
+      if (pg.date && !date) date = pg.date;
+      if (pg.kind === 'pick') pick = pick.concat(pg.rows);
+      if (pg.kind === 'courier') rows = rows.concat(pg.rows);
+      if (pg.courier) couriers[pg.courier] = 1;
       ls.forEach(function (l) {
         var ids = [];
-        l.words.forEach(function (w) { var s = cleanTok(w.s); if (s.length >= 8 && digits(s) >= 6) { tokens[s] = 1; ids.push(s); var b = s.replace(/_\d+$/, ''); if (b !== s) tokens[b] = 1; } });
-        if (/^\d{1,4}\.?$/.test(l.words[0].s) && ids.length) rows.push({ n: parseInt(l.words[0].s, 10), ids: ids, text: l.text });
-        var m = l.text.match(/total\s*(?:no\.?\s*of\s*)?(?:shipments|orders|packets|parcels|awbs?)?\s*[:\-]?\s*(\d{1,5})\b/i);
+        l.words.forEach(function (w) { var s = cleanTok(w.s); if (s.length >= 8 && digits(s) >= 6) { ids.push(s); tokens[s] = 1; } });
+        if (/^\d{1,4}\.?$/.test(l.words[0].s) && ids.length) loose.push({ n: parseInt(l.words[0].s, 10), ids: ids, text: l.text });
+        var m = l.text.match(/total\s*(?:no\.?\s*of\s*)?(?:shipments|orders|packets|parcels|awbs?)\s*[:\-]?\s*(\d{1,5})\b/i);
         if (m && total == null) total = parseInt(m[1], 10);
-        COURIERS.forEach(function (c) { if (c[1].test(l.text)) couriers[c[0]] = 1; });
+        if (!pg.courier) COURIERS.forEach(function (c) { if (c[1].test(l.text)) couriers[c[0]] = 1; });
       });
     });
-    return { tokens: tokens, rows: rows, total: total, couriers: Object.keys(couriers) };
+    var structured = rows.length > 0;
+    if (!structured) rows = loose;
+    rows.forEach(function (r) { r.ids.forEach(function (s) { tokens[s] = 1; var b = s.replace(/_\d+$/, ''); if (b !== s) tokens[b] = 1; }); });
+    return { tokens: tokens, rows: rows, pick: pick, structured: structured, total: total == null ? null : total, couriers: Object.keys(couriers), supplier: supplier, date: date };
+  }
+  // Does the per-courier list add up to Meesho's own picklist on the first pages?
+  function pickCheck(man) {
+    if (!man || !man.structured || !man.pick.length) return null;
+    var a = {}, b = {}, key = function (r) { return r.sku.toUpperCase() + SEP + String(r.size).toUpperCase().replace(/\s+/g, ''); };
+    man.rows.forEach(function (r) { a[key(r)] = (a[key(r)] || 0) + r.qty; });
+    man.pick.forEach(function (r) { b[key(r)] = (b[key(r)] || 0) + r.qty; });
+    var diffs = [];
+    Object.keys(a).concat(Object.keys(b)).forEach(function (k, i, all) {
+      if (all.indexOf(k) !== i || (a[k] || 0) === (b[k] || 0)) return;
+      var p = k.split(SEP); diffs.push({ sku: p[0], size: p[1], rows: a[k] || 0, pick: b[k] || 0 });
+    });
+    var pcs = function (o) { return Object.keys(o).reduce(function (s, k) { return s + o[k]; }, 0); };
+    return { same: !diffs.length, diffs: diffs, pieces: pcs(a), pickPieces: pcs(b) };
   }
   function keysOf(lab) {
     var k = {};
@@ -387,8 +484,56 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     return Object.keys(m).map(function (k) { var x = m[k]; x.sku = best[x.sku.toUpperCase()]; return x; }).sort(ic);
   }
 
+  /* ---------------- packing chart ---------------- */
+  /* Blouse sizes are bust sizes in inches; sellers pack them as letter sizes: 26 to 30 is L, 32 to 34 XL,
+     36 to 40 XXL (31 and 35 go up to the next). A free-size range counts by its middle ("Free-Size: 30-34"
+     is 32, so XL); "38 Alterable" is 38. */
+  var BLOUSE = [[26, 31, 'L'], [31, 35, 'XL'], [35, 40.5, 'XXL']];
+  function blouseSize(sz) {
+    var c = canonSize(sz);
+    if (c === 'L' || c === 'XL' || c === 'XXL') return c;
+    // only inch sizes: numbers with words like Free-Size or Alterable around them, nothing else
+    if (c.replace(/FREE|SIZE|ALTERABLE|INCHES|INCH|BUST|\bIN\b|\bTO\b|\d{2}(?:\.\d)?|[\s:\-–\/"'()]/g, '')) return null;
+    var nums = c.match(/\d{2}(?:\.\d)?/g);
+    if (!nums || nums.length > 2) return null;
+    var n = nums.length === 2 ? (parseFloat(nums[0]) + parseFloat(nums[1])) / 2 : parseFloat(nums[0]);
+    for (var i = 0; i < BLOUSE.length; i++) if (n >= BLOUSE[i][0] && n < BLOUSE[i][1]) return BLOUSE[i][2];
+    return null;
+  }
+  // most pieces in inch sizes from 26 to 40: a blouse seller
+  function looksBlouse(items) {
+    var all = 0, b = 0;
+    items.forEach(function (it) { all += it.qty; var g = blouseSize(it.size); if (g && !/^(L|XL|XXL)$/.test(canonSize(it.size))) b += it.qty; });
+    return all > 0 && b / all >= 0.5;
+  }
+  // items [{sku, size, qty}] -> SKU x size table. opt.blouse: inch sizes as L / XL / XXL. opt.sort: 'most' | 'az'
+  function packChart(items, opt) {
+    opt = opt || {};
+    var rows = {}, sp = {}, tot = {}, map = {}, grand = 0;
+    items.forEach(function (it) {
+      var raw = String(it.size || '').replace(/\s+/g, ' ').trim(), plain = showSize(canonSize(raw)) || '-';
+      var col = (opt.blouse && blouseSize(raw)) || plain;
+      if (col !== plain) { var mk = raw + SEP + col; map[mk] = (map[mk] || 0) + it.qty; }
+      var g = it.sku.toUpperCase();
+      if (!rows[g]) rows[g] = { sku: it.sku, cells: {}, total: 0 };
+      (sp[g] = sp[g] || {})[it.sku] = (sp[g][it.sku] || 0) + 1;
+      rows[g].cells[col] = (rows[g].cells[col] || 0) + it.qty; rows[g].total += it.qty;
+      tot[col] = (tot[col] || 0) + it.qty; grand += it.qty;
+    });
+    if (opt.blouse) ['L', 'XL', 'XXL'].forEach(function (c) { if (!tot[c]) tot[c] = 0; });
+    var cols = Object.keys(tot).sort(function (a, b) { return (a === '-') - (b === '-') || sizeCmp(a, b); });
+    var list = Object.keys(rows).map(function (g) {
+      var r = rows[g]; r.sku = Object.keys(sp[g]).sort(function (a, b) { return sp[g][b] - sp[g][a] || (b === g) - (a === g); })[0]; return r;
+    });
+    list.sort(function (a, b) { return (opt.sort === 'az' ? 0 : b.total - a.total) || skuCmp(a.sku, b.sku); });
+    var mapped = Object.keys(map).map(function (k) { var p = k.split(SEP); return { from: p[0], to: p[1], pcs: map[k] }; })
+      .sort(function (a, b) { return sizeCmp(a.to, b.to) || sizeCmp(a.from, b.from); });
+    return { cols: cols, rows: list, totals: tot, grand: grand, mapped: mapped };
+  }
+
   root.PBL = { words: words, lines: lines, parseLabel: parseLabel, parseManifest: parseManifest, checkManifest: checkManifest, canonSize: canonSize,
-    showSize: showSize, sizeCmp: sizeCmp, skuCmp: skuCmp, itemCmp: itemCmp, sortLabels: sortLabels, pickList: pickList, isMixed: isMixed, courierOrder: courierOrder };
+    showSize: showSize, sizeCmp: sizeCmp, skuCmp: skuCmp, itemCmp: itemCmp, sortLabels: sortLabels, pickList: pickList, isMixed: isMixed, courierOrder: courierOrder,
+    pageKind: pageKind, manifestPage: manifestPage, pickCheck: pickCheck, blouseSize: blouseSize, looksBlouse: looksBlouse, packChart: packChart };
 })(typeof window !== 'undefined' ? window : this);
 </script>
 <script>
@@ -397,13 +542,14 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
 (function () {
   'use strict';
   var L = window.PBL, words = L.words, lines = L.lines, parseLabel = L.parseLabel, parseManifest = L.parseManifest, checkManifest = L.checkManifest,
-    canonSize = L.canonSize, showSize = L.showSize, itemCmp = L.itemCmp, sortLabels = L.sortLabels, pickList = L.pickList, isMixed = L.isMixed, courierOrder = L.courierOrder;
+    canonSize = L.canonSize, showSize = L.showSize, itemCmp = L.itemCmp, sortLabels = L.sortLabels, pickList = L.pickList, isMixed = L.isMixed, courierOrder = L.courierOrder,
+    pageKind = L.pageKind, pickCheck = L.pickCheck, looksBlouse = L.looksBlouse, packChart = L.packChart, skuCmp = L.skuCmp;
 
   /* ---------------- language ---------------- */
   var LANG = 'en';
   try { LANG = localStorage.getItem('hisaab:lang') === 'hi' ? 'hi' : 'en'; } catch (e) { /* ignore */ }
   var HI = {
-    'Label sorter': 'लेबल सॉर्टर',
+    'Labels & packing chart': 'लेबल और पैकिंग चार्ट',
     'Free · your files stay on your device': 'मुफ़्त · आपकी फ़ाइलें आपके फ़ोन में ही रहती हैं',
     'Put your Meesho labels in SKU and size order, add a pick list and the manifest, and print everything as one PDF.': 'Meesho लेबल को SKU और साइज़ के क्रम में लगाएँ, पिक लिस्ट और मैनिफ़ेस्ट जोड़ें, और सब कुछ एक PDF में प्रिंट करें।',
     'Add PDFs': 'PDF जोड़ें', 'Check': 'जाँचें', 'Download': 'डाउनलोड',
@@ -469,7 +615,29 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     'No labels found yet. Add the label PDF from Meesho.': 'अभी कोई लेबल नहीं मिला। Meesho से लेबल वाली PDF जोड़ें।',
     'Manifest pages keep their own page size.': 'मैनिफ़ेस्ट के पेज अपने साइज़ में ही रहेंगे।',
     'Preview': 'झलक',
-    'Start again': 'फिर से शुरू करें'
+    'Start again': 'फिर से शुरू करें',
+    'Packing chart': 'पैकिंग चार्ट',
+    'From the manifest: {n} parcels · {n} pieces': 'मैनिफ़ेस्ट से: {n1} पार्सल · {n2} पीस',
+    'From the labels: {n} labels · {n} pieces': 'लेबल से: {n1} लेबल · {n2} पीस',
+    'From the picklist in the manifest: {n} pieces': 'मैनिफ़ेस्ट की पिकलिस्ट से: {n} पीस',
+    'All': 'सभी', 'Parcels': 'पार्सल',
+    'Blouse sizes as L / XL / XXL': 'ब्लाउज़ साइज़ L / XL / XXL में',
+    '26–30 = L, 32–34 = XL, 36–40 = XXL. Free-size ranges count by their middle.': '26–30 = L, 32–34 = XL, 36–40 = XXL। फ़्री-साइज़ रेंज बीच वाले साइज़ से गिनी जाती है।',
+    'Most pieces first': 'सबसे ज़्यादा पीस पहले', 'SKU A to Z': 'SKU A से Z',
+    'GRAND TOTAL': 'कुल जोड़',
+    'Sizes counted as:': 'साइज़ ऐसे गिने गए:',
+    'Matches Meesho’s picklist in the same file: {n} pieces.': 'इसी फ़ाइल में Meesho की पिकलिस्ट से पूरा मेल: {n} पीस।',
+    'Does not match Meesho’s picklist in the same file. Check these:': 'इसी फ़ाइल में Meesho की पिकलिस्ट से मेल नहीं खाता। इन्हें जाँचें:',
+    '{x}: manifest {n}, picklist {n}': '{x}: मैनिफ़ेस्ट {n1}, पिकलिस्ट {n2}',
+    'Download packing chart (PDF)': 'पैकिंग चार्ट डाउनलोड करें (PDF)',
+    'Excel (CSV)': 'Excel (CSV)', 'Copy for WhatsApp': 'WhatsApp के लिए कॉपी करें',
+    'Packing chart copied. Paste it in WhatsApp.': 'पैकिंग चार्ट कॉपी हो गया। WhatsApp में पेस्ट करें।',
+    'Add the label PDF too, to print the labels in SKU and size order.': 'लेबल को SKU और साइज़ के क्रम में प्रिंट करने के लिए लेबल PDF भी जोड़ें।',
+    'Add the packing chart at the start': 'शुरू में पैकिंग चार्ट जोड़ें',
+    'Pieces of each SKU in every size, with totals, for packing.': 'पैकिंग के लिए हर SKU के हर साइज़ के पीस, कुल जोड़ के साथ।',
+    'Make a packing chart from the Meesho manifest, put your labels in SKU and size order, and print everything as one PDF.': 'Meesho मैनिफ़ेस्ट से पैकिंग चार्ट बनाएँ, लेबल को SKU और साइज़ के क्रम में लगाएँ, और सब कुछ एक PDF में प्रिंट करें।',
+    'Add both PDFs here. With only the manifest you still get the packing chart. PakkaBill reads the SKU, size, quantity and courier of every parcel.': 'दोनों PDF यहाँ जोड़ें। सिर्फ़ मैनिफ़ेस्ट से भी पैकिंग चार्ट बन जाता है। PakkaBill हर पार्सल का SKU, साइज़, मात्रा और कूरियर पढ़ता है।',
+    'Pick how to arrange them and download one PDF: packing chart, labels in order, then the manifest.': 'क्रम चुनें और एक PDF डाउनलोड करें: पैकिंग चार्ट, क्रम में लेबल, फिर मैनिफ़ेस्ट।'
   };
   // t('Reading {n} of {n} pages…', 3, 10); in Hindi {n1}/{n2} pick numbers by position. {x} is plain text.
   function t(s) {
@@ -480,8 +648,8 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
 
   /* ---------------- state ---------------- */
   var OPTS_KEY = 'pakkabill:labels.opts';
-  var S = { files: [], busy: null, out: null, view: 'order', seq: 0 };
-  S.opts = { by: 'sku', courier: true, mixedLast: true, mode: 'full', pick: true, man: 'end' };
+  var S = { files: [], busy: null, out: null, seq: 0 };
+  S.opts = { by: 'sku', courier: true, mixedLast: true, mode: 'full', pick: true, man: 'end', blouse: null, chartSort: 'most', chartCourier: 'all' };
   try { var so = JSON.parse(localStorage.getItem(OPTS_KEY) || 'null'); if (so) for (var k in S.opts) if (so[k] != null) S.opts[k] = so[k]; } catch (e) { /* ignore */ }
   function saveOpts() { try { localStorage.setItem(OPTS_KEY, JSON.stringify(S.opts)); } catch (e) { /* ignore */ } }
 
@@ -499,7 +667,45 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   function labelPages() { return allPages().filter(function (p) { return p.kind === 'label'; }); }
   function manPages() { return allPages().filter(function (p) { return p.kind === 'man'; }); }
   function badPages() { return allPages().filter(function (p) { return p.kind === 'bad'; }); }
-  function manInfo() { var m = manPages(); return m.length ? parseManifest(m.map(function (p) { return p.lines; })) : null; }
+  var manCache = { key: null, val: null };
+  function manInfo() {
+    var m = manPages(), key = m.map(function (p) { return p.fid + ':' + p.pi; }).join(',');
+    if (key !== manCache.key) manCache = { key: key, val: m.length ? parseManifest(m.map(function (p) { return p.lines; })) : null };
+    return manCache.val;
+  }
+  // What the packing chart counts: the manifest when there is one (every parcel), else the labels.
+  function chartSource() {
+    var man = manInfo(), labs = labelPages();
+    if (man && man.structured) return { from: 'man', items: man.rows, man: man, parcels: man.rows.length };
+    if (labs.length) {
+      var it = [];
+      labs.forEach(function (p) { p.lab.rows.forEach(function (r) { it.push({ sku: r.sku, size: r.size, qty: r.qty, courier: p.lab.courier || 'Other', pid: p.fid + ':' + p.pi }); }); });
+      return { from: 'labels', items: it, man: man, parcels: labs.length };
+    }
+    if (man && man.pick.length) return { from: 'pick', items: man.pick, man: man, parcels: null };
+    return null;
+  }
+  function blouseOn(items) { return S.opts.blouse == null ? looksBlouse(items) : !!S.opts.blouse; }
+  // parcels per courier, most first (a label with two products is one parcel)
+  function parcelsOf(items) { var seen = {}, n = 0; items.forEach(function (it, i) { var k = it.pid || i; if (!seen[k]) { seen[k] = 1; n++; } }); return n; }
+  function couriersOf(items) {
+    var by = {}, n = {};
+    items.forEach(function (it) { if (it.courier) (by[it.courier] = by[it.courier] || []).push(it); });
+    Object.keys(by).forEach(function (c) { n[c] = parcelsOf(by[c]); });
+    return { count: n, all: parcelsOf(items), names: Object.keys(n).sort(function (a, b) { return n[b] - n[a] || (a < b ? -1 : 1); }) };
+  }
+  function chartFor(src, courier) {
+    var items = courier && courier !== 'all' ? src.items.filter(function (it) { return it.courier === courier; }) : src.items;
+    var ch = packChart(items, { blouse: blouseOn(src.items), sort: S.opts.chartSort });
+    ch.parcels = courier && courier !== 'all' ? parcelsOf(items) : src.parcels;
+    return ch;
+  }
+  // "L: 26, 28, 30 · XL: 32, 34 · ..." — how sizes were counted
+  function mappedText(ch, sep) {
+    var by = {}, order = [];
+    ch.mapped.forEach(function (m) { if (!by[m.to]) { by[m.to] = []; order.push(m.to); } by[m.to].push(m.from); });
+    return order.map(function (k) { return k + ': ' + by[k].join(', '); }).join(sep || ' · ');
+  }
 
   /* ---------------- reading files ---------------- */
   function libsReady() {
@@ -537,8 +743,8 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       for (var i = 1; i <= doc.numPages; i++) (function (i) {
         p = p.then(function () { return doc.getPage(i); }).then(function (page) {
           return page.getTextContent().then(function (tc) {
-            var ls = lines(words(tc.items)), lab = parseLabel(ls);
-            f.pages.push({ fid: f.id, pi: i - 1, lab: lab, lines: ls, view: page.view.slice(), rot: page.rotate || 0, man: !lab.ok && ls.some(function (l) { return /\bmanifest\b/i.test(l.text); }) });
+            var ls = lines(words(tc.items)), mk = pageKind(ls), lab = mk ? { ok: false, why: 'man' } : parseLabel(ls);
+            f.pages.push({ fid: f.id, pi: i - 1, lab: lab, lines: ls, view: page.view.slice(), rot: page.rotate || 0, mk: mk, man: !!mk });
             S.busy = { msg: t('Reading {n} of {n} pages…', i, doc.numPages), done: i, of: doc.numPages }; paintBusy();
           });
         });
@@ -717,6 +923,109 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     footer();
   }
   function fmtDateEn(d) { var M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']; return d.getDate() + ' ' + M[d.getMonth()] + ' ' + d.getFullYear(); }
+  function stamp() { var d = new Date(), z = function (n) { return (n < 10 ? '0' : '') + n; }; return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); }
+
+  // Packing chart pages: one row per SKU, one column per size, totals. For the chart PDF and the first page of the sorted PDF.
+  function chartWriter(P, out, fonts, W, H, head) {
+    var F = fonts.r, B = fonts.b, small = W < 400;
+    var M = small ? 14 : 36, fs = small ? 8 : 10, rh = small ? 14 : 21, bandH = small ? 34 : 58, bottom = small ? 22 : 44, TW = W - 2 * M;
+    var ink = P.rgb(0.13, 0.11, 0.25), mute = P.rgb(0.42, 0.40, 0.52), faint = P.rgb(0.74, 0.72, 0.82), brand = P.rgb(0.357, 0.247, 0.902), white = P.rgb(1, 1, 1);
+    var tint = P.rgb(0.925, 0.905, 1), zebra = P.rgb(0.976, 0.97, 1), rule = P.rgb(0.86, 0.83, 0.94);
+    var pages = [], page = null, y = 0;
+    function newPage() {
+      page = out.addPage([W, H]); pages.push(page);
+      page.drawRectangle({ x: 0, y: H - bandH, width: W, height: bandH, color: brand });
+      var r = pdfText(head.right || ''), rw = r ? F.widthOfTextAtSize(r, fs) + 12 : 0;
+      page.drawText(fitText(B, pages.length > 1 ? (head.short || head.title) + ' (continued)' : head.title, small ? 13 : 20, TW - rw), { x: M, y: H - bandH + (small ? 12 : 21), size: small ? 13 : 20, font: B, color: white });
+      if (r) page.drawText(r, { x: W - M - F.widthOfTextAtSize(r, fs), y: H - bandH + (small ? 13 : 23), size: fs, font: F, color: white });
+      y = H - bandH - (small ? 16 : 28);
+    }
+    function line(text, o) {
+      o = o || {};
+      var font = o.bold ? B : F, sz = o.size || fs, ws = pdfText(text).split(' '), cur = '', parts = [];
+      ws.forEach(function (w) { var nx = cur ? cur + ' ' + w : w; if (cur && font.widthOfTextAtSize(nx, sz) > TW) { parts.push(cur); cur = w; } else cur = nx; });
+      if (cur) parts.push(cur);
+      parts.forEach(function (q) { if (!page || y - sz < bottom) newPage(); page.drawText(q, { x: M, y: y, size: sz, font: font, color: o.color || ink }); y -= sz * 1.45; });
+    }
+    function gap(k) { y -= (k == null ? 0.5 : k) * rh; }
+    // keep: start on a new page rather than split, when the whole table fits on one page
+    function table(ch, title, sub, keep) {
+      var n = ch.cols.length, numW = Math.min(small ? 36 : 64, (TW * 0.64) / (n + 1)), skuW = TW - numW * (n + 1);
+      var whole = rh * ((title ? 0.85 : 0) + (sub ? 0.8 : 0) + ch.rows.length + 2.7), room = H - bandH - (small ? 16 : 28) - bottom;
+      if (!page || y - rh * ((title ? 1 : 0) + (sub ? 0.8 : 0) + 1 + Math.min(3, ch.rows.length + 1)) < bottom || (keep && whole <= room && y - whole < bottom)) newPage();
+      if (title) { page.drawText(fitText(B, title, fs + 2, TW), { x: M, y: y, size: fs + 2, font: B, color: ink }); y -= rh * 0.85; }
+      if (sub) { page.drawText(fitText(F, sub, fs - 1, TW), { x: M, y: y, size: fs - 1, font: F, color: mute }); y -= rh * 0.8; }
+      function cellX(i, w) { return M + skuW + numW * i + (numW - w) / 2; }
+      function headRow() {
+        page.drawRectangle({ x: M, y: y - rh * 0.32, width: TW, height: rh, color: tint });
+        page.drawText('SKU', { x: M + 6, y: y, size: fs - 1, font: B, color: mute });
+        ch.cols.concat(['Total']).forEach(function (c, i) { var q = fitText(B, c === 'Free Size' && B.widthOfTextAtSize(c, fs - 1) > numW - 4 ? 'Free' : c, fs - 1, numW - 4); page.drawText(q, { x: cellX(i, B.widthOfTextAtSize(q, fs - 1)), y: y, size: fs - 1, font: B, color: mute }); });
+        y -= rh;
+      }
+      function row(label, cells, total, i, grand) {
+        if (y - rh < bottom) { newPage(); headRow(); }
+        if (grand) page.drawRectangle({ x: M, y: y - rh * 0.32, width: TW, height: rh, color: tint });
+        else if (i % 2) page.drawRectangle({ x: M, y: y - rh * 0.32, width: TW, height: rh, color: zebra });
+        page.drawText(fitText(B, label, fs, skuW - 10), { x: M + 6, y: y, size: fs, font: B, color: ink });
+        cells.concat([total]).forEach(function (v, k) {
+          var last = k === cells.length, q = String(v), font = last || grand ? B : F;
+          page.drawText(q, { x: cellX(k, font.widthOfTextAtSize(q, fs)), y: y, size: fs, font: font, color: v ? ink : faint });
+        });
+        y -= rh;
+        page.drawLine({ start: { x: M, y: y + rh * 0.68 }, end: { x: M + TW, y: y + rh * 0.68 }, thickness: grand ? 0.9 : 0.4, color: rule });
+      }
+      headRow();
+      ch.rows.forEach(function (r, i) { row(r.sku, ch.cols.map(function (c) { return r.cells[c] || 0; }), r.total, i, false); });
+      row('GRAND TOTAL', ch.cols.map(function (c) { return ch.totals[c] || 0; }), ch.grand, 0, true);
+      y -= rh * 0.7;
+    }
+    function done(foot) {
+      pages.forEach(function (pg, i) { pg.drawText(pdfText(foot) + '  -  page ' + (i + 1) + ' of ' + pages.length, { x: M, y: small ? 8 : 22, size: small ? 6 : 8, font: F, color: mute }); });
+    }
+    return { newPage: newPage, line: line, gap: gap, table: table, done: done, colors: { mute: mute, ok: P.rgb(0.07, 0.44, 0.29), warn: P.rgb(0.6, 0.2, 0.1) } };
+  }
+  // The packing chart as its own PDF: all parcels, then one table per courier.
+  function chartPdf() {
+    var src = chartSource(), P = window.PDFLib; if (!src || !P) return Promise.resolve(null);
+    var out, man = src.man, bl = blouseOn(src.items);
+    return P.PDFDocument.create().then(function (d) {
+      out = d; out.setTitle('Packing chart'); out.setProducer('PakkaBill'); out.setCreator('PakkaBill label sorter');
+      return Promise.all([out.embedFont(P.StandardFonts.Helvetica), out.embedFont(P.StandardFonts.HelveticaBold)]);
+    }).then(function (fx) {
+      var cw = chartWriter(P, out, { r: fx[0], b: fx[1] }, 595.28, 841.89, { title: 'Packing chart' + (bl ? '  -  L / XL / XXL' : ''), short: 'Packing chart', right: (man && man.date) || fmtDateEn(new Date()) });
+      var all = chartFor(src, 'all'), cs = couriersOf(src.items);
+      cw.newPage();
+      if (man && man.supplier) cw.line('Supplier: ' + man.supplier, { bold: true });
+      cw.line((src.from === 'man' ? 'From the Meesho manifest: ' : src.from === 'labels' ? 'From the labels: ' : 'From the picklist: ') +
+        (all.parcels != null ? all.parcels + ' parcels  -  ' : '') + all.grand + ' pieces  -  ' + all.rows.length + ' SKUs', { color: cw.colors.mute });
+      if (cs.names.length > 1) cw.line('Couriers: ' + cs.names.map(function (c) { return c + ' ' + cs.count[c]; }).join('   '), { color: cw.colors.mute });
+      cw.gap(0.3);
+      cw.table(all);
+      if (bl) cw.line('Sizes counted as  -  ' + (mappedText(all, '   ') || 'L, XL, XXL as written') + '. Free-size ranges count by their middle.', { color: cw.colors.mute, size: 8 });
+      var pc = src.from === 'man' ? pickCheck(man) : null;
+      if (pc) cw.line(pc.same ? 'Checked: same as Meesho\'s picklist in the manifest (' + pc.pieces + ' pieces).' : 'Not the same as Meesho\'s picklist in the manifest: ' + pc.diffs.length + ' differences, see PakkaBill.', { bold: true, size: 8, color: pc.same ? cw.colors.ok : cw.colors.warn });
+      if (cs.names.length > 1) { cw.gap(0.6); cs.names.forEach(function (c) { var ch = chartFor(src, c); cw.table(ch, c, ch.parcels + ' parcels  -  ' + ch.grand + ' pieces', true); }); }
+      cw.done('PakkaBill packing chart');
+      return out.save({ useObjectStreams: true });
+    }).then(function (bytes) { return { blob: new Blob([bytes], { type: 'application/pdf' }), name: 'packing-chart-' + stamp() + '.pdf' }; });
+  }
+  function chartCsv() {
+    var src = chartSource(); if (!src) return null;
+    var ch = chartFor(src, S.opts.chartCourier), q = function (v) { v = String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var rows = [['SKU'].concat(ch.cols, ['Total'])];
+    ch.rows.forEach(function (r) { rows.push([r.sku].concat(ch.cols.map(function (c) { return r.cells[c] || 0; }), [r.total])); });
+    rows.push(['GRAND TOTAL'].concat(ch.cols.map(function (c) { return ch.totals[c] || 0; }), [ch.grand]));
+    var txt = String.fromCharCode(0xFEFF) + rows.map(function (r) { return r.map(q).join(','); }).join('\r\n') + '\r\n';
+    var cur = S.opts.chartCourier !== 'all' && couriersOf(src.items).count[S.opts.chartCourier] ? '-' + S.opts.chartCourier.toLowerCase().replace(/[^a-z0-9]+/g, '-') : '';
+    return { blob: new Blob([txt], { type: 'text/csv' }), name: 'packing-chart' + cur + '-' + stamp() + '.csv' };
+  }
+  function chartText() {
+    var src = chartSource(); if (!src) return '';
+    var ch = chartFor(src, S.opts.chartCourier), man = src.man, cur = S.opts.chartCourier !== 'all' && couriersOf(src.items).count[S.opts.chartCourier] ? S.opts.chartCourier : '';
+    var cell = function (cells, total) { return ch.cols.filter(function (c) { return cells[c]; }).map(function (c) { return c + ' ' + cells[c]; }).join(' · ') + ' = *' + total + '*'; };
+    return '*' + t('Packing chart') + '*' + (cur ? ' · ' + cur : '') + ' · ' + ((man && man.date) || fmtDate(new Date())) + '\n\n' +
+      ch.rows.map(function (r) { return r.sku + ': ' + cell(r.cells, r.total); }).join('\n') + '\n\n*' + t('Total') + '*: ' + cell(ch.totals, ch.grand);
+  }
 
   function build() {
     var P = window.PDFLib, labs = ordered(), bad = badPages(), man = manPages(), o = S.opts, labelOnly = o.mode === 'label';
@@ -745,7 +1054,23 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     }).then(function () {
       var first = labs[0], W = labelOnly ? LW : first.view[2] - first.view[0], H = labelOnly ? LH : first.view[3] - first.view[1];
       if (first.rot % 180) { var tmp = W; W = H; H = tmp; }
-      if (o.pick) drawPick(P, out, fonts, W, H, labs, manPages().length ? checkManifest(labs, manInfo()) : null);
+      if (o.pick) {
+        var items = [], chk = manPages().length ? checkManifest(labs, manInfo()) : null;
+        labs.forEach(function (p) { p.lab.rows.forEach(function (r) { items.push({ sku: r.sku, size: r.size, qty: r.qty }); }); });
+        var bl = blouseOn(items), ch = packChart(items, { blouse: bl, sort: o.chartSort }), small = W < 400;
+        if (ch.cols.length > (small ? 5 : 9)) drawPick(P, out, fonts, W, H, labs, chk);
+        else {
+          var cw = chartWriter(P, out, fonts, W, H, { title: 'Packing chart', right: fmtDateEn(new Date()) }), co = courierOrder(labs);
+          cw.newPage();
+          cw.line(labs.length + (labs.length === 1 ? ' order' : ' orders') + '  -  ' + ch.grand + ' pieces  -  ' + ch.rows.length + ' SKUs', { bold: true });
+          cw.line('Couriers: ' + co.names.map(function (c) { return c + ' ' + co.count[c]; }).join('   '), { color: cw.colors.mute });
+          if (chk) cw.line(chk.off.length || chk.extra.length ? 'Manifest: ' + chk.on.length + ' of ' + labs.length + ' labels found' + (chk.extra.length ? ', ' + chk.extra.length + ' listed without a label' : '') : 'Manifest: all ' + labs.length + ' labels are on it', { bold: true, color: chk.off.length || chk.extra.length ? cw.colors.warn : cw.colors.ok });
+          cw.gap(0.3);
+          cw.table(ch);
+          if (bl && ch.mapped.length) cw.line('Sizes counted as  -  ' + mappedText(ch, '   '), { color: cw.colors.mute, size: small ? 6 : 8 });
+          cw.done('PakkaBill label sorter');
+        }
+      }
       if (o.man === 'start') man.forEach(function (p) { out.addPage(copied[p.fid + ':' + p.pi]); });
       var seq = labs.concat(bad), chain = Promise.resolve();
       seq.forEach(function (p, i) {
@@ -795,12 +1120,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       return chain.then(function () { doc.destroy(); });
     }).catch(function (e) { console.warn('preview', e); });
   }
-  function pickText(labs) {
-    var list = pickList(labs, 'sku'), by = [], g = null, pcs = 0;
-    list.forEach(function (r) { pcs += r.pcs; if (!g || g.k !== r.sku.toUpperCase()) { g = { k: r.sku.toUpperCase(), sku: r.sku, parts: [], n: 0 }; by.push(g); } g.parts.push((r.size || '-') + ' ' + r.pcs); g.n += r.pcs; });
-    var s = t('Pick list') + ' · ' + fmtDate(new Date()) + '\n' + plural(labs.length, '1 label', '{n} labels') + ' · ' + pcs + ' ' + t('Pcs') + '\n\n';
-    return s + by.map(function (b) { return '▪ ' + b.sku + ': ' + b.parts.join(', ') + ' (' + b.n + ')'; }).join('\n');
-  }
+
 
   /* ---------------- views ---------------- */
   var ICO = {
@@ -820,9 +1140,9 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     return '<label class="chk"><input type="checkbox" data-act="chk" data-k="' + name + '"' + (val ? ' checked' : '') + '><span>' + esc(t(label)) + (help ? '<small>' + esc(t(help)) + '</small>' : '') + '</span></label>';
   }
   function heroHtml() {
-    return '<section class="hero"><div class="hero-top"><div><p class="hero-k" style="margin:0 0 8px"><i></i>' + esc(t('Free · your files stay on your device')) + '</p><h1>' + esc(t('Label sorter')) + '</h1></div>' +
+    return '<section class="hero"><div class="hero-top"><div><p class="hero-k" style="margin:0 0 8px"><i></i>' + esc(t('Free · your files stay on your device')) + '</p><h1>' + esc(t('Labels & packing chart')) + '</h1></div>' +
       '<div class="lang" role="group" aria-label="Language"><button type="button" data-act="lang" data-v="en" aria-pressed="' + (LANG === 'en') + '">EN</button><button type="button" data-act="lang" data-v="hi" aria-pressed="' + (LANG === 'hi') + '" lang="hi">हिं</button></div></div>' +
-      '<p>' + esc(t('Put your Meesho labels in SKU and size order, add a pick list and the manifest, and print everything as one PDF.')) + '</p>' +
+      '<p>' + esc(t('Make a packing chart from the Meesho manifest, put your labels in SKU and size order, and print everything as one PDF.')) + '</p>' +
       '<ol class="steps"><li><b>1</b>' + esc(t('Add PDFs')) + '</li><li><b>2</b>' + esc(t('Check')) + '</li><li><b>3</b>' + esc(t('Download')) + '</li></ol></section>';
   }
   function filesHtml() {
@@ -849,15 +1169,18 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   function resultHtml() {
     var labs = ordered(), bad = badPages(), man = manInfo(), o = S.opts;
     if (!labs.length && !bad.length && !man) return '';
-    var pcs = 0, skus = {};
-    labs.forEach(function (p) { p.lab.rows.forEach(function (r) { pcs += r.qty; skus[r.sku.toUpperCase()] = 1; }); });
-    var co = courierOrder(labs);
-    var h = '<section class="card"><div class="tiles">' +
-      '<div class="tile"><span>' + esc(t('Labels')) + '</span><b>' + labs.length + '</b></div>' +
-      '<div class="tile"><span>' + esc(t('Pieces')) + '</span><b>' + pcs + '</b></div>' +
-      '<div class="tile"><span>' + esc(t('SKUs')) + '</span><b>' + Object.keys(skus).length + '</b></div>' +
-      '<div class="tile"><span>' + esc(t('Couriers')) + '</span><b>' + co.names.length + '</b></div></div>';
-    if (!labs.length) h += '<div class="note"><b>' + esc(t('No labels found yet. Add the label PDF from Meesho.')) + '</b></div>';
+    var co = courierOrder(labs), tiles;
+    if (labs.length || !man) {
+      var pcs = 0, skus = {};
+      labs.forEach(function (p) { p.lab.rows.forEach(function (r) { pcs += r.qty; skus[r.sku.toUpperCase()] = 1; }); });
+      tiles = [['Labels', labs.length], ['Pieces', pcs], ['SKUs', Object.keys(skus).length], ['Couriers', co.names.length]];
+    } else {
+      var src = man.structured ? man.rows : man.pick, mp = 0, ms = {};
+      src.forEach(function (r) { mp += r.qty; ms[r.sku.toUpperCase()] = 1; });
+      tiles = [['Parcels', man.structured ? man.rows.length : '–'], ['Pieces', mp], ['SKUs', Object.keys(ms).length], ['Couriers', man.couriers.length]];
+    }
+    var h = '<section class="card"><div class="tiles">' + tiles.map(function (x) { return '<div class="tile"><span>' + esc(t(x[0])) + '</span><b>' + x[1] + '</b></div>'; }).join('') + '</div>';
+    if (!labs.length) h += man ? '<div class="note info">' + esc(t('Add the label PDF too, to print the labels in SKU and size order.')) + '</div>' : '<div class="note"><b>' + esc(t('No labels found yet. Add the label PDF from Meesho.')) + '</b></div>';
     // manifest
     if (labs.length) {
       if (!man) h += '<div class="note info"><b>' + esc(t('Manifest check')) + '</b>' + esc(t('Add the manifest PDF to check that every label is on it, and to print it with your labels.')) + '</div>';
@@ -866,7 +1189,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
         h += '<div class="note ' + (good ? 'ok' : '') + '"><b>' + esc(t('Manifest check')) + ': ' + esc(c.off.length ? t('{n} of {n} labels are on the manifest.', c.on.length, labs.length) : t('All {n} labels are on the manifest.', labs.length)) + '</b>';
         if (c.rows) h += '<span class="fine">' + esc(t('The manifest lists {n} shipments.', c.rows)) + '</span>';
         if (c.off.length) h += '<p style="margin:8px 0 0">' + esc(t('Not on the manifest — check these before handing over:')) + '</p><ul>' + c.off.slice(0, 30).map(function (p) { return '<li>' + esc(p.lab.rows[0].sku) + ' · ' + esc(showSize(canonSize(p.lab.rows[0].size)) || '-') + ' · ' + esc(p.lab.orders[0] || p.lab.ids[0] || '') + ' (' + esc(fileOf(p.fid).name) + ', ' + esc(t('page {n}', p.pi + 1)) + ')</li>'; }).join('') + '</ul>';
-        if (c.extra.length) h += '<p style="margin:8px 0 0">' + esc(t('On the manifest but no label was added:')) + '</p><ul>' + c.extra.slice(0, 30).map(function (r) { return '<li>' + esc(r.ids.join(' · ')) + '</li>'; }).join('') + '</ul>';
+        if (c.extra.length) h += '<p style="margin:8px 0 0">' + esc(t('On the manifest but no label was added:')) + '</p><ul>' + c.extra.slice(0, 30).map(function (r) { return '<li>' + (r.sku ? esc(r.sku) + ' · ' + esc(r.size || '-') + ' · ' : '') + esc(r.ids.join(' · ')) + (r.courier ? ' (' + esc(r.courier) + ')' : '') + '</li>'; }).join('') + (c.extra.length > 30 ? '<li>' + esc(t('and {n} more', c.extra.length - 30)) + '</li>' : '') + '</ul>';
         h += '</div>';
       }
     }
@@ -875,7 +1198,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
         return '<li>' + esc(fileOf(p.fid).name) + ', ' + esc(t('page {n}', p.pi + 1)) + ': ' + esc(t(p.lab.why === 'image' ? 'this page is a picture, so its text cannot be read' : 'no SKU table found on this page')) + '</li>';
       }).join('') + (bad.length > 30 ? '<li>' + esc(t('and {n} more', bad.length - 30)) + '</li>' : '') + '</ul></div>';
     }
-    h += '</section>';
+    h += '</section>' + chartHtml();
     if (!labs.length) return h;
     // options and download
     h += '<section class="card"><h2>' + esc(t('How to arrange')) + '</h2><div class="opts">' +
@@ -883,17 +1206,38 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       (co.names.length > 1 ? chk('courier', o.courier, 'Keep each courier’s labels together', 'Handy when couriers pick up at different times.') : '') +
       chk('mixedLast', o.mixedLast, 'Orders with 2 or more products at the end', 'These need a bigger packet and more checking.') +
       '<div class="opt"><span class="lbl">' + esc(t('Page')) + '</span>' + seg('mode', o.mode, [['full', 'Full page', 'Label and invoice, as Meesho gives it'], ['label', 'Label only, 4×6 inch', 'For thermal label printers']]) + '</div>' +
-      chk('pick', o.pick, 'Add a pick list page at the start', 'How many pieces of each SKU and size to pack, with tick boxes.') +
+      chk('pick', o.pick, 'Add the packing chart at the start', 'Pieces of each SKU in every size, with totals, for packing.') +
       '<div class="opt"><span class="lbl">' + esc(t('Manifest in the PDF')) + '</span>' + seg('man', o.man, [['end', 'At the end', '', !man], ['start', 'At the start', '', !man], ['none', 'Leave out', '', !man]]) +
       (man && o.mode === 'label' && o.man !== 'none' ? '<p class="fine" style="margin:6px 0 0">' + esc(t('Manifest pages keep their own page size.')) + '</p>' : '') + '</div>' +
       '</div><div class="acts"><button type="button" class="btn pri big" data-act="make"' + (S.busy ? ' disabled' : '') + '>' + ICO.dl + esc(t('Download sorted PDF')) + '</button>' +
-      (canShare() ? '<button type="button" class="btn big" data-act="share"' + (S.busy ? ' disabled' : '') + '>' + ICO.share + esc(t('Share PDF')) + '</button>' : '') +
-      '<button type="button" class="btn big" data-act="copy">' + ICO.copy + esc(t('Copy pick list')) + '</button></div>';
+      (canShare() ? '<button type="button" class="btn big" data-act="share"' + (S.busy ? ' disabled' : '') + '>' + ICO.share + esc(t('Share PDF')) + '</button>' : '') + '</div>';
     if (S.out) h += '<div class="note ok done" role="status"><b>' + esc(t('Your PDF is ready: {n} pages.', S.out.pages)) + '</b><button type="button" class="btn" style="margin-top:8px" data-act="again">' + ICO.dl + esc(t('Download again')) + '</button><div class="thumbs" id="thumbs" aria-label="' + esc(t('Preview')) + '"></div></div>';
     h += '</section>';
-    // order and pick list
-    h += '<section class="card"><div class="tabs" role="group"><button type="button" data-act="view" data-v="order" aria-pressed="' + (S.view === 'order') + '">' + esc(t('Print order')) + '</button><button type="button" data-act="view" data-v="pick" aria-pressed="' + (S.view === 'pick') + '">' + esc(t('Pick list')) + '</button></div>';
-    h += S.view === 'pick' ? pickHtml(labs) : orderHtml(labs);
+    h += '<section class="card"><h2>' + esc(t('Print order')) + '</h2>' + orderHtml(labs) + '</section>';
+    return h;
+  }
+  // SKU x size table like a packing sheet: L / XL / XXL for blouses, totals per SKU and size
+  function chartHtml() {
+    var src = chartSource(); if (!src) return '';
+    var o = S.opts, cs = couriersOf(src.items), cur = o.chartCourier !== 'all' && cs.count[o.chartCourier] ? o.chartCourier : 'all';
+    var ch = chartFor(src, cur), man = src.man, bl = blouseOn(src.items);
+    var from = src.from === 'man' ? t('From the manifest: {n} parcels · {n} pieces', ch.parcels, ch.grand) : src.from === 'labels' ? t('From the labels: {n} labels · {n} pieces', ch.parcels, ch.grand) : t('From the picklist in the manifest: {n} pieces', ch.grand);
+    var h = '<section class="card" id="chart"><h2>' + esc(t('Packing chart')) + '</h2><p class="sub">' + esc(from) + (man && man.supplier ? ' · ' + esc(man.supplier) : '') + (man && man.date ? ' · ' + esc(man.date) : '') + '</p>';
+    if (cs.names.length > 1) h += '<div class="tabs chips" role="group" aria-label="' + esc(t('Courier')) + '" style="margin-top:12px">' + [['all', t('All'), cs.all]].concat(cs.names.map(function (c) { return [c, c, cs.count[c]]; })).map(function (x) {
+      return '<button type="button" data-act="ccur" data-v="' + esc(x[0]) + '" aria-pressed="' + (cur === x[0]) + '">' + esc(x[1]) + ' <small>' + x[2] + '</small></button>';
+    }).join('') + '</div>';
+    h += '<div class="opts" style="margin:12px 0">' + chk('blouse', bl, 'Blouse sizes as L / XL / XXL', '26–30 = L, 32–34 = XL, 36–40 = XXL. Free-size ranges count by their middle.') +
+      '<div class="opt">' + seg('chartSort', o.chartSort, [['most', 'Most pieces first'], ['az', 'SKU A to Z']]) + '</div></div>';
+    h += '<div class="tw"><table class="t chart"><thead><tr><th>SKU</th>' + ch.cols.map(function (c) { return '<th class="n">' + esc(c) + '</th>'; }).join('') + '<th class="n">' + esc(t('Total')) + '</th></tr></thead><tbody>' +
+      ch.rows.map(function (r) { return '<tr><td class="sku">' + esc(r.sku) + '</td>' + ch.cols.map(function (c) { var v = r.cells[c] || 0; return '<td class="n' + (v ? '' : ' z') + '">' + v + '</td>'; }).join('') + '<td class="n"><b>' + r.total + '</b></td></tr>'; }).join('') +
+      '<tr class="grand"><td>' + esc(t('GRAND TOTAL')) + '</td>' + ch.cols.map(function (c) { return '<td class="n">' + (ch.totals[c] || 0) + '</td>'; }).join('') + '<td class="n">' + ch.grand + '</td></tr></tbody></table></div>';
+    if (bl && ch.mapped.length) h += '<p class="fine" style="margin:8px 0 0">' + esc(t('Sizes counted as:')) + ' ' + esc(mappedText(ch)) + '</p>';
+    var pc = src.from === 'man' ? pickCheck(man) : null;
+    if (pc) h += pc.same ? '<div class="note ok">' + esc(t('Matches Meesho’s picklist in the same file: {n} pieces.', pc.pieces)) + '</div>'
+      : '<div class="note"><b>' + esc(t('Does not match Meesho’s picklist in the same file. Check these:')) + '</b><ul>' + pc.diffs.slice(0, 20).map(function (d) { return '<li>' + esc(t('{x}: manifest {n}, picklist {n}', d.sku + ' ' + d.size, d.rows, d.pick)) + '</li>'; }).join('') + '</ul></div>';
+    h += '<div class="acts"><button type="button" class="btn pri" data-act="chartpdf">' + ICO.dl + esc(t('Download packing chart (PDF)')) + '</button>' +
+      '<button type="button" class="btn" data-act="chartcsv">' + ICO.file + esc(t('Excel (CSV)')) + '</button>' +
+      '<button type="button" class="btn" data-act="chartcopy">' + ICO.copy + esc(t('Copy for WhatsApp')) + '</button></div>';
     return h + '</section>';
   }
   function orderHtml(labs) {
@@ -911,24 +1255,11 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     if (labs.length > MAX) h += '<div class="more">' + esc(t('and {n} more', labs.length - MAX)) + '</div>';
     return h + '</div>';
   }
-  function pickHtml(labs) {
-    var list = pickList(labs, 'sku'), h = '<div class="tw"><table class="t"><thead><tr><th>SKU</th><th>' + esc(t('Size')) + '</th><th class="n">' + esc(t('Pcs')) + '</th><th class="n">' + esc(t('Orders')) + '</th></tr></thead><tbody>';
-    var g = null, tot = 0, all = 0;
-    function close() { if (g && g.n > 1) h += '<tr class="tot"><td colspan="2">' + esc(t('Total')) + ' ' + esc(g.sku) + '</td><td class="n">' + tot + '</td><td></td></tr>'; }
-    list.forEach(function (r) {
-      if (!g || g.k !== r.sku.toUpperCase()) { close(); g = { k: r.sku.toUpperCase(), sku: r.sku, n: 0 }; tot = 0; }
-      g.n++; tot += r.pcs; all += r.pcs;
-      h += '<tr><td class="sku">' + (g.n === 1 ? esc(r.sku) : '') + '</td><td>' + esc(r.size || '-') + '</td><td class="n"><b>' + r.pcs + '</b></td><td class="n">' + r.orders + '</td></tr>';
-    });
-    close();
-    h += '<tr class="grp"><td colspan="2">' + esc(t('Total')) + '</td><td class="n">' + all + '</td><td class="n">' + labs.length + '</td></tr>';
-    return h + '</tbody></table></div>';
-  }
   function howHtml() {
     return '<section class="card how"><h2>' + esc(t('How it works')) + '</h2><ol>' +
       '<li>' + esc(t('In the Meesho Supplier Panel, open Orders → Ready to Ship, select the orders and download the labels. Download the manifest from the same page.')) + '</li>' +
-      '<li>' + esc(t('Add both PDFs here. PakkaBill reads the SKU, size, quantity and courier on each label.')) + '</li>' +
-      '<li>' + esc(t('Pick how to arrange them and download one PDF: pick list, labels in order, then the manifest.')) + '</li></ol>' +
+      '<li>' + esc(t('Add both PDFs here. With only the manifest you still get the packing chart. PakkaBill reads the SKU, size, quantity and courier of every parcel.')) + '</li>' +
+      '<li>' + esc(t('Pick how to arrange them and download one PDF: packing chart, labels in order, then the manifest.')) + '</li></ol>' +
       '<div class="priv">' + ICO.lock + '<span>' + esc(t('Your labels never leave this phone or computer. Nothing is uploaded.')) + '</span></div>' +
       (S.files.length ? '<div class="acts"><button type="button" class="btn" data-act="reset">' + esc(t('Start again')) + '</button></div>' : '') + '</section>';
   }
@@ -948,7 +1279,12 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     if (a === 'lang') { LANG = b.getAttribute('data-v'); try { localStorage.setItem('hisaab:lang', LANG); } catch (x) { /* ignore */ } render(); }
     else if (a === 'rm') removeFile(+b.getAttribute('data-id'));
     else if (a === 'opt') { var k = b.getAttribute('data-k'), v = b.getAttribute('data-v'); if (S.opts[k] !== v) { S.opts[k] = v; saveOpts(); S.out = null; render(); } }
-    else if (a === 'view') { S.view = b.getAttribute('data-v'); render(); }
+    else if (a === 'ccur') { S.opts.chartCourier = b.getAttribute('data-v'); saveOpts(); render(); }
+    else if (a === 'chartpdf') {
+      b.disabled = true;
+      chartPdf().then(function (f) { b.disabled = false; if (f) download(f); }, function (e) { b.disabled = false; console.error(e); toast(t('Could not make the PDF: {x}', (e && e.message) || e)); });
+    }
+    else if (a === 'chartcsv') { var f = chartCsv(); if (f) download(f); }
     else if (a === 'make' || a === 'share') {
       build().then(function (o) {
         render(); if (!o) return;
@@ -958,10 +1294,10 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       });
     }
     else if (a === 'again') { if (S.out) download(S.out); }
-    else if (a === 'copy') {
-      var txt = pickText(ordered());
-      (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () { toast(t('Pick list copied. Paste it in WhatsApp for your packer.')); }, function () {
-        var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast(t('Pick list copied. Paste it in WhatsApp for your packer.')); } catch (x) { /* ignore */ } ta.remove();
+    else if (a === 'chartcopy') {
+      var txt = chartText(), done = function () { toast(t('Packing chart copied. Paste it in WhatsApp.')); };
+      (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(txt) : Promise.reject()).then(done, function () {
+        var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (x) { /* ignore */ } ta.remove();
       });
     }
     else if (a === 'reset') { S.files.forEach(function (f) { if (f.doc) f.doc.destroy(); }); S.files = []; S.out = null; render(); }
@@ -969,7 +1305,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   document.addEventListener('change', function (e) {
     var el = e.target, a = el.getAttribute && el.getAttribute('data-act');
     if (a === 'file') { addFiles(el.files); el.value = ''; }
-    else if (a === 'chk') { S.opts[el.getAttribute('data-k')] = el.checked; saveOpts(); S.out = null; render(); }
+    else if (a === 'chk') { S.opts[el.getAttribute('data-k')] = el.checked; saveOpts(); S.out = null; render(); var c = el.getAttribute('data-k') === 'blouse' && $('#chart'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'nearest' }); }
   });
   // files dropped anywhere on the page are added (and never open in the browser instead)
   ['dragenter', 'dragover'].forEach(function (ev) { document.addEventListener(ev, function (e) { e.preventDefault(); var d = $('#drop'); if (d) d.classList.add('over'); }); });

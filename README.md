@@ -7,7 +7,7 @@ GST tax invoices and GSTR-1 JSON for Indian sellers. One static page that works 
 - GSTR-1 JSON built from Meesho's sales, sales return and tax invoice reports.
 - Meesho listing: the bulk catalog upload Excel from catalogue photos and a Meesho template.
 - Meesho P&L: profit and loss and payment reconciliation from Meesho's payment report, with Excel and PDF.
-- Label sorter: Meesho shipping labels in SKU and size order, with a pick list and the manifest, as one PDF.
+- Labels & packing chart: a packing chart from Meesho's manifest (blouse sizes as L / XL / XXL), and shipping labels in SKU and size order, as one PDF.
 - Everything stays in the browser on the device. No server, no accounts, no data leaves the phone or laptop.
 
 ## Deploying
@@ -82,7 +82,7 @@ Excel and PDF.
 - Uploaded reports stay on the device in the `hisaab` IndexedDB; costs, expenses, return marks and
   settings in localStorage under `hisaab.v1.`. Settings > Download backup moves them to another device.
 
-## Label sorter
+## Labels & packing chart
 
 `#/labels` (also `/labels.html` on its own) takes the label PDFs Meesho gives for Ready to Ship orders
 and the manifest PDF, reads the Product Details table on each label (SKU, size, quantity, colour, order
@@ -91,6 +91,14 @@ the labels in SKU-then-size or size-then-SKU order (optionally grouped by courie
 more products last), then the manifest. Labels are checked against the manifest both ways. "Label
 only, 4×6 inch" cuts each label away from its invoice for thermal printers. Pages it cannot read are
 kept at the end in their original order.
+
+Packing chart: Meesho's Supplier Manifest PDF has "Picklist" pages (SKU, Color, Size, Total Quantity) and
+then one table per courier (S. No., Sub Order No., AWB, SKU, Qty., Size), where one parcel's order number,
+AWB and size run over two or three lines. Every parcel is read from the courier tables and the result is
+checked against the picklist. The chart has a row per SKU and a column per size with totals; for blouses
+inch sizes count as letter sizes (26–30 L, 32–34 XL, 36–40 XXL, a free-size range by its middle), the same
+rule as the P&L's Returns tab. It shows for all parcels or one courier, and downloads as a PDF (all, then
+each courier), Excel (CSV) or WhatsApp text. With labels only, the chart is made from the labels.
 
 - `labels.html` the whole tool; the engine (first script) runs in Node for `test/labels-audit.js`.
 - `labels-libs.js` PDF.js 3.11.174 (reads text, `isEvalSupported: false`) and pdf-lib 1.17.1 (builds the

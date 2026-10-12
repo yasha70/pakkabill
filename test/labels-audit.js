@@ -119,5 +119,55 @@ eq(L.sortLabels(LABS, { by: 'sku', courier: true, mixedLast: true }).length, LAB
   eq(ids(L.checkManifest(LABS.slice(0, 5), base).on), [1, 4], 'manifest with order numbers without the _1');
 }
 
+/* 10. Meesho's Supplier Manifest: picklist pages and courier pages, laid out as in the real PDF */
+{
+  const hdr = (y) => [it('Supplier Name : KAVYA_COLLECTION7', 36, 791, 12), it('Date : 12 Oct, 2026', 36, 773, 12)];
+  const pickPage = [it('Picklist', 36, 812, 18)].concat(hdr(), [it('SKU', 133, 748), it('Color', 291, 748), it('Size', 403, 748), it('Total Quantity', 484, 748)],
+    [['PGWM(GREY)0005', 'Green', '32', 4, 722], ['PBYW(GREY)', 'White', 'Free-Size: 30-34', 1, 689], ['All color 8', 'Black', 'XXL', 1, 656], ['PGRBW005', 'Pink', '38 Alterable', 2, 623]]
+      .flatMap(([sku, col, sz, q, y]) => [it(sku, 141 - W(sku, 10) / 2, y, 10), it(col, 301 - W(col, 10) / 2, y, 10), it(sz, 411 - W(sz, 10) / 2, y, 10), it(String(q), 511 - W(String(q), 10) / 2, y, 10)]), [it('(1)', 410, 40, 8)]);
+  // a row: serial, first half of the sub order number, SKU, qty and size on one line; AWB below; the rest of the order number (and a long size) below that
+  const crow = ([n, o1, awb, o2, sku, sz, sz2], y) => [it(String(n), 54, y, 10), it(o1, 82, y, 10), it(sku, 321 - W(sku, 10) / 2, y, 10), it('1', 400, y, 10), it(sz, 459 - W(sz, 10) / 2, y, 10),
+    it(awb, 159, y - 8, 10), it(o2, 87, y - 15, 10)].concat(sz2 ? [it(sz2, 446, y - 15, 10)] : []);
+  const courPage = (courier, rows) => [it('Courier : ' + courier, 36, 812, 18)].concat(hdr(), [it('S. No.', 45, 748), it('Sub Order No.', 85, 748), it('AWB', 194, 748), it('SKU', 313, 748), it('Qty.', 395, 748), it('Size', 451, 748), it('Packed', 513, 748)],
+    rows.flatMap((r, i) => crow(r, 722 - i * 48)), [it('(17)', 410, 40, 8)]);
+  const p1 = L.lines(L.words(pickPage));
+  const p2 = L.lines(L.words(courPage('Delhivery', [[1, '34091807010', '1490842450481893', '8403712_1', 'PGWM(GREY)0005', '32'], [2, '34079173127', '1490842446612783', '4056832_1', 'PBYW(GREY)', 'Free-Size:', '30-34']])));
+  const p3 = L.lines(L.words(courPage('Valmo', [[1, '34083848694', 'VL0085719638487', '7906240_1', 'PGWM(GREY)0005', '32'], [2, '34073169876', 'VL0085719638490', '2220416_1', 'PGWM(GREY)0005', '32'],
+    [3, '34045846179', 'VL0085719638491', '0716608_1', 'PGWM(GREY)0005', '32'], [4, '34088015734', 'VL0085719638492', '9757632_1', 'All color 8', 'XXL'], [5, '34089698847', 'VL0085719638494', '7965568_1', 'PGRBW005', '38 Alterable'], [6, '34089698848', 'VL0085719638495', '7965569_1', 'PGRBW005', '38 Alterable']])));
+  eq([L.pageKind(p1), L.pageKind(p2), L.pageKind(p3)], ['pick', 'courier', 'courier'], 'manifest pages are told apart from labels');
+  ok(!read(pickPage).ok || L.pageKind(p1), 'picklist page is not taken for a label');
+  const pg = L.manifestPage(p2);
+  eq(pg.rows.map((r) => [r.n, r.order, r.awb, r.sku, r.size, r.qty, r.courier]), [[1, '340918070108403712_1', '1490842450481893', 'PGWM(GREY)0005', '32', 1, 'Delhivery'],
+    [2, '340791731274056832_1', '1490842446612783', 'PBYW(GREY)', 'Free-Size: 30-34', 1, 'Delhivery']], 'courier page: order number joined over two lines, AWB, size over two lines');
+  const man = L.parseManifest([p1, p2, p3]);
+  eq([man.rows.length, man.pick.length, man.supplier, man.date, man.couriers], [8, 4, 'KAVYA_COLLECTION7', '12 Oct, 2026', ['Delhivery', 'Valmo']], 'manifest: rows, picklist, supplier, date, couriers');
+  eq(L.pickCheck(man), { same: true, diffs: [], pieces: 8, pickPieces: 8 }, 'courier rows add up to the picklist');
+  const short = L.parseManifest([p1, p2]);
+  eq(L.pickCheck(short).diffs.map((d) => [d.sku, d.rows, d.pick]), [['PGWM(GREY)0005', 1, 4], ['ALL COLOR 8', 0, 1], ['PGRBW005', 0, 2]], 'missing courier rows show as differences from the picklist');
+  // labels matched by the full order number or the AWB
+  const labs = [{ i: 0, lab: { courier: 'Delhivery', rows: [{ sku: 'PGWM(GREY)0005', size: '32', qty: 1 }], orders: ['340918070108403712_1'], ids: [] } },
+    { i: 1, lab: { courier: 'Valmo', rows: [{ sku: 'X', size: '32', qty: 1 }], orders: [], ids: ['VL0085719638490'] } }, { i: 2, lab: { courier: 'Valmo', rows: [{ sku: 'Y', size: 'M', qty: 1 }], orders: ['999999999999999999_1'], ids: [] } }];
+  const c = L.checkManifest(labs, man);
+  eq([ids(c.on), ids(c.off), c.extra.length, c.extra[0].sku], [[0, 1], [2], 6, 'PBYW(GREY)'], 'labels against the manifest: found, missing, and parcels with no label');
+}
+
+/* 11. blouse sizes and the packing chart */
+eq(['26', '28', '30', '31', '32', '34', '35', '36', '38', '40', 'L', '2XL', 'Free-Size: 26-30', 'Free-Size: 30-34', 'Free-Size: 36-40', '38 Alterable', '36 inch', '24', '42', 'M', 'Free Size', '5-6 Years'].map(L.blouseSize),
+  ['L', 'L', 'L', 'XL', 'XL', 'XL', 'XXL', 'XXL', 'XXL', 'XXL', 'L', 'XXL', 'L', 'XL', 'XXL', 'XXL', 'XXL', null, null, null, null, null], 'blouse sizes: 26-30 L, 32-34 XL, 36-40 XXL, ranges by their middle');
+{
+  const items = [['PGRBW005', '30', 2], ['PGRBW005', '32', 1], ['PGRBW005', '38 Alterable', 1], ['RBGYP0005', 'XXL', 3], ['RBGYP0005', 'Free-Size: 30-34', 1], ['pgrbw005', '40', 1], ['ZETA', '42', 1], ['ABC', '26', 1]]
+    .map(([sku, size, qty]) => ({ sku, size, qty }));
+  ok(L.looksBlouse(items), 'inch sizes: looks like blouses');
+  ok(!L.looksBlouse([{ sku: 'K', size: 'M', qty: 3 }, { sku: 'K', size: '32', qty: 1 }]), 'letter sizes: not blouses');
+  const ch = L.packChart(items, { blouse: true });
+  eq(ch.cols, ['L', 'XL', 'XXL', '42'], 'blouse chart: L, XL, XXL, then sizes outside 26-40 as they are');
+  eq(ch.rows.map((r) => [r.sku, r.cells.L || 0, r.cells.XL || 0, r.cells.XXL || 0, r.total]), [['PGRBW005', 2, 1, 2, 5], ['RBGYP0005', 0, 1, 3, 4], ['ABC', 1, 0, 0, 1], ['ZETA', 0, 0, 0, 1]], 'blouse chart: rows, most pieces first, one spelling per SKU');
+  eq([ch.totals.L, ch.totals.XL, ch.totals.XXL, ch.totals['42'], ch.grand], [3, 2, 5, 1, 11], 'blouse chart: totals add up');
+  eq(ch.mapped.map((m) => m.from + '>' + m.to), ['26>L', '30>L', 'Free-Size: 30-34>XL', '32>XL', '38 Alterable>XXL', '40>XXL'], 'blouse chart: how each size was counted');
+  eq(L.packChart(items, { blouse: true, sort: 'az' }).rows.map((r) => r.sku), ['ABC', 'PGRBW005', 'RBGYP0005', 'ZETA'], 'chart A to Z');
+  eq(L.packChart([{ sku: 'K', size: 'M', qty: 2 }, { sku: 'K', size: '2XL', qty: 1 }], { blouse: true }).cols, ['M', 'L', 'XL', 'XXL'], 'L, XL and XXL columns are always there for blouses');
+  eq(L.packChart(items, { blouse: false }).cols, ['XXL', '26', '30', 'FREE-SIZE: 30-34', '32', '38 ALTERABLE', '40', '42'], 'without blouse sizes every size is its own column');
+}
+
 console.log(`${checks - fails}/${checks} label checks passed`);
 if (fails) process.exit(1);
