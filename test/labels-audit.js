@@ -169,5 +169,17 @@ eq(['26', '28', '30', '31', '32', '34', '35', '36', '38', '40', 'L', '2XL', 'Fre
   eq(L.packChart(items, { blouse: false }).cols, ['XXL', '26', '30', 'FREE-SIZE: 30-34', '32', '38 ALTERABLE', '40', '42'], 'without blouse sizes every size is its own column');
 }
 
+/* 12. the same SKU written two ways is one SKU */
+{
+  eq(['all color 8.', 'All color 8', ' ALL  COLOR 8 ', 'All color 8,', 'All color 80'].map(L.skuKey), ['ALL COLOR 8', 'ALL COLOR 8', 'ALL COLOR 8', 'ALL COLOR 8', 'ALL COLOR 80'], 'SKU key: capitals, spaces and a stop at the end do not matter');
+  const items = [['all color 8.', '32', 1], ['all color 8.', '36', 2], ['all color 8.', '38', 1], ['All color 8', '30', 1], ['All color 8', '40', 1], ['All color 80', '34', 1]].map(([sku, size, qty]) => ({ sku, size, qty }));
+  const ch = L.packChart(items, { blouse: true });
+  eq(ch.rows.map((r) => [r.sku, r.cells.L || 0, r.cells.XL || 0, r.cells.XXL || 0, r.total]), [['All color 8', 1, 1, 4, 6], ['All color 80', 0, 1, 0, 1]], 'chart: "all color 8." and "All color 8" are one row, shown without the stop');
+  eq(L.pickList(items.map((x, i) => ({ i, lab: { rows: [Object.assign({ color: '', order: '' }, x)] } })), 'sku').map((r) => r.sku + ' ' + r.size), ['All color 8 30', 'All color 8 32', 'All color 8 36', 'All color 8 38', 'All color 8 40', 'All color 80 34'], 'pick list: merged and in size order');
+  const labs = items.map((x, i) => ({ i, lab: { courier: 'Valmo', rows: [Object.assign({ color: '', order: '' }, x)], orders: [], ids: [] } }));
+  eq(L.sortLabels(labs, { by: 'sku', courier: false, mixedLast: true }).map((x) => x.lab.rows[0].size), ['30', '32', '36', '38', '40', '34'], 'labels: both spellings sorted together by size');
+  ok(!L.isMixed({ rows: [{ sku: 'all color 8.', size: '32', qty: 1 }, { sku: 'All color 8', size: '32', qty: 1 }] }), 'two spellings of one SKU and size are not a two-product order');
+}
+
 console.log(`${checks - fails}/${checks} label checks passed`);
 if (fails) process.exit(1);

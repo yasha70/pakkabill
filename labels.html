@@ -239,6 +239,13 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     L.words.forEach(function (w) { var k = colOf(w, cols); cell[k] = cell[k] ? cell[k] + ' ' + w.s : w.s; });
     return cell;
   }
+  // The same SKU typed in capitals or small letters, or with a full stop at the end, is one SKU:
+  // "all color 8." and "All color 8" both become "ALL COLOR 8".
+  function skuKey(s) { return String(s || '').toUpperCase().replace(/\s+/g, ' ').replace(/[\s.,;:]+$/, '').trim(); }
+  // the spelling to show for a group of spellings {spelling: uses}: without a stop at the end, then the most used, then capitals
+  function bestSku(sp, key) {
+    return Object.keys(sp).sort(function (a, b) { return /[.,;:]$/.test(a) - /[.,;:]$/.test(b) || sp[b] - sp[a] || (b === key) - (a === key) || (a < b ? -1 : 1); })[0];
+  }
   function joinSku(a, b) { return a + (/[-_/(]$/.test(a) || /^[-_/)]/.test(b) ? '' : ' ') + b; }
 
   // The "Product Details" table on a Meesho label: SKU | Size | Qty | Color | Order No.
@@ -382,7 +389,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   // Does the per-courier list add up to Meesho's own picklist on the first pages?
   function pickCheck(man) {
     if (!man || !man.structured || !man.pick.length) return null;
-    var a = {}, b = {}, key = function (r) { return r.sku.toUpperCase() + SEP + String(r.size).toUpperCase().replace(/\s+/g, ''); };
+    var a = {}, b = {}, key = function (r) { return skuKey(r.sku) + SEP + String(r.size).toUpperCase().replace(/\s+/g, ''); };
     man.rows.forEach(function (r) { a[key(r)] = (a[key(r)] || 0) + r.qty; });
     man.pick.forEach(function (r) { b[key(r)] = (b[key(r)] || 0) + r.qty; });
     var diffs = [];
@@ -440,12 +447,12 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     return p[0] - q[0] || p[1] - q[1] || (p[2] < q[2] ? -1 : p[2] > q[2] ? 1 : 0);
   }
   var coll = (typeof Intl !== 'undefined' && Intl.Collator) ? new Intl.Collator('en', { numeric: true, sensitivity: 'base' }) : null;
-  function skuCmp(a, b) { return coll ? coll.compare(a, b) : (a.toUpperCase() < b.toUpperCase() ? -1 : a.toUpperCase() > b.toUpperCase() ? 1 : 0); }
+  function skuCmp(a, b) { a = skuKey(a); b = skuKey(b); return coll ? coll.compare(a, b) : (a < b ? -1 : a > b ? 1 : 0); }
   function itemCmp(by) {
     return function (a, b) { return by === 'size' ? (sizeCmp(a.size, b.size) || skuCmp(a.sku, b.sku)) : (skuCmp(a.sku, b.sku) || sizeCmp(a.size, b.size)); };
   }
   function isMixed(lab) {
-    var k = {}; lab.rows.forEach(function (r) { k[r.sku.toUpperCase() + SEP + canonSize(r.size)] = 1; });
+    var k = {}; lab.rows.forEach(function (r) { k[skuKey(r.sku) + SEP + canonSize(r.size)] = 1; });
     return Object.keys(k).length > 1;
   }
   function courierOrder(labs) {
@@ -472,16 +479,15 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     var m = {}, sp = {}, ic = itemCmp(by || 'sku');
     labs.forEach(function (L) {
       L.lab.rows.forEach(function (r) {
-        var c = canonSize(r.size), k = r.sku.toUpperCase() + SEP + c;
+        var c = canonSize(r.size), k = skuKey(r.sku) + SEP + c;
         if (!m[k]) m[k] = { sku: r.sku, size: showSize(c) || r.size, pcs: 0, orders: 0 };
         m[k].pcs += r.qty; m[k].orders += 1;
-        var g = r.sku.toUpperCase(); (sp[g] = sp[g] || {})[r.sku] = (sp[g][r.sku] || 0) + 1;
+        var g = skuKey(r.sku); (sp[g] = sp[g] || {})[r.sku] = (sp[g][r.sku] || 0) + 1;
       });
     });
-    // one spelling per SKU: the one used most (ties: the one in capitals)
     var best = {};
-    Object.keys(sp).forEach(function (g) { best[g] = Object.keys(sp[g]).sort(function (a, b) { return sp[g][b] - sp[g][a] || (b === g) - (a === g); })[0]; });
-    return Object.keys(m).map(function (k) { var x = m[k]; x.sku = best[x.sku.toUpperCase()]; return x; }).sort(ic);
+    Object.keys(sp).forEach(function (g) { best[g] = bestSku(sp[g], g); });
+    return Object.keys(m).map(function (k) { var x = m[k]; x.sku = best[skuKey(x.sku)]; return x; }).sort(ic);
   }
 
   /* ---------------- packing chart ---------------- */
@@ -514,7 +520,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       var raw = String(it.size || '').replace(/\s+/g, ' ').trim(), plain = showSize(canonSize(raw)) || '-';
       var col = (opt.blouse && blouseSize(raw)) || plain;
       if (col !== plain) { var mk = raw + SEP + col; map[mk] = (map[mk] || 0) + it.qty; }
-      var g = it.sku.toUpperCase();
+      var g = skuKey(it.sku);
       if (!rows[g]) rows[g] = { sku: it.sku, cells: {}, total: 0 };
       (sp[g] = sp[g] || {})[it.sku] = (sp[g][it.sku] || 0) + 1;
       rows[g].cells[col] = (rows[g].cells[col] || 0) + it.qty; rows[g].total += it.qty;
@@ -523,7 +529,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     if (opt.blouse) ['L', 'XL', 'XXL'].forEach(function (c) { if (!tot[c]) tot[c] = 0; });
     var cols = Object.keys(tot).sort(function (a, b) { return (a === '-') - (b === '-') || sizeCmp(a, b); });
     var list = Object.keys(rows).map(function (g) {
-      var r = rows[g]; r.sku = Object.keys(sp[g]).sort(function (a, b) { return sp[g][b] - sp[g][a] || (b === g) - (a === g); })[0]; return r;
+      var r = rows[g]; r.sku = bestSku(sp[g], g); return r;
     });
     list.sort(function (a, b) { return (opt.sort === 'az' ? 0 : b.total - a.total) || skuCmp(a.sku, b.sku); });
     var mapped = Object.keys(map).map(function (k) { var p = k.split(SEP); return { from: p[0], to: p[1], pcs: map[k] }; })
@@ -533,7 +539,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
 
   root.PBL = { words: words, lines: lines, parseLabel: parseLabel, parseManifest: parseManifest, checkManifest: checkManifest, canonSize: canonSize,
     showSize: showSize, sizeCmp: sizeCmp, skuCmp: skuCmp, itemCmp: itemCmp, sortLabels: sortLabels, pickList: pickList, isMixed: isMixed, courierOrder: courierOrder,
-    pageKind: pageKind, manifestPage: manifestPage, pickCheck: pickCheck, blouseSize: blouseSize, looksBlouse: looksBlouse, packChart: packChart };
+    skuKey: skuKey, pageKind: pageKind, manifestPage: manifestPage, pickCheck: pickCheck, blouseSize: blouseSize, looksBlouse: looksBlouse, packChart: packChart };
 })(typeof window !== 'undefined' ? window : this);
 </script>
 <script>
@@ -543,7 +549,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   'use strict';
   var L = window.PBL, words = L.words, lines = L.lines, parseLabel = L.parseLabel, parseManifest = L.parseManifest, checkManifest = L.checkManifest,
     canonSize = L.canonSize, showSize = L.showSize, itemCmp = L.itemCmp, sortLabels = L.sortLabels, pickList = L.pickList, isMixed = L.isMixed, courierOrder = L.courierOrder,
-    pageKind = L.pageKind, pickCheck = L.pickCheck, looksBlouse = L.looksBlouse, packChart = L.packChart, skuCmp = L.skuCmp;
+    skuKey = L.skuKey, pageKind = L.pageKind, pickCheck = L.pickCheck, looksBlouse = L.looksBlouse, packChart = L.packChart, skuCmp = L.skuCmp;
 
   /* ---------------- language ---------------- */
   var LANG = 'en';
@@ -849,7 +855,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     var tint = P.rgb(0.93, 0.91, 1), rule = P.rgb(0.84, 0.81, 0.93);
     var list = pickList(labs, 'sku');
     var pcs = list.reduce(function (s, r) { return s + r.pcs; }, 0), skus = {};
-    list.forEach(function (r) { skus[r.sku.toUpperCase()] = 1; });
+    list.forEach(function (r) { skus[skuKey(r.sku)] = 1; });
     var co = courierOrder(labs), today = new Date();
     var page, y, pageNo = 0, pagesMade = [];
     var cols = small ? [{ k: 'sku', w: 0.52 }, { k: 'size', w: 0.2 }, { k: 'pcs', w: 0.14, r: 1 }, { k: 'tick', w: 0.14 }]
@@ -885,7 +891,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     }
     newPage();
     var groups = [], g = null;
-    list.forEach(function (r) { if (!g || g.key !== r.sku.toUpperCase()) { g = { key: r.sku.toUpperCase(), rows: [] }; groups.push(g); } g.rows.push(r); });
+    list.forEach(function (r) { if (!g || g.key !== skuKey(r.sku)) { g = { key: skuKey(r.sku), rows: [] }; groups.push(g); } g.rows.push(r); });
     var bottom = small ? 22 : 44;
     groups.forEach(function (gr) {
       var need = (gr.rows.length + (gr.rows.length > 1 ? 1 : 0)) * rh;
@@ -1172,11 +1178,11 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     var co = courierOrder(labs), tiles;
     if (labs.length || !man) {
       var pcs = 0, skus = {};
-      labs.forEach(function (p) { p.lab.rows.forEach(function (r) { pcs += r.qty; skus[r.sku.toUpperCase()] = 1; }); });
+      labs.forEach(function (p) { p.lab.rows.forEach(function (r) { pcs += r.qty; skus[skuKey(r.sku)] = 1; }); });
       tiles = [['Labels', labs.length], ['Pieces', pcs], ['SKUs', Object.keys(skus).length], ['Couriers', co.names.length]];
     } else {
       var src = man.structured ? man.rows : man.pick, mp = 0, ms = {};
-      src.forEach(function (r) { mp += r.qty; ms[r.sku.toUpperCase()] = 1; });
+      src.forEach(function (r) { mp += r.qty; ms[skuKey(r.sku)] = 1; });
       tiles = [['Parcels', man.structured ? man.rows.length : '–'], ['Pieces', mp], ['SKUs', Object.keys(ms).length], ['Couriers', man.couriers.length]];
     }
     var h = '<section class="card"><div class="tiles">' + tiles.map(function (x) { return '<div class="tile"><span>' + esc(t(x[0])) + '</span><b>' + x[1] + '</b></div>'; }).join('') + '</div>';
