@@ -107,9 +107,10 @@ function forgetSettings() {
   settingsCache = null;
 }
 
-// Paid features only switch on once the database is connected and a UPI ID is saved in admin.
+// Paid features only switch on once the database is connected and a way to pay is set up in admin:
+// a UPI ID (QR + transaction number) or Razorpay keys.
 function paymentsReady(settings) {
-  return db.configured() && UPI_ID.test(settings.upiId || '');
+  return db.configured() && (UPI_ID.test(settings.upiId || '') || !!require('./razorpay').config(settings));
 }
 
 function publicUser(u) {

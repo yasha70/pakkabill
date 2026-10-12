@@ -3,6 +3,7 @@
 const core = require('./_lib/core');
 const db = require('./_lib/db');
 const orders = require('./_lib/orders');
+const rzp = require('./_lib/razorpay');
 const promos = require('./_lib/promos');
 const support = require('./_lib/support');
 const assist = require('./_lib/assist');
@@ -250,11 +251,11 @@ const actions = {
     return { log: rows.map((r) => { try { return JSON.parse(r); } catch { return null; } }).filter(Boolean) };
   },
 
-  // Payments, newest first, one page at a time. status: all, PENDING, COMPLETED, REJECTED; q: phone or UTR.
+  // Payments, newest first, one page at a time. status: all, PENDING, COMPLETED, REJECTED; q: phone, UTR or Razorpay payment ID.
   async payments({ status = 'all', q = '', page = 0, size = 50 } = {}) {
     const all = await allOrders();
     const needle = String(q || '').trim();
-    const list = all.filter((o) => (status === 'all' || o.state === status) && (!needle || String(o.phone).includes(needle) || String(o.utr || '').includes(needle)));
+    const list = all.filter((o) => (status === 'all' || o.state === status) && (!needle || String(o.phone).includes(needle) || String(o.utr || '').includes(needle) || String(o.paymentId || '').includes(needle)));
     const n = Math.max(1, Math.min(200, Number(size) || 50)), p = Math.max(0, Number(page) || 0);
     const counts = { all: all.length, PENDING: 0, COMPLETED: 0, REJECTED: 0 };
     all.forEach((o) => { counts[o.state] = (counts[o.state] || 0) + 1; });
@@ -311,7 +312,15 @@ const actions = {
     return { settings: await core.getSettings(true) };
   },
 
-  async saveSettings({ monthly, yearly, freeBills, enforce, upiId, payeeName, trialDays, syncFree, biz, gst }) {
+  // Checks Razorpay keys (typed in the form, or the saved ones) with a harmless read.
+  async rzpTest({ keyId, keySecret }) {
+    const typed = String(keyId || '').trim();
+    const cfg = rzp.config(typed ? { razorpay: { keyId: typed, keySecret: String(keySecret || '').trim() } } : await core.getSettings(true));
+    if (!cfg) throw new core.HttpError(400, 'Paste the Razorpay Key ID (rzp_live_... or rzp_test_...) and Key Secret first.');
+    return rzp.test(cfg);
+  },
+
+  async saveSettings({ monthly, yearly, freeBills, enforce, upiId, payeeName, trialDays, syncFree, biz, gst, razorpay }) {
     const prev = await core.getSettings(true);
     const s = {
       monthly: Math.round(Number(monthly)),
@@ -334,6 +343,11 @@ const actions = {
     if (s.gst.provider === 'url' && !/^https:\/\/.+\{gstin\}/.test(s.gst.url)) throw new core.HttpError(400, 'The GST lookup address must start with https:// and contain {gstin}.');
     if (s.gst.provider === 'gstinapi' && !s.gst.apiKey) throw new core.HttpError(400, 'Paste the gstinapi.in API key for GST lookup.');
     if (s.gst.provider === 'cashfree' && !(s.gst.clientId && s.gst.clientSecret)) throw new core.HttpError(400, 'Add the Cashfree client ID and secret for GST lookup.');
+    // Razorpay keys (customers pay in Razorpay's checkout; Pro turns on by itself)
+    const R = razorpay && typeof razorpay === 'object' ? razorpay : prev.razorpay || {};
+    s.razorpay = { keyId: String(R.keyId || '').trim().slice(0, 60), keySecret: String(R.keySecret || '').trim().slice(0, 120) };
+    if (s.razorpay.keyId && !rzp.KEY_ID.test(s.razorpay.keyId)) throw new core.HttpError(400, 'The Razorpay Key ID starts with rzp_live_ or rzp_test_. Copy it from Razorpay > Account & Settings > API keys.');
+    if (s.razorpay.keyId && s.razorpay.keySecret.length < 8) throw new core.HttpError(400, 'Paste the Razorpay Key Secret too. Razorpay shows it once, when you make the key.');
     if (!(s.trialDays >= 0 && s.trialDays <= 90)) throw new core.HttpError(400, 'Free trial days must be 0 to 90.');
     if (s.upiId && !core.UPI_ID.test(s.upiId)) throw new core.HttpError(400, 'That does not look like a UPI ID (name@bank).');
     if (!(s.monthly >= 1 && s.yearly >= 1)) throw new core.HttpError(400, 'Prices must be at least ₹1.');

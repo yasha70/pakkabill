@@ -238,8 +238,12 @@
     // UPI apps expect the payee address unencoded, as the bill QR does.
     return `upi://pay?pa=${cfg.upiId.trim()}&` + p.toString().replace(/\+/g, '%20');
   }
+  // Razorpay checkout when the admin has set it up (Pro turns on by itself), else the UPI QR screen.
   function openPay(plan, presetCoupon = '') {
     if (playApp()) return toast('Buying Pro is not available in this app.', true);
+    return cfg && cfg.razorpay ? openRzp(plan, presetCoupon) : openUpi(plan, presetCoupon);
+  }
+  function openUpi(plan, presetCoupon = '') {
     if (!cfg || !cfg.upiId) return toast('Payments are not set up yet.', true);
     const listPrice = plan === 'yearly' ? cfg.yearly : cfg.monthly;
     const mobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -355,11 +359,133 @@
     });
   }
 
+  // ---------- Razorpay checkout ----------
+  let rzpLib = null;
+  const loadRzp = () => rzpLib || (rzpLib = new Promise((ok, fail) => {
+    if (window.Razorpay) return ok(window.Razorpay);
+    const sc = document.createElement('script');
+    sc.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    sc.async = true;
+    sc.onload = () => (window.Razorpay ? ok(window.Razorpay) : fail(new Error('Razorpay did not load. Try again.')));
+    sc.onerror = () => { rzpLib = null; sc.remove(); fail(new Error('Could not load Razorpay. Check your internet and try again.')); };
+    document.head.appendChild(sc);
+  }));
+  function openRzp(plan, presetCoupon = '') {
+    const listPrice = plan === 'yearly' ? cfg.yearly : cfg.monthly;
+    const period = plan === 'yearly' ? '1 year' : '1 month';
+    let amount = listPrice;
+    let coupon = '';
+    loadRzp().catch(() => {}); // start loading while the customer reads
+    showDialog((box) => {
+      const overlay = box.parentNode;
+      const draw = () => {
+        box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button>
+        <div class="pbp-badge">PRO</div>
+        <h2 id="pbp-title">Pay ${rupees(amount)}${amount < listPrice ? ` <s class="pbp-was">${rupees(listPrice)}</s>` : ''}</h2>
+        <p class="pbp-why">PakkaBill Pro for ${period}.${coupon ? ` Coupon <b>${esc(coupon)}</b> applied.` : ''}</p>
+        <form class="pbp-coupon"><input name="code" placeholder="Coupon code" aria-label="Coupon code" autocomplete="off" value="${esc(coupon || presetCoupon)}"><button type="submit" class="pbp-btn pbp-btn--sm">${coupon ? 'Change' : 'Apply'}</button></form>
+        <p class="pbp-err pbp-coupon-err" role="alert"></p>
+        <button type="button" class="pbp-btn" data-rzp style="width:100%;margin-top:4px">Pay ${rupees(amount)}</button>
+        <p class="pbp-err pbp-rzp-err" role="alert"></p>
+        <p class="pbp-fine">Any UPI app (PhonePe, Google Pay, Paytm), card, net banking or wallet. Secured by Razorpay. Pro turns on as soon as you pay.</p>
+        ${cfg.upiId ? '<p class="pbp-fine"><button type="button" class="pbp-link" data-upi>Or scan our UPI QR and send the transaction number</button></p>' : ''}`;
+        box.querySelector('.pbp-x').addEventListener('click', closeUpgrade);
+        box.querySelector('[data-upi]')?.addEventListener('click', () => openUpi(plan, coupon || presetCoupon));
+        const cform = box.querySelector('.pbp-coupon');
+        cform.addEventListener('submit', async (ev) => {
+          ev.preventDefault();
+          const code = cform.code.value.trim();
+          const cerr = box.querySelector('.pbp-coupon-err');
+          cerr.textContent = '';
+          if (!code) {
+            coupon = '';
+            amount = listPrice;
+            return draw();
+          }
+          cform.querySelector('button').disabled = true;
+          try {
+            const q = await api('pay', { body: { action: 'quote', plan, coupon: code } });
+            coupon = q.coupon;
+            amount = q.amount;
+            draw();
+            toast(`Coupon applied. You pay ${rupees(amount)}.`);
+          } catch (e) {
+            cerr.textContent = e.message;
+            cform.querySelector('button').disabled = false;
+          }
+        });
+        const btn = box.querySelector('[data-rzp]');
+        const err = box.querySelector('.pbp-rzp-err');
+        const ready = () => { overlay.style.display = ''; btn.disabled = false; btn.textContent = `Pay ${rupees(amount)}`; };
+        btn.addEventListener('click', async () => {
+          err.textContent = '';
+          btn.disabled = true;
+          btn.textContent = 'Opening Razorpay…';
+          try {
+            const [Razorpay, o] = await Promise.all([loadRzp(), api('pay', { body: { action: 'rzpOrder', plan, coupon } })]);
+            const u = (acct && acct.user) || {};
+            const rz = new Razorpay({
+              key: o.key,
+              order_id: o.orderId,
+              amount: o.amount,
+              currency: 'INR',
+              name: 'PakkaBill',
+              description: `PakkaBill Pro, ${period}`,
+              image: location.origin + '/icon-192.png',
+              prefill: { contact: /^\d{10}$/.test(u.phone || '') ? u.phone : '', name: u.shopName || '' },
+              notes: { plan },
+              theme: { color: '#5b3fe6' },
+              modal: { ondismiss: ready, confirm_close: true },
+              handler: (r) => { overlay.style.display = ''; afterPay(r); },
+            });
+            rz.on('payment.failed', (r) => { err.textContent = ((r && r.error && r.error.description) || 'The payment did not go through.') + ' No money was taken. Try again.'; });
+            overlay.style.display = 'none'; // Razorpay shows its own window
+            rz.open();
+          } catch (e) {
+            err.textContent = e.message;
+            ready();
+          }
+        });
+      };
+      // Back from checkout: the server checks the payment with Razorpay and turns Pro on.
+      const afterPay = async (r) => {
+        const wasPro = isPro();
+        box.innerHTML = '<div class="pbp-badge">PRO</div><h2 id="pbp-title">Confirming your payment…</h2><p class="pbp-why">Please keep this open for a few seconds.</p>';
+        let res = null;
+        let last = null;
+        for (let i = 0; i < 3 && !res; i++) {
+          try {
+            res = await api('pay', { body: { action: 'rzpDone', ...r } });
+          } catch (e) {
+            last = e;
+            await new Promise((ok) => setTimeout(ok, 2500));
+          }
+        }
+        myOrders = null;
+        if (res && res.user) setAcct({ ...acct, user: res.user }, false);
+        box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button><div class="pbp-badge">PRO</div>
+          ${res
+            ? `<h2 id="pbp-title">Pro is on 🎉</h2><p class="pbp-why">We received ${rupees(res.order.amount / 100)}. PakkaBill Pro is active until <b>${dateStr(res.user.paidUntil)}</b>.</p>`
+            : `<h2 id="pbp-title">Payment received by Razorpay</h2><p class="pbp-why">${esc(last ? last.message : '')} Pro turns on by itself within a few minutes; open your plan again to check. Keep this payment ID: <b>${esc(r.razorpay_payment_id || '')}</b>.</p>`}
+          <p class="pbp-fine">Payment ID ${esc(r.razorpay_payment_id || '')}. Razorpay also sends a receipt by SMS or email.</p>
+          <button type="button" class="pbp-btn" data-done>${res ? 'Start using Pro' : 'OK'}</button>`;
+        const finish = () => { closeUpgrade(); if (!wasPro && isPro()) location.reload(); else rerender(); };
+        box.querySelector('.pbp-x').addEventListener('click', finish);
+        box.querySelector('[data-done]').addEventListener('click', finish);
+        loadOrders();
+      };
+      draw();
+      if (presetCoupon) box.querySelector('.pbp-coupon').requestSubmit();
+    });
+  }
+
   let myOrders = null;
   async function loadOrders() {
     if (!acct || !acct.token || !cfg || !cfg.enabled) return;
     try {
-      myOrders = (await api('pay')).orders;
+      const r = await api('pay');
+      myOrders = r.orders;
+      if (r.user) setAcct({ ...acct, user: r.user }); // a Razorpay payment the app had not heard back about
       plans.forEach((el) => el.isConnected && drawPlan(el));
     } catch {}
   }
@@ -367,7 +493,7 @@
     if (!myOrders || !myOrders.length) return '';
     const label = { PENDING: 'Waiting for confirmation', COMPLETED: 'Confirmed', REJECTED: 'Not found in our account' };
     return `<ul class="pbp-orders">${myOrders
-      .map((o) => `<li class="is-${o.state.toLowerCase()}"><span>${rupees(o.amount / 100)} · ${o.plan === 'yearly' ? 'Yearly' : 'Monthly'} · UTR ${esc(o.utr)}</span><b>${label[o.state] || esc(o.state)}</b></li>`)
+      .map((o) => `<li class="is-${o.state.toLowerCase()}"><span>${rupees(o.amount / 100)} · ${o.plan === 'yearly' ? 'Yearly' : 'Monthly'} · ${o.utr ? 'UTR ' + esc(o.utr) : 'Razorpay'}</span><b>${label[o.state] || esc(o.state)}</b></li>`)
       .join('')}</ul>${myOrders.some((o) => o.state === 'REJECTED') ? '<p class="pbp-fine">If a payment was not found, check the transaction number and submit it again.</p>' : ''}`;
   }
 
@@ -474,7 +600,7 @@
         <h2 id="pbp-title">${!(acct && acct.token) && /^pnl/.test(feature) ? 'Log in to see your full report' : 'Upgrade to PakkaBill Pro'}</h2>
         <p class="pbp-why">${!(acct && acct.token) && /^pnl/.test(feature) ? 'Create a free account or log in to open your full profit and loss report and download it as PDF or Excel.' : esc((WHY[feature] || WHY.pdf)(arg))}</p>
         <ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>
-        ${acct && acct.token ? accountHtml() + plansHtml() + (playApp() ? '' : '<p class="pbp-fine">Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.</p>') : authHtml(mode)}`;
+        ${acct && acct.token ? accountHtml() + plansHtml() + (playApp() ? '' : `<p class="pbp-fine">${cfg && cfg.razorpay ? 'Pay by UPI, card or net banking. Pro turns on as soon as you pay.' : 'Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.'}</p>`) : authHtml(mode)}`;
       box.querySelector('.pbp-x').addEventListener('click', closeUpgrade);
       wire(box, draw);
     };
@@ -517,7 +643,7 @@
         ${cfg && cfg.enabled ? `<section class="paper pbp-card"><h2 class="form-sec__title">PakkaBill Pro</h2>
           <ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>
           <details class="pbp-cmp"><summary>Compare Free and Pro</summary>${compareHtml()}</details>
-          ${acct && acct.token ? plansHtml() + (playApp() ? '' : '<p class="pbp-fine">Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.</p>') : authHtml(mode)}</section>` : ''}
+          ${acct && acct.token ? plansHtml() + (playApp() ? '' : `<p class="pbp-fine">${cfg && cfg.razorpay ? 'Pay by UPI, card or net banking. Pro turns on as soon as you pay.' : 'Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.'}</p>`) : authHtml(mode)}</section>` : ''}
       </div>`;
     wire(el, (m) => drawPlan(el, m));
     wireNews(el);

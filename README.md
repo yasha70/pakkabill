@@ -156,8 +156,18 @@ app and submits the 12-digit transaction number (UTR). The owner finds that UTR 
 app and approves it in `/admin`, which turns Pro on. A UTR can only be submitted once. Until a UPI ID
 is saved in `/admin` > Settings, everything stays free.
 
-- `api/` Vercel functions: `auth` (sign up, log in), `me`, `config`, `pay` (submit a UTR, list my
-  payments), `admin`.
+**Razorpay** (optional, recommended): with a Key ID and Key Secret saved in `/admin` > Settings > Razorpay
+(or `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET`), the Pay button opens Razorpay's checkout (UPI, cards,
+net banking, wallets) and Pro turns on by itself, with nothing to approve. The server makes the
+Razorpay order at the plan price (coupon applied), checks checkout's signature, then asks Razorpay
+for the payment itself (same order, full amount, captured; an authorised payment is captured) before
+adding Pro, once per order. If the app closes right after paying, Razorpay's webhook
+(`/api/pay?razorpay=webhook`, events `payment.captured` and `order.paid`) or the next visit to the
+plan page catches up. With a UPI ID saved too, customers can still choose the UPI QR. Code:
+`api/_lib/razorpay.js`; tests: `node test/razorpay-audit.js`.
+
+- `api/` Vercel functions: `auth` (sign up, log in), `me`, `config`, `pay` (submit a UTR, Razorpay
+  orders, confirmations and webhook, list my payments), `admin`.
 - `pro.js` plan checks, upgrade dialog, UPI payment screen and the Plan page inside the app.
 - `admin.html` admin panel at `/admin`: earnings chart, customers (last seen, CSV export), payments to
   approve, Pro-ending reminders over WhatsApp, prices and UPI ID.
@@ -172,10 +182,11 @@ is saved in `/admin` > Settings, everything stays free.
 1. Storage: Vercel project > Storage > Create > Upstash for Redis, connected to this project
    (adds `KV_REST_API_URL` and `KV_REST_API_TOKEN`).
 2. Environment variable `ADMIN_PASSWORD` (8+ characters) for `/admin`. Redeploy.
-3. In `/admin` > Settings, save your UPI ID and the name customers should see.
+3. In `/admin` > Settings, save your Razorpay keys (Test keys first) and/or your UPI ID and the name
+   customers should see.
 
-Plan checks run in the browser, so a technical user could get around them. Payments are only counted
-after the owner approves them.
+Plan checks run in the browser, so a technical user could get around them. UPI QR payments are only
+counted after the owner approves them; Razorpay payments once Razorpay confirms them to the server.
 
 ## Multiple shops (GSTINs)
 

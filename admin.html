@@ -259,9 +259,9 @@
     <section data-panel="payments" class="hidden">
       <div class="card">
         <h2>Payments</h2>
-        <p class="sub">Customers pay your UPI QR and send the 12-digit transaction number (UTR). Find the same UTR and amount in your bank or UPI app, then Approve. Approve turns Pro on straight away; Reject lets the customer send a corrected number.</p>
+        <p class="sub">Razorpay payments turn Pro on by themselves and show here as Paid. UPI QR payments come with the 12-digit transaction number (UTR): find the same UTR and amount in your bank or UPI app, then Approve. Approve turns Pro on straight away; Reject lets the customer send a corrected number.</p>
         <div class="chips" id="pfilters" role="group" aria-label="Show payments"></div>
-        <div class="row" style="margin:12px 0"><input id="pq" type="search" placeholder="Search mobile or UTR" style="flex:1;max-width:360px"></div>
+        <div class="row" style="margin:12px 0"><input id="pq" type="search" placeholder="Search mobile, UTR or pay_ ID" style="flex:1;max-width:360px"></div>
         <div class="tablewrap" id="payments"></div>
         <div class="pager" id="ppager"></div>
       </div>
@@ -368,6 +368,19 @@
           <label class="f">UPI ID<input type="text" name="upiId" placeholder="yourname@okaxis" autocomplete="off" spellcheck="false"></label>
           <label class="f">Name shown to customers<input type="text" name="payeeName" placeholder="Kavya Clothing" maxlength="50"></label>
         </div>
+        <h2>Razorpay</h2>
+        <p class="sub">Customers tap <b>Pay</b> and pay in Razorpay's checkout (any UPI app, card, net banking or wallet). Pro turns on by itself the moment Razorpay confirms the money; nothing to approve. With a UPI ID saved above too, customers can still choose the UPI QR instead.</p>
+        <ol class="sub" style="margin:0 0 10px;padding-left:20px">
+          <li>In the Razorpay Dashboard, switch to <b>Live mode</b>, open <b>Account &amp; Settings → API keys</b> and generate a key. Copy the <b>Key ID</b> and <b>Key Secret</b> (the secret is shown only once).</li>
+          <li>Paste both here, tap <b>Test keys</b>, then <b>Save settings</b>.</li>
+          <li>Recommended: in <b>Account &amp; Settings → Webhooks</b>, add a webhook with the address below and the events <b>payment.captured</b> and <b>order.paid</b>. Secret: any password (PakkaBill checks every payment with Razorpay itself). It turns Pro on even if a customer closes the app right after paying.</li>
+        </ol>
+        <div class="grid2">
+          <label class="f">Key ID<input type="text" name="rzpKeyId" maxlength="60" placeholder="rzp_live_..." autocomplete="off" spellcheck="false"></label>
+          <label class="f">Key Secret<input type="password" name="rzpKeySecret" maxlength="120" autocomplete="new-password"></label>
+        </div>
+        <div class="row" style="margin-top:10px;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn sec" type="button" id="rzpTestBtn">Test keys</button><span id="rzpTestOut" class="muted"></span></div>
+        <label class="f" style="margin:10px 0 18px">Webhook address <span class="muted">(for Razorpay → Webhooks)</span><span class="row" style="gap:8px"><input type="text" id="rzpHook" readonly style="flex:1"><button class="btn sec sm" type="button" id="rzpHookCopy">Copy</button></span></label>
         <h2>Prices and free plan</h2>
         <p class="sub">Changes apply to new payments right away.</p>
         <div class="grid2">
@@ -490,15 +503,16 @@
     ({ overview: loadOverview, customers: loadUsers, payments: loadPayments, activity: loadActivity, visitors: loadVisitors, support: loadTickets, offers: loadOffers, settings: loadSettings })[tab]?.();
   }
 
-  function stateBadge(s) {
+  function stateBadge(s, o) {
     const cls = s === 'COMPLETED' ? 'pro' : s === 'REJECTED' ? 'bad' : 'wait';
-    const label = { COMPLETED: 'Approved', REJECTED: 'Rejected', PENDING: 'Waiting for you' }[s] || s;
+    const label = { COMPLETED: o && o.paymentId ? 'Paid' : 'Approved', REJECTED: 'Rejected', PENDING: 'Waiting for you' }[s] || s;
     return `<span class="pill ${cls}">${esc(label)}</span>`;
   }
+  const payRef = (o) => o.utr || (o.paymentId ? `Razorpay ${o.paymentId}${o.payMethod ? ' · ' + o.payMethod : ''}` : '—');
   function paymentsTable(list, withActions) {
     if (!list.length) return '<p class="empty">No payments yet.</p>';
-    return `<table><thead><tr><th>Date</th><th>Mobile</th><th>Plan</th><th class="num">Amount</th><th>UTR</th><th>Status</th>${withActions ? '<th></th>' : ''}</tr></thead><tbody>${list
-      .map((o) => `<tr><td>${when(o.createdAt)}</td><td><a href="#" data-cust="${esc(o.phone)}">${esc(o.phone)}</a></td><td>${o.plan === 'yearly' ? 'Yearly' : 'Monthly'}</td><td class="num">${money(o.amount / 100)}</td><td><code>${esc(o.utr || '—')}</code></td><td>${stateBadge(o.state)}</td>${
+    return `<table><thead><tr><th>Date</th><th>Mobile</th><th>Plan</th><th class="num">Amount</th><th>UTR / Razorpay</th><th>Status</th>${withActions ? '<th></th>' : ''}</tr></thead><tbody>${list
+      .map((o) => `<tr><td>${when(o.createdAt)}</td><td><a href="#" data-cust="${esc(o.phone)}">${esc(o.phone)}</a></td><td>${o.plan === 'yearly' ? 'Yearly' : 'Monthly'}</td><td class="num">${money(o.amount / 100)}</td><td><code>${esc(payRef(o))}</code></td><td>${stateBadge(o.state, o)}</td>${
         withActions ? `<td>${o.state === 'PENDING' ? `<div class="actions"><button class="btn sm" data-approve="${esc(o.id)}">Approve</button><button class="btn danger sm" data-reject="${esc(o.id)}">Reject</button></div>` : ''}</td>` : ''
       }</tr>`)
       .join('')}</tbody></table>`;
@@ -522,10 +536,10 @@
       const fun = [['Signed up', s.users], ['Active this week', s.activeWeek], ['Ever paid', s.payers], ['Pro right now', s.pro]];
       $('#funnel').innerHTML = `<div class="funnel">${fun.map(([l, v]) => `<div><span>${l}</span><i style="width:${s.users ? Math.max(1, Math.round((v / s.users) * 100)) : 0}%"></i><b>${n(v)}</b></div>`).join('')}</div>`;
       $('#setupBanner').innerHTML = !s.paymentsReady
-        ? `<div class="banner warn"><b>Payments are not switched on yet</b>, so every feature is free for everyone. Add your UPI ID in <b>Settings</b> to start selling Pro.</div>`
+        ? `<div class="banner warn"><b>Payments are not switched on yet</b>, so every feature is free for everyone. Add your Razorpay keys or UPI ID in <b>Settings</b> to start selling Pro.</div>`
         : s.waiting
         ? `<div class="banner warn"><b>${s.waiting} payment${s.waiting > 1 ? 's' : ''} waiting for you.</b> Match the UTR in your bank or UPI app, then approve in <b>Payments</b>.</div>`
-        : '<div class="banner ok">UPI payments are on. No payments waiting.</div>';
+        : '<div class="banner ok">Payments are on. No payments waiting.</div>';
       if (s.tickets && s.tickets.needsReply) $('#setupBanner').innerHTML += `<div class="banner warn"><b>${s.tickets.needsReply} support ticket${s.tickets.needsReply > 1 ? 's' : ''} waiting for your reply.</b> Open <b>Support</b> to answer.</div>`;
       setTkBadge(s.tickets);
       const top = Math.max(1, ...s.series.map((m) => m.amount));
@@ -884,7 +898,7 @@
         <div class="card"><h3 style="margin-top:0">Plan</h3><div class="actions"><button class="btn sec sm" data-grant="30">+1 month</button><button class="btn sec sm" data-grant="365">+1 year</button><button class="btn sec sm" data-grant="?">+ days…</button>${u.pro ? '<button class="btn danger sm" data-revoke>Remove Pro</button>' : ''}</div></div>
         <div class="card"><h3 style="margin-top:0">Send a notification</h3>${c.devices ? `<input type="text" id="ntitle" maxlength="80" placeholder="Title, e.g. Your payment is confirmed"><textarea id="nbody" rows="2" maxlength="300" placeholder="Message (optional)" style="margin-top:8px"></textarea><div class="row" style="margin-top:8px"><button class="btn sm" data-notify>Send to their phone</button></div>` : '<p class="muted" style="margin:0">This customer has not turned on notifications. Use WhatsApp instead.</p>'}</div>
         <div class="card"><h3 style="margin-top:0">Private note</h3><textarea id="cnote" rows="3" maxlength="1000" placeholder="Only you see this. E.g. Paid by cash, gave extra month">${esc(u.note)}</textarea><div class="row" style="margin-top:8px"><button class="btn sec sm" data-note>Save note</button></div></div>
-        <div class="card"><h3 style="margin-top:0">Payments</h3>${c.orders.length ? `<ul class="log">${c.orders.map((o) => `<li><time>${when(o.createdAt)}</time><span>${money(o.amount / 100)} · ${o.plan === 'yearly' ? 'Yearly' : 'Monthly'} · UTR <code>${esc(o.utr || '—')}</code> ${stateBadge(o.state)}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:0">No payments.</p>'}</div>
+        <div class="card"><h3 style="margin-top:0">Payments</h3>${c.orders.length ? `<ul class="log">${c.orders.map((o) => `<li><time>${when(o.createdAt)}</time><span>${money(o.amount / 100)} · ${o.plan === 'yearly' ? 'Yearly' : 'Monthly'} · ${o.utr ? 'UTR ' : ''}<code>${esc(payRef(o))}</code> ${stateBadge(o.state, o)}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:0">No payments.</p>'}</div>
         <div class="card"><h3 style="margin-top:0">Help requests</h3>${c.tickets.length ? `<ul class="log">${c.tickets.map((t) => `<li><time>${when(t.updatedAt)}</time><span>${esc(t.no || '')} ${esc(t.subject || '')} ${tkPill(t.status)}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:0">No help requests.</p>'}</div>
         <div class="card"><h3 style="margin-top:0">Account</h3><div class="actions"><button class="btn sec sm" data-reset>Reset password</button>${u.phone !== 'owner' ? `<button class="btn ${u.blocked ? 'sec' : 'danger'} sm" data-block="${u.blocked ? '0' : '1'}">${u.blocked ? 'Unblock account' : 'Block account'}</button>` : ''}</div><p class="muted" style="margin:8px 0 0">Blocking logs the customer out everywhere and stops them logging in. Bills on their phone keep working.</p></div>`;
       drawer.onclick = (e) => customerAction(e, u.phone);
@@ -1025,6 +1039,8 @@
       form.freeBills.value = settings.freeBills;
       form.enforce.checked = !!settings.enforce;
       form.upiId.value = settings.upiId || '';
+      const rz = settings.razorpay || {};
+      form.rzpKeyId.value = rz.keyId || ''; form.rzpKeySecret.value = rz.keySecret || '';
       form.payeeName.value = settings.payeeName || '';
       form.trialDays.value = settings.trialDays == null ? 7 : settings.trialDays;
       form.syncFree.checked = !!settings.syncFree;
@@ -1036,6 +1052,16 @@
       gstShow();
     } catch (e) { toast(e.message, true); }
   }
+  $('#rzpHook').value = location.origin + '/api/pay?razorpay=webhook';
+  $('#rzpHookCopy').addEventListener('click', async () => { const v = $('#rzpHook').value; try { await navigator.clipboard.writeText(v); toast('Webhook address copied.'); } catch { prompt('Copy the webhook address:', v); } });
+  $('#rzpTestBtn').addEventListener('click', async () => {
+    const out = $('#rzpTestOut');
+    out.textContent = 'Checking with Razorpay…';
+    try {
+      const r = await api('rzpTest', { keyId: form.rzpKeyId.value, keySecret: form.rzpKeySecret.value });
+      out.textContent = r.live ? '✓ Keys work (live mode). Save settings to start taking payments.' : '✓ Keys work, but these are TEST keys: no real money is taken. Use rzp_live_ keys to sell.';
+    } catch (e) { out.textContent = '✗ ' + e.message; }
+  });
   function gstShow() { document.querySelectorAll('[data-gst]').forEach((el) => { el.hidden = el.dataset.gst !== form.gstProvider.value; }); }
   form.gstProvider.addEventListener('change', gstShow);
   $('#gstTryBtn').addEventListener('click', async () => {
@@ -1052,6 +1078,7 @@
     e.preventDefault();
     try {
       await api('saveSettings', { monthly: form.monthly.value, yearly: form.yearly.value, freeBills: form.freeBills.value, enforce: form.enforce.checked, upiId: form.upiId.value, payeeName: form.payeeName.value, trialDays: form.trialDays.value, syncFree: form.syncFree.checked, biz: Object.fromEntries(BIZ.map((k) => [k, form[k].value])),
+        razorpay: { keyId: form.rzpKeyId.value, keySecret: form.rzpKeySecret.value },
         gst: { provider: form.gstProvider.value, apiKey: form.gstApiKey.value, clientId: form.gstClientId.value, clientSecret: form.gstClientSecret.value, sandbox: form.gstSandbox.checked, url: form.gstUrl.value, header: form.gstHeader.value } });
       toast('Settings saved.');
     } catch (err) { toast(err.message, true); }

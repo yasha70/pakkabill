@@ -18,7 +18,7 @@
         },
         {
           "key": "Permissions-Policy",
-          "value": "geolocation=(), payment=(), usb=(), interest-cohort=()"
+          "value": "geolocation=(), payment=(self \"https://api.razorpay.com\" \"https://checkout.razorpay.com\"), usb=(), interest-cohort=()"
         },
         {
           "key": "Strict-Transport-Security",

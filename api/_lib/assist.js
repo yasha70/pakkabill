@@ -156,14 +156,14 @@ async function investigate(t) {
   if (user) {
     f.plan = { pro: (user.paidUntil || 0) > now, paidUntil: user.paidUntil || 0, lastPlan: user.lastPlan || '' };
     f.orders = (await orders.mine(user.phone)).map((o) => ({
-      id: o.id, plan: o.plan, amount: o.amount, utr: o.utr, state: o.state, createdAt: o.createdAt, paidAt: o.paidAt || 0, rejectedAt: o.rejectedAt || 0,
+      id: o.id, plan: o.plan, amount: o.amount, utr: o.utr, paymentId: o.paymentId || '', state: o.state, createdAt: o.createdAt, paidAt: o.paidAt || 0, rejectedAt: o.rejectedAt || 0,
     }));
     note(f.plan.pro
       ? `✓ Pro is active until ${dateStr(f.plan.paidUntil)}${f.plan.lastPlan ? ` (${f.plan.lastPlan})` : ''}.`
       : f.plan.paidUntil ? `ℹ Pro ended on ${dateStr(f.plan.paidUntil)}; on the free plan now.` : 'ℹ Free plan, never had Pro.');
     if (f.plan.pro && f.appPlan === 'free') note('⚠ The app showed the free plan although the account is Pro: the app needs to refresh the plan.');
     if (!f.orders.length) note('ℹ No payments submitted from this account.');
-    f.orders.forEach((o) => note(`${o.state === 'PENDING' ? '⏳' : o.state === 'COMPLETED' ? '✓' : '✗'} Payment ${rupees(o.amount)} ${planName(o.plan)}, UTR ${o.utr}, ${o.state.toLowerCase()}, sent ${since(o.createdAt)}.`));
+    f.orders.forEach((o) => note(`${o.state === 'PENDING' ? '⏳' : o.state === 'COMPLETED' ? '✓' : '✗'} Payment ${rupees(o.amount)} ${planName(o.plan)}, ${o.utr ? 'UTR ' + o.utr : 'Razorpay ' + o.paymentId}, ${o.state.toLowerCase()}, sent ${since(o.createdAt)}.`));
   }
 
   const said = t.messages.filter((m) => m.by === 'customer').map((m) => m.text).join('\n');
