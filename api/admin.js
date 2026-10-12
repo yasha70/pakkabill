@@ -311,7 +311,7 @@ const actions = {
     return { settings: await core.getSettings(true) };
   },
 
-  async saveSettings({ monthly, yearly, freeBills, enforce, upiId, payeeName, trialDays, syncFree, biz }) {
+  async saveSettings({ monthly, yearly, freeBills, enforce, upiId, payeeName, trialDays, syncFree, biz, gst }) {
     const prev = await core.getSettings(true);
     const s = {
       monthly: Math.round(Number(monthly)),
@@ -327,6 +327,12 @@ const actions = {
     const B = biz && typeof biz === 'object' ? biz : prev;
     for (const [k, n] of [['bizName', 100], ['bizEmail', 100], ['bizPhone', 20], ['bizAddress', 300], ['grievanceName', 80]]) s[k] = String(B[k] || '').trim().slice(0, n);
     if (s.bizEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.bizEmail)) throw new core.HttpError(400, 'That email address does not look right.');
+    // GST number lookup service (fills buyer name and address from a GSTIN)
+    const G = gst && typeof gst === 'object' ? gst : prev.gst || {};
+    s.gst = { provider: ['', 'off', 'cashfree', 'url'].includes(G.provider) ? G.provider : '', clientId: String(G.clientId || '').trim().slice(0, 120), clientSecret: String(G.clientSecret || '').trim().slice(0, 200),
+      sandbox: !!G.sandbox, url: String(G.url || '').trim().slice(0, 300), header: String(G.header || '').trim().slice(0, 300) };
+    if (s.gst.provider === 'url' && !/^https:\/\/.+\{gstin\}/.test(s.gst.url)) throw new core.HttpError(400, 'The GST lookup address must start with https:// and contain {gstin}.');
+    if (s.gst.provider === 'cashfree' && !(s.gst.clientId && s.gst.clientSecret)) throw new core.HttpError(400, 'Add the Cashfree client ID and secret for GST lookup.');
     if (!(s.trialDays >= 0 && s.trialDays <= 90)) throw new core.HttpError(400, 'Free trial days must be 0 to 90.');
     if (s.upiId && !core.UPI_ID.test(s.upiId)) throw new core.HttpError(400, 'That does not look like a UPI ID (name@bank).');
     if (!(s.monthly >= 1 && s.yearly >= 1)) throw new core.HttpError(400, 'Prices must be at least ₹1.');

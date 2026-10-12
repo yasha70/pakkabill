@@ -390,6 +390,22 @@
           <label class="f">Grievance officer name<input type="text" name="grievanceName" maxlength="80"></label>
         </div>
         <label class="f" style="margin-top:10px">Business address <span class="muted">(city and state at least)</span><input type="text" name="bizAddress" maxlength="300"></label>
+        <h2 style="margin-top:20px">GST number lookup</h2>
+        <p class="sub">When someone types a GST number in a bill, a party or the Shop page and taps <b>Fetch details</b>, PakkaBill fills the registered name and address. Each new number is one paid lookup at the service you choose; answers are kept for 30 days, so a number is paid for once. With the service off, the button still fills the state, PAN and kind of business from the number itself.</p>
+        <div class="grid2">
+          <label class="f">Service<select name="gstProvider"><option value="">Off (state and PAN only)</option><option value="cashfree">Cashfree Verification (GSTIN)</option><option value="url">Another GSTIN API</option></select></label>
+        </div>
+        <div class="grid2" data-gst="cashfree" hidden>
+          <label class="f">Cashfree client ID<input type="text" name="gstClientId" maxlength="120" autocomplete="off"></label>
+          <label class="f">Cashfree client secret<input type="password" name="gstClientSecret" maxlength="200" autocomplete="new-password"></label>
+          <label class="check"><input type="checkbox" name="gstSandbox"><span>These are test (sandbox) keys</span></label>
+        </div>
+        <div data-gst="url" hidden>
+          <label class="f">Lookup address <span class="muted">(must contain {gstin})</span><input type="url" name="gstUrl" maxlength="300" placeholder="https://api.example.com/gstin/{gstin}"></label>
+          <label class="f" style="margin-top:10px">Header <span class="muted">(optional, for the API key)</span><input type="text" name="gstHeader" maxlength="300" placeholder="x-api-key: your-key" autocomplete="off"></label>
+        </div>
+        <div class="row" style="margin-top:10px;gap:8px;align-items:flex-end"><label class="f" style="flex:1">Try a GST number <span class="muted">(after saving)</span><input type="text" id="gstTry" maxlength="15" placeholder="27AAPFU0939F1ZV" style="text-transform:uppercase"></label><button class="btn sec" type="button" id="gstTryBtn">Look up</button></div>
+        <pre id="gstTryOut" class="muted" style="white-space:pre-wrap;margin:8px 0 0;font-size:.85rem" hidden></pre>
         <div class="row" style="margin-top:16px"><button class="btn" type="submit">Save settings</button></div>
       </form>
     </section>
@@ -1008,12 +1024,30 @@
       form.trialDays.value = settings.trialDays == null ? 7 : settings.trialDays;
       form.syncFree.checked = !!settings.syncFree;
       BIZ.forEach((k) => { form[k].value = settings[k] || ''; });
+      const g = settings.gst || {};
+      form.gstProvider.value = g.provider === 'off' ? '' : g.provider || '';
+      form.gstClientId.value = g.clientId || ''; form.gstClientSecret.value = g.clientSecret || ''; form.gstSandbox.checked = !!g.sandbox;
+      form.gstUrl.value = g.url || ''; form.gstHeader.value = g.header || '';
+      gstShow();
     } catch (e) { toast(e.message, true); }
   }
+  function gstShow() { document.querySelectorAll('[data-gst]').forEach((el) => { el.hidden = el.dataset.gst !== form.gstProvider.value; }); }
+  form.gstProvider.addEventListener('change', gstShow);
+  $('#gstTryBtn').addEventListener('click', async () => {
+    const out = $('#gstTryOut'), g = $('#gstTry').value.trim().toUpperCase();
+    out.hidden = false; out.textContent = 'Looking up…';
+    try {
+      const r = await fetch('/api/gstin?g=' + encodeURIComponent(g)); const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Lookup failed');
+      out.textContent = j.offline ? `Service is off. From the number: ${j.stateName}, PAN ${j.pan}, ${j.entity}.`
+        : [j.legalName && 'Legal name: ' + j.legalName, j.tradeName && 'Trade name: ' + j.tradeName, j.address && 'Address: ' + j.address, j.status && 'Status: ' + j.status, j.type && 'Type: ' + j.type, j.regDate && 'Registered: ' + j.regDate, j.cached && '(saved answer)'].filter(Boolean).join('\n');
+    } catch (e) { out.textContent = e.message; }
+  });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-      await api('saveSettings', { monthly: form.monthly.value, yearly: form.yearly.value, freeBills: form.freeBills.value, enforce: form.enforce.checked, upiId: form.upiId.value, payeeName: form.payeeName.value, trialDays: form.trialDays.value, syncFree: form.syncFree.checked, biz: Object.fromEntries(BIZ.map((k) => [k, form[k].value])) });
+      await api('saveSettings', { monthly: form.monthly.value, yearly: form.yearly.value, freeBills: form.freeBills.value, enforce: form.enforce.checked, upiId: form.upiId.value, payeeName: form.payeeName.value, trialDays: form.trialDays.value, syncFree: form.syncFree.checked, biz: Object.fromEntries(BIZ.map((k) => [k, form[k].value])),
+        gst: { provider: form.gstProvider.value, clientId: form.gstClientId.value, clientSecret: form.gstClientSecret.value, sandbox: form.gstSandbox.checked, url: form.gstUrl.value, header: form.gstHeader.value } });
       toast('Settings saved.');
     } catch (err) { toast(err.message, true); }
   });

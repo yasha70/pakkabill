@@ -115,6 +115,24 @@ each courier), Excel (CSV) or WhatsApp text. With labels only, the chart is made
   `pnl-pdf-fonts.js` through `pdf-fontkit.js` (fontkit 1.1.1, MIT). All three load only when a PDF is made;
   without them the plain pages in `labels.html` are used.
 
+## GST number lookup
+
+In a new bill (Bill to), a party and the Shop page, a **Fetch details** button under the GSTIN box fills
+the registered name (trade name, else legal name, only when the name box is empty), the address and the
+state, and shows the status (Active / Cancelled), taxpayer type, constitution, registration date and legal
+name. A cancelled number is shown in red.
+
+- `gst.js` (browser) asks `GET /api/gstin?g=...`. Offline, or with no lookup service, it still fills the
+  state and shows the PAN's kind of business (company, proprietor...).
+- `api/gstin.js` + `api/_lib/gst.js` check the number (pattern, state code, check digit), then ask the service
+  chosen in admin (Settings > GST number lookup): **Cashfree Verification** (client ID and secret) or any
+  other GSTIN API (an https address with `{gstin}` in it and an optional header for its key). Environment
+  variables do the same: `CASHFREE_CLIENT_ID` / `CASHFREE_CLIENT_SECRET` (`CASHFREE_SANDBOX=1`), or
+  `GST_LOOKUP_URL` / `GST_LOOKUP_HEADER`. Answers in the GST portal's shape (`lgnm`, `tradeNam`, `pradr`...)
+  or with longer names (`legal_name_of_business`, `principal_place_address`...) are both read.
+- Each number's answer is kept for 30 days, so it is paid for once; 30 lookups an hour per visitor and
+  2,000 a day in all protect the credits. Tests: `test/gst-audit.js`.
+
 ## PakkaBill Pro (paid plans)
 
 | | Free | Pro (monthly or yearly) |
