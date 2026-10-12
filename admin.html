@@ -1037,7 +1037,7 @@
     const out = $('#gstTryOut'), g = $('#gstTry').value.trim().toUpperCase();
     out.hidden = false; out.textContent = 'Looking up…';
     try {
-      const r = await fetch('/api/gstin?g=' + encodeURIComponent(g)); const j = await r.json();
+      const r = await fetch('/api/config?gstin=' + encodeURIComponent(g)); const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'Lookup failed');
       out.textContent = j.offline ? `Service is off. From the number: ${j.stateName}, PAN ${j.pan}, ${j.entity}.`
         : [j.legalName && 'Legal name: ' + j.legalName, j.tradeName && 'Trade name: ' + j.tradeName, j.address && 'Address: ' + j.address, j.status && 'Status: ' + j.status, j.type && 'Type: ' + j.type, j.regDate && 'Registered: ' + j.regDate, j.cached && '(saved answer)'].filter(Boolean).join('\n');

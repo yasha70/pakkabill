@@ -153,4 +153,25 @@ async function ask(cfg, g, fetchFn) {
 }
 async function lookup(cfg, g, fetchFn) { return normalize(await ask(cfg, g, fetchFn), g); }
 
-module.exports = { clean, check, checkDigit, fromNumber, normalize, config, lookup, STATES, ENTITY };
+// GET /api/config?gstin=27AAPFU0939F1ZV -> registered name, address, status and type of a GST number.
+// (Answered by the config endpoint, so it needs no serverless function of its own.)
+// Without a lookup service it answers with what the number itself says and offline: true. Answers are
+// kept for 30 days, so a number is paid for once.
+async function handle(req, res, raw) {
+  const db = require('./db');
+  const v = check(raw);
+  if (!v.ok) throw new core.HttpError(400, v.message);
+  const g = v.gstin;
+  // paid lookups need the database: for the saved answers and the limits that protect the credits
+  const cfg = db.configured() ? config(await core.getSettings()) : null;
+  if (!cfg) return core.send(res, 200, Object.assign(fromNumber(g), { offline: true }));
+  const hit = await db.getJSON(`gst:${g}`);
+  if (hit) return core.send(res, 200, Object.assign(hit, { cached: true }));
+  await core.rateLimit(`gst:${core.clientIp(req) || 'anon'}`, 30, 3600);
+  await core.rateLimit('gst:day', 2000, 86400);
+  const data = await lookup(cfg, g);
+  await db.setJSON(`gst:${g}`, data, 30 * 86400);
+  core.send(res, 200, data);
+}
+
+module.exports = { clean, check, checkDigit, fromNumber, normalize, config, lookup, handle, STATES, ENTITY };

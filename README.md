@@ -122,9 +122,9 @@ the registered name (trade name, else legal name, only when the name box is empt
 state, and shows the status (Active / Cancelled), taxpayer type, constitution, registration date and legal
 name. A cancelled number is shown in red.
 
-- `gst.js` (browser) asks `GET /api/gstin?g=...`. Offline, or with no lookup service, it still fills the
+- `gst.js` (browser) asks `GET /api/config?gstin=...` (part of the config endpoint, because the Hobby plan allows 12 functions). Offline, or with no lookup service, it still fills the
   state and shows the PAN's kind of business (company, proprietor...).
-- `api/gstin.js` + `api/_lib/gst.js` check the number (pattern, state code, check digit), then ask the service
+- `api/_lib/gst.js` checks the number (pattern, state code, check digit), then ask the service
   chosen in admin (Settings > GST number lookup): **Cashfree Verification** (client ID and secret) or any
   other GSTIN API (an https address with `{gstin}` in it and an optional header for its key). Environment
   variables do the same: `CASHFREE_CLIENT_ID` / `CASHFREE_CLIENT_SECRET` (`CASHFREE_SANDBOX=1`), or

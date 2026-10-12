@@ -1,6 +1,6 @@
 // PakkaBill GST number lookup in the browser: window.pbGstFetch(gstin) -> { name, legalName, tradeName,
 // address, pincode, stateCode, stateName, status, type, constitution, regDate, pan, entity, source, note }.
-// Asks /api/gstin (which uses the lookup service chosen in admin). Offline, or with no service, it still
+// Asks /api/config?gstin= (which uses the lookup service chosen in admin). Offline, or with no service, it still
 // gives what the number itself says: the state, the PAN and the kind of business.
 (function () {
   'use strict';
@@ -20,7 +20,7 @@
     var g = String(raw || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
     if (saved[g]) return Promise.resolve(saved[g]);
     if (navigator.onLine === false) return Promise.resolve(local(g, 'You are offline, so only the state is filled from the number. Type the name and address.'));
-    return fetch('/api/gstin?g=' + encodeURIComponent(g), { headers: { Accept: 'application/json' } }).then(function (r) {
+    return fetch('/api/config?gstin=' + encodeURIComponent(g), { headers: { Accept: 'application/json' } }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
         if (!r.ok) { var e = new Error(j.error || 'Could not fetch the details. Try again.'); e.status = r.status; throw e; }
         return j;

@@ -1,4 +1,4 @@
-// Checks of the GST number lookup (api/_lib/gst.js and api/gstin.js): number checks, what the number
+// Checks of the GST number lookup (api/_lib/gst.js, answered by api/config.js?gstin=): number checks, what the number
 // itself says, reading answers in the shapes GSTIN services use, choosing the service, and the endpoint.
 // Run: node test/gst-audit.js   (exits 1 on any failure)
 'use strict';
@@ -69,10 +69,10 @@ function eq(a, b, what) { const A = JSON.stringify(a), B = JSON.stringify(b); ok
 
   /* 5. the endpoint: checks, offline answer, lookup once then the saved answer */
   delete env.GST_LOOKUP_URL; delete env.GST_LOOKUP_HEADER;
-  const handler = require('../api/gstin');
+  const handler = require('../api/config');
   const call = (q) => new Promise((resolve) => {
     const res = { statusCode: 0, headers: {}, setHeader(k, v) { this.headers[k] = v; }, end(b) { resolve({ status: this.statusCode, body: JSON.parse(b) }); } };
-    handler({ method: 'GET', url: '/api/gstin?g=' + q, headers: { 'x-forwarded-for': '1.2.3.4' }, socket: {} }, res);
+    handler({ method: 'GET', url: '/api/config?gstin=' + q, headers: { 'x-forwarded-for': '1.2.3.4' }, socket: {} }, res);
   });
   let a = await call('27AAPFU0939F1ZX');
   eq([a.status, /typo/.test(a.body.error)], [400, true], 'endpoint: bad number is refused before any lookup');
