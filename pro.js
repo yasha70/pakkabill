@@ -151,7 +151,7 @@
     const save = m * 12 - y;
     return `<div class="pbp-plans">
       <button type="button" class="pbp-plan" data-plan="monthly"><b>${rupees(m)}</b><span>per month</span></button>
-      <button type="button" class="pbp-plan is-best" data-plan="yearly">${save > 0 ? `<i>Save ${rupees(save)}</i>` : ''}<b>${rupees(y)}</b><span>per year</span></button>
+      <button type="button" class="pbp-plan is-best" data-plan="yearly">${save > 0 ? `<i>Save ${rupees(save)}</i>` : ''}<b>${rupees(y)}</b><span>per year · ${rupees(Math.round(y / 12))}/month</span></button>
     </div>`;
   }
 
@@ -370,87 +370,136 @@
     sc.onerror = () => { rzpLib = null; sc.remove(); fail(new Error('Could not load Razorpay. Check your internet and try again.')); };
     document.head.appendChild(sc);
   }));
+  const LOCK = '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 1 1 6 0v3H9Z"/></svg>';
+  const TICK = '<svg class="pbp-tick" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="36"/><path d="M22 37l10 10 18-20"/></svg>';
   function openRzp(plan, presetCoupon = '') {
-    const listPrice = plan === 'yearly' ? cfg.yearly : cfg.monthly;
-    const period = plan === 'yearly' ? '1 year' : '1 month';
-    let amount = listPrice;
-    let coupon = '';
+    const price = { monthly: Number(cfg.monthly), yearly: Number(cfg.yearly) };
+    const wasPro = isPro();
+    // plan, coupon and price shown; couponOpen shows the code box; errors stay until the next action
+    const st = { plan, coupon: '', amount: price[plan], couponOpen: !!presetCoupon, couponErr: '', payErr: '' };
+    const period = () => (st.plan === 'yearly' ? '1 year' : '1 month');
+    // the new end date: Pro time adds on top of what is left
+    const until = () => dateStr(Math.max(Date.now(), (acct && acct.user && acct.user.paidUntil) || 0) + (st.plan === 'yearly' ? 365 : 30) * 864e5);
     loadRzp().catch(() => {}); // start loading while the customer reads
     showDialog((box) => {
       const overlay = box.parentNode;
+      const quote = async (code) => {
+        const q = await api('pay', { body: { action: 'quote', plan: st.plan, coupon: code } });
+        st.coupon = q.coupon;
+        st.amount = q.amount;
+      };
       const draw = () => {
+        const list = price[st.plan];
+        const save = price.monthly * 12 - price.yearly;
         box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button>
         <div class="pbp-badge">PRO</div>
-        <h2 id="pbp-title">Pay ${rupees(amount)}${amount < listPrice ? ` <s class="pbp-was">${rupees(listPrice)}</s>` : ''}</h2>
-        <p class="pbp-why">PakkaBill Pro for ${period}.${coupon ? ` Coupon <b>${esc(coupon)}</b> applied.` : ''}</p>
-        <form class="pbp-coupon"><input name="code" placeholder="Coupon code" aria-label="Coupon code" autocomplete="off" value="${esc(coupon || presetCoupon)}"><button type="submit" class="pbp-btn pbp-btn--sm">${coupon ? 'Change' : 'Apply'}</button></form>
-        <p class="pbp-err pbp-coupon-err" role="alert"></p>
-        <button type="button" class="pbp-btn" data-rzp style="width:100%;margin-top:4px">Pay ${rupees(amount)}</button>
-        <p class="pbp-err pbp-rzp-err" role="alert"></p>
-        <p class="pbp-fine">Any UPI app (PhonePe, Google Pay, Paytm), card, net banking or wallet. Secured by Razorpay. Pro turns on as soon as you pay.</p>
-        ${cfg.upiId ? '<p class="pbp-fine"><button type="button" class="pbp-link" data-upi>Or scan our UPI QR and send the transaction number</button></p>' : ''}`;
+        <h2 id="pbp-title">${wasPro ? 'Extend PakkaBill Pro' : 'Get PakkaBill Pro'}</h2>
+        <div class="pbp-pick" role="radiogroup" aria-label="Choose a plan">
+          <button type="button" role="radio" aria-checked="${st.plan === 'monthly'}" class="${st.plan === 'monthly' ? 'is-on' : ''}" data-pick="monthly"><span>Monthly</span><b>${rupees(price.monthly)}</b><small>per month</small></button>
+          <button type="button" role="radio" aria-checked="${st.plan === 'yearly'}" class="${st.plan === 'yearly' ? 'is-on' : ''}" data-pick="yearly">${save > 0 ? `<i>Save ${rupees(save)}</i>` : ''}<span>Yearly</span><b>${rupees(price.yearly)}</b><small>${rupees(Math.round(price.yearly / 12))} a month</small></button>
+        </div>
+        <div class="pbp-sum">
+          <div><span>PakkaBill Pro, ${period()}</span><span>${rupees(list)}</span></div>
+          ${st.coupon ? `<div class="pbp-sum__off"><span>Coupon ${esc(st.coupon)} <button type="button" class="pbp-link" data-uncoupon>Remove</button></span><span>−${rupees(list - st.amount)}</span></div>` : ''}
+          <div class="pbp-sum__total"><span>You pay</span><b>${rupees(st.amount)}</b></div>
+          <p>Pro till <b>${until()}</b>${wasPro ? ', added on top of your plan' : ''}</p>
+        </div>
+        ${st.coupon ? '' : st.couponOpen
+          ? `<form class="pbp-coupon"><input name="code" placeholder="Coupon code" aria-label="Coupon code" autocomplete="off" autocapitalize="characters" value="${esc(presetCoupon)}"><button type="submit" class="pbp-btn pbp-btn--sm">Apply</button></form>`
+          : '<button type="button" class="pbp-link pbp-havecode" data-havecode>Have a coupon code?</button>'}
+        <p class="pbp-err pbp-coupon-err" role="alert">${esc(st.couponErr)}</p>
+        <button type="button" class="pbp-btn pbp-paybtn" data-rzp>${LOCK}<span>Pay ${rupees(st.amount)}</span></button>
+        <p class="pbp-err pbp-rzp-err" role="alert">${esc(st.payErr)}</p>
+        <div class="pbp-ways" aria-label="Ways to pay"><span>UPI</span><span>Cards</span><span>Net banking</span><span>Wallets</span></div>
+        <p class="pbp-fine pbp-center">Secured by Razorpay. Pro turns on the moment you pay.</p>
+        ${cfg.upiId ? '<p class="pbp-fine pbp-center"><button type="button" class="pbp-link" data-upi>Pay by scanning our UPI QR instead</button></p>' : ''}`;
         box.querySelector('.pbp-x').addEventListener('click', closeUpgrade);
-        box.querySelector('[data-upi]')?.addEventListener('click', () => openUpi(plan, coupon || presetCoupon));
+        box.querySelector('[data-upi]')?.addEventListener('click', () => openUpi(st.plan, st.coupon || presetCoupon));
+        box.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', async () => {
+          if (b.dataset.pick === st.plan) return;
+          st.plan = b.dataset.pick;
+          st.amount = price[st.plan];
+          st.couponErr = st.payErr = '';
+          if (st.coupon) {
+            try {
+              await quote(st.coupon); // a coupon can be for one plan only
+            } catch (e) {
+              st.coupon = '';
+              st.couponErr = e.message;
+            }
+          }
+          draw();
+        }));
+        box.querySelector('[data-havecode]')?.addEventListener('click', () => {
+          st.couponOpen = true;
+          draw();
+          box.querySelector('.pbp-coupon input').focus();
+        });
+        box.querySelector('[data-uncoupon]')?.addEventListener('click', () => {
+          st.coupon = '';
+          st.amount = price[st.plan];
+          draw();
+        });
         const cform = box.querySelector('.pbp-coupon');
-        cform.addEventListener('submit', async (ev) => {
+        if (cform) cform.addEventListener('submit', async (ev) => {
           ev.preventDefault();
           const code = cform.code.value.trim();
-          const cerr = box.querySelector('.pbp-coupon-err');
-          cerr.textContent = '';
-          if (!code) {
-            coupon = '';
-            amount = listPrice;
-            return draw();
-          }
+          if (!code) return;
           cform.querySelector('button').disabled = true;
           try {
-            const q = await api('pay', { body: { action: 'quote', plan, coupon: code } });
-            coupon = q.coupon;
-            amount = q.amount;
+            await quote(code);
+            st.couponErr = '';
             draw();
-            toast(`Coupon applied. You pay ${rupees(amount)}.`);
+            toast(`Coupon applied. You pay ${rupees(st.amount)}.`);
           } catch (e) {
-            cerr.textContent = e.message;
-            cform.querySelector('button').disabled = false;
+            st.couponErr = e.message;
+            draw();
           }
         });
         const btn = box.querySelector('[data-rzp]');
-        const err = box.querySelector('.pbp-rzp-err');
-        const ready = () => { overlay.style.display = ''; btn.disabled = false; btn.textContent = `Pay ${rupees(amount)}`; };
+        const ready = () => {
+          overlay.style.display = '';
+          btn.disabled = false;
+          btn.lastChild.textContent = `Pay ${rupees(st.amount)}`;
+        };
         btn.addEventListener('click', async () => {
-          err.textContent = '';
+          st.payErr = '';
+          box.querySelector('.pbp-rzp-err').textContent = '';
           btn.disabled = true;
-          btn.textContent = 'Opening Razorpay…';
+          btn.lastChild.textContent = 'Opening secure payment…';
           try {
-            const [Razorpay, o] = await Promise.all([loadRzp(), api('pay', { body: { action: 'rzpOrder', plan, coupon } })]);
+            const [Razorpay, o] = await Promise.all([loadRzp(), api('pay', { body: { action: 'rzpOrder', plan: st.plan, coupon: st.coupon } })]);
             const u = (acct && acct.user) || {};
             const rz = new Razorpay({
               key: o.key,
               order_id: o.orderId,
               amount: o.amount,
-              currency: 'INR',
+              currency: o.currency || 'INR',
               name: 'PakkaBill',
-              description: `PakkaBill Pro, ${period}`,
+              description: `PakkaBill Pro, ${period()}`,
               image: location.origin + '/icon-192.png',
               prefill: { contact: /^\d{10}$/.test(u.phone || '') ? u.phone : '', name: u.shopName || '' },
-              notes: { plan },
+              notes: { plan: st.plan },
               theme: { color: '#5b3fe6' },
               modal: { ondismiss: ready, confirm_close: true },
               handler: (r) => { overlay.style.display = ''; afterPay(r); },
             });
-            rz.on('payment.failed', (r) => { err.textContent = ((r && r.error && r.error.description) || 'The payment did not go through.') + ' No money was taken. Try again.'; });
+            rz.on('payment.failed', (r) => {
+              st.payErr = ((r && r.error && r.error.description) || 'The payment did not go through.') + ' No money was taken. Try again or pick another way to pay.';
+              box.querySelector('.pbp-rzp-err').textContent = st.payErr;
+            });
             overlay.style.display = 'none'; // Razorpay shows its own window
             rz.open();
           } catch (e) {
-            err.textContent = e.message;
+            st.payErr = e.message;
+            box.querySelector('.pbp-rzp-err').textContent = e.message;
             ready();
           }
         });
       };
       // Back from checkout: the server checks the payment with Razorpay and turns Pro on.
       const afterPay = async (r) => {
-        const wasPro = isPro();
-        box.innerHTML = '<div class="pbp-badge">PRO</div><h2 id="pbp-title">Confirming your payment…</h2><p class="pbp-why">Please keep this open for a few seconds.</p>';
+        box.innerHTML = '<div class="pbp-done"><div class="pbp-spin" aria-hidden="true"></div><h2 id="pbp-title">Confirming your payment…</h2><p class="pbp-why">This takes a few seconds. Please keep this open.</p></div>';
         let res = null;
         let last = null;
         for (let i = 0; i < 3 && !res; i++) {
@@ -463,13 +512,25 @@
         }
         myOrders = null;
         if (res && res.user) setAcct({ ...acct, user: res.user }, false);
-        box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button><div class="pbp-badge">PRO</div>
-          ${res
-            ? `<h2 id="pbp-title">Pro is on 🎉</h2><p class="pbp-why">We received ${rupees(res.order.amount / 100)}. PakkaBill Pro is active until <b>${dateStr(res.user.paidUntil)}</b>.</p>`
-            : `<h2 id="pbp-title">Payment received by Razorpay</h2><p class="pbp-why">${esc(last ? last.message : '')} Pro turns on by itself within a few minutes; open your plan again to check. Keep this payment ID: <b>${esc(r.razorpay_payment_id || '')}</b>.</p>`}
-          <p class="pbp-fine">Payment ID ${esc(r.razorpay_payment_id || '')}. Razorpay also sends a receipt by SMS or email.</p>
-          <button type="button" class="pbp-btn" data-done>${res ? 'Start using Pro' : 'OK'}</button>`;
+        const pid = esc(r.razorpay_payment_id || '');
+        box.innerHTML = res
+          ? `<button type="button" class="pbp-x" aria-label="Close">×</button><div class="pbp-done">${TICK}
+            <h2 id="pbp-title">Payment successful</h2>
+            <p class="pbp-why">PakkaBill Pro is active till <b>${dateStr(res.user.paidUntil)}</b>.</p>
+            <div class="pbp-rows"><div><span>Paid</span><b>${rupees(res.order.amount / 100)}</b></div><div><span>Plan</span><b>Pro, ${res.order.plan === 'yearly' ? '1 year' : '1 month'}</b></div><div><span>Payment ID</span><b>${pid}</b></div></div>
+            <button type="button" class="pbp-btn pbp-paybtn" data-done>Start using Pro</button>
+            <p class="pbp-fine">Razorpay also sends a receipt by SMS or email.</p></div>`
+          : `<button type="button" class="pbp-x" aria-label="Close">×</button><div class="pbp-done"><div class="pbp-wait" aria-hidden="true">⏳</div>
+            <h2 id="pbp-title">Payment received</h2>
+            <p class="pbp-why">We are still confirming it with Razorpay. Pro turns on by itself within a few minutes; this page updates when it does.${last ? ` <span class="pbp-fine">(${esc(last.message)})</span>` : ''}</p>
+            <div class="pbp-rows"><div><span>Payment ID</span><b>${pid}</b></div></div>
+            <button type="button" class="pbp-btn pbp-paybtn" data-done>OK</button></div>`;
         const finish = () => { closeUpgrade(); if (!wasPro && isPro()) location.reload(); else rerender(); };
+        if (!res) {
+          // the server catches up from Razorpay; ask again every 20 seconds for a few minutes
+          let n = 0;
+          const poll = setInterval(() => { if (isPro() !== wasPro || ++n > 15) return clearInterval(poll); loadOrders(); }, 20000);
+        }
         box.querySelector('.pbp-x').addEventListener('click', finish);
         box.querySelector('[data-done]').addEventListener('click', finish);
         loadOrders();
@@ -516,6 +577,7 @@
   function newsAction(n) {
     if (n.trialDays && !n.claimed) return `<button type="button" class="pbp-btn pbp-btn--sm" data-claim="${esc(n.id)}">Claim ${n.trialDays} day${n.trialDays > 1 ? 's' : ''} of Pro free</button>`;
     if (n.trialDays && n.claimed) return '<span class="pbp-claimed">Claimed</span>';
+    if (n.cta === 'upgrade' && isPro() && acct.user.lastPlan !== 'trial' && daysLeft() > 7) return '';
     if (n.cta === 'upgrade') return `<button type="button" class="pbp-btn pbp-btn--sm" data-upgrade>${esc(n.ctaLabel || 'See Pro plans')}</button>`;
     if (n.cta === 'link' && n.link) return `<a class="pbp-btn pbp-btn--sm" href="${esc(n.link)}" target="_blank" rel="noopener noreferrer">${esc(n.ctaLabel || 'Open')}</a>`;
     return '';
@@ -592,6 +654,8 @@
     return dialog.firstChild;
   }
   function openUpgrade(feature, arg) {
+    // Already Pro (a page asked from an old state): say so instead of asking to pay again.
+    if (isPro() && !['renew', 'offer', 'claim'].includes(feature)) return toast(`PakkaBill Pro is already active till ${dateStr(acct.user.paidUntil)}.`);
     let mode = 'signup';
     const draw = (m) => {
       if (m) mode = m;
@@ -633,17 +697,26 @@
     if (!cfg || !cfg.enabled) status = '<div class="pbp-status is-free"><b>Everything is free right now.</b><span>Paid plans are not switched on yet.</span></div>';
     else if (isPro() && acct.user.lastPlan === 'trial') status = `<div class="pbp-status is-pro${daysLeft() <= 3 ? ' is-soon' : ''}"><b>Free Pro trial: ${daysLeft()} day${daysLeft() === 1 ? '' : 's'} left</b><span>Till ${dateStr(acct.user.paidUntil)}. Take Pro before it ends to keep unlimited bills, your shops and cloud backup.</span></div>`;
     else if (isPro() && daysLeft() <= 5) status = `<div class="pbp-status is-pro is-soon"><b>Your Pro plan ends in ${daysLeft()} day${daysLeft() === 1 ? '' : 's'}</b><span>On ${dateStr(acct.user.paidUntil)}. Renew now; the new time adds on top of what is left.</span></div>`;
-    else if (isPro()) status = `<div class="pbp-status is-pro"><b>PakkaBill Pro is active</b><span>Till ${dateStr(acct.user.paidUntil)}. Paying again adds time on top.</span></div>`;
+    else if (isPro()) status = `<div class="pbp-status is-pro"><b>PakkaBill Pro is active</b><span>Till ${dateStr(acct.user.paidUntil)}. Everything is unlocked; nothing to pay now.</span></div>`;
     else if (acct && acct.user && acct.user.paidUntil) status = `<div class="pbp-status is-free"><b>Your Pro plan ended on ${dateStr(acct.user.paidUntil)}</b><span>You are on the free plan: ${cfg.freeBills} bills a month.</span></div>`;
     else status = `<div class="pbp-status is-free"><b>You are on the free plan</b><span>${cfg.freeBills} bills a month, Carbon, Modern, Classic, Ledger and Plain designs, printing.</span></div>`;
-    el.innerHTML = `<div class="page-head"><div><h1 class="page-title">Plan</h1><p class="page-sub">Your PakkaBill account and Pro plan.</p></div></div>
-      <div class="pbp-page">
-        <section class="paper pbp-card">${status}${ordersHtml()}${accountHtml()}<p class="pbp-fine pbp-help">Paid but Pro is not on yet, or a question about your plan? <a href="#/support?new=1&amp;topic=payment">Raise a support ticket</a>.</p>${acct && acct.token ? '<p class="pbp-fine pbp-help">☁️ <a href="#/shops">Your shops and cloud backup →</a></p>' : ''}</section>
-        ${newsListHtml()}
-        ${cfg && cfg.enabled ? `<section class="paper pbp-card"><h2 class="form-sec__title">PakkaBill Pro</h2>
+    // Pro already active with more than a week left: no buying section, only "Extend Pro early" folded away
+    const proOn = isPro() && acct.user.lastPlan !== 'trial' && daysLeft() > 7;
+    const payLine = playApp() ? '' : `<p class="pbp-fine">${cfg && cfg.razorpay ? 'Pay by UPI, card or net banking. Pro turns on as soon as you pay.' : 'Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.'}</p>`;
+    const proCard = !(cfg && cfg.enabled) ? ''
+      : proOn ? `<section class="paper pbp-card"><h2 class="form-sec__title">Your Pro plan</h2>
+          <p class="pbp-fine pbp-have">Everything in PakkaBill is unlocked for you:</p>
+          <ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>
+          ${playApp() ? '' : `<details class="pbp-cmp pbp-extend"><summary>Extend Pro early</summary><p class="pbp-fine">Not needed now. Paying again adds the new time after ${dateStr(acct.user.paidUntil)}.</p>${plansHtml()}${payLine}</details>`}</section>`
+      : `<section class="paper pbp-card"><h2 class="form-sec__title">${isPro() ? 'Keep PakkaBill Pro' : 'PakkaBill Pro'}</h2>
           <ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>
           <details class="pbp-cmp"><summary>Compare Free and Pro</summary>${compareHtml()}</details>
-          ${acct && acct.token ? plansHtml() + (playApp() ? '' : `<p class="pbp-fine">${cfg && cfg.razorpay ? 'Pay by UPI, card or net banking. Pro turns on as soon as you pay.' : 'Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.'}</p>`) : authHtml(mode)}</section>` : ''}
+          ${acct && acct.token ? plansHtml() + payLine : authHtml(mode)}</section>`;
+    el.innerHTML = `<div class="page-head"><div><h1 class="page-title">Plan</h1><p class="page-sub">Your PakkaBill account and Pro plan.</p></div></div>
+      <div class="pbp-page">
+        <section class="paper pbp-card">${status}${ordersHtml()}${accountHtml()}${isPro() ? '' : '<p class="pbp-fine pbp-help">Paid but Pro is not on yet, or a question about your plan? <a href="#/support?new=1&amp;topic=payment">Raise a support ticket</a>.</p>'}${acct && acct.token ? '<p class="pbp-fine pbp-help">☁️ <a href="#/shops">Your shops and cloud backup →</a></p>' : ''}</section>
+        ${newsListHtml()}
+        ${proCard}
       </div>`;
     wire(el, (m) => drawPlan(el, m));
     wireNews(el);
@@ -757,6 +830,43 @@
 .pbp-steps{margin:4px 0 8px;padding-left:22px;display:grid;gap:14px}
 .pbp-steps li{padding-left:2px}
 .pbp-steps li>b{display:block;margin-bottom:6px}
+.pbp-pick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 12px}
+.pbp-pick button{position:relative;display:grid;gap:2px;justify-items:start;text-align:left;padding:14px 12px 12px;border-radius:14px;border:1.5px solid var(--rule,#ddd);background:var(--paper,#fff);color:var(--ink,#222);font:inherit;cursor:pointer;transition:border-color .12s,background .12s}
+.pbp-pick button span{font-size:13px;font-weight:700;color:var(--ink-2,#555)}
+.pbp-pick button b{font-family:var(--font-display);font-size:26px;font-weight:600;line-height:1.15}
+.pbp-pick button small{font-size:12.5px;color:var(--ink-3,#777)}
+.pbp-pick button i{position:absolute;top:-10px;left:10px;font-style:normal;font-size:11px;font-weight:700;background:var(--green,#12714b);color:#fff;padding:2px 8px;border-radius:999px}
+.pbp-pick button.is-on{border-color:var(--carbon,#5b3fe6);background:var(--carbon-tint,#f6f2ff);box-shadow:inset 0 0 0 1px var(--carbon,#5b3fe6)}
+.pbp-pick button.is-on:after{content:"✓";position:absolute;top:10px;right:10px;width:20px;height:20px;border-radius:50%;background:var(--carbon,#5b3fe6);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center}
+.pbp-sum{border:1px dashed var(--rule,#ddd);border-radius:12px;padding:12px 14px;margin:0 0 10px;display:grid;gap:6px;font-size:14.5px}
+.pbp-sum>div{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.pbp-sum__off{color:var(--green,#12714b)}
+.pbp-sum__total{border-top:1px solid var(--rule,#ddd);padding-top:8px;font-weight:700}
+.pbp-sum__total b{font-family:var(--font-display);font-size:24px;font-weight:600}
+.pbp-sum p{margin:0;font-size:12.5px;color:var(--ink-3,#777)}
+.pbp-havecode{font-size:14px;margin:0 0 6px;padding:0}
+.pbp-paybtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px 18px;font-size:16.5px;margin-top:6px}
+.pbp-ways{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:12px 0 0}
+.pbp-ways span{font-size:12px;font-weight:600;color:var(--ink-2,#555);border:1px solid var(--rule,#ddd);border-radius:999px;padding:3px 10px}
+.pbp-center{text-align:center}
+.pbp-done{text-align:center;display:grid;justify-items:center;gap:4px}
+.pbp-done h2{margin-top:6px}
+.pbp-done .pbp-why{margin:0}
+.pbp-spin{width:46px;height:46px;border-radius:50%;border:4px solid var(--carbon-tint,#efeaff);border-top-color:var(--carbon,#5b3fe6);animation:pbp-rot .8s linear infinite;margin:18px 0 8px}
+@keyframes pbp-rot{to{transform:rotate(360deg)}}
+.pbp-tick{width:72px;height:72px;margin:8px 0 2px}
+.pbp-tick circle{fill:var(--green,#12714b)}
+.pbp-tick path{fill:none;stroke:#fff;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:44;stroke-dashoffset:44;animation:pbp-draw .45s .15s ease-out forwards}
+@keyframes pbp-draw{to{stroke-dashoffset:0}}
+.pbp-wait{font-size:44px;line-height:1;margin:10px 0 0}
+.pbp-rows{display:grid;gap:6px;width:100%;box-sizing:border-box;margin:12px 0 4px;text-align:left;border:1px dashed var(--rule,#ddd);border-radius:12px;padding:12px 14px;font-size:14px}
+.pbp-rows div{display:flex;justify-content:space-between;gap:10px}
+.pbp-rows span{color:var(--ink-3,#777)}
+.pbp-rows b{text-align:right;word-break:break-all}
+.pbp-have{margin:0 0 10px}
+.pbp-extend{margin:8px 0 0}
+.pbp-extend .pbp-plans{margin-top:10px}
+@media (prefers-reduced-motion:reduce){.pbp-spin{animation-duration:2.4s}.pbp-tick path{animation:none;stroke-dashoffset:0}}
 .pbp-qr{display:block;width:210px;height:210px;margin:6px 0 8px;border-radius:12px;border:1px solid var(--rule,#ddd);image-rendering:pixelated;background:#fff}
 .pbp-upi{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:14px;color:var(--ink-2,#555)}
 .pbp-upi code{background:var(--carbon-tint,#f6f2ff);padding:1px 7px;border-radius:6px;color:var(--ink,#222)}
