@@ -2,8 +2,8 @@
 
 Tools for Meesho sellers, with GST billing on the side. One static page that works offline.
 
-The Meesho tools are the main navigation (sidebar group "Meesho tools", phone tabs Profit · Labels · Lens
-· Listing · Billing). Billing is one compact tab: every billing page (Bills, Parties, Items, GST summary,
+The Meesho tools are the main navigation (sidebar group "Meesho tools", phone tabs Profit · Labels ·
+Listing · Billing); Meesho Lens sits under "More tools". Billing is one compact tab: every billing page (Bills, Parties, Items, GST summary,
 GSTR-1) shows a small bar of chips to move between them, with New bill. The logo opens the P&L.
 
 - Meesho P&L: profit and loss and payment reconciliation from Meesho's payment report, with Excel and PDF.
