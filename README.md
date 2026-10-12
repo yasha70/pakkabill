@@ -2,9 +2,10 @@
 
 Tools for Meesho sellers, with GST billing on the side. One static page that works offline.
 
-The Meesho tools are the main navigation (sidebar group "Meesho tools", phone tabs Profit · Labels ·
-Listing · Billing); Meesho Lens sits under "More tools". Billing is one compact tab: every billing page (Bills, Parties, Items, GST summary,
-GSTR-1) shows a small bar of chips to move between them, with New bill. The logo opens the P&L.
+The Meesho tools are the main navigation (sidebar group "Meesho tools"; phone tabs Profit · Labels ·
++ New bill · Listing · Profile); Meesho Lens sits under "More tools". Billing is one compact tab: every billing page (Bills, Parties, Items, GST summary,
+GSTR-1) shows a small bar of chips to move between them, with New bill; the Profile page shows the same
+bar so bills stay one tap away on a phone. The logo opens the P&L.
 
 - Meesho P&L: profit and loss and payment reconciliation from Meesho's payment report, with Excel and PDF.
 - Labels & packing chart: a packing chart from Meesho's manifest (blouse sizes as L / XL / XXL), and shipping labels in SKU and size order, as one PDF.
