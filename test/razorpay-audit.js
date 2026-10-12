@@ -83,6 +83,7 @@ const userNow = (phone) => core.getUser(phone);
 
   /* 3. back from checkout */
   const p1 = pay(o1);
+  await throws(rzp.fromCheckout(cfg, A, { razorpay_order_id: o1.rzpOrderId, razorpay_payment_id: p1 }, rzpFetch), 'signature missing: 400, nothing paid', (e) => e.status === 400);
   await throws(rzp.fromCheckout(cfg, A, { razorpay_order_id: o1.rzpOrderId, razorpay_payment_id: p1, razorpay_signature: sign(o1.rzpOrderId, p1, 'other') }, rzpFetch), 'made-up signature refused', (e) => e.status === 400);
   await throws(rzp.fromCheckout(cfg, B, { razorpay_order_id: o1.rzpOrderId, razorpay_payment_id: p1, razorpay_signature: sign(o1.rzpOrderId, p1) }, rzpFetch), 'someone else\'s order refused', (e) => e.status === 404);
   ok(!((await userNow(A.phone)).paidUntil > Date.now()), 'no Pro before a good confirmation');
@@ -174,10 +175,12 @@ const userNow = (phone) => core.getUser(phone);
   eq(a.status, 401, 'endpoint: must be logged in to pay');
   const tA = await core.createSession(A.phone);
   a = await call('POST', '/api/pay', { action: 'rzpOrder', plan: 'monthly' }, tA);
-  eq([a.status, a.body.key, /^order_/.test(a.body.orderId), a.body.amount], [200, KEY, true, 9900], 'endpoint: order for checkout, with the public Key ID only');
+  eq([a.status, a.body.key, /^order_/.test(a.body.orderId), a.body.amount, a.body.currency], [200, KEY, true, 9900, 'INR'], 'endpoint: order for checkout, with the public Key ID only');
   ok(!JSON.stringify(a.body).includes(SECRET), 'endpoint: the key secret is never sent');
   const oid = a.body.orderId, pid = pay({ rzpOrderId: oid, amount: 9900 });
   const aUntil = (await userNow(A.phone)).paidUntil;
+  a = await call('POST', '/api/pay', { action: 'rzpDone', razorpay_order_id: oid, razorpay_payment_id: pid, razorpay_signature: sign(oid, pid + 'x') }, tA);
+  eq([a.status, (await userNow(A.phone)).paidUntil], [400, aUntil], 'endpoint: signature mismatch is 400 and Pro is not added');
   a = await call('POST', '/api/pay', { action: 'rzpDone', razorpay_order_id: oid, razorpay_payment_id: pid, razorpay_signature: sign(oid, pid) }, tA);
   eq([a.status, a.body.order.state, a.body.user.pro, a.body.user.paidUntil - aUntil > 29 * core.DAY], [200, 'COMPLETED', true, true], 'endpoint: confirmed, Pro on, new plan date sent back');
   a = await call('POST', '/api/pay', { plan: 'monthly', utr: '123456789012' }, tA);

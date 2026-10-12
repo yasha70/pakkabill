@@ -126,6 +126,7 @@ async function orderFor(rzpOrderId) {
 // 3. Back from checkout with Razorpay's three values.
 async function fromCheckout(cfg, user, b, fetchFn) {
   const { razorpay_order_id: oid, razorpay_payment_id: pid, razorpay_signature: sig } = b || {};
+  if (!oid || !pid || !sig) throw new core.HttpError(400, 'Razorpay did not send the payment details. If money was taken, Pro turns on by itself within a few minutes.');
   const order = await orderFor(oid);
   if (!order || order.phone !== user.phone) throw new core.HttpError(404, 'Payment order not found. If money was taken, Pro turns on by itself within a few minutes.');
   if (!signatureOk(cfg, oid, pid, sig)) throw new core.HttpError(400, 'Razorpay could not confirm this payment. If money was taken, Pro turns on by itself within a few minutes.');

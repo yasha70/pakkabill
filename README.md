@@ -166,6 +166,14 @@ adding Pro, once per order. If the app closes right after paying, Razorpay's web
 plan page catches up. With a UPI ID saved too, customers can still choose the UPI QR. Code:
 `api/_lib/razorpay.js`; tests: `node test/razorpay-audit.js`.
 
+Trying Razorpay locally with test keys: copy `.env.example` to `.env` (never committed or deployed), put in
+the `rzp_test_` Key ID and Secret, run `npm install` then `npm run dev` and open http://localhost:3000.
+It runs the app and every `/api` function in one process with an in-memory database: sign up with any
+mobile number, open the Plan page, pick a plan and tap Pay; in Razorpay's test checkout use a test UPI
+ID such as `success@razorpay` or a test card. Pro turns on, and Payments in `/admin` shows it (set
+`ADMIN_PASSWORD` in `.env` to log in). Keep test keys off the live site: with them anyone could get Pro
+by paying with a test card.
+
 - `api/` Vercel functions: `auth` (sign up, log in), `me`, `config`, `pay` (submit a UTR, Razorpay
   orders, confirmations and webhook, list my payments), `admin`.
 - `pro.js` plan checks, upgrade dialog, UPI payment screen and the Plan page inside the app.

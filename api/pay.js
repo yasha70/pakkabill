@@ -49,7 +49,7 @@ module.exports = core.handler(async (req, res) => {
       if (action === 'rzpOrder') {
         await core.rateLimit(`rzp:${user.phone}`, 20, 3600);
         const order = await rzp.createOrder(cfg, user, plan, coupon);
-        return core.send(res, 200, { key: cfg.keyId, orderId: order.rzpOrderId, amount: order.amount, id: order.id });
+        return core.send(res, 200, { key: cfg.keyId, orderId: order.rzpOrderId, amount: order.amount, currency: 'INR', id: order.id });
       }
       await core.rateLimit(`rzpdone:${user.phone}`, 30, 3600);
       const { order, first } = await rzp.fromCheckout(cfg, user, b);
