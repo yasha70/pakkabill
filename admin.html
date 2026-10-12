@@ -393,9 +393,14 @@
         <h2 style="margin-top:20px">GST number lookup</h2>
         <p class="sub">When someone types a GST number in a bill, a party or the Shop page and taps <b>Fetch details</b>, PakkaBill fills the registered name and address. Each new number is one paid lookup at the service you choose; answers are kept for 30 days, so a number is paid for once. With the service off, the button still fills the state, PAN and kind of business from the number itself.</p>
         <div class="grid2">
-          <label class="f">Service<select name="gstProvider"><option value="">Off (state and PAN only)</option><option value="cashfree">Cashfree Verification (GSTIN)</option><option value="url">Another GSTIN API</option></select></label>
+          <label class="f">Service<select name="gstProvider"><option value="">Off (state and PAN only)</option><option value="gstinapi">GSTIN API, gstinapi.in (free trial, easiest)</option><option value="cashfree">Cashfree Verification (GSTIN)</option><option value="url">Another GSTIN API</option></select></label>
+        </div>
+        <div data-gst="gstinapi" hidden>
+          <p class="sub" style="margin:0 0 8px">Sign up at <a href="https://www.gstinapi.in/register" target="_blank" rel="noopener">gstinapi.in/register</a> (free trial lookups, no card), open <b>API keys</b>, create a key and paste it here.</p>
+          <label class="f">gstinapi.in API key<input type="password" name="gstApiKey" maxlength="200" autocomplete="new-password"></label>
         </div>
         <div class="grid2" data-gst="cashfree" hidden>
+          <p class="sub" style="grid-column:1/-1;margin:0">Use the keys of Cashfree's <b>Verification (Secure ID)</b> product, not the payment gateway keys. GSTIN verification must be switched on in your Cashfree account.</p>
           <label class="f">Cashfree client ID<input type="text" name="gstClientId" maxlength="120" autocomplete="off"></label>
           <label class="f">Cashfree client secret<input type="password" name="gstClientSecret" maxlength="200" autocomplete="new-password"></label>
           <label class="check"><input type="checkbox" name="gstSandbox"><span>These are test (sandbox) keys</span></label>
@@ -1026,7 +1031,7 @@
       BIZ.forEach((k) => { form[k].value = settings[k] || ''; });
       const g = settings.gst || {};
       form.gstProvider.value = g.provider === 'off' ? '' : g.provider || '';
-      form.gstClientId.value = g.clientId || ''; form.gstClientSecret.value = g.clientSecret || ''; form.gstSandbox.checked = !!g.sandbox;
+      form.gstApiKey.value = g.apiKey || ''; form.gstClientId.value = g.clientId || ''; form.gstClientSecret.value = g.clientSecret || ''; form.gstSandbox.checked = !!g.sandbox;
       form.gstUrl.value = g.url || ''; form.gstHeader.value = g.header || '';
       gstShow();
     } catch (e) { toast(e.message, true); }
@@ -1047,7 +1052,7 @@
     e.preventDefault();
     try {
       await api('saveSettings', { monthly: form.monthly.value, yearly: form.yearly.value, freeBills: form.freeBills.value, enforce: form.enforce.checked, upiId: form.upiId.value, payeeName: form.payeeName.value, trialDays: form.trialDays.value, syncFree: form.syncFree.checked, biz: Object.fromEntries(BIZ.map((k) => [k, form[k].value])),
-        gst: { provider: form.gstProvider.value, clientId: form.gstClientId.value, clientSecret: form.gstClientSecret.value, sandbox: form.gstSandbox.checked, url: form.gstUrl.value, header: form.gstHeader.value } });
+        gst: { provider: form.gstProvider.value, apiKey: form.gstApiKey.value, clientId: form.gstClientId.value, clientSecret: form.gstClientSecret.value, sandbox: form.gstSandbox.checked, url: form.gstUrl.value, header: form.gstHeader.value } });
       toast('Settings saved.');
     } catch (err) { toast(err.message, true); }
   });

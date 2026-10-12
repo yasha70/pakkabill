@@ -44,11 +44,17 @@ function eq(a, b, what) { const A = JSON.stringify(a), B = JSON.stringify(b); ok
   err = null; try { gst.normalize({ valid: false, message: 'GSTIN Doesnt Exist' }, G); } catch (e) { err = e; }
   ok(err && err.status === 404, 'valid:false is not found');
 
+  // gstinapi.in: the address without its PIN, the PIN apart
+  r = gst.normalize({ success: true, gstin: G, credits_remaining: 9, data: { gstin: G, legal_name: 'CENTRAL WAREHOUSING CORPORATION', trade_name: 'CENTRAL WAREHOUSING CORPORATION', status: 'Active', taxpayer_type: 'Regular',
+    business_constitution: null, registration_date: '2017-07-01', state_code: '33', address: 'No.4, North Avenue, Saidapet, Chennai', pincode: '600015', nature_of_business: null } }, G);
+  eq([r.name, r.address, r.pincode, r.status, r.type, r.regDate], ['CENTRAL WAREHOUSING CORPORATION', 'No.4, North Avenue, Saidapet, Chennai, 600015', '600015', 'Active', 'Regular', '2017-07-01'], 'gstinapi.in answer: PIN added to the address');
+
   /* 3. choosing the service */
   const env = process.env; ['CASHFREE_CLIENT_ID', 'CASHFREE_CLIENT_SECRET', 'GST_LOOKUP_URL', 'GST_LOOKUP_HEADER', 'CASHFREE_SANDBOX'].forEach((k) => delete env[k]);
   eq(gst.config({}), null, 'nothing set: no service');
   eq(gst.config({ gst: { provider: 'cashfree', clientId: 'id', clientSecret: 'sec' } }), { provider: 'cashfree', clientId: 'id', clientSecret: 'sec', sandbox: false }, 'Cashfree from admin settings');
   eq(gst.config({ gst: { provider: 'url', url: 'http://x/{gstin}' } }), null, 'plain http address is refused');
+  eq(gst.config({ gst: { provider: 'gstinapi', apiKey: 'k1' } }), { provider: 'url', url: 'https://www.gstinapi.in/v1/gstin/{gstin}', header: 'x-api-key: k1' }, 'gstinapi.in: only the key is needed');
   env.GST_LOOKUP_URL = 'https://api.example.com/v1/{gstin}'; env.GST_LOOKUP_HEADER = 'x-api-key: abc';
   eq(gst.config({ gst: { provider: '' } }), { provider: 'url', url: 'https://api.example.com/v1/{gstin}', header: 'x-api-key: abc' }, 'environment variables when admin has none');
   eq(gst.config({ gst: { provider: 'off' } }), null, 'admin can switch it off');
@@ -62,6 +68,8 @@ function eq(a, b, what) { const A = JSON.stringify(a), B = JSON.stringify(b); ok
   eq([calls[1].url, calls[1].opt.headers['x-api-key'], r.name], ['https://api.example.com/v1/27AAPFU0939F1ZV?k=1', 'abc', 'Kavya Fashions'], 'other API: number in the address, key in the header');
   err = null; try { await gst.lookup({ provider: 'url', url: 'https://a.b/{gstin}' }, G, fake(401, { error: 'bad key' })); } catch (e) { err = e; }
   ok(err && /refused the key/.test(err.message), 'wrong key: says so');
+  err = null; try { await gst.lookup({ provider: 'url', url: 'https://a.b/{gstin}' }, G, fake(402, { error: 'Insufficient credits' })); } catch (e) { err = e; }
+  ok(err && /no credits left/.test(err.message), 'out of credits: says so');
   err = null; try { await gst.lookup({ provider: 'url', url: 'https://a.b/{gstin}' }, G, fake(404, null)); } catch (e) { err = e; }
   ok(err && err.status === 404, 'service 404: not found');
   err = null; try { await gst.lookup({ provider: 'url', url: 'https://a.b/{gstin}' }, G, () => Promise.reject(new Error('net'))); } catch (e) { err = e; }

@@ -329,9 +329,10 @@ const actions = {
     if (s.bizEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.bizEmail)) throw new core.HttpError(400, 'That email address does not look right.');
     // GST number lookup service (fills buyer name and address from a GSTIN)
     const G = gst && typeof gst === 'object' ? gst : prev.gst || {};
-    s.gst = { provider: ['', 'off', 'cashfree', 'url'].includes(G.provider) ? G.provider : '', clientId: String(G.clientId || '').trim().slice(0, 120), clientSecret: String(G.clientSecret || '').trim().slice(0, 200),
+    s.gst = { provider: ['', 'off', 'gstinapi', 'cashfree', 'url'].includes(G.provider) ? G.provider : '', apiKey: String(G.apiKey || '').trim().slice(0, 200), clientId: String(G.clientId || '').trim().slice(0, 120), clientSecret: String(G.clientSecret || '').trim().slice(0, 200),
       sandbox: !!G.sandbox, url: String(G.url || '').trim().slice(0, 300), header: String(G.header || '').trim().slice(0, 300) };
     if (s.gst.provider === 'url' && !/^https:\/\/.+\{gstin\}/.test(s.gst.url)) throw new core.HttpError(400, 'The GST lookup address must start with https:// and contain {gstin}.');
+    if (s.gst.provider === 'gstinapi' && !s.gst.apiKey) throw new core.HttpError(400, 'Paste the gstinapi.in API key for GST lookup.');
     if (s.gst.provider === 'cashfree' && !(s.gst.clientId && s.gst.clientSecret)) throw new core.HttpError(400, 'Add the Cashfree client ID and secret for GST lookup.');
     if (!(s.trialDays >= 0 && s.trialDays <= 90)) throw new core.HttpError(400, 'Free trial days must be 0 to 90.');
     if (s.upiId && !core.UPI_ID.test(s.upiId)) throw new core.HttpError(400, 'That does not look like a UPI ID (name@bank).');

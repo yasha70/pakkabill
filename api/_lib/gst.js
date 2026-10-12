@@ -2,6 +2,7 @@
 // business), and look up the registered name and address from a GST lookup service.
 //
 // The service is chosen in admin (Settings > GST number lookup) or with environment variables:
+//   GSTIN API (gstinapi.in): GSTINAPI_KEY (free trial lookups, then paid credits)
 //   Cashfree Verification:  CASHFREE_CLIENT_ID + CASHFREE_CLIENT_SECRET (CASHFREE_SANDBOX=1 for test keys)
 //   Any other GSTIN API:    GST_LOOKUP_URL with {gstin} in it, and GST_LOOKUP_HEADER ("x-api-key: ...") if it needs one
 // Most of these services pass on the GST portal's own record (lgnm, tradeNam, pradr...) or the same
@@ -49,7 +50,7 @@ const ALIAS = {
   status: ['sts', 'status', 'gst_in_status', 'gstin_status', 'gstinStatus', 'gstn_status'],
   reg: ['rgdt', 'registration_date', 'date_of_registration', 'dateOfRegistration', 'registrationDate'],
   type: ['dty', 'taxpayer_type', 'taxpayerType'],
-  ctb: ['ctb', 'constitution_of_business', 'constitutionOfBusiness', 'constitution'],
+  ctb: ['ctb', 'constitution_of_business', 'constitutionOfBusiness', 'business_constitution', 'constitution'],
   pin: ['pncd', 'pincode', 'pin_code', 'pinCode'],
   nba: ['nba', 'nature_of_business_activities', 'natureOfBusinessActivities', 'nature_of_business'],
   split: ['addr', 'principal_place_split_address', 'principalPlaceSplitAddress', 'split_address', 'address_split'],
@@ -102,6 +103,7 @@ function normalize(json, g) {
     throw new core.HttpError(404, falsy || /invalid|not found|does not exist|no record/i.test(said) ? 'No GST registration found for this number. Check it for a typo.' : 'The GST lookup service did not send the name or address for this number.');
   }
   const pin = String(find(json, ALIAS.pin) || (address.match(/\b\d{6}\b/) || [''])[0]);
+  if (address && /^\d{6}$/.test(pin) && address.indexOf(pin) < 0) address += ', ' + pin; // some services keep the PIN apart
   const nba = find(json, ALIAS.nba, 'list').filter((x) => typeof x === 'string').slice(0, 6);
   return Object.assign(fromNumber(g), {
     legalName: legal, tradeName: trade, name: trade || legal, address, pincode: pin,
@@ -111,13 +113,16 @@ function normalize(json, g) {
 }
 
 /* ---------- the service ---------- */
+const GSTINAPI = 'https://www.gstinapi.in/v1/gstin/{gstin}';
 // Which service to use: admin settings first, then environment variables. null when none.
 function config(settings) {
   const s = (settings && settings.gst) || {};
   const env = process.env;
+  if (s.provider === 'gstinapi' && s.apiKey) return { provider: 'url', url: GSTINAPI, header: 'x-api-key: ' + s.apiKey };
   if (s.provider === 'cashfree' && s.clientId && s.clientSecret) return { provider: 'cashfree', clientId: s.clientId, clientSecret: s.clientSecret, sandbox: !!s.sandbox };
   if (s.provider === 'url' && /^https:\/\/.+\{gstin\}/.test(s.url || '')) return { provider: 'url', url: s.url, header: s.header || '' };
   if (s.provider === 'off') return null;
+  if (env.GSTINAPI_KEY) return { provider: 'url', url: GSTINAPI, header: 'x-api-key: ' + env.GSTINAPI_KEY };
   if (env.CASHFREE_CLIENT_ID && env.CASHFREE_CLIENT_SECRET) return { provider: 'cashfree', clientId: env.CASHFREE_CLIENT_ID, clientSecret: env.CASHFREE_CLIENT_SECRET, sandbox: env.CASHFREE_SANDBOX === '1' };
   if (/^https:\/\/.+\{gstin\}/.test(env.GST_LOOKUP_URL || '')) return { provider: 'url', url: env.GST_LOOKUP_URL, header: env.GST_LOOKUP_HEADER || '' };
   return null;
@@ -143,6 +148,7 @@ async function ask(cfg, g, fetchFn) {
     try { json = await res.json(); } catch { json = null; }
     if (res.status === 401 || res.status === 403) throw new core.HttpError(502, 'The GST lookup service refused the key. Check it in admin settings.');
     if (res.status === 404 || res.status === 422 || res.status === 400) return json || { valid: false, message: 'not found' };
+    if (res.status === 402) throw new core.HttpError(502, 'The GST lookup service has no credits left. Add credits at the service, or type the address.');
     if (res.status === 429) throw new core.HttpError(429, 'The GST lookup service is busy. Try again in a minute.');
     if (!res.ok && !json) throw new core.HttpError(502, 'The GST lookup service is not answering. Try again later.');
     return json;
