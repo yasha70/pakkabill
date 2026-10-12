@@ -1,13 +1,18 @@
 # PakkaBill
 
-GST tax invoices and GSTR-1 JSON for Indian sellers. One static page that works offline.
+Tools for Meesho sellers, with GST billing on the side. One static page that works offline.
 
-- Bills with Original / Duplicate / Triplicate copies, CGST+SGST or IGST by place of supply,
-  the garment 5% / 18% slab, UPI QR, PDF, printing and WhatsApp sharing.
-- GSTR-1 JSON built from Meesho's sales, sales return and tax invoice reports.
-- Meesho listing: the bulk catalog upload Excel from catalogue photos and a Meesho template.
+The Meesho tools are the main navigation (sidebar group "Meesho tools", phone tabs Profit · Labels · Lens
+· Listing · Billing). Billing is one compact tab: every billing page (Bills, Parties, Items, GST summary,
+GSTR-1) shows a small bar of chips to move between them, with New bill. The logo opens the P&L.
+
 - Meesho P&L: profit and loss and payment reconciliation from Meesho's payment report, with Excel and PDF.
 - Labels & packing chart: a packing chart from Meesho's manifest (blouse sizes as L / XL / XXL), and shipping labels in SKU and size order, as one PDF.
+- Meesho Lens: competitor prices and sales.
+- Meesho listing: the bulk catalog upload Excel from catalogue photos and a Meesho template.
+- Billing: bills with Original / Duplicate / Triplicate copies, CGST+SGST or IGST by place of supply,
+  the garment 5% / 18% slab, UPI QR, PDF, printing and WhatsApp sharing; GSTR-1 JSON built from
+  Meesho's sales, sales return and tax invoice reports.
 - Everything stays in the browser on the device. No server, no accounts, no data leaves the phone or laptop.
 
 ## Deploying
