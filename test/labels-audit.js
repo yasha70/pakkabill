@@ -151,6 +151,23 @@ eq(L.sortLabels(LABS, { by: 'sku', courier: true, mixedLast: true }).length, LAB
   eq([ids(c.on), ids(c.off), c.extra.length, c.extra[0].sku], [[0, 1], [2], 6, 'PBYW(GREY)'], 'labels against the manifest: found, missing, and parcels with no label');
 }
 
+/* 10b. harder manifest rows: quantity 2, three-digit serials, a SKU over two lines, one row on the last page */
+{
+  const hdr = [it('Supplier Name : KAVYA_COLLECTION7', 36, 791, 12), it('Date : 12 Oct, 2026', 36, 773, 12)];
+  const head = [it('S. No.', 45, 748), it('Sub Order No.', 85, 748), it('AWB', 194, 748), it('SKU', 313, 748), it('Qty.', 395, 748), it('Size', 451, 748), it('Packed', 513, 748)];
+  const crow = ([n, o1, awb, o2, sku, q, sz, sku2, sz2], y) => [it(String(n), 54, y, 10), it(o1, 82, y, 10), it(sku, 321 - W(sku, 10) / 2, y, 10), it(String(q), 400, y, 10), it(sz, 459 - W(sz, 10) / 2, y, 10),
+    it(awb, 159, y - 8, 10), it(o2, 87, y - 15, 10)].concat(sku2 ? [it(sku2, 321 - W(sku2, 10) / 2, y - 15, 10)] : [], sz2 ? [it(sz2, 446, y - 15, 10)] : []);
+  const page = (rows) => L.lines(L.words([it('Courier : Shadowfax', 36, 812, 18)].concat(hdr, head, rows.flatMap((r, i) => crow(r, 722 - i * 48)), [it('(9)', 410, 40, 8)])));
+  const man = L.parseManifest([
+    page([[124, '34088412007', 'SF4255459317FPL', '6485760_1', 'PGRBW005', 2, '26'], [125, '34070630908', 'SF4256615721FPL', '4021632_1', 'RBGYP-LONG-COTTON-', 1, 'Free-Size:', 'BLOUSE-07', '30-34']]),
+    page([[126, '34068735115', 'SF4255367206FPL', '0740160_1', 'PGRBW005', 3, '38 Alterable']])]);
+  eq(man.rows.map((r) => [r.n, r.order, r.awb, r.sku, r.qty, r.size]), [[124, '340884120076485760_1', 'SF4255459317FPL', 'PGRBW005', 2, '26'],
+    [125, '340706309084021632_1', 'SF4256615721FPL', 'RBGYP-LONG-COTTON-BLOUSE-07', 1, 'Free-Size: 30-34'], [126, '340687351150740160_1', 'SF4255367206FPL', 'PGRBW005', 3, '38 Alterable']],
+    'manifest: quantity 2 and 3, serials past 99, SKU and size over two lines, one row on a page');
+  const ch = L.packChart(man.rows, { blouse: true });
+  eq([ch.totals.L, ch.totals.XL, ch.totals.XXL, ch.grand], [2, 1, 3, 6], 'chart counts pieces (quantity), not parcels');
+}
+
 /* 11. blouse sizes and the packing chart */
 eq(['26', '28', '30', '31', '32', '34', '35', '36', '38', '40', 'L', '2XL', 'Free-Size: 26-30', 'Free-Size: 30-34', 'Free-Size: 36-40', '38 Alterable', '36 inch', '24', '42', 'M', 'Free Size', '5-6 Years'].map(L.blouseSize),
   ['L', 'L', 'L', 'XL', 'XL', 'XL', 'XXL', 'XXL', 'XXL', 'XXL', 'L', 'XXL', 'L', 'XL', 'XXL', 'XXL', 'XXL', null, null, null, null, null], 'blouse sizes: 26-30 L, 32-34 XL, 36-40 XXL, ranges by their middle');
