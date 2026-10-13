@@ -101,6 +101,16 @@ device and marked "Best last time" next time. Only Meesho's panel shows the real
 does not guess one. Runs in the browser; photos never leave the phone. Code: `lowship.js`
 (engine `window.PBShip`); tests: `node test/lowship-audit.js`.
 
+Besides the 8 sizes, each photo gets 6 looks at the best size so far (or 60%): stars, hearts or
+sparkles in the corners (shapes only, no words), a frame, and soft pink or blue backgrounds.
+
+**Automatic check in Meesho** (laptop, PakkaBill Lens 2.1+): "Send to Meesho check" hands every
+version to the extension (`lens/bridge.js`). On supplier.meesho.com, `lens/ship.js` shows a panel:
+in Catalog Upload → Add Single Catalog it finds Meesho's photo box and the shipping charge (or the
+seller points to each once), puts each version into the photo box, waits for Meesho's charge to
+settle, reads it and sends it back; the Image tab fills in the prices, marks the cheapest and learns.
+"Put it in Meesho's photo box" puts the cheapest in. It never submits a catalogue.
+
 ## Labels & packing chart
 
 `#/labels` (also `/labels.html` on its own) takes the label PDFs Meesho gives for Ready to Ship orders

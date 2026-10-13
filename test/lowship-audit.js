@@ -88,12 +88,26 @@ const p = E.place({ w: 120, h: 480 }, 80, 1000);
 eq([Math.round(p.h), Math.round(p.w), Math.round(p.y), Math.round(p.x)], [800, 200, 100, 400], 'tall product at 80%: 800 high, centred');
 ok(E.FILLS.length === 8 && E.FILLS[0] === 40 && E.FILLS[7] === 80, 'eight sizes from 40% to 80%');
 
-/* 6. the seller's results */
-eq(E.bestFill({ 50: [80, 70], 55: [60], 60: [60, 62], 70: [] }), { fill: 55, avg: 60, tries: 1 }, 'lowest average shipping wins');
-eq(E.bestFill({ 50: [62, 62], 55: [62] }), { fill: 50, avg: 62, tries: 2 }, 'a tie goes to the size tried more');
-eq(E.bestFill({}), null, 'no results: no suggestion');
+/* 6. versions and the seller's results */
+let vs = E.variants(55);
+eq([vs.length, vs[0].key, vs[7].key, vs[8].key, vs[8].fill, vs[8].style, vs[13].key, vs[13].label], [14, '40', '80', '55-stars', 55, 'stars', '55-blue', 'Soft blue · 55%'], '8 sizes, then 6 looks at the best size');
+eq(E.variants(60, false).map((v) => v.key), ['40', '45', '50', '55', '60', '65', '70', '80'], 'sizes only');
+eq([E.keyLabel('55'), E.keyLabel('60-hearts'), E.keyLabel('60-frame')], ['product at 55%', 'Hearts at 60%', 'Frame at 60%'], 'version names in plain words');
+eq(E.bestOf({ 50: [80, 70], 55: [60], 60: [60, 62], 70: [] }), { key: '55', avg: 60, tries: 1 }, 'lowest average shipping wins');
+eq(E.bestOf({ 50: [62, 62], 55: [62] }), { key: '50', avg: 62, tries: 2 }, 'a tie goes to the version tried more');
+eq(E.bestOf({ 55: [70], '60-stars': [58] }), { key: '60-stars', avg: 58, tries: 1 }, 'a look can be the best version');
+eq(E.bestPlainFill({ 55: [70], 65: [66], '60-stars': [58] }), 65, 'looks go at the best plain size');
+eq(E.bestOf({}), null, 'no results: no suggestion');
+// stickers stay in the corners, clear of the product
+const pr = E.place({ w: 400, h: 600 }, 60, 1000);
+const spots = E.stickerSpots(1000, pr);
+ok(spots.length === 4 && spots.every((s) => s.x + s.side <= pr.x || s.x >= pr.x + pr.w || s.y + s.side <= pr.y || s.y >= pr.y + pr.h), 'four corner stickers, none on the product');
+eq(E.stickerSpots(1000, E.place({ w: 600, h: 600 }, 95, 1000)).length, 0, 'product filling the photo: no room, no stickers');
 
-/* 7. ZIP */
+/* 7. reading the shipping Meesho shows */
+eq(['Shipping Charges ₹ 72', 'Delivery charge: ₹1,234.50', 'Rs. 65', '₹\u00a058', '  89 ', 'Shipping charges will be calculated', '₹ 0'].map(E.rupeesIn), [72, 1234.5, 65, 58, 89, null, 0], 'rupees read from Meesho\'s text');
+
+/* 8. ZIP */
 eq(E.crc32(new TextEncoder().encode('123456789')).toString(16), 'cbf43926', 'CRC-32 check value');
 const files = [{ name: 'blouse-meesho-55.jpg', data: new Uint8Array([1, 2, 3, 4, 5]) }, { name: 'साड़ी-60.jpg', data: new TextEncoder().encode('hello') }];
 const zipPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pbs-')), 'x.zip');

@@ -1,4 +1,4 @@
-PakkaBill Lens - Meesho competitor insights (Chrome extension, version 2)
+PakkaBill Lens - Meesho insights and shipping check (Chrome extension, version 2.1)
 
 Works in Chrome or Edge on a laptop or desktop. On a phone, use the Lens bookmark
 from PakkaBill's Meesho Lens page instead (phone Chrome can't run extensions).
@@ -28,6 +28,19 @@ orders per day, using about the last week of readings.
 SETTINGS
 Open "Settings for estimates" to set shipping, GST %, orders per rating, your cost per
 piece, your returns % and loss per return. PakkaBill's Meesho Lens page shares them.
+
+SHIPPING CHECK (LOW SHIPPING IMAGE)
+1. In PakkaBill's Image tab, add product photos. PakkaBill makes versions (sizes, stickers,
+   colours). Tap "Send to Meesho check".
+2. In the same browser, open supplier.meesho.com -> Catalog Upload -> Add Single Catalog.
+   Pick the category and fill the details until Meesho shows a shipping charge.
+3. In the PakkaBill panel (bottom left), tap "Check all". Each version goes into Meesho's
+   photo box; the shipping Meesho shows is read and sent back to PakkaBill, which marks
+   the cheapest. If the panel cannot find the photo box or the shipping charge, use
+   "Point to it" and click it once; it is remembered.
+4. "Put it in Meesho's photo box" puts the cheapest version in, so you can carry on.
+It only fills the photo box on the page you have open, in your own account. It never
+submits a catalogue.
 
 The extension reads only pages you open. It does not crawl Meesho and sends nothing
 to any server; PakkaBill gets your list only when you open its Meesho Lens page.

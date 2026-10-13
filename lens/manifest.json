@@ -1,13 +1,49 @@
 {
   "manifest_version": 3,
-  "name": "PakkaBill Lens – Meesho competitor insights",
-  "version": "2.0.0",
-  "description": "Shows a Meesho product's seller price, bank settlement, sales speed and quality signals, and collects competitors in PakkaBill.",
-  "permissions": ["storage"],
-  "host_permissions": ["https://www.meesho.com/*"],
-  "content_scripts": [
-    { "matches": ["https://www.meesho.com/*"], "js": ["core.js", "content.js"], "run_at": "document_idle" },
-    { "matches": ["https://pakkabill1.vercel.app/*"], "js": ["core.js", "bridge.js"], "run_at": "document_idle" }
+  "name": "PakkaBill Lens – Meesho insights and shipping check",
+  "version": "2.1.0",
+  "description": "Shows a Meesho product's seller price, sales speed and quality signals, and checks which photo version gets the lowest shipping in Meesho's catalogue upload.",
+  "permissions": [
+    "storage",
+    "unlimitedStorage"
   ],
-  "action": { "default_title": "PakkaBill Lens", "default_popup": "popup.html" }
+  "host_permissions": [
+    "https://www.meesho.com/*",
+    "https://supplier.meesho.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.meesho.com/*"
+      ],
+      "js": [
+        "core.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://supplier.meesho.com/*"
+      ],
+      "js": [
+        "ship.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://pakkabill1.vercel.app/*"
+      ],
+      "js": [
+        "core.js",
+        "bridge.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "PakkaBill Lens",
+    "default_popup": "popup.html"
+  }
 }
