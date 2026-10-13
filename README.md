@@ -88,6 +88,19 @@ Excel and PDF.
 - Uploaded reports stay on the device in the `hisaab` IndexedDB; costs, expenses, return marks and
   settings in localStorage under `hisaab.v1.`. Settings > Download backup moves them to another device.
 
+## Low shipping image (Meesho)
+
+Meesho shows a different shipping charge for the same product depending on its main catalogue photo.
+`#/lowship` (the **Image** tab, in place of Listing, which moved to More tools) takes product photos,
+finds the product (background colour from the photo's border, flood fill through it and gentle
+shading, specks dropped, pairs kept), turns the background plain white, and makes eight 1000×1000
+(or 1500×1500) JPEG versions with the product at 40–80% of the frame, each under 1 MB. Download one,
+or all as a ZIP. The seller tries versions in Meesho's catalogue upload and types the shipping Meesho
+shows under each; the cheapest is marked, and the best product size per category is remembered on the
+device and marked "Best last time" next time. Only Meesho's panel shows the real charge, so the tool
+does not guess one. Runs in the browser; photos never leave the phone. Code: `lowship.js`
+(engine `window.PBShip`); tests: `node test/lowship-audit.js`.
+
 ## Labels & packing chart
 
 `#/labels` (also `/labels.html` on its own) takes the label PDFs Meesho gives for Ready to Ship orders
