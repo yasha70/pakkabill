@@ -15,8 +15,8 @@ android {
         applicationId = "com.pakkabill.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 8
-        versionName = "3.5"
+        versionCode = 9
+        versionName = "3.6"
     }
 
     buildTypes {
@@ -70,4 +70,6 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.play.app.update)
     implementation(libs.play.review)
+    // Razorpay Standard Checkout: Pro in the website APK (the Google Play version does not sell Pro)
+    implementation(libs.razorpay.checkout)
 }

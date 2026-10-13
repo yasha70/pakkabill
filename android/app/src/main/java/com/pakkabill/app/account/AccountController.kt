@@ -7,6 +7,8 @@ import com.pakkabill.core.ApiException
 import com.pakkabill.core.News
 import com.pakkabill.core.Order
 import com.pakkabill.core.Quote
+import com.pakkabill.core.RzpOrder
+import com.pakkabill.core.RzpPaid
 import com.pakkabill.core.SafeClock
 import com.pakkabill.core.ServerConfig
 import com.pakkabill.core.Session
@@ -124,6 +126,42 @@ class AccountController(private val api: Api, private val kv: KeyValue, private 
             e.message
         } catch (e: Exception) {
             "Something went wrong. Please try again."
+        }
+    }
+
+    /** A Razorpay order for [plan] (with [coupon]) to open the checkout with, or the message to show. */
+    suspend fun rzpOrder(plan: String, coupon: String?): Result<RzpOrder> = withContext(Dispatchers.IO) {
+        val s = _ui.value.session ?: return@withContext Result.failure(ApiException(401, "Log in first."))
+        runCatching { api.rzpOrder(s.token, plan, coupon) }.recoverCatching { throw if (it is ApiException) it else ApiException(0, "Something went wrong. Please try again.") }
+    }
+
+    /**
+     * Back from Razorpay's checkout: asks the server to check the payment and turn Pro on (tries three
+     * times, as the confirmation can lag). Runs in the app's own scope, so it finishes even if the
+     * screen is closed. [done] gets the result on the main thread.
+     */
+    fun confirmRazorpay(orderId: String, paymentId: String, signature: String, done: (Result<RzpPaid>) -> Unit = {}) {
+        val s = _ui.value.session ?: return done(Result.failure(ApiException(401, "Log in first.")))
+        scope.launch {
+            var last: Throwable = ApiException(0, "Something went wrong. Please try again.")
+            var paid: RzpPaid? = null
+            for (i in 0 until 3) {
+                try {
+                    paid = withContext(Dispatchers.IO) { api.rzpDone(s.token, orderId, paymentId, signature) }
+                    break
+                } catch (e: Exception) {
+                    last = if (e is ApiException) e else ApiException(0, "Something went wrong. Please try again.")
+                    kotlinx.coroutines.delay(2500)
+                }
+            }
+            val p = paid
+            if (p != null) {
+                setSession(s.copy(user = p.user))
+                _ui.value = _ui.value.copy(orders = listOf(p.order) + _ui.value.orders.filter { it.id != p.order.id })
+            } else {
+                withContext(Dispatchers.IO) { loadExtras() } // the server catches up from Razorpay
+            }
+            withContext(Dispatchers.Main) { done(if (p != null) Result.success(p) else Result.failure(last)) }
         }
     }
 

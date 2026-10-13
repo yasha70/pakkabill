@@ -43,6 +43,12 @@ interface Platform {
      * False when the phone has no UPI app.
      */
     fun payUpi(link: String, done: (String?) -> Unit): Boolean
+
+    /**
+     * Opens Razorpay's checkout for a Razorpay order ([amount] in paise). [done] gets the three values
+     * the server checks, or why it did not go through.
+     */
+    fun payRazorpay(key: String, orderId: String, amount: Long, description: String, phone: String, name: String, done: (RzpResult) -> Unit)
     fun copyText(text: String)
     /** What the seller copied last (to find a UTR in it), or null. */
     fun pasteText(): String?
@@ -50,6 +56,12 @@ interface Platform {
     fun setReminder(on: Boolean)
     /** Asks the home screen to add the real-profit widget; false when the launcher cannot. */
     fun pinWidget(): Boolean
+}
+
+/** What Razorpay's checkout said: paid (with the values the server checks), or why not. */
+sealed interface RzpResult {
+    data class Paid(val orderId: String, val paymentId: String, val signature: String) : RzpResult
+    data class Failed(val message: String, val cancelled: Boolean) : RzpResult
 }
 
 val LocalPlatform = staticCompositionLocalOf<Platform> { error("No platform") }

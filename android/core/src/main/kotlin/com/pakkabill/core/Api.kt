@@ -37,6 +37,8 @@ import kotlinx.serialization.json.put
     val trialDays: Int = 0,
     /** where Pro payments go (UPI), set by the admin */
     val upiId: String = "",
+    /** Razorpay Key ID (public) when the admin has set up Razorpay; then Pro is paid in Razorpay's checkout */
+    val razorpay: String = "",
     val payeeName: String = "",
     val biz: Biz = Biz(),
 )
@@ -50,10 +52,20 @@ import kotlinx.serialization.json.put
     val listAmount: Long = 0,
     val coupon: String? = null,
     val utr: String = "",
+    /** Razorpay payment ID (pay_...) for payments made in Razorpay's checkout */
+    val paymentId: String = "",
+    /** how it was paid in Razorpay: upi, card, netbanking, wallet */
+    val payMethod: String = "",
     /** PENDING, COMPLETED or REJECTED */
     val state: String = "",
     val createdAt: Long = 0,
 )
+
+/** A Razorpay order to open the checkout with: the public key, the order and the amount in paise. */
+@Serializable data class RzpOrder(val key: String = "", val orderId: String = "", val amount: Long = 0, val currency: String = "INR", val id: String = "")
+
+/** A Razorpay payment the server checked: the order and the account with its new Pro date. */
+@Serializable data class RzpPaid(val order: Order = Order(), val user: User = User())
 
 /** Price of a plan after a coupon, in rupees. */
 @Serializable data class Quote(val list: Double = 0.0, val amount: Double = 0.0, val coupon: String? = null)
@@ -178,6 +190,22 @@ class Api(private val base: String = "https://pakkabill1.vercel.app", private va
         json.decodeFromJsonElement(
             Order.serializer(),
             request("POST", "/api/pay", token, buildJsonObject { put("plan", plan); put("utr", utr); if (!coupon.isNullOrBlank()) put("coupon", coupon) })["order"]!!,
+        )
+
+    /** A Razorpay order for [plan] at the server's price (with the coupon), to pay in Razorpay's checkout. */
+    fun rzpOrder(token: String, plan: String, coupon: String?): RzpOrder =
+        json.decodeFromJsonElement(
+            RzpOrder.serializer(),
+            request("POST", "/api/pay", token, buildJsonObject { put("action", "rzpOrder"); put("plan", plan); if (!coupon.isNullOrBlank()) put("coupon", coupon) }),
+        )
+
+    /** Back from Razorpay's checkout: the server checks the signature and the payment with Razorpay, then adds Pro. */
+    fun rzpDone(token: String, orderId: String, paymentId: String, signature: String): RzpPaid =
+        json.decodeFromJsonElement(
+            RzpPaid.serializer(),
+            request("POST", "/api/pay", token, buildJsonObject {
+                put("action", "rzpDone"); put("razorpay_order_id", orderId); put("razorpay_payment_id", paymentId); put("razorpay_signature", signature)
+            }),
         )
 
     /** The seller's latest payments, newest first. */

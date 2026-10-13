@@ -11,6 +11,11 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import com.pakkabill.app.platform.RzpResult
+import com.razorpay.Checkout
+import com.razorpay.PaymentData
+import com.razorpay.PaymentResultWithDataListener
+import org.json.JSONObject
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
@@ -53,7 +58,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class MainActivity : FragmentActivity() {
+class MainActivity : FragmentActivity(), PaymentResultWithDataListener {
     private val app get() = application as PakkaApp
     private lateinit var settings: AppSettings
     private lateinit var biometric: BiometricPrompt
@@ -300,6 +305,61 @@ class MainActivity : FragmentActivity() {
         upiDone = done
         leavingForOwnIntent()
         return runCatching { upiLauncher.launch(Intent.createChooser(intent, "Pay with")) }.isSuccess
+    }
+
+    /* ---------------- paying Pro with Razorpay ---------------- */
+
+    private var rzpDone: ((RzpResult) -> Unit)? = null
+
+    fun payRazorpay(key: String, orderId: String, amount: Long, description: String, phone: String, name: String, done: (RzpResult) -> Unit) {
+        rzpDone = done
+        leavingForOwnIntent()
+        val options = JSONObject().apply {
+            put("name", "PakkaBill")
+            put("description", description)
+            put("order_id", orderId)
+            put("amount", amount)
+            put("currency", "INR")
+            put("theme", JSONObject().put("color", "#5B3FE6"))
+            put("prefill", JSONObject().apply { if (phone.length == 10) put("contact", "+91$phone"); if (name.isNotBlank()) put("name", name) })
+            put("retry", JSONObject().put("enabled", true).put("max_count", 4))
+        }
+        runCatching {
+            Checkout().apply { setKeyID(key) }.open(this, options)
+        }.onFailure {
+            rzpDone = null
+            done(RzpResult.Failed("Could not open Razorpay. Please try again.", false))
+        }
+    }
+
+    override fun onPaymentSuccess(razorpayPaymentId: String?, data: PaymentData?) {
+        val cb = rzpDone
+        rzpDone = null
+        val orderId = data?.orderId.orEmpty()
+        val paymentId = (razorpayPaymentId ?: data?.paymentId).orEmpty()
+        val signature = data?.signature.orEmpty()
+        if (orderId.isBlank() || paymentId.isBlank() || signature.isBlank()) {
+            cb?.invoke(RzpResult.Failed("Razorpay did not send the payment details. If money was taken, Pro turns on by itself within a few minutes.", false))
+            return
+        }
+        if (cb != null) cb(RzpResult.Paid(orderId, paymentId, signature))
+        else app.account.confirmRazorpay(orderId, paymentId, signature) { r ->
+            // the Plan screen was closed meanwhile (or the app was restarted): still turn Pro on
+            say(if (r.isSuccess) "Payment received. PakkaBill Pro is on." else "Payment received. Pro turns on by itself within a few minutes.", long = true)
+        }
+    }
+
+    override fun onPaymentError(code: Int, response: String?, data: PaymentData?) {
+        val cb = rzpDone
+        rzpDone = null
+        val cancelled = code == Checkout.PAYMENT_CANCELED
+        val reason = runCatching { JSONObject(response ?: "").optJSONObject("error")?.optString("description") }.getOrNull()?.takeIf { it.isNotBlank() }
+        val message = when {
+            cancelled -> "Payment cancelled. No money was taken."
+            code == Checkout.NETWORK_ERROR -> "No internet connection. No money was taken. Try again."
+            else -> (reason ?: "The payment did not go through.") + " No money was taken. Try again or pick another way to pay."
+        }
+        cb?.invoke(RzpResult.Failed(message, cancelled))
     }
 
     /* ---------------- the weekly reminder ---------------- */

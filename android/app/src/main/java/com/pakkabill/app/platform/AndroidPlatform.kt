@@ -125,6 +125,9 @@ class AndroidPlatform(private val a: MainActivity) : Platform {
 
     override fun payUpi(link: String, done: (String?) -> Unit): Boolean = a.payUpi(link, done)
 
+    override fun payRazorpay(key: String, orderId: String, amount: Long, description: String, phone: String, name: String, done: (RzpResult) -> Unit) =
+        a.payRazorpay(key, orderId, amount, description, phone, name, done)
+
     override fun copyText(text: String) {
         val cm = a.getSystemService(android.content.ClipboardManager::class.java) ?: return
         cm.setPrimaryClip(android.content.ClipData.newPlainText("PakkaBill", text))
