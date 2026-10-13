@@ -505,5 +505,29 @@ for (const cfg of settings) {
   ok(W2.due > 0 && W2.due <= W2.awaiting.v + W2.overdue.v, 'money on the way: an estimate below the order value');
 }
 
+/* ---------------------------------------------------------------- TCS and TDS rate check */
+{
+  // TCS 0.5% (1% before 10 Jul 2024) of the value without GST; TDS 0.1% (1% before 1 Oct 2024), 5% without a PAN
+  const H = PAY[0], ci = (n) => H.indexOf(n);
+  const sale = (r) => parseFloat(r[ci('Total Sale Amount (Incl. Shipping & GST)')] || 0) + parseFloat(r[ci('Total Sale Return Amount (Incl. Shipping & GST)')] || 0);
+  const set = (r, colName, v) => { const f = ci('Final Settlement Amount'), old = parseFloat(r[ci(colName)] || 0); r[ci(colName)] = String(v); r[f] = String(Math.round((parseFloat(r[f]) - old + v) * 100) / 100); };
+  const r2 = (x) => Math.round(x * 100) / 100;
+  const variant = (fn) => { const c = JSON.parse(JSON.stringify(D.payBook)); c.sheets.find((x) => x.name === 'Order Payments').rows.slice(2).forEach(fn); return c; };
+  const tc = (book) => { const x = run([book]); return E.taxCheck(x.M, x.per); };
+  const t0 = tc(D.payBook);
+  eq(t0.tcsState, 'ok', 'tax check: sample TCS at 0.5% is right');
+  eq(t0.tdsState, 'ok', 'tax check: sample TDS at 0.1% is right');
+  ok(Math.abs(t0.tcsPct - 0.5) < 0.01 && Math.abs(t0.tdsPct - 0.1) < 0.01, 'tax check: effective rates 0.5% and 0.1%', t0.tcsPct + ' ' + t0.tdsPct);
+  eq(tc(variant((r) => set(r, 'TDS', -r2(sale(r) * 0.05)))).tdsState, 'nopan', 'tax check: TDS at 5% is the no-PAN rate');
+  eq(tc(variant((r) => set(r, 'TCS', -r2(sale(r) / 1.05 * 0.01)))).tcsState, 'high', 'tax check: TCS at 1% after Jul 2024 is too high');
+  eq(tc(variant((r) => set(r, 'TCS', -r2(sale(r) / 1.05 * 0.002)))).tcsState, 'low', 'tax check: TCS at 0.2% is too low');
+  eq(tc(variant((r) => set(r, 'TCS', 0))).tcsState, 'none', 'tax check: no TCS (Enrolment ID seller)');
+  const old = tc(variant((r) => { set(r, 'TCS', -r2(sale(r) / 1.05 * 0.01)); set(r, 'TDS', -r2(sale(r) * 0.01)); r[ci('Payment Date')] = '2024-06-15'; r[ci('Order Date')] = '2024-06-01'; }));
+  ok(old.tcsState === 'ok' && old.tdsState === 'ok', 'tax check: 1% TCS and TDS are right before the 2024 cuts', old.tcsState + ' ' + old.tdsState);
+  const mid = tc(variant((r) => { set(r, 'TDS', -r2(sale(r) * 0.01)); r[ci('Payment Date')] = '2024-10-05'; r[ci('Order Date')] = '2024-09-20'; }));
+  eq(mid.tdsState, 'ok', 'tax check: an order placed before 1 Oct 2024 and paid after may use the old TDS rate');
+  eq(tc(variant((r) => { set(r, 'TDS', -r2(sale(r) * 0.01)); r[ci('Payment Date')] = '2025-03-05'; r[ci('Order Date')] = '2025-02-20'; })).tdsState, 'high', 'tax check: 1% TDS in 2025 is too high');
+}
+
 console.log(`${checks - fails} of ${checks} checks passed`);
 process.exit(fails ? 1 : 0);

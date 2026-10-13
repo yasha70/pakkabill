@@ -1193,6 +1193,57 @@ details.more[open] > summary { margin-bottom: 10px; }
     return out;
   }
 
+  /* ---------------- TCS and TDS rate check ----------------
+     GST TCS (section 52): 1% of the net taxable value until 9 Jul 2024, 0.5% from 10 Jul 2024.
+     Income tax TDS (section 194-O): 1% until 30 Sep 2024, 0.1% from 1 Oct 2024, 5% when Meesho has
+     no working PAN (section 206AA). Each row is checked against the rate on its order date and on
+     its payment date (either may apply around a change), on the value with and without GST, so a
+     "wrong" only shows when no lawful reading gives Meesho's number. Amounts are in paise. */
+  var TCS_RATES = [['2024-07-10', 0.01, 0.005]], TDS_RATES = [['2024-10-01', 0.01, 0.001]];
+  function taxCheck(M, per) {
+    var P = M.pay, reg = M.reg;
+    var o = { rows: 0, base: 0, taxable: 0, tcs: 0, tds: 0, tcsLo: 0, tcsHi: 0, tdsLo: 0, tdsHi: 0, oldTcs: false, oldTds: false };
+    function rates(p, tab) {
+      var c = tab[0], out = [];
+      [p.od || p.pd, p.pd].forEach(function (d) { if (!d) return; var r = d < c[0] ? c[1] : c[2]; if (out.indexOf(r) < 0) out.push(r); });
+      return out.length ? out : [c[2]];
+    }
+    function span(p, tab, tx, base) {
+      var v = []; rates(p, tab).forEach(function (r) { v.push(r * tx, r * base); });
+      return [Math.min.apply(null, v), Math.max.apply(null, v)];
+    }
+    for (var i = 0; i < P.length; i++) {
+      var p = P[i], d = per.basis === 'order' ? (p.od || p.pd) : p.pd;
+      if (!d || d < per.from || d > per.to) continue;
+      var tcs = 0, tds = 0;
+      for (var k in p.a) { var c = (reg[k] || {}).cat; if (c === 'tcs') tcs -= p.a[k]; else if (c === 'tds') tds -= p.a[k]; }
+      var base = p.s + p.r;
+      if (!base) continue;
+      var tx = base * 100 / (100 + (+p.g || 0)), a = span(p, TCS_RATES, tx, base), b = span(p, TDS_RATES, tx, base);
+      o.rows++; o.base += base; o.taxable += tx; o.tcs += tcs; o.tds += tds;
+      o.tcsLo += a[0]; o.tcsHi += a[1]; o.tdsLo += b[0]; o.tdsHi += b[1];
+      if (rates(p, TCS_RATES).indexOf(TCS_RATES[0][1]) >= 0) o.oldTcs = true;
+      if (rates(p, TDS_RATES).indexOf(TDS_RATES[0][1]) >= 0) o.oldTds = true;
+    }
+    if (!o.rows || o.base <= 0) return null;
+    // Meesho rounds each row to the paisa and may leave shipping out of the value: 3% or Rs 5 either way
+    function verdict(got, lo, hi, nopan) {
+      var tol = Math.max(500, 0.03 * hi, o.rows);
+      if (Math.abs(got) < 1) return 'none';
+      if (nopan && got > 0.03 * o.taxable) return 'nopan';
+      if (got < lo - tol) return 'low';
+      if (got > hi + tol) return 'high';
+      return 'ok';
+    }
+    o.taxable = Math.round(o.taxable);
+    o.tcsLo = Math.round(o.tcsLo); o.tcsHi = Math.round(o.tcsHi); o.tdsLo = Math.round(o.tdsLo); o.tdsHi = Math.round(o.tdsHi);
+    o.tcsPct = o.taxable ? o.tcs / o.taxable * 100 : 0;
+    o.tdsPct = o.base ? o.tds / o.base * 100 : 0;
+    o.tcsState = verdict(o.tcs, o.tcsLo, o.tcsHi, false);
+    o.tdsState = verdict(o.tds, o.tdsLo, o.tdsHi, true);
+    return o;
+  }
+
   /* ---------------- the P&L ---------------- */
   function compute(M, IX, cfg, expenses, per) {
     var P = M.pay, reg = M.reg, L = IX.L, REGD = !!cfg.gstReg, claim = cfg.taxCredits !== 'expense';
@@ -2127,7 +2178,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     monthStart: monthStart, monthEnd: monthEnd, nextMonth: nextMonth, fmtDate: fmtDate, fmtMonth: fmtMonth, money: money,
     skuLetters: skuLetters, nameCount: nameCount, packRule: packRule, piecesOf: piecesOf, normSt: normSt, classify: classify, detect: detect, parsePay: parsePay, parseAds: parseAds, parseAmt: parseAmt, parseOrd: parseOrd,
     calibrate: calibrate, ingest: ingest, merge: merge, index: index, dataMonths: dataMonths, periodFor: periodFor, expFor: expFor,
-    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, recoveries: recoveries, recKind: recKind, returnsDeep: returnsDeep, normSize: normSize, sizeCmp: sizeCmp, groupSize: groupSize, dataSpan: dataSpan, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
+    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, taxCheck: taxCheck, recoveries: recoveries, recKind: recKind, returnsDeep: returnsDeep, normSize: normSize, sizeCmp: sizeCmp, groupSize: groupSize, dataSpan: dataSpan, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
   };
 });
 
@@ -2400,6 +2451,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     if (S.sel.mode === 'month' && S.months.indexOf(S.sel.m) < 0) S.sel.mode = 'all';
     S.per = E.periodFor(S.sel, S.M, S.IX);
     S.R = E.compute(S.M, S.IX, cfg(), w.expenses, S.per);
+    S.TX = E.taxCheck(S.M, S.per);
     S.REC = E.reconcile(S.M, S.IX, cfg());
     S.RV = E.returnsView(S.M, S.IX, cfg(), S.per);
     S.PO = E.payouts(S.M);
@@ -2952,6 +3004,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     share: function () { A.shareSummary(); },
     lang: function (el) { setLang(el.getAttribute('data-v')); },
     unlock: function () { askAccess('pnl'); },
+    taxgo: function () { var d = document.getElementById('gst-more'); if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); } },
     stepsHide: function () { try { localStorage.setItem('hisaab:steps', '1'); } catch (e) { /* ignore */ } refresh(); },
     rmFile: function (el) {
       var id = el.getAttribute('data-id');
@@ -3383,6 +3436,30 @@ details.more[open] > summary { margin-bottom: 10px; }
   function markDl() { try { localStorage.setItem('hisaab:dl', '1'); } catch (e) { /* ignore */ } }
   function flag(k) { try { return localStorage.getItem(k) === '1'; } catch (e) { return false; } }
 
+  // TCS (GST, 0.5% from 10 Jul 2024) and TDS (income tax 194-O, 0.1% from 1 Oct 2024) Meesho took,
+  // against the law for the same sales (E.taxCheck).
+  function taxOff() { var t = S.TX; return !!t && (/low|high|nopan/.test(t.tcsState) || /low|high|nopan/.test(t.tdsState)); }
+  function taxCheckHtml() {
+    var t = S.TX;
+    if (!t) return '';
+    var TAG = { ok: ['good', 'Correct'], none: ['', 'Not deducted'], low: ['warn', 'Less than the law'], high: ['bad', 'More than the law'], nopan: ['bad', 'No-PAN rate'] };
+    function row(name, st, got, text) {
+      return '<div class="rv-row"><div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><span class="tag ' + TAG[st][0] + '">' + TAG[st][1] + '</span><b class="grow">' + name + '</b><b>' + rs(got) + '</b></div>' +
+        '<p class="small" style="margin:4px 0 0">' + text.map(esc).join(' ') + '</p></div>';
+    }
+    var range = function (lo, hi) { return lo === hi ? rs(lo) : rs(lo) + ' to ' + rs(hi); };
+    var tcs = function (st) { return st === 'ok' ? ['Meesho\u2019s TCS matches the law.']
+      : st === 'none' ? ['No TCS was taken. That is normal if you sell with an Enrolment ID instead of a GSTIN. If you have a GSTIN, ask Meesho why.']
+      : [(st === 'low' ? 'It is less than the law gives for these sales (' : 'It is more than the law gives for these sales (') + range(t.tcsLo, t.tcsHi) + ').', 'Claim only the TCS that shows in your GSTR-2X, and raise a ticket with Meesho if it stays different.']; };
+    var tds = function (st) { return st === 'ok' ? ['Meesho\u2019s TDS matches the law.']
+      : st === 'none' ? ['No TDS was taken. That is normal for an individual or HUF who has given a PAN and sells up to \u20b95 lakh a year on Meesho.']
+      : st === 'nopan' ? ['This is the 5% rate Meesho must use when it has no working PAN for you (section 206AA).', 'Add your PAN in the Meesho supplier panel and link it with Aadhaar to go back to 0.1%. The TDS already taken still comes back in your income tax return.']
+      : [(st === 'low' ? 'It is less than the law gives for these sales (' : 'It is more than the law gives for these sales (') + range(t.tdsLo, t.tdsHi) + ').', 'Match it with Form 26AS before you file your income tax return, and raise a ticket with Meesho if it stays different.']; };
+    return '<h3 class="small" style="margin:14px 0 4px">Did Meesho take the right TCS and TDS?</h3>' +
+      row('TCS (GST)', t.tcsState, t.tcs, ['TCS taken is ' + t.tcsPct.toFixed(2) + '% of your sales without GST (' + rs(t.taxable, true) + ').', 'The GST law rate is 0.5% (1% before 10 Jul 2024).'].concat(tcs(t.tcsState))) +
+      row('TDS (income tax)', t.tdsState, t.tds, ['TDS taken is ' + t.tdsPct.toFixed(2) + '% of your sale value (' + rs(t.base, true) + ').', 'The income tax rate is 0.1% (1% before 1 Oct 2024).'].concat(tds(t.tdsState)));
+  }
+
   // What is left to make the profit exact: the open steps as actions, the finished ones as ticks.
   function stepsHtml() {
     if (S.demo) return '';
@@ -3392,8 +3469,10 @@ details.more[open] > summary { margin-bottom: 10px; }
       { ok: !R.missing.length, t: 'Add product cost for ' + pl(R.missing.length, 'SKU'), why: 'Without costs, profit looks higher than it really is.', d: 'Product costs added', b: 'Add costs', a: 'data-act="tab" data-tab="costs"' },
       { ok: !K.rdef || flag('hisaab:rv'), t: 'Check ' + pl(K.rdef, 'return') + ': resellable or not', why: 'Mark items that came back damaged, so your stock cost is right.', d: 'Returns checked', b: 'Check', a: 'data-act="rcgo" data-b="returned"' },
       { ok: exp, opt: true, t: 'Add other costs like packing, rent or staff', why: 'Costs outside Meesho, spread over the month.', d: 'Other costs added', b: 'Add', a: 'data-act="tab" data-tab="exp"' },
+      { ok: !taxOff(), t: 'Check the TCS and TDS Meesho took', why: 'It is not what the law gives for your sales. See why and what to do.', d: 'TCS and TDS checked', b: 'See', a: 'data-act="taxgo"', only: true },
       { ok: flag('hisaab:dl'), t: 'Download your P&L report', why: 'An easy summary for you, or the full report for your CA.', d: 'Report downloaded', b: 'Easy summary PDF', a: 'data-act="pdfEasy"' }
     ];
+    steps = steps.filter(function (x) { return !x.only || !x.ok; });
     var done = steps.filter(function (x) { return x.ok; }), open = steps.filter(function (x) { return !x.ok; });
     if (!open.length || flag('hisaab:steps')) return '';
     var must = open.filter(function (x) { return !x.opt; }).length, C = 113.1, f = (done.length / steps.length) * C;
@@ -3520,7 +3599,8 @@ details.more[open] > summary { margin-bottom: 10px; }
     if (A.full() && !S.demo) notes += claimTeaser();
     if (notes) h += '<div class="stack no-print">' + notes + '</div>';
     h += goalHtml() + wayHtml();
-    if (!A.full()) return '<div class="stack">' + h + lockHtml('pl') + '</div>';
+    // a wrong TCS or TDS is shown to everyone: it is money the seller can get back
+    if (!A.full()) return '<div class="stack">' + h + (taxOff() ? '<section class="sheet" id="gst-more">' + taxCheckHtml() + '</section>' : '') + lockHtml('pl') + '</div>';
 
     var lines = '';
     R.lines.forEach(function (l) {
@@ -3555,7 +3635,8 @@ details.more[open] > summary { margin-bottom: 10px; }
             : R.tcsLoss ? 'TCS sits in your GST cash ledger and can only pay GST. ' + rs(R.tcsLoss) + ' of it is more than the GST left to pay, so it is not counted as profit; it stays there for future GST.'
             : 'TCS sits in your GST cash ledger and can only pay GST, so it counts as profit only up to the GST you have to pay. Here all of it is used.')) + '</p>';
     if (g) tx += '<p class="small muted" style="margin:6px 0 0">Input credit is worked out at 18% on the columns Meesho marks as including GST. Check it against Meesho\u2019s monthly tax invoice before you file.</p>';
-    h += '<details class="sheet more"><summary>GST, TCS and TDS</summary>' + tx + '</details>';
+    tx += taxCheckHtml();
+    h += '<details class="sheet more" id="gst-more"' + (taxOff() ? ' open' : '') + '><summary>GST, TCS and TDS' + (taxOff() ? ' <span class="tag warn">Check</span>' : '') + '</summary>' + tx + '</details>';
 
     var sk = R.skus.map(function (x) {
       return '<tr><td><b>' + esc(x.sku) + '</b>' + (x.pcs > 1 ? ' <span class="tag">pack of ' + x.pcs + '</span>' : '') + (x.pn ? '<div class="small muted">' + esc(x.pn) + '</div>' : '') + '</td><td class="n">' + x.sold + '</td><td class="n">' + x.units + '</td><td class="n">' + (x.retU + x.rto) + '</td><td class="n">' + x.delivered + '</td>' +
