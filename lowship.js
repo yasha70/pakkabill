@@ -16,14 +16,24 @@
   const FILLS = [40, 45, 50, 55, 60, 65, 70, 80];
   // Extra looks (stickers in the corners, a frame, a soft colour) at one product size: they change
   // what Meesho sees in the photo, so they can land in a different shipping charge too.
+  // kind: corner stickers, confetti, a corner ribbon, a border, a shadow under the product, or a
+  // background colour (bg) / gradient. on: made unless the seller switches it off.
   const STYLES = [
-    { id: 'stars', label: 'Stars' },
-    { id: 'hearts', label: 'Hearts' },
-    { id: 'sparkle', label: 'Sparkles' },
-    { id: 'frame', label: 'Frame' },
-    { id: 'pink', label: 'Soft pink', bg: [253, 236, 242] },
-    { id: 'blue', label: 'Soft blue', bg: [233, 242, 255] },
+    { id: 'stars', label: 'Stars', kind: 'sticker', on: true },
+    { id: 'hearts', label: 'Hearts', kind: 'sticker', on: true },
+    { id: 'sparkle', label: 'Sparkles', kind: 'sticker', on: true },
+    { id: 'flowers', label: 'Flowers', kind: 'sticker', on: true },
+    { id: 'confetti', label: 'Confetti', kind: 'confetti' },
+    { id: 'ribbon', label: 'Corner ribbon', kind: 'ribbon' },
+    { id: 'frame', label: 'Frame', kind: 'border', on: true },
+    { id: 'dots', label: 'Dotted frame', kind: 'border' },
+    { id: 'shadow', label: 'Soft shadow', kind: 'shadow', on: true },
+    { id: 'pink', label: 'Soft pink', bg: [253, 236, 242], on: true },
+    { id: 'blue', label: 'Soft blue', bg: [233, 242, 255], on: true },
+    { id: 'cream', label: 'Cream', bg: [252, 247, 235] },
+    { id: 'gradient', label: 'Soft gradient', bg: [246, 242, 255], grad: [255, 255, 255] },
   ];
+  const DEFAULT_LOOKS = STYLES.filter((st) => st.on).map((st) => st.id);
   // How far a colour may be from the background colour and still count as background.
   const STRENGTH = { gentle: 28, normal: 42, strong: 60 };
 
@@ -148,11 +158,13 @@
     return { k, x: (size - dw) / 2, y: (size - dh) / 2, w: dw, h: dh };
   }
 
-  // The versions of one photo: every product size, then each look at `base` percent (the size that
-  // did best before for this category, or 60%). key is what results are remembered by.
-  function variants(base, styles = true) {
+  // The versions of one photo: every product size, then each chosen look (ids; true = the usual
+  // ones, false = none) at `base` percent (the size that did best before for this category, or 60%).
+  // key is what results are remembered by.
+  function variants(base, looks = true) {
+    const ids = looks === true ? DEFAULT_LOOKS : looks || [];
     const out = FILLS.map((f) => ({ key: String(f), fill: f, style: null, label: `Product ${f}%` }));
-    if (styles) for (const st of STYLES) out.push({ key: `${base}-${st.id}`, fill: base, style: st.id, label: `${st.label} · ${base}%` });
+    for (const st of STYLES) if (ids.includes(st.id)) out.push({ key: `${base}-${st.id}`, fill: base, style: st.id, label: `${st.label} · ${base}%` });
     return out;
   }
   const keyLabel = (key) => { const [f, st] = String(key).split('-'); const s = STYLES.find((x) => x.id === st); return s ? `${s.label} at ${f}%` : `product at ${f}%`; };
@@ -220,7 +232,7 @@
     return [...out, ...central, new Uint8Array(end.buffer)];
   }
 
-  const engine = { FILLS, STYLES, STRENGTH, borderColor, backgroundMask, productBox, analyze, fillOf, place, variants, keyLabel, bestOf, bestPlainFill, stickerSpots, rupeesIn, crc32, zipParts };
+  const engine = { FILLS, STYLES, DEFAULT_LOOKS, STRENGTH, borderColor, backgroundMask, productBox, analyze, fillOf, place, variants, keyLabel, bestOf, bestPlainFill, stickerSpots, rupeesIn, crc32, zipParts };
   root.PBShip = engine;
   if (typeof document === 'undefined') return;
 
@@ -287,23 +299,70 @@
   function compose(prep, fill, size, paint, style) {
     const c = canvas(size, size), x = c.getContext('2d');
     const st = STYLES.find((s) => s.id === style);
-    x.fillStyle = `rgb(${(st && st.bg && prep.a.mask ? st.bg : paint).join(',')})`;
+    const bg = st && st.bg && prep.a.mask ? st.bg : paint;
+    if (st && st.grad && prep.a.mask) {
+      const g = x.createLinearGradient(0, 0, 0, size);
+      g.addColorStop(0, `rgb(${st.grad.join(',')})`); g.addColorStop(1, `rgb(${st.bg.join(',')})`);
+      x.fillStyle = g;
+    } else x.fillStyle = `rgb(${bg.join(',')})`;
     x.fillRect(0, 0, size, size);
     // the product itself (not the margin around it) is `fill` percent, centred
     const p = place(prep.inner, fill, size);
+    if (st && st.kind === 'shadow' && prep.a.mask) {
+      // a soft shadow under the product, as on a studio table
+      const cx = p.x + p.w / 2, cy = Math.min(size - 4, p.y + p.h), rx = p.w * 0.45, ry = Math.max(6, p.h * 0.04);
+      x.save(); x.translate(cx, cy); x.scale(1, ry / rx);
+      const g = x.createRadialGradient(0, 0, 0, 0, 0, rx);
+      g.addColorStop(0, 'rgba(40,30,60,.28)'); g.addColorStop(1, 'rgba(40,30,60,0)');
+      x.fillStyle = g; x.beginPath(); x.arc(0, 0, rx, 0, Math.PI * 2); x.fill(); x.restore();
+    }
     x.imageSmoothingQuality = 'high';
     x.drawImage(prep.cut, p.x - prep.inner.x * p.k, p.y - prep.inner.y * p.k, prep.cut.width * p.k, prep.cut.height * p.k);
+    if (!st) return { c, k: p.k };
+    const rr = (a, w, rad) => { x.beginPath(); if (x.roundRect) x.roundRect(a, a, w, w, rad); else x.rect(a, a, w, w); x.stroke(); };
     if (style === 'frame') {
       const w = size * 0.022, r = size * 0.05;
       x.strokeStyle = '#d9cffd'; x.lineWidth = w;
-      const rr = (a, w, rad) => { x.beginPath(); if (x.roundRect) x.roundRect(a, a, w, w, rad); else x.rect(a, a, w, w); x.stroke(); };
       rr(size * 0.03, size * 0.94, r);
       x.strokeStyle = '#efeaff'; x.lineWidth = w / 3;
       rr(size * 0.055, size * 0.89, r * 0.8);
-    } else if (st && !st.bg) {
+    } else if (style === 'dots') {
+      x.strokeStyle = '#b9a8ff'; x.lineWidth = size * 0.012; x.lineCap = 'round';
+      x.setLineDash([size * 0.001, size * 0.028]);
+      rr(size * 0.035, size * 0.93, size * 0.05);
+      x.setLineDash([]);
+    } else if (st.kind === 'ribbon') {
+      // a band across the top-left corner, clear of the product
+      const a = size * 0.13, b = size * 0.22;
+      if (b + size * 0.02 < p.x + p.y) {
+        x.fillStyle = '#ff7a59';
+        x.beginPath(); x.moveTo(a, 0); x.lineTo(b, 0); x.lineTo(0, b); x.lineTo(0, a); x.closePath(); x.fill();
+        x.strokeStyle = 'rgba(255,255,255,.7)'; x.lineWidth = size * 0.004;
+        x.beginPath(); x.moveTo(a + size * 0.02, 0); x.lineTo(0, a + size * 0.02); x.stroke();
+        x.beginPath(); x.moveTo(b - size * 0.02, 0); x.lineTo(0, b - size * 0.02); x.stroke();
+      }
+    } else if (st.kind === 'confetti') {
+      confettiSpots(size, p).forEach((d) => {
+        x.save(); x.translate(d.x, d.y); x.rotate(d.r); x.fillStyle = d.c;
+        if (d.round) { x.beginPath(); x.arc(0, 0, d.s / 2, 0, Math.PI * 2); x.fill(); } else x.fillRect(-d.s / 2, -d.s / 4, d.s, d.s / 2);
+        x.restore();
+      });
+    } else if (st.kind === 'sticker') {
       stickerSpots(size, p).forEach((spot, i) => sticker(x, style, spot, i));
     }
     return { c, k: p.k };
+  }
+  // Confetti in the empty space around the product: the same pattern every time (seeded).
+  function confettiSpots(size, p) {
+    let seed = 20261013;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    const cols = ['#ffc83d', '#ff6b98', '#8b6dff', '#3cc6a0', '#ff7a59'], out = [];
+    for (let i = 0; out.length < 34 && i < 400; i++) {
+      const s = size * (0.014 + rnd() * 0.016), x = s + rnd() * (size - 2 * s), y = s + rnd() * (size - 2 * s);
+      if (x > p.x - s * 1.5 && x < p.x + p.w + s * 1.5 && y > p.y - s * 1.5 && y < p.y + p.h + s * 1.5) continue;
+      out.push({ x, y, s, r: rnd() * Math.PI, c: cols[i % cols.length], round: rnd() < 0.4 });
+    }
+    return out;
   }
   // Shapes only (no words): Meesho can reject main photos with text on them.
   function sticker(x, style, { x: sx, y: sy, side }, i) {
@@ -320,6 +379,13 @@
       x.bezierCurveTo(-r * 1.25, -r * 0.1, -r * 0.55, -r * 1.05, 0, -r * 0.35);
       x.bezierCurveTo(r * 0.55, -r * 1.05, r * 1.25, -r * 0.1, 0, r * 0.75);
       x.fillStyle = '#ff6b98'; x.strokeStyle = '#d93a6c';
+    } else if (style === 'flowers') {
+      x.fillStyle = '#ff9ec0'; x.strokeStyle = '#e0628f'; x.lineWidth = Math.max(2, side * 0.03);
+      for (let k = 0; k < 5; k++) {
+        const a = (k * 2 * Math.PI) / 5;
+        x.beginPath(); x.ellipse(Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5, r * 0.42, r * 0.28, a, 0, Math.PI * 2); x.fill(); x.stroke();
+      }
+      x.beginPath(); x.arc(0, 0, r * 0.26, 0, Math.PI * 2); x.fillStyle = '#ffc83d'; x.strokeStyle = '#e09a00';
     } else {
       for (let k = 0; k < 8; k++) { const a = (k * Math.PI) / 4, rr = k % 2 ? r * 0.22 : r; x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
       x.closePath(); x.fillStyle = '#8b6dff'; x.strokeStyle = '#5b3fe6';
@@ -410,6 +476,13 @@
 .pls-busy{color:var(--ink-3);font-size:14px;padding:6px 0}
 .pls-sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
 .pls-auto{border:1.5px solid var(--carbon)}
+.pls-looks{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin-top:14px}
+.pls-looks>span{font-size:12.5px;font-weight:700;color:var(--ink-2);width:100%}
+.pls-looks small{font-weight:500;color:var(--ink-3)}
+.pls-chip{font:inherit;font-size:13.5px;font-weight:600;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink-2);border-radius:999px;padding:5px 12px;cursor:pointer}
+.pls-chip.is-on{border-color:var(--carbon);background:var(--carbon-tint);color:var(--carbon)}
+.pls-chip.is-on:before{content:"✓ "}
+.pls-looks .pls-link{border:0;background:none;font:inherit;font-size:13px;cursor:pointer;padding:4px 2px}
 .pls-link{color:var(--carbon);font-weight:700;margin-left:8px}
 `;
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -417,7 +490,10 @@
   const toast = (m, bad) => { if (window.pbToast) return window.pbToast(m, bad); const t = document.createElement('div'); t.className = 'pbp-toast' + (bad ? ' is-bad' : ''); t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 3200); };
 
   let el = null;
-  const S = { size: 1000, bg: 'white', strength: 'normal', cat: '', styles: true, photos: [], busy: 0, ext: null, sent: 0 };
+  // the extras the seller chose (remembered on this device)
+  const LOOKS_KEY = 'pb-lowship-looks';
+  const loadLooks = () => { try { const v = JSON.parse(localStorage.getItem(LOOKS_KEY)); if (Array.isArray(v)) return v.filter((id) => STYLES.some((st) => st.id === id)); } catch { /* none saved */ } return DEFAULT_LOOKS.slice(); };
+  const S = { size: 1000, bg: 'white', strength: 'normal', cat: '', looks: loadLooks(), photos: [], busy: 0, ext: null, sent: 0 };
 
   function paintFor(prep) { return S.bg === 'white' || !prep ? [255, 255, 255] : prep.a.bg; }
   // the product size the looks use: what did best before for this category, else 60%
@@ -449,7 +525,7 @@
     ph.prep = prepare(ph.src, S.strength, S.bg === 'white');
     const p = paintFor(ph.prep);
     ph.out = [];
-    for (const v of variants(baseFill(), S.styles)) {
+    for (const v of variants(baseFill(), S.looks)) {
       const { c, k } = compose(ph.prep, v.fill, S.size, p, v.style);
       const blob = await jpeg(c);
       ph.out.push({ ...v, blob, url: URL.createObjectURL(blob), k });
@@ -548,11 +624,11 @@
   function render() {
     const known = Object.values(store().cats || {}).map((c) => c.name);
     const cats = [...new Set([...known, ...CATS])];
-    const per = FILLS.length + (S.styles ? STYLES.length : 0);
+    const per = FILLS.length + S.looks.length;
     el.innerHTML = `<div class="pls">
       <div class="page-head"><div><h1 class="page-title">Low shipping image</h1><p class="page-sub">Meesho shows a different shipping charge for the same product depending on its main photo. Make clean versions here, check them in Meesho, and keep the cheapest.</p></div></div>
       <section class="paper pls-card"><ol class="pls-steps">
-        <li><b>Add your photos</b>PakkaBill finds the product, makes the background white and gives ${per} versions: 8 sizes${S.styles ? ', stickers, a frame and soft colours' : ''}.</li>
+        <li><b>Add your photos</b>PakkaBill finds the product, makes the background white and gives ${per} versions: 8 sizes${S.looks.length ? ` and ${S.looks.length} with extras (stickers, frames, colours)` : ''}.</li>
         <li><b>Check them in Meesho</b>Automatically with PakkaBill Lens on a laptop, or by hand: add a version as the first photo in catalogue upload and see the shipping.</li>
         <li><b>Keep the cheapest</b>The cheapest is marked, and PakkaBill remembers the best version for that category.</li>
       </ol></section>
@@ -563,8 +639,10 @@
           <label>Background<select data-opt="bg"><option value="white"${S.bg === 'white' ? ' selected' : ''}>Clean white (recommended)</option><option value="keep"${S.bg === 'keep' ? ' selected' : ''}>Keep my background</option></select></label>
           <label>Cleaning<select data-opt="strength"><option value="gentle"${S.strength === 'gentle' ? ' selected' : ''}>Gentle (white or light products)</option><option value="normal"${S.strength === 'normal' ? ' selected' : ''}>Normal</option><option value="strong"${S.strength === 'strong' ? ' selected' : ''}>Strong (shadows, uneven light)</option></select></label>
           <label>Photo size<select data-opt="size"><option value="1000"${S.size === 1000 ? ' selected' : ''}>1000 × 1000</option><option value="1500"${S.size === 1500 ? ' selected' : ''}>1500 × 1500</option></select></label>
-          <label>Versions<select data-opt="styles"><option value="1"${S.styles ? ' selected' : ''}>Sizes, stickers and colours</option><option value="0"${S.styles ? '' : ' selected'}>Sizes only</option></select></label>
         </div>
+        <div class="pls-looks" role="group" aria-label="Extras on the photo"><span>Extras <small>(each makes one more version)</small></span>
+          ${STYLES.map((st) => `<button type="button" class="pls-chip${S.looks.includes(st.id) ? ' is-on' : ''}" data-look="${st.id}" aria-pressed="${S.looks.includes(st.id)}">${esc(st.label)}</button>`).join('')}
+          <button type="button" class="pls-link" data-looks="all">All</button><button type="button" class="pls-link" data-looks="none">None</button></div>
         <div data-hint>${hintHtml()}</div>
       </section>
       ${S.photos.length ? `<div class="pls-bar"><b>${S.photos.length} photo${S.photos.length > 1 ? 's' : ''} · ${S.photos.reduce((a, ph) => a + ph.out.length, 0)} versions</b><span><button type="button" class="pls-btn" data-zip>⬇ Download all (ZIP)</button> <button type="button" class="pls-btn pls-btn--ghost" data-clear>Clear</button></span></div>` : ''}
@@ -622,15 +700,29 @@
     drop.addEventListener('drop', (e) => addFiles(e.dataTransfer.files));
     const cat = el.querySelector('[data-cat]');
     cat.addEventListener('change', () => { S.cat = cat.value.trim(); draw(); });
-    el.querySelectorAll('[data-opt]').forEach((s) => s.addEventListener('change', async () => {
-      const k = s.dataset.opt;
-      S[k] = k === 'size' ? Number(s.value) : k === 'styles' ? s.value === '1' : s.value;
+    const rebuild = async () => {
       if (!S.photos.length) return draw();
       S.busy = S.photos.length;
+      S.sent = 0;
       draw();
       for (const ph of S.photos) { await build(ph); S.busy--; }
       draw();
+    };
+    el.querySelectorAll('[data-opt]').forEach((s) => s.addEventListener('change', () => {
+      const k = s.dataset.opt;
+      S[k] = k === 'size' ? Number(s.value) : s.value;
+      rebuild();
     }));
+    const setLooks = (ids) => {
+      S.looks = STYLES.map((st) => st.id).filter((id) => ids.includes(id)); // keep the list's order
+      try { localStorage.setItem(LOOKS_KEY, JSON.stringify(S.looks)); } catch { /* private mode */ }
+      rebuild();
+    };
+    el.querySelectorAll('[data-look]').forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.look;
+      setLooks(S.looks.includes(id) ? S.looks.filter((x) => x !== id) : [...S.looks, id]);
+    }));
+    el.querySelectorAll('[data-looks]').forEach((b) => b.addEventListener('click', () => setLooks(b.dataset.looks === 'all' ? STYLES.map((st) => st.id) : [])));
     el.querySelector('[data-clear]')?.addEventListener('click', () => {
       S.photos.forEach((ph) => { URL.revokeObjectURL(ph.url); ph.out.forEach((o) => URL.revokeObjectURL(o.url)); });
       S.photos = [];

@@ -101,8 +101,10 @@ device and marked "Best last time" next time. Only Meesho's panel shows the real
 does not guess one. Runs in the browser; photos never leave the phone. Code: `lowship.js`
 (engine `window.PBShip`); tests: `node test/lowship-audit.js`.
 
-Besides the 8 sizes, each photo gets 6 looks at the best size so far (or 60%): stars, hearts or
-sparkles in the corners (shapes only, no words), a frame, and soft pink or blue backgrounds.
+Besides the 8 sizes, each photo gets the extras the seller picks (chips, remembered on the device),
+at the best size so far (or 60%): stars, hearts, sparkles or flowers in the corners, confetti, a
+corner ribbon, a frame or dotted frame, a soft shadow, and soft pink, blue, cream or gradient
+backgrounds. Shapes only, no words (text on the main photo can get a catalogue rejected).
 
 **Automatic check in Meesho** (laptop, PakkaBill Lens 2.1+): "Send to Meesho check" hands every
 version to the extension (`lens/bridge.js`). On supplier.meesho.com, `lens/ship.js` shows a panel:

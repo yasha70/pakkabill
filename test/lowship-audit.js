@@ -90,7 +90,10 @@ ok(E.FILLS.length === 8 && E.FILLS[0] === 40 && E.FILLS[7] === 80, 'eight sizes 
 
 /* 6. versions and the seller's results */
 let vs = E.variants(55);
-eq([vs.length, vs[0].key, vs[7].key, vs[8].key, vs[8].fill, vs[8].style, vs[13].key, vs[13].label], [14, '40', '80', '55-stars', 55, 'stars', '55-blue', 'Soft blue · 55%'], '8 sizes, then 6 looks at the best size');
+eq([vs.length, vs[0].key, vs[7].key, vs[8].key, vs[8].fill, vs[8].style, vs[vs.length - 1].key, vs[vs.length - 1].label], [8 + E.DEFAULT_LOOKS.length, '40', '80', '55-stars', 55, 'stars', '55-blue', 'Soft blue · 55%'], '8 sizes, then the usual extras at the best size');
+eq(E.DEFAULT_LOOKS, ['stars', 'hearts', 'sparkle', 'flowers', 'frame', 'shadow', 'pink', 'blue'], 'usual extras');
+eq(E.STYLES.length, 13, '13 extras to choose from');
+eq(E.variants(60, ['gradient', 'confetti']).slice(8).map((v) => v.key), ['60-confetti', '60-gradient'], 'chosen extras only, in the list order');
 eq(E.variants(60, false).map((v) => v.key), ['40', '45', '50', '55', '60', '65', '70', '80'], 'sizes only');
 eq([E.keyLabel('55'), E.keyLabel('60-hearts'), E.keyLabel('60-frame')], ['product at 55%', 'Hearts at 60%', 'Frame at 60%'], 'version names in plain words');
 eq(E.bestOf({ 50: [80, 70], 55: [60], 60: [60, 62], 70: [] }), { key: '55', avg: 60, tries: 1 }, 'lowest average shipping wins');
