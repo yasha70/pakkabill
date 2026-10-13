@@ -373,7 +373,7 @@
         <ol class="sub" style="margin:0 0 10px;padding-left:20px">
           <li>In the Razorpay Dashboard, switch to <b>Live mode</b>, open <b>Account &amp; Settings → API keys</b> and generate a key. Copy the <b>Key ID</b> and <b>Key Secret</b> (the secret is shown only once).</li>
           <li>Paste both here, tap <b>Test keys</b>, then <b>Save settings</b>.</li>
-          <li>Recommended: in <b>Account &amp; Settings → Webhooks</b>, add a webhook with the address below and the events <b>payment.captured</b> and <b>order.paid</b>. Secret: any password (PakkaBill checks every payment with Razorpay itself). It turns Pro on even if a customer closes the app right after paying.</li>
+          <li>Recommended: in <b>Account &amp; Settings → Webhooks</b>, add a webhook with the address below and the events <b>payment.captured</b>, <b>order.paid</b> and <b>refund.processed</b>. Secret: any password (PakkaBill checks every payment and refund with Razorpay itself). It turns Pro on even if a customer closes the app right after paying, and a full refund in Razorpay takes back the Pro time that payment bought.</li>
         </ol>
         <div class="grid2">
           <label class="f">Key ID<input type="text" name="rzpKeyId" maxlength="60" placeholder="rzp_live_..." autocomplete="off" spellcheck="false"></label>
@@ -504,8 +504,8 @@
   }
 
   function stateBadge(s, o) {
-    const cls = s === 'COMPLETED' ? 'pro' : s === 'REJECTED' ? 'bad' : 'wait';
-    const label = { COMPLETED: o && o.paymentId ? 'Paid' : 'Approved', REJECTED: 'Rejected', PENDING: 'Waiting for you' }[s] || s;
+    const cls = s === 'COMPLETED' ? 'pro' : s === 'REJECTED' || s === 'REFUNDED' ? 'bad' : 'wait';
+    const label = { COMPLETED: o && o.paymentId ? 'Paid' : 'Approved', REJECTED: 'Rejected', PENDING: 'Waiting for you', REFUNDED: 'Refunded' }[s] || s;
     return `<span class="pill ${cls}">${esc(label)}</span>`;
   }
   const payRef = (o) => o.utr || (o.paymentId ? `Razorpay ${o.paymentId}${o.payMethod ? ' · ' + o.payMethod : ''}` : '—');
@@ -1008,7 +1008,7 @@
   async function loadPayments() {
     try {
       const r = await api('payments', { status: payF, q: $('#pq').value, page: ppage, size: 50 });
-      const F = [['all', 'All'], ['PENDING', 'Waiting'], ['COMPLETED', 'Approved'], ['REJECTED', 'Rejected']];
+      const F = [['all', 'All'], ['PENDING', 'Waiting'], ['COMPLETED', 'Approved'], ['REJECTED', 'Rejected'], ['REFUNDED', 'Refunded']];
       $('#pfilters').innerHTML = F.map(([k, l]) => `<button data-f="${k}" aria-pressed="${payF === k}">${l}<small>${(r.counts[k] || 0).toLocaleString('en-IN')}</small></button>`).join('');
       $('#payments').innerHTML = paymentsTable(r.payments, true);
       pager($('#ppager'), r, (p) => { ppage = p; loadPayments(); });

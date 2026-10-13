@@ -185,8 +185,9 @@ net banking, wallets) and Pro turns on by itself, with nothing to approve. The s
 Razorpay order at the plan price (coupon applied), checks checkout's signature, then asks Razorpay
 for the payment itself (same order, full amount, captured; an authorised payment is captured) before
 adding Pro, once per order. If the app closes right after paying, Razorpay's webhook
-(`/api/pay?razorpay=webhook`, events `payment.captured` and `order.paid`) or the next visit to the
-plan page catches up. With a UPI ID saved too, customers can still choose the UPI QR. Code:
+(`/api/pay?razorpay=webhook`, events `payment.captured`, `order.paid` and `refund.processed`) or the next
+visit to the plan page catches up. A full refund made in the Razorpay dashboard takes back the Pro time
+that payment added (a part refund keeps Pro; use Remove Pro in admin if needed). With a UPI ID saved too, customers can still choose the UPI QR. Code:
 `api/_lib/razorpay.js`; tests: `node test/razorpay-audit.js`.
 
 Trying Razorpay locally with test keys: copy `.env.example` to `.env` (never committed or deployed), put in

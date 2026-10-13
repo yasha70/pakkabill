@@ -136,6 +136,29 @@ const userNow = (phone) => core.getUser(phone);
   r = await rzp.webhook(cfg, { event: 'order.paid', payload: { payment: { entity: { ...R.payments[p4] } }, order: { entity: R.orders[o4.rzpOrderId] } } }, rzpFetch);
   ok(r.first && (await userNow(B.phone)).paidUntil - bUntil > 29 * core.DAY, 'webhook alone turns Pro on (app closed after paying)');
 
+  /* 5b. refunds */
+  const refundHook = (paymentId, amount) => ({ event: 'refund.processed', payload: { refund: { entity: { id: 'rfnd_' + paymentId, payment_id: paymentId, amount } } } });
+  eq(await rzp.webhook(cfg, refundHook('pay_unknown1', 100), rzpFetch), { ignored: true }, 'refund of a payment that is not PakkaBill\'s: ignored');
+  // a forged refund call: Razorpay says nothing was refunded, so Pro stays
+  const bPaid = (await userNow(B.phone)).paidUntil;
+  r = await rzp.webhook(cfg, refundHook(p4, o4.amount), rzpFetch);
+  ok(r.ignored && (await userNow(B.phone)).paidUntil === bPaid, 'refund webhook without a refund at Razorpay changes nothing', JSON.stringify(r));
+  // a part refund keeps Pro
+  R.payments[p4].amount_refunded = Math.round(o4.amount / 2); R.payments[p4].refund_status = 'partial';
+  r = await rzp.webhook(cfg, refundHook(p4, Math.round(o4.amount / 2)), rzpFetch);
+  ok(r.partial && (await userNow(B.phone)).paidUntil === bPaid, 'part refund: Pro stays', JSON.stringify(r));
+  // a full refund takes back the 30 days, once
+  R.payments[p4].amount_refunded = o4.amount; R.payments[p4].refund_status = 'full';
+  r = await rzp.webhook(cfg, refundHook(p4, o4.amount), rzpFetch);
+  eq([r.first, r.refunded && r.refunded.state, bPaid - (await userNow(B.phone)).paidUntil], [true, 'REFUNDED', 30 * core.DAY], 'full refund: order refunded, the 30 days it bought taken back');
+  r = await rzp.webhook(cfg, refundHook(p4, o4.amount), rzpFetch);
+  ok(r.ignored && bPaid - (await userNow(B.phone)).paidUntil === 30 * core.DAY, 'the same refund again takes nothing more');
+  r = await rzp.settle(cfg, await db.getJSON(`order:${o4.id}`), p4, rzpFetch);
+  ok(!r.first && (await db.getJSON(`order:${o4.id}`)).state === 'REFUNDED' && bPaid - (await userNow(B.phone)).paidUntil === 30 * core.DAY, 'a refunded payment checked again stays refunded and adds nothing');
+  await throws(require('../api/_lib/orders').approve(o4.id), 'admin approve on a refunded payment is refused', (e) => e.status === 400 && /refunded/.test(e.message));
+  // give B the month back for the checks below
+  await core.saveUser({ ...(await userNow(B.phone)), paidUntil: bPaid });
+
   /* 6. catching up when the customer opens their plan */
   const o5 = await rzp.createOrder(cfg, B, 'monthly', '', rzpFetch);
   const o6 = await rzp.createOrder(cfg, B, 'monthly', '', rzpFetch);

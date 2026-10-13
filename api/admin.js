@@ -251,13 +251,13 @@ const actions = {
     return { log: rows.map((r) => { try { return JSON.parse(r); } catch { return null; } }).filter(Boolean) };
   },
 
-  // Payments, newest first, one page at a time. status: all, PENDING, COMPLETED, REJECTED; q: phone, UTR or Razorpay payment ID.
+  // Payments, newest first, one page at a time. status: all, PENDING, COMPLETED, REJECTED, REFUNDED; q: phone, UTR or Razorpay payment ID.
   async payments({ status = 'all', q = '', page = 0, size = 50 } = {}) {
     const all = await allOrders();
     const needle = String(q || '').trim();
     const list = all.filter((o) => (status === 'all' || o.state === status) && (!needle || String(o.phone).includes(needle) || String(o.utr || '').includes(needle) || String(o.paymentId || '').includes(needle)));
     const n = Math.max(1, Math.min(200, Number(size) || 50)), p = Math.max(0, Number(page) || 0);
-    const counts = { all: all.length, PENDING: 0, COMPLETED: 0, REJECTED: 0 };
+    const counts = { all: all.length, PENDING: 0, COMPLETED: 0, REJECTED: 0, REFUNDED: 0 };
     all.forEach((o) => { counts[o.state] = (counts[o.state] || 0) + 1; });
     return { payments: list.slice(p * n, p * n + n), total: list.length, page: p, pages: Math.ceil(list.length / n), counts };
   },

@@ -556,7 +556,7 @@
   }
   function ordersHtml() {
     if (!myOrders || !myOrders.length) return '';
-    const label = { PENDING: 'Waiting for confirmation', COMPLETED: 'Confirmed', REJECTED: 'Not found in our account' };
+    const label = { PENDING: 'Waiting for confirmation', COMPLETED: 'Confirmed', REJECTED: 'Not found in our account', REFUNDED: 'Refunded' };
     return `<ul class="pbp-orders">${myOrders
       .map((o) => `<li class="is-${o.state.toLowerCase()}"><span>${rupees(o.amount / 100)} · ${o.plan === 'yearly' ? 'Yearly' : 'Monthly'} · ${o.utr ? 'UTR ' + esc(o.utr) : 'Razorpay'}</span><b>${label[o.state] || esc(o.state)}</b></li>`)
       .join('')}</ul>${myOrders.some((o) => o.state === 'REJECTED') ? '<p class="pbp-fine">If a payment was not found, check the transaction number and submit it again.</p>' : ''}`;

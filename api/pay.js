@@ -27,7 +27,9 @@ module.exports = core.handler(async (req, res) => {
       if (e instanceof core.HttpError && e.status < 500) return core.send(res, 200, { ignored: true, reason: e.message });
       throw e;
     }
-    if (out.first) await paidNote(out.order);
+    if (out.refunded) {
+      if (out.first) await push.toAdmin({ title: `₹${(out.refunded.refundAmount / 100).toLocaleString('en-IN')} refunded on Razorpay`, body: `${out.refunded.phone}: the ${out.refunded.plan} plan time is taken back`, url: '/admin#payments', tag: `refund-${out.refunded.id}` }).catch(() => {});
+    } else if (out.first) await paidNote(out.order);
     return core.send(res, 200, { ok: true });
   }
 

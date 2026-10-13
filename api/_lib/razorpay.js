@@ -88,7 +88,7 @@ async function createOrder(cfg, user, plan, coupon, fetchFn) {
 // is trusted on its own: it must be this order's payment, for the full amount, and captured.
 // Returns { order, first } where first is true only for the call that turned Pro on.
 async function settle(cfg, order, paymentId, fetchFn) {
-  if (order.state === 'COMPLETED') return { order, first: false };
+  if (order.state === 'COMPLETED' || order.state === 'REFUNDED') return { order, first: false }; // a refunded payment never counts again
   if (!/^pay_[A-Za-z0-9]+$/.test(String(paymentId || ''))) throw new core.HttpError(400, 'That is not a Razorpay payment.');
   let p = await call(cfg, 'GET', `/payments/${paymentId}`, null, fetchFn);
   if (p.order_id !== order.rzpOrderId) throw new core.HttpError(400, 'This payment is for a different order.');
@@ -133,14 +133,34 @@ async function fromCheckout(cfg, user, b, fetchFn) {
   return settle(cfg, order, pid, fetchFn);
 }
 
-// 4a. Razorpay's webhook (payment.captured, payment.authorized, order.paid). Only the order and payment IDs
+// 4a. Razorpay's webhook (payment.captured, payment.authorized, order.paid; refunds are 4c). Only the order and payment IDs
 // are read from it; settle() then asks Razorpay itself, so a made-up webhook cannot turn Pro on.
 async function webhook(cfg, body, fetchFn) {
+  if (body && /^refund\./.test(String(body.event || ''))) return refund(cfg, body, fetchFn);
   const pay = body && body.payload && body.payload.payment && body.payload.payment.entity;
   if (!pay || !pay.id || !pay.order_id || !['captured', 'authorized'].includes(pay.status)) return { ignored: true };
   const order = await orderFor(pay.order_id);
   if (!order) return { ignored: true }; // not a PakkaBill order (another app on the same account)
   return settle(cfg, order, pay.id, fetchFn);
+}
+
+// 4c. Refunds (refund.processed): a payment refunded in full in the Razorpay dashboard takes back the
+// Pro time it bought. As with payments, the webhook only names the payment; the refund is read
+// from Razorpay with the shop's keys, so a forged call cannot remove anyone's Pro.
+async function refund(cfg, body, fetchFn) {
+  const r = body.payload && body.payload.refund && body.payload.refund.entity;
+  const paymentId = String((r && r.payment_id) || '');
+  if (!/^pay_[A-Za-z0-9]+$/.test(paymentId)) return { ignored: true };
+  const orderId = await db.cmd(['GET', `rzppay:${paymentId}`]);
+  if (!orderId) return { ignored: true }; // not a PakkaBill payment
+  const order = await orders.getOrder(orderId);
+  if (!order || order.state !== 'COMPLETED') return { ignored: true };
+  const p = await call(cfg, 'GET', `/payments/${paymentId}`, null, fetchFn);
+  if (p.order_id !== order.rzpOrderId) return { ignored: true };
+  // a part refund (a goodwill discount) keeps Pro; the admin can remove it by hand
+  if (!(Number(p.amount_refunded) >= order.amount)) return { ignored: true, partial: true };
+  const out = await orders.refunded(order.id, Number(p.amount_refunded));
+  return { refunded: out.order, first: out.first };
 }
 
 // 4b. When a customer opens their plan: their unpaid orders from the last two days, checked with Razorpay
@@ -177,4 +197,4 @@ async function test(cfg, fetchFn) {
   return { ok: true, live: cfg.live };
 }
 
-module.exports = { KEY_ID, config, call, signatureOk, createOrder, settle, fromCheckout, webhook, reconcile, test };
+module.exports = { KEY_ID, config, call, signatureOk, createOrder, settle, fromCheckout, webhook, refund, reconcile, test };

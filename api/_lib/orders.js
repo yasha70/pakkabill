@@ -52,6 +52,7 @@ async function approve(id) {
   const order = await getOrder(id);
   if (!order) throw new core.HttpError(404, 'Payment not found.');
   if (order.state === 'COMPLETED') return order;
+  if (order.state === 'REFUNDED') throw new core.HttpError(400, 'This payment was refunded, so it does not add Pro.');
   const first = await db.cmd(['SET', `applied:${id}`, '1', 'NX']);
   if (first) {
     const user = await core.getUser(order.phone);
@@ -80,4 +81,25 @@ async function reject(id) {
   return order;
 }
 
-module.exports = { getOrder, claim, mine, approve, reject };
+// A payment given back in full (a Razorpay refund): the Pro time it added is taken back, once.
+// Time bought by other payments, gifts and trials stays.
+async function refunded(id, amount) {
+  const order = await getOrder(id);
+  if (!order) throw new core.HttpError(404, 'Payment not found.');
+  if (order.state === 'REFUNDED' || order.state !== 'COMPLETED') return { order, first: false };
+  const first = await db.cmd(['SET', `refunded:${id}`, '1', 'NX']);
+  if (first) {
+    const user = await core.getUser(order.phone);
+    if (user && user.paidUntil) {
+      user.paidUntil = Math.max(0, user.paidUntil - core.PLAN_DAYS[order.plan] * core.DAY);
+      await core.saveUser(user);
+    }
+  }
+  order.state = 'REFUNDED';
+  order.refundedAt = order.refundedAt || Date.now();
+  order.refundAmount = amount;
+  await saveOrder(order);
+  return { order, first: !!first };
+}
+
+module.exports = { getOrder, claim, mine, approve, reject, refunded };
