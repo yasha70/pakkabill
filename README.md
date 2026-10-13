@@ -90,28 +90,26 @@ Excel and PDF.
 
 ## Low shipping image (Meesho)
 
-Meesho shows a different shipping charge for the same product depending on its main catalogue photo.
-`#/lowship` (the **Image** tab, in place of Listing, which moved to More tools) takes product photos,
-finds the product (background colour from the photo's border, flood fill through it and gentle
-shading, specks dropped, pairs kept), turns the background plain white, and makes eight 1000×1000
-(or 1500×1500) JPEG versions with the product at 40–80% of the frame, each under 1 MB. Download one,
-or all as a ZIP. The seller tries versions in Meesho's catalogue upload and types the shipping Meesho
-shows under each; the cheapest is marked, and the best product size per category is remembered on the
-device and marked "Best last time" next time. Only Meesho's panel shows the real charge, so the tool
-does not guess one. Runs in the browser; photos never leave the phone. Code: `lowship.js`
-(engine `window.PBShip`); tests: `node test/lowship-audit.js`.
+Meesho can show a different shipping charge for photos of the same product that look almost the
+same. Tools that cut this charge make many versions of the seller's own photo and test each one in
+Meesho's catalogue upload. `#/lowship` (the **Image** tab, in place of Listing, which moved to More
+tools) does the same, professionally: the product stays full size and every version still looks like
+the seller's photo. 12, 24 (default) or 40 versions, the seller's own photo first, then small changes:
+zoom in or out 3-9%, a 1-3° turn (drawn a little bigger so no corners show), a small shift, a
+little more or less light, contrast or colour, warmer or cooler, a clean white background (found by
+flood-filling the plain background from the border), a thin border, sharpening and JPEG quality.
+Same shape as the photo (1000-1500 px) or square 1000×1000, each under 1 MB. Download one, the
+cheapest of each photo, or all as a ZIP. Runs in the browser; photos never leave the device. Code:
+`lowship.js` (engine `window.PBShip`); tests: `node test/lowship-audit.js`.
 
-Besides the 8 sizes, each photo gets the extras the seller picks (chips, remembered on the device),
-at the best size so far (or 60%): stars, hearts, sparkles or flowers in the corners, confetti, a
-corner ribbon, a frame or dotted frame, a soft shadow, and soft pink, blue, cream or gradient
-backgrounds. Shapes only, no words (text on the main photo can get a catalogue rejected).
-
-**Automatic check in Meesho** (laptop, PakkaBill Lens 2.1+): "Send to Meesho check" hands every
+**Real shipping from Meesho, live** (laptop, PakkaBill Lens 2.2+): "Check in Meesho" hands every
 version to the extension (`lens/bridge.js`). On supplier.meesho.com, `lens/ship.js` shows a panel:
 in Catalog Upload → Add Single Catalog it finds Meesho's photo box and the shipping charge (or the
 seller points to each once), puts each version into the photo box, waits for Meesho's charge to
-settle, reads it and sends it back; the Image tab fills in the prices, marks the cheapest and learns.
-"Put it in Meesho's photo box" puts the cheapest in. It never submits a catalogue.
+settle, reads it and sends it back. The Image tab shows each price as it comes, which version is
+being checked, progress, the cheapest, and the saving against the seller's own photo; it remembers
+the best version per category. "Put it in Meesho's photo box" puts the cheapest in. It never
+submits a catalogue. On a phone the seller types the shipping Meesho shows.
 
 ## Labels & packing chart
 

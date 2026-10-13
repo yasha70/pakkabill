@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PakkaBill Lens – Meesho insights and shipping check",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Shows a Meesho product's seller price, sales speed and quality signals, and checks which photo version gets the lowest shipping in Meesho's catalogue upload.",
   "permissions": [
     "storage",

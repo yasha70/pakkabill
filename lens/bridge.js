@@ -25,7 +25,7 @@
   });
   // shipping read in Meesho goes straight back to the open Image tab
   chrome.storage.onChanged.addListener((ch, area) => {
-    if (area === 'local' && ch.shipres && ch.shipres.newValue) window.postMessage({ type: 'pb-ship-results', results: ch.shipres.newValue.results || {} }, ORIGIN);
+    if (area === 'local' && ch.shipres && ch.shipres.newValue) window.postMessage({ type: 'pb-ship-results', results: ch.shipres.newValue.results || {}, current: ch.shipres.newValue.current || null }, ORIGIN);
   });
   send();
 })();

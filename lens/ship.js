@@ -119,16 +119,19 @@
       const it = Q.items[i];
       if (R[it.id] != null) continue;
       current = i; note = ''; draw();
+      await set({ shipres: { at: Date.now(), results: R, current: it.id } }); // PakkaBill shows which one is being checked
       const input = findInput(); // found again each time: Meesho may redraw the form
       if (!input) { note = 'Meesho\'s photo box went away. Open the catalogue form again and tap Check all.'; break; }
       const before = shipText();
       try { await putImage(input, it); } catch (e) { missed.add(it.id); continue; }
       const r = await waitShip(before);
-      if (r.value != null) { R[it.id] = r.value; missed.delete(it.id); await set({ shipres: { at: Date.now(), results: R } }); }
+      if (r.value != null) { R[it.id] = r.value; missed.delete(it.id); }
       else if (!stop) missed.add(it.id);
+      await set({ shipres: { at: Date.now(), results: R, current: null } });
       draw();
     }
     mode = 'idle'; current = -1;
+    await set({ shipres: { at: Date.now(), results: R, current: null } });
     if (!note) note = stop ? 'Stopped.' : missed.size ? `${missed.size} version${missed.size > 1 ? 's' : ''} got no reading. Tap Check all to try them again.` : 'All checked. The prices are in PakkaBill too.';
     draw();
   }

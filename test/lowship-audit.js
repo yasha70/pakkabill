@@ -1,7 +1,8 @@
 // Checks of the low shipping image engine (lowship.js, window.PBShip) on made-up photos whose answers
 // are known: background colour, plain or busy, the product's box (specks dropped, pairs kept, shading
-// and soft shadows treated as background), placing the product at a size, the best size from the
-// seller's results, and the ZIP of the photos.
+// and soft shadows treated as background, for the clean white version), the versions (all small,
+// professional changes; the seller's own photo first), light and colour changes on pixels, the cover
+// zoom for turned photos, results and savings, reading Meesho's price, and the ZIP of the photos.
 // Run: node test/lowship-audit.js   (exits 1 on any failure)
 'use strict';
 const fs = require('fs');
@@ -42,7 +43,6 @@ const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7ffffff
 let a = E.analyze(photo(300, 400, W, [{ x: 60, y: 80, w: 150, h: 220, c: [180, 30, 60] }]));
 eq([a.bg, a.plain], [[255, 255, 255], true], 'white background found, plain');
 boxNear(a.box, { x: 60, y: 80, w: 150, h: 220 }, 0, 'product box exact on white');
-eq(E.fillOf(a.box, 300, 400), 55, 'product fills 55% of the longer side');
 a = E.analyze(photo(300, 300, [236, 236, 238], [{ x: 100, y: 50, w: 90, h: 200, c: [20, 20, 90] }]));
 eq([a.bg, a.plain], [[236, 236, 238], true], 'light grey background found');
 boxNear(a.box, { x: 100, y: 50, w: 90, h: 200 }, 0, 'product box on grey');
@@ -81,31 +81,42 @@ eq([a.plain, a.box], [false, { x: 0, y: 0, w: 200, h: 200 }], 'empty white photo
 a = E.analyze(photo(200, 200, W, [{ x: 40, y: 40, w: 100, h: 100, c: [0, 0, 0] }]), { strength: 'off' });
 eq(a.mask, null, 'cleaning off: no mask');
 
-/* 5. placing the product */
-const p55 = E.place({ w: 300, h: 200 }, 55, 1000);
-eq([p55.w, Math.round(p55.h * 100) / 100, p55.x, Math.round(p55.y * 100) / 100], [550, 366.67, 225, 316.67], 'longer side is 55% of 1000, centred');
-const p = E.place({ w: 120, h: 480 }, 80, 1000);
-eq([Math.round(p.h), Math.round(p.w), Math.round(p.y), Math.round(p.x)], [800, 200, 100, 400], 'tall product at 80%: 800 high, centred');
-ok(E.FILLS.length === 8 && E.FILLS[0] === 40 && E.FILLS[7] === 80, 'eight sizes from 40% to 80%');
+/* 5. the versions: small changes, product full size */
+const T = E.tweaks(40);
+eq([E.tweaks(12).length, E.tweaks(24).length, T.length, T[0].key, T[0].label], [12, 24, 40, 'orig', 'Your photo'], '12 / 24 / 40 versions, your own photo first');
+eq(new Set(T.map((t) => t.key)).size, 40, 'every version has its own name');
+ok(T.every((t) => (t.zoom == null || (t.zoom >= 0.9 && t.zoom <= 1.1)) && Math.abs(t.rot || 0) <= 3 && Math.abs(t.dx || 0) <= 0.03 && Math.abs(t.dy || 0) <= 0.03
+  && Math.abs(t.light || 0) <= 0.1 && (t.contrast == null || Math.abs(t.contrast - 1) <= 0.1 + 1e-9) && (t.sat == null || Math.abs(t.sat - 1) <= 0.1 + 1e-9) && (t.border || 0) <= 0.03 && (t.q == null || t.q >= 0.6)),
+  'every change is small: zoom within 10%, turn within 3°, shift within 3%, light and colour within 10%, border within 3%');
+ok(E.tweaks(24).every((t) => !t.flip), 'no mirror image in the usual 24 (writing on a product would flip)');
+eq([E.keyLabel('zin3'), E.keyLabel('white'), E.keyLabel('old-key')], ['Zoom in 3%', 'Clean white background', 'An older version'], 'version names in plain words');
+// turned photos are drawn a little bigger so no empty corners show
+eq([E.coverScale(1000, 1000, 0), Math.round(E.coverScale(1000, 1000, 2) * 1000) / 1000, Math.round(E.coverScale(750, 1000, -2) * 1000) / 1000], [1, 1.034, 1.046], 'cover zoom for a turn: 2° needs about 3.4% (square), 4.6% (3:4 photo)');
+const corner = (s, deg, w, h) => { const r = (deg * Math.PI) / 180, cx = w / 2, cy = h / 2; const x = cx * Math.cos(r) + cy * Math.sin(r), y = cx * Math.sin(r) + cy * Math.cos(r); return x <= (s * w) / 2 + 1e-9 && y <= (s * h) / 2 + 1e-9; };
+ok([[1000, 1000, 2], [750, 1000, 3], [1200, 800, -3]].every(([w, h, d]) => corner(E.coverScale(w, h, d), Math.abs(d), w, h)), 'the frame corners stay inside the turned photo');
+// sizes
+eq([E.outSize(800, 1000, 'photo'), E.outSize(3000, 4000, 'photo'), E.outSize(1200, 1200, 'photo'), E.outSize(500, 700, 'square')], [{ w: 800, h: 1000 }, { w: 1125, h: 1500 }, { w: 1200, h: 1200 }, { w: 1000, h: 1000 }], 'same shape as the photo (1000-1500 px), or square');
+// light and colour on pixels
+const px = (...rgb) => new Uint8ClampedArray([...rgb, 255]);
+eq([...E.adjustPixels(px(100, 150, 200), {})], [100, 150, 200, 255], 'no change asked: pixels untouched');
+eq([...E.adjustPixels(px(100, 150, 200), { light: 0.05 })].slice(0, 3), [113, 163, 213], 'brighter: +5% of white');
+eq([...E.adjustPixels(px(128, 128, 128), { contrast: 1.1, sat: 1.2 })].slice(0, 3), [128, 128, 128], 'grey stays grey with contrast and colour');
+eq([...E.adjustPixels(px(200, 100, 50), { contrast: 1.1 })].slice(0, 3), [207, 97, 42], 'more contrast spreads from the middle');
+const w0 = E.adjustPixels(px(150, 150, 150), { warm: 0.5 });
+ok(w0[0] > 150 && w0[2] < 150, 'warmer: a little more red, a little less blue');
+eq([...E.adjustPixels(px(250, 5, 128), { light: 0.1 })].slice(0, 3), [255, 30, 154], 'never past white or black');
+const sh = new Uint8ClampedArray(3 * 3 * 4).fill(100); for (let i = 3; i < sh.length; i += 4) sh[i] = 255; sh[16] = sh[17] = sh[18] = 160;
+E.sharpen(sh, 3, 3, 0.5);
+eq([sh[16], sh[0]], [255, 100], 'sharpening lifts a bright centre, edges untouched');
 
-/* 6. versions and the seller's results */
-let vs = E.variants(55);
-eq([vs.length, vs[0].key, vs[7].key, vs[8].key, vs[8].fill, vs[8].style, vs[vs.length - 1].key, vs[vs.length - 1].label], [8 + E.DEFAULT_LOOKS.length, '40', '80', '55-stars', 55, 'stars', '55-blue', 'Soft blue · 55%'], '8 sizes, then the usual extras at the best size');
-eq(E.DEFAULT_LOOKS, ['stars', 'hearts', 'sparkle', 'flowers', 'frame', 'shadow', 'pink', 'blue'], 'usual extras');
-eq(E.STYLES.length, 13, '13 extras to choose from');
-eq(E.variants(60, ['gradient', 'confetti']).slice(8).map((v) => v.key), ['60-confetti', '60-gradient'], 'chosen extras only, in the list order');
-eq(E.variants(60, false).map((v) => v.key), ['40', '45', '50', '55', '60', '65', '70', '80'], 'sizes only');
-eq([E.keyLabel('55'), E.keyLabel('60-hearts'), E.keyLabel('60-frame')], ['product at 55%', 'Hearts at 60%', 'Frame at 60%'], 'version names in plain words');
-eq(E.bestOf({ 50: [80, 70], 55: [60], 60: [60, 62], 70: [] }), { key: '55', avg: 60, tries: 1 }, 'lowest average shipping wins');
-eq(E.bestOf({ 50: [62, 62], 55: [62] }), { key: '50', avg: 62, tries: 2 }, 'a tie goes to the version tried more');
-eq(E.bestOf({ 55: [70], '60-stars': [58] }), { key: '60-stars', avg: 58, tries: 1 }, 'a look can be the best version');
-eq(E.bestPlainFill({ 55: [70], 65: [66], '60-stars': [58] }), 65, 'looks go at the best plain size');
+/* 6. results and savings */
+eq(E.bestOf({ zin3: [80, 70], white: [60], turn2: [60, 62] }), { key: 'white', avg: 60, tries: 1 }, 'lowest average shipping wins');
+eq(E.bestOf({ zin3: [62, 62], white: [62] }), { key: 'zin3', avg: 62, tries: 2 }, 'a tie goes to the version tried more');
 eq(E.bestOf({}), null, 'no results: no suggestion');
-// stickers stay in the corners, clear of the product
-const pr = E.place({ w: 400, h: 600 }, 60, 1000);
-const spots = E.stickerSpots(1000, pr);
-ok(spots.length === 4 && spots.every((s) => s.x + s.side <= pr.x || s.x >= pr.x + pr.w || s.y + s.side <= pr.y || s.y >= pr.y + pr.h), 'four corner stickers, none on the product');
-eq(E.stickerSpots(1000, E.place({ w: 600, h: 600 }, 95, 1000)).length, 0, 'product filling the photo: no room, no stickers');
+eq(E.summary({ orig: 82, zin3: 66, white: 66, turn2: 74 }), { low: 66, best: ['zin3', 'white'], own: 82, save: 16, checked: 4 }, 'saving against your own photo');
+eq(E.summary({ zin3: 70 }), { low: 70, best: ['zin3'], own: null, save: null, checked: 1 }, 'own photo not checked yet: no saving shown');
+eq(E.summary({ orig: 60, zin3: 64 }).save, 0, 'own photo already cheapest: saving 0');
+eq(E.summary({}), null, 'nothing checked');
 
 /* 7. reading the shipping Meesho shows */
 eq(['Shipping Charges ₹ 72', 'Delivery charge: ₹1,234.50', 'Rs. 65', '₹\u00a058', '  89 ', 'Shipping charges will be calculated', '₹ 0'].map(E.rupeesIn), [72, 1234.5, 65, 58, 89, null, 0], 'rupees read from Meesho\'s text');
