@@ -252,6 +252,25 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: .88rem; co
 .slip strong { font-family: var(--f-head); font-weight: 600; font-size: 1.15rem; }
 .slip .np strong { font-size: 1.9rem; line-height: 1.1; }
 @media (min-width: 620px) { .slip { grid-template-columns: repeat(4, 1fr); } .slip > div:nth-last-child(-n+2):not(.np) { grid-column: span 2; } }
+/* the P&L in plain words: what was kept, where every Rs 100 went, what to do */
+.ez { padding: 16px 18px; }
+.ez h2 { margin: 0 0 4px; font: 700 17px/1.25 var(--f-head); }
+.ez-lead { margin: 0 0 12px; font-size: 16px; line-height: 1.45; font-weight: 600; color: var(--ink); }
+.ez-lead.neg { color: var(--neg); font-weight: 600; }
+.ez-bar { display: flex; gap: 2px; height: 22px; border-radius: 6px; overflow: hidden; }
+.ez-bar span { min-width: 3px; }
+.ez-leg { list-style: none; margin: 10px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 18px; }
+.ez-leg li { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-2); min-width: 0; }
+.ez-leg i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.ez-leg span { flex: 1; min-width: 0; }
+.ez-leg b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.ez-sub { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-3); }
+.ez-tips { list-style: none; margin: 14px 0 0; padding: 12px 0 0; border-top: 1px dashed var(--rule-2); display: grid; gap: 10px; }
+.ez-tips li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.45; }
+.ez-tips .ez-ic { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; background: var(--carbon-soft); }
+.ez-tips .ez-t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ez-tips .btn { flex: none; align-self: center; }
+@media (max-width: 560px) { .ez { padding: 14px; } .ez-leg { grid-template-columns: 1fr; gap: 5px; } .ez-tips li { flex-wrap: wrap; row-gap: 8px; } .ez-tips .ez-t { flex: 1 1 calc(100% - 36px); } .ez-tips .btn { margin-left: 36px; } }
 
 /* returns, RTO and exchanges */
 .rv-total { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 12px; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; font-weight: 600; color: var(--ink-2); }
@@ -1058,6 +1077,50 @@ details.more[open] > summary { margin-bottom: 10px; }
     return b > 0 && b <= 40 ? b : 0;
   }
   /* The GST summary as [label, amount, bold] rows, used on screen, in Excel and in the PDF. */
+  /* Where every Rs 100 of net sales went, from the statement's own sections: cost of goods, Meesho
+     charges (less claims and compensation), GST, ads, expenses, other, and the profit left. Null when
+     the parts do not add up to the sales exactly. The screen and both PDFs draw this. */
+  function hundred(R) {
+    var NS = R.NS;
+    if (!(NS > 0)) return null;
+    var groups = [], cur = null, gpLine = null;
+    R.lines.forEach(function (l) {
+      if (l.k === 'sec') { cur = { l: l.l, rows: [], tot: null, pre: !gpLine }; groups.push(cur); }
+      else if ((l.k === 'row' || l.k === 'sub') && cur) cur.rows.push(l);
+      else if (l.k === 'tot' && cur) cur.tot = l;
+      else if (l.k === 'gp') gpLine = l;
+    });
+    groups.forEach(function (g) { if (!g.tot) g.tot = { v: g.rows.filter(function (r) { return r.k === 'row'; }).reduce(function (t, r) { return t + r.v; }, 0) }; });
+    function kindOf(l) {
+      return /^revenue/i.test(l) ? 'rev' : /cost of goods/i.test(l) ? 'cogs' : /meesho charges/i.test(l) ? 'charges' : /claim|compensation|recover/i.test(l) ? 'credit'
+        : /marketing|ads/i.test(l) ? 'ads' : /operating|expense/i.test(l) ? 'opex' : 'other';
+    }
+    var segs = [], credit = 0;
+    if (R.NS - R.NR > 0) segs.push({ k: 'gst', l: 'GST to the government', v: R.NS - R.NR });
+    groups.forEach(function (g) {
+      if (g.pre && kindOf(g.l) === 'rev') return;
+      var k = kindOf(g.l), v = -g.tot.v;
+      if (k === 'credit' || v < 0) { credit += -v; return; }
+      var lab = { cogs: 'Cost of goods', charges: 'Meesho charges', ads: 'Ads', opex: 'Expenses', other: 'Taxes and other' }[k] || 'Other';
+      var hit = segs.filter(function (s) { return s.k === k; })[0];
+      if (hit) hit.v += v; else segs.push({ k: k, l: lab, v: v });
+    });
+    if (credit) {
+      var host = segs.filter(function (s) { return s.k === 'charges'; })[0] || segs.slice().sort(function (p, q) { return q.v - p.v; })[0];
+      if (!host || host.v < credit) return null;
+      host.v -= credit; if (host.k === 'charges') host.l = 'Meesho charges, after claims';
+    }
+    var sum = segs.reduce(function (t, s) { return t + s.v; }, 0);
+    if (Math.abs(sum + R.NP - NS) > 2) return null;
+    var order = ['cogs', 'charges', 'gst', 'ads', 'opex', 'other'];
+    segs.sort(function (p, q) { return order.indexOf(p.k) - order.indexOf(q.k); });
+    if (R.NP > 0) segs.push({ k: 'np', l: 'Net profit', v: R.NP });
+    segs = segs.filter(function (s) { return s.v >= 50; }); // a nil part (under 50 paise) is left out
+    var total = segs.reduce(function (t, s) { return t + s.v; }, 0);
+    segs.forEach(function (s) { s.per100 = s.v / NS * 100; });
+    return { NS: NS, NP: R.NP, total: total, segs: segs };
+  }
+
   function gstRows(g) {
     var r = [['Output GST on net sales', g.out], ['Less: input credit on Meesho charges', -g.itcCh], ['Less: input credit on ads', -g.itcAds]];
     if (g.itcGoods) r.push(['Less: input credit on goods bought with a GST bill', -g.itcGoods]);
@@ -2178,7 +2241,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     monthStart: monthStart, monthEnd: monthEnd, nextMonth: nextMonth, fmtDate: fmtDate, fmtMonth: fmtMonth, money: money,
     skuLetters: skuLetters, nameCount: nameCount, packRule: packRule, piecesOf: piecesOf, normSt: normSt, classify: classify, detect: detect, parsePay: parsePay, parseAds: parseAds, parseAmt: parseAmt, parseOrd: parseOrd,
     calibrate: calibrate, ingest: ingest, merge: merge, index: index, dataMonths: dataMonths, periodFor: periodFor, expFor: expFor,
-    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, taxCheck: taxCheck, recoveries: recoveries, recKind: recKind, returnsDeep: returnsDeep, normSize: normSize, sizeCmp: sizeCmp, groupSize: groupSize, dataSpan: dataSpan, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
+    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, taxCheck: taxCheck, hundred: hundred, recoveries: recoveries, recKind: recKind, returnsDeep: returnsDeep, normSize: normSize, sizeCmp: sizeCmp, groupSize: groupSize, dataSpan: dataSpan, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
   };
 });
 
@@ -3306,7 +3369,6 @@ details.more[open] > summary { margin-bottom: 10px; }
   function pct0(x) { var v = x * 100; return (v >= 10 || v === 0 ? Math.round(v) : v.toFixed(1)) + '%'; }
   function fd(d) { return d ? E.fmtDate(d) : ''; }
   function pl(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
-  function condWord(c) { return c === 'ok' ? 'back in stock' : 'not resellable'; }
   function packMode(st) { var v = st.packFromSku; return v === true || v === 'sku' ? 'sku' : v === false || v === 'name' ? 'name' : 'auto'; }
   function packSel(st) {
     var cur = packMode(st);
@@ -3547,6 +3609,40 @@ details.more[open] > summary { margin-bottom: 10px; }
   }
   A.lockHtml = lockHtml;
 
+  // The P&L in plain words, for sellers who are not accountants: what they kept from the sales,
+  // where every Rs 100 went (E.hundred, the same as the PDFs), and the two or three things to act on.
+  var EZC = { cogs: '#6250D6', charges: '#EB6834', gst: '#1BAF7A', ads: '#EDA100', opex: '#2A78D6', other: '#E87BA4', np: '#16A34A' };
+  function per100(v) { return '\u20b9' + v.toFixed(1); }
+  function easyHtml() {
+    var R = S.R, HU = E.hundred(R);
+    if (!(R.NS > 0)) return '';
+    // whole sentences in one piece, so the Hindi switch can turn them round
+    var lead = R.NP >= 0
+      ? '<p class="ez-lead">From ' + rs(R.NS, true) + ' of sales you kept ' + rs(R.NP, true) + '. That is ' + per100(R.NP / R.NS * 100) + ' of every \u20b9100.</p>'
+      : '<p class="ez-lead neg">You lost ' + rs(-R.NP, true) + ' on ' + rs(R.NS, true) + ' of sales. Costs were more than the sales.</p>';
+    var bar = '';
+    if (HU) {
+      bar = '<div class="ez-bar" role="img" aria-label="Where every \u20b9100 of sales went">' + HU.segs.map(function (x) {
+        return '<span style="flex:' + x.v + ';background:' + (EZC[x.k] || EZC.other) + '" title="' + esc(x.l + ' ' + per100(x.per100)) + '"></span>';
+      }).join('') + '</div><ul class="ez-leg">' + HU.segs.map(function (x) {
+        return '<li><i style="background:' + (EZC[x.k] || EZC.other) + '"></i><span>' + esc(x.l) + '</span><b>' + per100(x.per100) + '</b></li>';
+      }).join('') + '</ul><p class="ez-sub">Where every \u20b9100 of sales went, GST included.</p>';
+    }
+    var tips = [];
+    function tip(ic, text, btn) { tips.push('<li><span class="ez-ic" aria-hidden="true">' + ic + '</span><span class="ez-t">' + text + '</span>' + (btn || '') + '</li>'); }
+    var costs = HU ? HU.segs.filter(function (x) { return x.k !== 'np' && x.k !== 'gst'; }).sort(function (p, q) { return q.v - p.v; }) : [];
+    if (costs.length) tip('\ud83d\udcb8', '<span>Biggest cost:</span> <b>' + esc(costs[0].l) + '</b><span>, ' + per100(costs[0].per100) + ' of every \u20b9100 of sales.</span>');
+    var back = S.RV ? S.RV.rtoRate + S.RV.retRate : 0;
+    if (back >= 0.15) tip('\u21a9\ufe0f', '<span>' + Math.round(back * 100) + ' of every 100 parcels came back as RTO or a return.</span> <span>The Returns tab shows which sizes and products.</span>', '<button class="btn sm" data-act="tab" data-tab="ret">Returns</button>');
+    var losers = R.skus.filter(function (x) { return x.sold >= 3 && x.contrib < 0; }).sort(function (p, q) { return p.contrib - q.contrib; });
+    if (losers.length) tip('\u26a0\ufe0f', '<b>' + esc(losers[0].sku) + '</b><span>' + (losers.length > 1 ? ' and ' + (losers.length - 1) + ' more SKUs lose money.' : ' loses money.') + '</span> <span>Price check shows the price where it stops losing.</span>', '<button class="btn sm" data-act="tab" data-tab="calc">Price check</button>');
+    else {
+      var best = R.skus.filter(function (x) { return x.delivered > 0 && x.contrib > 0; }).sort(function (p, q) { return q.contrib - p.contrib; })[0];
+      if (best && R.skus.length > 1) tip('\u2b50', '<span>Your best SKU is </span><b>' + esc(best.sku) + '</b><span>: ' + rs(best.contrib, true) + ' profit, ' + rs(best.perOrder, true) + ' on every delivered order.</span>');
+    }
+    return '<section class="sheet ez" aria-label="Your profit in plain words"><h2>In short</h2>' + lead + bar + (tips.length ? '<ul class="ez-tips">' + tips.join('') + '</ul>' : '') + '</section>';
+  }
+
   /* ---------------- P&L ---------------- */
   V.pl = function () {
     if (!A.hasData()) return empty();
@@ -3577,25 +3673,11 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<div><small>Profit per delivered order</small><strong class="' + (R.NP < 0 ? 'neg' : '') + '">' + (K.del ? rs(Math.round(R.NP / K.del), true) : '\u2013') + '</strong></div>' +
       '<div><small>RTO \u00b7 Return \u00b7 Exchange</small><strong>' + (S.RV ? pct(S.RV.rtoRate) + ' \u00b7 ' + pct(S.RV.retRate) + ' \u00b7 ' + pct(S.RV.exchRate) : (K.parcels ? pct(R.returnRate) : '0%')) + '</strong></div></div>';
 
+    h += easyHtml();
     h += accHtml();
     var notes = '';
-    if (R.missing.length) {
-      var u = 0; R.missing.forEach(function (x) { u += x.units; });
-      notes += '<div class="note bad"><p>Cost is missing for ' + pl(R.missing.length, 'SKU') + ' (' + pl(u, 'piece') + '). Profit is overstated until you add them.</p><button class="btn sm" data-act="tab" data-tab="costs">Add costs</button></div>';
-    }
-    if (K.rdef) {
-      if (st.returnDefault === 'ok' && st.rtoDefault === 'ok') {
-        notes += '<div class="note info"><p>' + K.rdef + ' returns and RTO parcels are counted as back in stock, so their cost goes back to your stock. If any came back damaged, used or wrong, mark it Not resellable in Reconcile.</p><button class="btn sm" data-act="rcgo" data-b="returned">Review returns</button></div>';
-      } else {
-        notes += '<div class="note"><p>' + K.rdef + ' returns and RTO parcels use the default condition: customer returns ' + condWord(st.returnDefault) + ', RTO parcels ' + condWord(st.rtoDefault) + '. Mark each one in Reconcile for exact stock cost.</p><button class="btn sm" data-act="rcgo" data-b="returned">Review returns</button></div>';
-      }
-    }
-    if (K.revPend) {
-      notes += '<div class="note info"><p>' + pl(K.revPend, 'order') + ' show as returned or RTO, but Meesho has not reversed the sale in these files yet (' + rs(K.revPendV) + ' of sales). Profit will drop when that reversal is paid out.</p></div>';
-    }
-    if (K.unexpl) {
-      notes += '<div class="note info"><p>' + (K.unexpl === 1 ? '1 settlement row does' : K.unexpl + ' settlement rows do') + ' not fully add up from Meesho\u2019s own columns: Meesho paid ' + rs(Math.abs(K.O)) + (K.O < 0 ? ' less' : ' more') + ' than they add up to. The difference is shown as its own line, so the total still matches Meesho.</p></div>';
-    }
+    // missing costs, returns to mark, reversals not paid yet and rows that do not add up are listed
+    // in the accuracy check above, with their buttons, so they are not repeated here
     if (A.full() && !S.demo) notes += claimTeaser();
     if (notes) h += '<div class="stack no-print">' + notes + '</div>';
     h += goalHtml() + wayHtml();
@@ -4998,30 +5080,9 @@ details.more[open] > summary { margin-bottom: 10px; }
 
     // where every ₹100 of sales went (the cover and the easy summary)
     function hundred(y) {
-      var segs = [], NS = R.NS;
-      if (!(NS > 0)) return;
-      if (R.NS - R.NR > 0) segs.push({ k: 'gst', l: 'GST to the government', v: R.NS - R.NR });
-      var credit = 0;
-      groups.forEach(function (g) {
-        if (g.pre && kindOf(g.l) === 'rev') return;
-        var k = kindOf(g.l), v = -g.tot.v;
-        if (k === 'credit' || v < 0) { credit += -v; return; }
-        var lab = { cogs: 'Cost of goods', charges: 'Meesho charges', ads: 'Ads', opex: 'Expenses', other: 'Taxes and other' }[k] || 'Other';
-        var hit = segs.filter(function (s) { return s.k === k; })[0];
-        if (hit) hit.v += v; else segs.push({ k: k, l: lab, v: v });
-      });
-      if (credit) {
-        var host = segs.filter(function (s) { return s.k === 'charges'; })[0] || segs.slice().sort(function (p, q) { return q.v - p.v; })[0];
-        if (!host || host.v < credit) return;
-        host.v -= credit; if (host.k === 'charges') host.l = 'Meesho charges, after claims';
-      }
-      var sum = segs.reduce(function (t, s) { return t + s.v; }, 0);
-      if (Math.abs(sum + R.NP - NS) > 2) return; // only when it adds up exactly
-      var order = ['cogs', 'charges', 'gst', 'ads', 'opex', 'other'];
-      segs.sort(function (p, q) { return order.indexOf(p.k) - order.indexOf(q.k); });
-      if (R.NP > 0) segs.push({ k: 'np', l: 'Net profit', v: R.NP });
-      segs = segs.filter(function (s) { return s.v >= 50; }); // nothing to draw for a nil part (under 50 paise)
-      var total = segs.reduce(function (t, s) { return t + s.v; }, 0);
+      var HU = E.hundred(R);
+      if (!HU) return; // only when it adds up exactly
+      var segs = HU.segs, NS = HU.NS, total = HU.total;
       ink(INK); font(FN.disp, 'bold', 11.5); doc.text(a('Where every ' + RS + '100 of sales went'), M, y);
       ink(GREY); font(FN.serif, 'italic', 8.4);
       doc.text(a(R.NP > 0 ? 'Out of ' + rup(NS) + ' of net sales, including GST.' : 'Costs were ' + RS + (total / NS * 100).toFixed(1) + ' for every ' + RS + '100 of sales.'), PW - M, y, { align: 'right' });

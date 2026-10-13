@@ -529,5 +529,21 @@ for (const cfg of settings) {
   eq(tc(variant((r) => { set(r, 'TDS', -r2(sale(r) * 0.01)); r[ci('Payment Date')] = '2025-03-05'; r[ci('Order Date')] = '2025-02-20'; })).tdsState, 'high', 'tax check: 1% TDS in 2025 is too high');
 }
 
+/* ---------------------------------------------------------------- where every Rs 100 went */
+{
+  // the parts and the profit add up to the net sales, for every setting
+  for (const cfg of [{}, { gstReg: false }, { taxCredits: 'expense' }, { gstReg: false, taxCredits: 'expense' }]) {
+    const x = run([D.payBook, D.ordBook], { costs: D.costs, cfg, expenses: [{ id: 'e1', name: 'Rent', amt: 300000, when: 'monthly' }] });
+    const H = E.hundred(x.R), tag = JSON.stringify(cfg);
+    ok(!!H, 'every Rs 100: worked out ' + tag);
+    if (!H) continue;
+    const sum = H.segs.reduce((t, s2) => t + s2.v, 0);
+    ok(Math.abs(sum - (x.R.NP > 0 ? x.R.NS : x.R.NS - x.R.NP)) <= 50 * H.segs.length + 2, 'every Rs 100: parts add up to the sales ' + tag, sum + ' vs ' + x.R.NS);
+    ok(H.segs.every((s2) => s2.v > 0 && Math.abs(s2.per100 - s2.v / x.R.NS * 100) < 1e-9), 'every Rs 100: each part is positive, per Rs 100 of sales ' + tag);
+    const np = H.segs.find((s2) => s2.k === 'np');
+    ok(x.R.NP > 0 ? np && np.v === x.R.NP : !np, 'every Rs 100: the profit part is the net profit ' + tag);
+  }
+}
+
 console.log(`${checks - fails} of ${checks} checks passed`);
 process.exit(fails ? 1 : 0);

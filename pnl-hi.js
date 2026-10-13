@@ -1054,7 +1054,28 @@
     'It is not what the law gives for your sales.': 'यह आपकी बिक्री पर कानून के हिसाब से बनने वाली रकम नहीं है।',
     'See why and what to do.': 'कारण और आगे क्या करना है, देखें।',
     'TCS and TDS checked': 'TCS और TDS जाँच लिए',
-    'See': 'देखें'
+    'See': 'देखें',
+    /* P&L in plain words */
+    'In short': 'संक्षेप में',
+    'From {n} of sales you kept {n}.': '{n1} की बिक्री में से आपके पास {n2} बचे।',
+    'That is {n} of every {n}.': 'यानी हर {n2} में से {n1}।',
+    'You lost {n} on {n} of sales.': '{n2} की बिक्री पर आपको {n1} का नुकसान हुआ।',
+    'Costs were more than the sales.': 'खर्च बिक्री से ज़्यादा रहे।',
+    'Cost of goods': 'माल की लागत',
+    'Meesho charges, after claims': 'Meesho के चार्ज, क्लेम के बाद',
+    'GST to the government': 'सरकार को GST',
+    'Taxes and other': 'टैक्स और बाकी',
+    'Where every {n} of sales went, GST included.': 'बिक्री का हर {n} कहाँ गया, GST समेत।',
+    'Where every {n} of sales went': 'बिक्री का हर {n} कहाँ गया',
+    'Biggest cost:': 'सबसे बड़ा खर्च:',
+    ', {n} of every {n} of sales.': ', बिक्री के हर {n2} में से {n1}।',
+    '{n} of every {n} parcels came back as RTO or a return.': 'हर {n2} पार्सल में से {n1} RTO या रिटर्न होकर लौटे।',
+    'The Returns tab shows which sizes and products.': 'रिटर्न टैब में देखें कौन से साइज़ और प्रोडक्ट लौटते हैं।',
+    'loses money.': 'में नुकसान हो रहा है।',
+    'and {n} more SKUs lose money.': 'और {n} और SKU में नुकसान हो रहा है।',
+    'Price check shows the price where it stops losing.': 'प्राइस चेक में वह कीमत देखें जिस पर नुकसान रुकता है।',
+    'Your best SKU is': 'आपका सबसे अच्छा SKU है',
+    ': {n} profit, {n} on every delivered order.': ': {n1} मुनाफ़ा, हर डिलीवर ऑर्डर पर {n2}।'
   };
 
   var MONTHS = { Jan: 'जनवरी', Feb: 'फ़रवरी', Mar: 'मार्च', Apr: 'अप्रैल', May: 'मई', Jun: 'जून', Jul: 'जुलाई', Aug: 'अगस्त', Sep: 'सितंबर', Sept: 'सितंबर', Oct: 'अक्टूबर', Nov: 'नवंबर', Dec: 'दिसंबर' };
