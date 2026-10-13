@@ -44,6 +44,11 @@ module.exports = core.handler(async (req, res) => {
       const q = await promos.price(plan, coupon);
       return core.send(res, 200, { list: q.list, amount: q.amount, coupon: q.coupon });
     }
+    // the owner account (and Pro for years ahead) has nothing to buy; payments already made still confirm
+    const lifetime = user.phone === 'owner' || (user.paidUntil || 0) > Date.now() + 3 * 365 * core.DAY;
+    if (lifetime && action !== 'rzpDone') {
+      throw new core.HttpError(400, user.phone === 'owner' ? 'The owner account has Pro for good, nothing to pay. To try a payment, log in with a customer mobile number.' : 'Your PakkaBill Pro already runs for years. Nothing to pay.');
+    }
     if (action === 'rzpOrder' || action === 'rzpDone') {
       if (!cfg) throw new core.HttpError(400, 'Razorpay is not set up. Pay by UPI QR instead.');
       if (action === 'rzpOrder') {

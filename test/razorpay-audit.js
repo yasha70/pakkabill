@@ -201,6 +201,17 @@ const userNow = (phone) => core.getUser(phone);
   a = await call('GET', '/api/pay', null, tA);
   eq([a.status, a.body.orders[0].id, !!a.body.user], [200, oc.id, true], 'endpoint: plan page finds the payment and sends the new plan');
 
+  // the owner account and Pro for years ahead: nothing to buy
+  await core.saveUser({ phone: 'owner', shopName: 'Owner', pass: '', createdAt: Date.now(), paidUntil: Date.UTC(2099, 0, 1) });
+  const tO = await core.createSession('owner');
+  a = await call('POST', '/api/pay', { action: 'rzpOrder', plan: 'monthly' }, tO);
+  eq([a.status, /owner account/.test(a.body.error)], [400, true], 'owner account: no Razorpay order');
+  a = await call('POST', '/api/pay', { plan: 'monthly', utr: '987654321098' }, tO);
+  eq([a.status, /owner account/.test(a.body.error)], [400, true], 'owner account: no UPI payment either');
+  await core.saveUser({ ...(await userNow(B.phone)), paidUntil: Date.now() + 5 * 365 * core.DAY });
+  a = await call('POST', '/api/pay', { action: 'rzpOrder', plan: 'yearly' }, await core.createSession(B.phone));
+  eq([a.status, /runs for years/.test(a.body.error)], [400, true], 'Pro for years ahead: nothing to buy');
+
   /* 9. config and admin */
   const cfgHandler = require('../api/config');
   const conf = await new Promise((resolve) => cfgHandler({ method: 'GET', url: '/api/config', headers: {}, socket: {} }, { statusCode: 0, setHeader() {}, end(b) { resolve(JSON.parse(b)); } }));

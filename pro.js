@@ -27,6 +27,8 @@
   const playApp = () => /PakkaBillApp\/[^)]*store=play/.test(navigator.userAgent);
   const NO_SALE = '<p class="pbp-fine pbp-noapp">Buying Pro is not available in this app. If your account already has Pro, it works here too: log in with the same mobile number.</p>';
   const isPro = () => !!(acct && acct.user && acct.user.paidUntil > Date.now());
+  // The owner account, or Pro for years ahead (a gift): nothing to buy, so no plans or pay screens.
+  const isLifetime = () => !!(acct && acct.user && (acct.user.phone === 'owner' || acct.user.paidUntil > Date.now() + 3 * 365 * 864e5));
   const pbPro = () => !enforced() || isPro();
 
   const esc = (s) =>
@@ -240,6 +242,7 @@
   }
   // Razorpay checkout when the admin has set it up (Pro turns on by itself), else the UPI QR screen.
   function openPay(plan, presetCoupon = '') {
+    if (isLifetime()) return toast(acct.user.phone === 'owner' ? 'This is the owner account: Pro is on for good, nothing to pay. To try a payment, log in with a customer mobile number.' : 'Your PakkaBill Pro runs for years already. Nothing to pay.');
     if (playApp()) return toast('Buying Pro is not available in this app.', true);
     return cfg && cfg.razorpay ? openRzp(plan, presetCoupon) : openUpi(plan, presetCoupon);
   }
@@ -402,7 +405,7 @@
           <div><span>PakkaBill Pro, ${period()}</span><span>${rupees(list)}</span></div>
           ${st.coupon ? `<div class="pbp-sum__off"><span>Coupon ${esc(st.coupon)} <button type="button" class="pbp-link" data-uncoupon>Remove</button></span><span>−${rupees(list - st.amount)}</span></div>` : ''}
           <div class="pbp-sum__total"><span>You pay</span><b>${rupees(st.amount)}</b></div>
-          <p>Pro till <b>${until()}</b>${wasPro ? ', added on top of your plan' : ''}</p>
+          <p>Pro till <b>${until()}</b>${wasPro && isPro() ? `<br><small>Your plan now ends on ${dateStr(acct.user.paidUntil)}. The new ${period()} starts after that, so no day is lost.</small>` : ''}</p>
         </div>
         ${st.coupon ? '' : st.couponOpen
           ? `<form class="pbp-coupon"><input name="code" placeholder="Coupon code" aria-label="Coupon code" autocomplete="off" autocapitalize="characters" value="${esc(presetCoupon)}"><button type="submit" class="pbp-btn pbp-btn--sm">Apply</button></form>`
@@ -469,6 +472,7 @@
           btn.lastChild.textContent = 'Opening secure payment…';
           try {
             const [Razorpay, o] = await Promise.all([loadRzp(), api('pay', { body: { action: 'rzpOrder', plan: st.plan, coupon: st.coupon } })]);
+            if (o.amount !== Math.round(st.amount * 100)) { st.amount = o.amount / 100; toast(`The price is now ${rupees(st.amount)}.`); } // prices changed since the page loaded
             const u = (acct && acct.user) || {};
             const rz = new Razorpay({
               key: o.key,
@@ -577,7 +581,7 @@
   function newsAction(n) {
     if (n.trialDays && !n.claimed) return `<button type="button" class="pbp-btn pbp-btn--sm" data-claim="${esc(n.id)}">Claim ${n.trialDays} day${n.trialDays > 1 ? 's' : ''} of Pro free</button>`;
     if (n.trialDays && n.claimed) return '<span class="pbp-claimed">Claimed</span>';
-    if (n.cta === 'upgrade' && isPro() && acct.user.lastPlan !== 'trial' && daysLeft() > 7) return '';
+    if (n.cta === 'upgrade' && (isLifetime() || (isPro() && acct.user.lastPlan !== 'trial' && daysLeft() > 7))) return '';
     if (n.cta === 'upgrade') return `<button type="button" class="pbp-btn pbp-btn--sm" data-upgrade>${esc(n.ctaLabel || 'See Pro plans')}</button>`;
     if (n.cta === 'link' && n.link) return `<a class="pbp-btn pbp-btn--sm" href="${esc(n.link)}" target="_blank" rel="noopener noreferrer">${esc(n.ctaLabel || 'Open')}</a>`;
     return '';
@@ -695,6 +699,7 @@
     el._pbMode = mode;
     let status;
     if (!cfg || !cfg.enabled) status = '<div class="pbp-status is-free"><b>Everything is free right now.</b><span>Paid plans are not switched on yet.</span></div>';
+    else if (isLifetime()) status = `<div class="pbp-status is-pro"><b>${acct.user.phone === 'owner' ? 'Owner account: Pro for good' : 'PakkaBill Pro for years ahead'}</b><span>${acct.user.phone === 'owner' ? 'Everything is unlocked on this device. To try buying Pro, log in with a customer mobile number.' : `Till ${dateStr(acct.user.paidUntil)}. Everything is unlocked; nothing to pay.`}</span></div>`;
     else if (isPro() && acct.user.lastPlan === 'trial') status = `<div class="pbp-status is-pro${daysLeft() <= 3 ? ' is-soon' : ''}"><b>Free Pro trial: ${daysLeft()} day${daysLeft() === 1 ? '' : 's'} left</b><span>Till ${dateStr(acct.user.paidUntil)}. Take Pro before it ends to keep unlimited bills, your shops and cloud backup.</span></div>`;
     else if (isPro() && daysLeft() <= 5) status = `<div class="pbp-status is-pro is-soon"><b>Your Pro plan ends in ${daysLeft()} day${daysLeft() === 1 ? '' : 's'}</b><span>On ${dateStr(acct.user.paidUntil)}. Renew now; the new time adds on top of what is left.</span></div>`;
     else if (isPro()) status = `<div class="pbp-status is-pro"><b>PakkaBill Pro is active</b><span>Till ${dateStr(acct.user.paidUntil)}. Everything is unlocked; nothing to pay now.</span></div>`;
@@ -707,7 +712,7 @@
       : proOn ? `<section class="paper pbp-card"><h2 class="form-sec__title">Your Pro plan</h2>
           <p class="pbp-fine pbp-have">Everything in PakkaBill is unlocked for you:</p>
           <ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>
-          ${playApp() ? '' : `<details class="pbp-cmp pbp-extend"><summary>Extend Pro early</summary><p class="pbp-fine">Not needed now. Paying again adds the new time after ${dateStr(acct.user.paidUntil)}.</p>${plansHtml()}${payLine}</details>`}</section>`
+          ${playApp() || isLifetime() ? '' : `<details class="pbp-cmp pbp-extend"><summary>Extend Pro early</summary><p class="pbp-fine">Not needed now. Paying again adds the new time after ${dateStr(acct.user.paidUntil)}.</p>${plansHtml()}${payLine}</details>`}</section>`
       : `<section class="paper pbp-card"><h2 class="form-sec__title">${isPro() ? 'Keep PakkaBill Pro' : 'PakkaBill Pro'}</h2>
           <ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>
           <details class="pbp-cmp"><summary>Compare Free and Pro</summary>${compareHtml()}</details>

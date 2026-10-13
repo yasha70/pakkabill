@@ -335,6 +335,7 @@
       h('section', { class: 'sup-sec', 'aria-labelledby': 'sup-h' }, h('h2', { id: 'sup-h', class: 'form-sec__title' }, 'Your tickets'), box),
       !a ? h('p', { class: 'fine sup-foot' }, 'Tickets you raise without an account are kept on this device. Log in on the Plan page to see them on every device.') : null));
     call('list', { guests: guests() }).then(function (j) {
+      j.tickets = Array.isArray(j && j.tickets) ? j.tickets : [];
       var unread = j.tickets.filter(function (t) { return t.unread; });
       setUnread(unread.length);
       if (unread.length) {
@@ -879,7 +880,7 @@
     q.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { if (data) draw(); }, 120); });
     // show the last copy straight away (works offline), then the latest from the server
     if (state.hc) { data = state.hc; draw(); }
-    call('guide').then(function (j) { state.hc = j; data = j; if (list.isConnected) draw(); })
+    call('guide').then(function (j) { if (!j || !Array.isArray(j.articles)) j = { articles: [] }; state.hc = j; data = j; if (list.isConnected) draw(); })
       .catch(function (e) { if (!data) list.replaceChildren(banner(e.message, true)); });
   }
 
