@@ -14,6 +14,14 @@ bar so bills stay one tap away on a phone. The logo opens the P&L.
 - Billing: bills with Original / Duplicate / Triplicate copies, CGST+SGST or IGST by place of supply,
   the garment 5% / 18% slab, UPI QR, PDF, printing and WhatsApp sharing; GSTR-1 JSON built from
   Meesho's sales, sales return and tax invoice reports.
+- GSTR-1 checker (`gstr1check.js`, under the GSTR-1 page): checks PakkaBill's JSON, or one made by any
+  other tool, against the portal's rules before upload: GSTIN check digits, return period, tax from
+  rate and value (Rs 1 tolerance), INTRA/INTER against the place of supply, state codes (25 and 28
+  are gone), rates, duplicates, invoice numbers and dates, Table 12 split into B2B/B2C and tied to
+  Tables 4, 5, 6, 7 and 9B, Table 13 ranges (series read across all numbers, overlaps, counts),
+  Table 14 against Table 7, and a GSTR-3B 3.1/3.2 preview. Two files compare table by table and
+  state by state; a cleaned copy fixes only safe things (zero lines, overlapping document ranges,
+  document type names), never an amount. Tests: `node test/gstr1-audit.js`.
 - Everything stays in the browser on the device. No server, no accounts, no data leaves the phone or laptop.
 
 ## Deploying
