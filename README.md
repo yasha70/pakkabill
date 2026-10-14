@@ -14,6 +14,14 @@ bar so bills stay one tap away on a phone. The logo opens the P&L.
 - Billing: bills with Original / Duplicate / Triplicate copies, CGST+SGST or IGST by place of supply,
   the garment 5% / 18% slab, UPI QR, PDF, printing and WhatsApp sharing; GSTR-1 JSON built from
   Meesho's sales, sales return and tax invoice reports.
+- Auto listing (`autolist.js`, #/autolist, with `lens/list.js` and `lens/listcore.js` in PakkaBill Lens 2.3):
+  templates (Meesho category, every detail, sizes with price, return price, MRP and stock, name and
+  description patterns) made in PakkaBill or saved straight from a form filled in Meesho; products with
+  photos (IndexedDB), name, colour, SKU and price/stock changes; Send to Meesho, then one tap in the
+  panel on Add Single Catalog fills every field by Meesho's own labels (text boxes, drop-downs, search
+  lists, chips, radio buttons, size rows, SKU per size, photos), reads each value back, and lists what
+  is left with a Point button that remembers the box. It never submits. Free: 1 template and 5 products
+  at a time; Pro unlimited. Tests: `node test/autolist-audit.js` (logic) and a React + MUI stand-in form.
 - GSTR-1 checker (`gstr1check.js`, under the GSTR-1 page): checks PakkaBill's JSON, or one made by any
   other tool, against the portal's rules before upload: GSTIN check digits, return period, tax from
   rate and value (Rs 1 tolerance), INTRA/INTER against the place of supply, state codes (25 and 28

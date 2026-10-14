@@ -23,6 +23,33 @@
       chrome.storage.local.set({ shipq: { at, cat: String(m.cat || '').slice(0, 40), items }, shipres: { at, results: {} } });
     }
   });
+  // auto listing: PakkaBill sends templates and products; list.js fills Meesho's form and reports back
+  const listState = () => chrome.storage.local.get(['listtpl', 'liststat'], x => window.postMessage({ type: 'pb-list-state', version: chrome.runtime.getManifest().version, templates: x.listtpl || [], status: x.liststat || {} }, ORIGIN));
+  const okTpl = t => t && typeof t.id === 'string' && t.id.length <= 60 && Array.isArray(t.fields) && Array.isArray(t.sizes) && JSON.stringify(t).length < 200000;
+  window.addEventListener('message', e => {
+    if (e.source !== window || e.origin !== ORIGIN || !e.data || typeof e.data !== 'object') return;
+    const m = e.data;
+    if (m.type === 'pb-list-hello') listState();
+    else if (m.type === 'pb-list-templates' && Array.isArray(m.templates)) {
+      // PakkaBill's templates, merged with the ones saved in Meesho: the newer copy of each wins
+      chrome.storage.local.get('listtpl', x => {
+        const by = new Map((x.listtpl || []).map(t => [t.id, t]));
+        m.templates.filter(okTpl).forEach(t => { const o = by.get(t.id); if (!o || (t.updatedAt || 0) >= (o.updatedAt || 0)) by.set(t.id, { ...t, points: { ...((o && o.points) || {}), ...(t.points || {}) } }); });
+        (m.removed || []).forEach(id => by.delete(id));
+        chrome.storage.local.set({ listtpl: [...by.values()].slice(0, 200) });
+      });
+    } else if (m.type === 'pb-list-queue' && Array.isArray(m.items)) {
+      const okPhoto = p => p && typeof p.data === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(p.data) && p.data.length < 6e6;
+      const items = m.items.filter(it => it && typeof it.id === 'string' && it.id.length <= 80 && okTpl(it.tpl) && it.prod && typeof it.prod === 'object').slice(0, 300)
+        .map(it => ({ id: it.id, tpl: it.tpl, prod: { ...it.prod, photos: (it.prod.photos || []).filter(okPhoto).slice(0, 10).map(p => ({ name: String(p.name || 'photo.jpg').slice(0, 80), data: p.data })) } }));
+      chrome.storage.local.get('liststat', x => {
+        const st = x.liststat || {};
+        items.forEach(it => { if (m.fresh) delete st[it.id]; });
+        chrome.storage.local.set({ listq: items.length ? { at: Date.now(), items } : null, liststat: st });
+      });
+    }
+  });
+  chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && (ch.listtpl || ch.liststat)) listState(); });
   // shipping read in Meesho goes straight back to the open Image tab
   chrome.storage.onChanged.addListener((ch, area) => {
     if (area === 'local' && ch.shipres && ch.shipres.newValue) window.postMessage({ type: 'pb-ship-results', results: ch.shipres.newValue.results || {}, current: ch.shipres.newValue.current || null }, ORIGIN);

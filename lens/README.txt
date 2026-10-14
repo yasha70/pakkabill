@@ -1,4 +1,4 @@
-PakkaBill Lens - Meesho insights and shipping check (Chrome extension, version 2.2)
+PakkaBill Lens - Meesho insights, auto listing and shipping check (Chrome extension, version 2.3)
 
 Works in Chrome or Edge on a laptop or desktop. On a phone, use the Lens bookmark
 from PakkaBill's Meesho Lens page instead (phone Chrome can't run extensions).
@@ -41,6 +41,22 @@ SHIPPING CHECK (LOW SHIPPING IMAGE)
 4. "Put it in Meesho's photo box" puts the cheapest version in, so you can carry on.
 It only fills the photo box on the page you have open, in your own account. It never
 submits a catalogue.
+
+AUTO LISTING (FILL MEESHO'S CATALOGUE FORM IN ONE CLICK)
+1. Save a template once. Easiest: in supplier.meesho.com -> Catalog Upload -> Add Single
+   Catalog, fill one product by hand (category, details, sizes, prices, stock), then open the
+   PakkaBill panel (bottom right) and tap "Save this form as a template". Or make templates in
+   PakkaBill's Auto listing page (https://pakkabill1.vercel.app/#/autolist).
+2. In PakkaBill's Auto listing, add products: photos, name, colour, SKU, and price or stock if
+   they differ. Tap "Send to Meesho".
+3. In Meesho, open Add Single Catalog, pick the category, and tap "Fill this form" in the
+   PakkaBill panel. Every detail, the sizes with price, MRP, stock and SKU, the product name,
+   description and photos are filled. Check the form and submit it in Meesho, then tap
+   "Submitted, next" for the next product. PakkaBill shows each product as submitted.
+4. If a detail is left ("Not filled yet"), tap "Point" and click Meesho's box for it once.
+   It is filled and remembered for that template.
+It fills only the form on the page you have open, in your own account, and never presses
+Submit.
 
 The extension reads only pages you open. It does not crawl Meesho and sends nothing
 to any server; PakkaBill gets your list only when you open its Meesho Lens page.

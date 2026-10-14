@@ -23,7 +23,7 @@
   let R = {}; // id -> rupees Meesho showed
   let picks = {}; // { input, ship }: where the photo box and the shipping amount are, if pointed to
   let mode = 'idle'; // idle | pick-input | pick-ship | running
-  let current = -1, note = '', stop = false, open = true;
+  let current = -1, note = '', stop = false, open = true, shown = false;
   const missed = new Set();
 
   /* ---------- finding things on Meesho's page ---------- */
@@ -274,6 +274,8 @@
     const q = x.shipq;
     Q = q && Array.isArray(q.items) && q.items.length && Date.now() - q.at < 7 * 864e5 ? q : null;
     R = Q && x.shipres && x.shipres.at >= Q.at ? { ...(x.shipres.results || {}) } : {};
+    if (!Q && !shown) open = false; // nothing to check: a small button, not the whole panel
+    shown = true;
     draw();
   }
   chrome.storage.onChanged.addListener((ch, area) => {

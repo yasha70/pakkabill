@@ -107,6 +107,7 @@
     design: () => 'The Royal, Elegant and Boutique bill designs are part of PakkaBill Pro.',
     logo: () => 'Your logo and signature on bills are part of PakkaBill Pro.',
     gstr1: () => 'GSTR-1 JSON export is part of PakkaBill Pro.',
+    autolist: () => 'More listing templates, and sending more than 5 products to Meesho at a time, are part of PakkaBill Pro.',
     pdf: () => 'PDF download and sharing are part of PakkaBill Pro.',
     share: () => 'WhatsApp sharing is part of PakkaBill Pro.',
     offer: () => 'Everything in PakkaBill, without limits.',
@@ -125,6 +126,7 @@
     'Royal, Elegant and Boutique designs, your logo and signature',
     'PDF download, share and WhatsApp',
     'GSTR-1 JSON from Meesho, Amazon and Flipkart reports',
+    'Auto listing on Meesho: unlimited templates and products',
   ];
   // Free vs Pro, for the Plan page.
   function compareHtml() {
