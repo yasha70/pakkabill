@@ -22,6 +22,14 @@ bar so bills stay one tap away on a phone. The logo opens the P&L.
   lists, chips, radio buttons, size rows, SKU per size, photos), reads each value back, and lists what
   is left with a Point button that remembers the box. It never submits. Free: 1 template and 5 products
   at a time; Pro unlimited. Tests: `node test/autolist-audit.js` (logic) and a React + MUI stand-in form.
+- GSTR-1 rules researched against the GST offline tool and the marketplace GST tools (GST Tool,
+  GSTProSeller, GSTWali, OkayGST): the file says version GST3.2.4 (the current offline tool); no negative
+  value is ever written (the offline tool refuses them): a state and rate whose returns are more than its
+  sales is left out of Tables 7, 12 and 14 together and carried, with its HSN and operator, to the next
+  return (saved in `pb-gstr1-carry` when the JSON is downloaded, added automatically next time, can be
+  switched off); Table 7 lines are type OE with the operator in Table 14; Table 13 takes each document by
+  its own date (a quarter's invoice file used for a monthly return no longer puts every month in one).
+  The page is in numbered steps, and gives the GSTR-3B figures and an Excel workbook for the CA.
 - GSTR-1 checker (`gstr1check.js`, under the GSTR-1 page): checks PakkaBill's JSON, or one made by any
   other tool, against the portal's rules before upload: GSTIN check digits, return period, tax from
   rate and value (Rs 1 tolerance), INTRA/INTER against the place of supply, state codes (25 and 28

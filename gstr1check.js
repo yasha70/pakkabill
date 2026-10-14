@@ -33,6 +33,7 @@
     12: 'Delivery Challan in cases other than by way of supply (excluding at S no. 9 to 11)',
   };
   const TABLES = { b2b: '4A', b2cl: '5', exp: '6A', b2cs: '7', nil: '8', cdnr: '9B', cdnur: '9B', hsn: '12', doc_issue: '13', supeco: '14' };
+  const TABNAME = { header: 'File', b2b: 'Table 4', b2cl: 'Table 5', exp: 'Table 6', b2cs: 'Table 7', nil: 'Table 8', cdnr: 'Table 9B', cdnur: 'Table 9B', hsn: 'Table 12', doc_issue: 'Table 13', supeco: 'Table 14', file: 'File' };
   const TOL = 1; // the portal accepts tax up to Rs 1 away from rate × value
   const B2CL_LIMIT = 100000; // invoice value above which an inter-state B2C invoice is B2CL (from Aug 2024; Rs 2.5 lakh before)
 
@@ -138,7 +139,9 @@
     else { fpMonth = +fpm[1]; fpYear = +fpm[2]; }
     const periodEnd = fpYear ? new Date(Date.UTC(fpYear, fpMonth, 0)) : null;
     if (opts.quarterly && fpMonth && fpMonth % 3) say('error', 'header', `A quarterly return is filed for the last month of the quarter, but the period is ${J.fp}.`, 'Use 03, 06, 09 or 12 as the month.');
-    if (!J.version) say('warn', 'header', 'The file has no version. The portal’s offline tool writes one (for example GST3.1.6).', 'Add "version": "GST3.1.6".');
+    const ver = /^GST(\d+)\.(\d+)(?:\.(\d+))?$/.exec(String(J.version || ''));
+    if (!J.version) say('warn', 'header', 'The file has no version. The portal’s offline tool writes one (GST3.2.4 now).', 'Add "version": "GST3.2.4".');
+    else if (!ver || +ver[1] < 3 || (+ver[1] === 3 && +ver[2] < 2)) say('warn', 'header', `The file says version ${J.version}. The GST offline tool is at 3.2.4, and the portal can refuse files made for an older version ("File could not be uploaded").`, 'Make the file again with an up-to-date tool.', { key: 'oldver' });
     Object.keys(J).forEach((k) => { if (!known.includes(k)) say('warn', 'header', `Unknown section "${k}" in the file. The portal may reject it.`, 'Remove it, or make the file again.'); });
 
     const T = { b2b: tot(), b2cl: tot(), exp: tot(), b2cs: tot(), nil: tot(), cdnr: tot(), cdnur: tot(), hsnB2B: tot(), hsnB2C: tot(), supeco: tot() };
@@ -221,7 +224,7 @@
 
     /* Table 7: B2C small */
     const b2csKey = new Map();
-    let zero = 0, neg = [];
+    let zero = 0, neg = [], eTyp = 0;
     (J.b2cs || []).forEach((r, i) => {
       const label = `B2C ${stateName(r.pos)} ${r.rt}%` + (r.etin ? ` (${r.etin})` : '');
       amountsOk('b2cs', r, ['txval', 'iamt', 'camt', 'samt', 'csamt']);
@@ -231,6 +234,7 @@
       if (r.sply_ty !== (inter ? 'INTER' : 'INTRA')) say('error', 'b2cs', `${label}: supply type is ${r.sply_ty}, but a sale ${inter ? 'to another state is INTER' : 'within your state is INTRA'}.`, `Set sply_ty to ${inter ? 'INTER' : 'INTRA'}.`);
       if (!['OE', 'E'].includes(r.typ)) say('error', 'b2cs', `${label}: type must be OE or E.`, '');
       if (r.typ === 'E' && !gstinOk(r.etin)) say('error', 'b2cs', `${label}: type E needs the e-commerce operator’s GSTIN.`, '');
+      else if (r.typ === 'E') eTyp++;
       if (r.typ === 'OE' && r.etin) say('error', 'b2cs', `${label}: type OE must not have an operator GSTIN.`, 'Use type E, or remove the GSTIN.');
       if (r.rt === 0) say('warn', 'b2cs', `${label}: a 0% line belongs in nil-rated and exempt supplies (Table 8), not Table 7.`, 'Move it to Table 8.');
       taxMath('b2cs', label, inter, r.rt, num(r.txval), num(r.iamt), num(r.camt), num(r.samt));
@@ -242,7 +246,8 @@
       add(T.b2cs, r);
     });
     if (zero) say('info', 'b2cs', `${zero} B2C ${zero === 1 ? 'line is' : 'lines are'} all zero (sales and returns cancel out). Harmless, but they can be left out.`, 'The cleaned copy drops them.', { fixable: 'zero' });
-    if (neg.length) say('warn', 'b2cs', `Negative B2C lines (returns more than sales this period): ${neg.join(', ')}.`, 'This is how returns of earlier months are netted. Check with your CA before filing.');
+    if (neg.length) say('error', 'b2cs', `Negative B2C lines (returns more than sales): ${neg.join(', ')}. The GST offline tool and portal do not take negative values.`, 'Leave those states out and report the extra returns in your next return (a credit note can be reported until 30 November after the financial year). PakkaBill does this for you.', { key: 'neg' });
+    if (eTyp) say('info', 'b2cs', `${eTyp} B2C ${eTyp === 1 ? 'line carries' : 'lines carry'} the operator’s GSTIN (type E). Since the GSTR-1 change for e-commerce, sales through an operator are shown in Table 14 and Table 7 lines are usually type OE.`, 'Both are accepted; PakkaBill writes OE and fills Table 14.');
 
     /* Table 8: nil rated, exempt, non-GST */
     (J.nil && J.nil.inv || []).forEach((r) => {
@@ -273,7 +278,7 @@
         if (!UQC.includes(String(h.uqc || ''))) say('error', 'hsn', `${label}: unit "${h.uqc}" is not a GST unit (UQC).`, 'Use PCS for pieces, NOS for numbers, KGS for kilograms.');
         if (code.startsWith('99') && h.uqc !== 'NA') say('warn', 'hsn', `${label}: services (SAC 99) use unit NA and no quantity.`, '');
         if (!code.startsWith('99') && !(num(h.qty) > 0) && num(h.txval) > 0) say('warn', 'hsn', `${label}: quantity is missing.`, 'Add the number of pieces sold.');
-        if (num(h.txval) < 0 || num(h.qty) < 0) say('warn', 'hsn', `${label}: negative after returns. The portal may not accept a negative HSN line.`, 'Ask your CA how to report it.');
+        if (num(h.txval) < 0 || num(h.qty) < 0 || num(h.iamt) < 0 || num(h.camt) < 0) say('error', 'hsn', `${label}: negative after returns. The portal does not take a negative HSN line.`, 'Carry the extra returns to the next return, as for Table 7.');
         rateOk('hsn', label, h.rt);
         const k = code + '|' + h.rt + '|' + h.uqc;
         if (seen.has(k)) say('error', 'hsn', `${label}: the same HSN, rate and unit appear twice in ${where}.`, 'Add them together.');
@@ -347,6 +352,7 @@
       else if (String(e.etin)[13] !== 'C') say('error', 'supeco', `${label}: this is not an e-commerce TCS registration (its 14th character is C for those).`, 'Use the operator’s TCS GSTIN, for example Meesho’s for your state.');
       amountsOk('supeco', e, ['suppval', 'igst', 'cgst', 'sgst', 'cess']);
       if (paise(e.cgst) !== paise(e.sgst)) say('error', 'supeco', `${label}: CGST and SGST must be equal.`, '');
+      if (num(e.suppval) < 0 || num(e.igst) < 0 || num(e.cgst) < 0) say('error', 'supeco', `${label}: negative value. The portal does not take negative values in Table 14.`, 'Carry the extra returns to the next return.');
       T.supeco.n++; T.supeco.txval += num(e.suppval); T.supeco.iamt += num(e.igst); T.supeco.camt += num(e.cgst); T.supeco.samt += num(e.sgst);
     });
     if (eco.length) {
@@ -475,7 +481,90 @@
     return (neg ? '−' : '') + '₹' + grp + (f === '00' ? '' : '.' + f);
   }
 
-  root.PBG1 = { check, clean, compare, gstinOk, gstinCheckChar, splitSeries, rangeOf, rangesOf, covered, parseDocNo, STATES, RATES, UQC, DOC_TYPES, TABLES, rs };
+
+  /* ---------- Excel workbook for a CA: SpreadsheetML in a plain (stored) zip, no library ---------- */
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(b) { let c = 0xffffffff; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+  // files: [{ name, data: Uint8Array }] -> Uint8Array of a zip with every file stored as it is
+  function zipStore(files) {
+    const enc = new TextEncoder(), out = [], cen = [];
+    const u16 = (n) => [n & 255, (n >>> 8) & 255], u32 = (n) => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
+    let off = 0;
+    files.forEach((f) => {
+      const nm = enc.encode(f.name), c = crc32(f.data), sz = f.data.length;
+      const head = [0x50, 0x4b, 3, 4, ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0x21), ...u32(c), ...u32(sz), ...u32(sz), ...u16(nm.length), ...u16(0)];
+      out.push(Uint8Array.from(head), nm, f.data);
+      cen.push(Uint8Array.from([0x50, 0x4b, 1, 2, ...u16(20), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0x21), ...u32(c), ...u32(sz), ...u32(sz), ...u16(nm.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(off)]), nm);
+      off += head.length + nm.length + sz;
+    });
+    const cs = cen.reduce((a, b) => a + b.length, 0);
+    const end = Uint8Array.from([0x50, 0x4b, 5, 6, 0, 0, 0, 0, ...u16(files.length), ...u16(files.length), ...u32(cs), ...u32(off), 0, 0]);
+    const all = [...out, ...cen, end], buf = new Uint8Array(all.reduce((a, b) => a + b.length, 0));
+    let p = 0; all.forEach((b) => { buf.set(b, p); p += b.length; });
+    return buf;
+  }
+  // sheets: [{ name, rows: [[cell]], widths }]; a cell is text, a number (amount, 2 decimals),
+  // { v, i: 1 } (a count) or { v, b: 1 } (bold)
+  function xlsx(sheets) {
+    const enc = new TextEncoder();
+    const x = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
+    const col = (i) => { let t = ''; for (let n = i + 1; n; n = Math.floor((n - 1) / 26)) t = String.fromCharCode(65 + ((n - 1) % 26)) + t; return t; };
+    const NS = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"', H = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+    const cell = (c, ref) => {
+      if (c == null || c === '') return '';
+      const o = typeof c === 'object' ? c : { v: c };
+      if (typeof o.v === 'number' && isFinite(o.v)) return `<c r="${ref}" s="${o.b ? 1 : o.i ? 3 : 2}"><v>${o.v}</v></c>`;
+      return `<c r="${ref}" t="inlineStr"${o.b ? ' s="1"' : ''}><is><t xml:space="preserve">${x(o.v)}</t></is></c>`;
+    };
+    const sheet = (sh) => H + `<worksheet ${NS}>` + (sh.widths ? '<cols>' + sh.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>' : '') +
+      '<sheetData>' + sh.rows.map((r, ri) => `<row r="${ri + 1}">` + r.map((c, ci) => cell(c, col(ci) + (ri + 1))).join('') + '</row>').join('') + '</sheetData></worksheet>';
+    const files = [
+      ['[Content_Types].xml', H + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' + sheets.map((s2, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('') + '</Types>'],
+      ['_rels/.rels', H + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+      ['xl/workbook.xml', H + `<workbook ${NS} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>` + sheets.map((s2, i) => `<sheet name="${x(s2.name.replace(/[\[\]:*?/\\]/g, ' ').slice(0, 31))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') + '</sheets></workbook>'],
+      ['xl/_rels/workbook.xml.rels', H + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + sheets.map((s2, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('') + `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+      ['xl/styles.xml', H + `<styleSheet ${NS}><numFmts count="2"><numFmt numFmtId="164" formatCode="#,##0.00"/><numFmt numFmtId="165" formatCode="#,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`],
+      ...sheets.map((s2, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheet(s2)]),
+    ];
+    return zipStore(files.map(([name, text]) => ({ name, data: enc.encode(text) })));
+  }
+
+  // The workbook a CA wants: summary, every table, GSTR-3B, carried returns and the checks.
+  function workbook(json, extra) {
+    const J = json || {}, R = check(J, { marketplace: true }), st = String(J.gstin || '').slice(0, 2), B = (v) => ({ v, b: 1 }), I = (v) => ({ v, i: 1 });
+    const head = (...h) => h.map(B);
+    const t = R.totals, sheets = [];
+    const sum = [[B('GSTR-1 workings')], ['GSTIN', R.gstin], ['Return period', R.fp.slice(0, 2) + '/' + R.fp.slice(2)], ['Made by', 'PakkaBill'], ['Checks', R.errors ? `${R.errors} to fix` : R.warns ? `Ready, ${R.warns} to check` : 'Ready to upload'], [],
+      head('Table', 'Lines', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Cess')];
+    [['b2b', '4A B2B'], ['b2cl', '5 B2C large'], ['exp', '6A Exports'], ['b2cs', '7 B2C others'], ['nil', '8 Nil, exempt, non-GST'], ['cdnr', '9B Notes, registered'], ['cdnur', '9B Notes, unregistered'], ['hsnB2B', '12 HSN, B2B'], ['hsnB2C', '12 HSN, B2C'], ['supeco', '14 Through e-commerce']].forEach(([k, l]) => { if (t[k]) sum.push([l, I(t[k].n), t[k].txval, t[k].iamt, t[k].camt, t[k].samt, t[k].csamt]); });
+    sheets.push({ name: 'Summary', rows: sum, widths: [28, 10, 16, 14, 14, 14, 10] });
+    if ((J.b2cs || []).length) sheets.push({ name: 'Table 7 B2C', widths: [8, 30, 8, 8, 16, 14, 14, 14, 10], rows: [head('POS', 'State', 'Type', 'Rate %', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Cess'),
+      ...J.b2cs.map((r) => [r.pos, STATES[r.pos] || '', r.typ + (r.etin ? ' ' + r.etin : ''), I(r.rt), num(r.txval), num(r.iamt), num(r.camt), num(r.samt), num(r.csamt)])] });
+    if ((J.b2b || []).length) sheets.push({ name: 'Table 4 B2B', widths: [18, 18, 12, 14, 6, 6, 8, 16, 14, 14, 14], rows: [head('Buyer GSTIN', 'Invoice no.', 'Date', 'Invoice value', 'POS', 'RC', 'Rate %', 'Taxable value', 'IGST', 'CGST', 'SGST'),
+      ...J.b2b.flatMap((p2) => (p2.inv || []).flatMap((v) => (v.itms || []).map((it) => { const d = it.itm_det || {}; return [p2.ctin, v.inum, v.idt, num(v.val), v.pos, v.rchrg, I(d.rt), num(d.txval), num(d.iamt), num(d.camt), num(d.samt)]; })))] });
+    if ((J.b2cl || []).length) sheets.push({ name: 'Table 5 B2C large', widths: [8, 18, 12, 14, 8, 16, 14], rows: [head('POS', 'Invoice no.', 'Date', 'Invoice value', 'Rate %', 'Taxable value', 'IGST'),
+      ...J.b2cl.flatMap((p2) => (p2.inv || []).flatMap((v) => (v.itms || []).map((it) => [p2.pos, v.inum, v.idt, num(v.val), I(it.itm_det.rt), num(it.itm_det.txval), num(it.itm_det.iamt)])))] });
+    const hsnRows = (list) => (list || []).map((h) => [h.hsn_sc, h.desc || '', h.uqc, num(h.qty), I(h.rt), num(h.txval), num(h.iamt), num(h.camt), num(h.samt), num(h.csamt)]);
+    const hh = head('HSN', 'Description', 'UQC', 'Quantity', 'Rate %', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Cess');
+    if (J.hsn && (J.hsn.hsn_b2c || []).length) sheets.push({ name: 'Table 12 HSN B2C', widths: [10, 24, 6, 10, 8, 16, 14, 14, 14, 10], rows: [hh, ...hsnRows(J.hsn.hsn_b2c)] });
+    if (J.hsn && (J.hsn.hsn_b2b || []).length) sheets.push({ name: 'Table 12 HSN B2B', widths: [10, 24, 6, 10, 8, 16, 14, 14, 14, 10], rows: [hh, ...hsnRows(J.hsn.hsn_b2b)] });
+    const docs = (J.doc_issue && J.doc_issue.doc_det) || [];
+    if (docs.length) sheets.push({ name: 'Table 13 Documents', widths: [30, 18, 18, 10, 10, 10], rows: [head('Document', 'From', 'To', 'Total', 'Cancelled', 'Net issued'),
+      ...docs.flatMap((d) => (d.docs || []).map((x2) => [DOC_TYPES[d.doc_num] || d.doc_typ, x2.from, x2.to, I(x2.totnum), I(x2.cancel), I(x2.net_issue)]))] });
+    const eco = (J.supeco && J.supeco.clttx) || [];
+    if (eco.length) sheets.push({ name: 'Table 14 E-commerce', widths: [18, 16, 14, 14, 14], rows: [head('Operator GSTIN', 'Net value', 'IGST', 'CGST', 'SGST'), ...eco.map((e) => [e.etin, num(e.suppval), num(e.igst), num(e.cgst), num(e.sgst)])] });
+    const b3 = R.threeB;
+    if (b3) sheets.push({ name: 'GSTR-3B', widths: [44, 16, 14, 14, 14], rows: [head('3.1(a) Outward taxable supplies', 'Taxable value', 'IGST', 'CGST', 'SGST'), ['Tables 4, 5, 6, 7 and 9B', b3.a31.txval, b3.a31.iamt, b3.a31.camt, b3.a31.samt],
+      ...(b3.nil ? [['3.1(c) Nil rated and exempt', b3.nil]] : []), [], head('3.2 Inter-state supplies to unregistered persons', 'Taxable value', 'IGST'), ...b3.a32.map((u) => [u.pos + ' ' + u.name, u.txval, u.iamt]),
+      [], ['GSTR-3B is filled from GSTR-1 after you file it. Check these figures there before paying.']] });
+    const carry = (extra && extra.carryOut) || [];
+    if (carry.length) sheets.push({ name: 'Carried to next return', widths: [8, 30, 8, 18, 16, 14, 10], rows: [head('POS', 'State', 'Rate %', 'Operator', 'Net (returns more than sales)', 'Tax', 'Quantity'),
+      ...carry.map((c) => [c.pos, STATES[c.pos] || '', I(c.rate), c.etin || '', num(c.txval), num(c.tax), num(c.qty)]), [], ['Left out of this return because the portal takes no negative values; added to the next return.']] });
+    sheets.push({ name: 'Checks', widths: [8, 10, 90, 60], rows: [head('Level', 'Table', 'What', 'What to do'), ...R.issues.map((x2) => [x2.lvl, TABNAME[x2.table] || x2.table, x2.msg, x2.fix || ''])] });
+    return xlsx(sheets);
+  }
+
+  root.PBG1 = { check, clean, compare, xlsx, workbook, zipStore, crc32, gstinOk, gstinCheckChar, splitSeries, rangeOf, rangesOf, covered, parseDocNo, STATES, RATES, UQC, DOC_TYPES, TABLES, rs };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.PBG1;
   if (typeof document === 'undefined') return;
 
@@ -514,6 +603,10 @@
 .g1c-acts button.pri{background:var(--carbon);border-color:var(--carbon);color:var(--btn-fg,#fff)}
 .g1c details{margin-top:10px} .g1c summary{cursor:pointer;font-weight:600;font-size:14px}
 .g1c-err{color:var(--red);font-size:14px;margin:8px 0 0}
+.g1c-figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px 16px;margin:4px 0}
+.g1c-figs small{display:block;color:var(--ink-2);font-size:12.5px}
+.g1c-figs b{font-family:var(--font-display);font-size:22px;font-weight:500;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.g1c-3b{border-color:var(--carbon);border-width:1.5px}
 @media (max-width:560px){.g1c{padding:14px}.g1c h2{font-size:21px}}`;
 
   function loadStyle() {
@@ -521,7 +614,6 @@
     const s = document.createElement('style'); s.id = 'g1c-style'; s.textContent = STYLE; document.head.appendChild(s);
   }
   const ICON = { error: '!', warn: '!', info: 'i', ok: '✓' };
-  const TABNAME = { header: 'File', b2b: 'Table 4', b2cl: 'Table 5', exp: 'Table 6', b2cs: 'Table 7', nil: 'Table 8', cdnr: 'Table 9B', cdnur: 'Table 9B', hsn: 'Table 12', doc_issue: 'Table 13', supeco: 'Table 14', file: 'File' };
 
   function reportHtml(title, R, opts) {
     const order = { error: 0, warn: 1, info: 2, ok: 3 };
@@ -535,7 +627,7 @@
       <ul class="g1c-list">${list.length ? list.map((x) => `<li class="${x.lvl}"><span class="ic" aria-hidden="true">${ICON[x.lvl]}</span><span class="t"><span class="g1c-tab">${TABNAME[x.table] || ''}</span>${esc(x.msg)}${x.fix ? `<small>${esc(x.fix)}</small>` : ''}</span></li>`).join('') : '<li class="ok"><span class="ic">✓</span><span class="t">Every check passed.</span></li>'}</ul>
       ${tt ? `<details${opts && opts.open ? ' open' : ''}><summary>Totals by table</summary><div class="table-wrap"><table class="rtable"><thead><tr><th class="l">Table</th><th>Lines</th><th>Taxable value</th><th>IGST</th><th>CGST</th><th>SGST</th></tr></thead><tbody>${tt}</tbody></table></div></details>` : ''}
       ${docRows ? `<details><summary>Documents issued (Table 13)</summary><div class="table-wrap"><table class="rtable"><thead><tr><th class="l">Document</th><th>Total</th><th>Cancelled</th><th>Net issued</th></tr></thead><tbody>${docRows}</tbody></table></div></details>` : ''}
-      ${b3 && b3.a31.n ? `<details><summary>What goes into GSTR-3B</summary><p class="fine">3.1(a) outward taxable supplies: taxable ${rs(b3.a31.txval)}, IGST ${rs(b3.a31.iamt)}, CGST ${rs(b3.a31.camt)}, SGST ${rs(b3.a31.samt)}.${b3.nil ? ` 3.1(c) nil and exempt: ${rs(b3.nil)}.` : ''}</p>${b3.a32.length ? `<div class="table-wrap"><table class="rtable"><thead><tr><th class="l">3.2 sales to unregistered buyers in other states</th><th>Taxable value</th><th>IGST</th></tr></thead><tbody>${b3.a32.map((u) => `<tr><td class="l">${u.pos} ${esc(u.name)}</td><td>${rs(u.txval)}</td><td>${rs(u.iamt)}</td></tr>`).join('')}</tbody></table></div>` : ''}<p class="fine">GSTR-3B fills this in from GSTR-1 after you file. Check it there before paying.</p></details>` : ''}
+      ${b3 && b3.a31.n && !(opts && opts.own) ? `<details><summary>What goes into GSTR-3B</summary><p class="fine">3.1(a) outward taxable supplies: taxable ${rs(b3.a31.txval)}, IGST ${rs(b3.a31.iamt)}, CGST ${rs(b3.a31.camt)}, SGST ${rs(b3.a31.samt)}.${b3.nil ? ` 3.1(c) nil and exempt: ${rs(b3.nil)}.` : ''}</p>${b3.a32.length ? `<div class="table-wrap"><table class="rtable"><thead><tr><th class="l">3.2 sales to unregistered buyers in other states</th><th>Taxable value</th><th>IGST</th></tr></thead><tbody>${b3.a32.map((u) => `<tr><td class="l">${u.pos} ${esc(u.name)}</td><td>${rs(u.txval)}</td><td>${rs(u.iamt)}</td></tr>`).join('')}</tbody></table></div>` : ''}<p class="fine">GSTR-3B fills this in from GSTR-1 after you file. Check it there before paying.</p></details>` : ''}
     </div>`;
   }
 
@@ -555,18 +647,46 @@
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
 
-  // el: an empty element on the GSTR-1 page; own: the JSON this page made (or null). Called on every render.
-  function mount(el, own) {
+  function saveBlob(name, bytes, type) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([bytes], { type })); a.download = name;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+  // GSTR-3B figures from the return, and the returns carried to or from another return.
+  function threeBHtml(R) {
+    const b3 = R.threeB;
+    if (!b3 || !b3.a31.n) return '';
+    return `<div class="g1c-card g1c-3b"><div class="g1c-head"><b>Your GSTR-3B figures</b><span class="fine-inline">filled from this GSTR-1 after you file it</span></div>
+      <div class="g1c-figs"><div><small>3.1(a) Taxable value</small><b>${rs(b3.a31.txval)}</b></div><div><small>IGST</small><b>${rs(b3.a31.iamt)}</b></div><div><small>CGST</small><b>${rs(b3.a31.camt)}</b></div><div><small>SGST</small><b>${rs(b3.a31.samt)}</b></div></div>
+      ${b3.nil ? `<p class="fine">3.1(c) Nil rated and exempt: ${rs(b3.nil)}.</p>` : ''}
+      ${b3.a32.length ? `<details><summary>3.2 Sales to unregistered buyers in other states (${b3.a32.length} states)</summary><div class="table-wrap"><table class="rtable"><thead><tr><th class="l">State</th><th>Taxable value</th><th>IGST</th></tr></thead><tbody>${b3.a32.map((u) => `<tr><td class="l">${u.pos} ${esc(u.name)}</td><td>${rs(u.txval)}</td><td>${rs(u.iamt)}</td></tr>`).join('')}</tbody></table></div></details>` : ''}
+      <p class="fine">Tax payable is this output tax less your input credit and the TCS Meesho deducted (in your cash ledger). Check GSTR-3B on the portal before paying.</p></div>`;
+  }
+  function carryHtml(x) {
+    if (!x) return '';
+    const out = x.carryOut || [], inn = x.carryIn || [];
+    if (!out.length && !inn.length) return '';
+    const sum = (l) => l.reduce((a, c) => a + num(c.txval), 0);
+    return `<div class="g1c-card"><div class="g1c-head"><b>Returns carried between returns</b></div>
+      ${inn.length ? `<p class="fine" style="margin-top:0">Added from ${esc(x.carryFrom ? x.carryFrom.slice(0, 2) + '/' + x.carryFrom.slice(2) : 'the last return')}: ${rs(-sum(inn))} of returns in ${inn.map((c) => esc((STATES[c.pos] || c.pos) + ' ' + c.rate + '%')).join(', ')}.</p>` : ''}
+      ${out.length ? `<p class="fine" style="margin-top:0">Returns were more than sales in these states, and the portal takes no negative values. They are left out of Tables 7, 12 and 14 now and added to your next return (saved when you download the JSON).</p>
+      <div class="table-wrap"><table class="rtable"><thead><tr><th class="l">State</th><th>Rate</th><th>Net</th><th>Tax</th></tr></thead><tbody>${out.map((c) => `<tr><td class="l">${c.pos} ${esc(STATES[c.pos] || '')}</td><td>${c.rate}%</td><td>${rs(c.txval)}</td><td>${rs(c.tax)}</td></tr>`).join('')}</tbody></table></div>` : ''}</div>`;
+  }
+
+  // el: an empty element on the GSTR-1 page; own: the JSON this page made (or null); extra: what the page
+  // knows besides the JSON (carried returns, sales and returns). Called on every render.
+  function mount(el, own, extra) {
     loadStyle();
     const S = el.__g1c || (el.__g1c = { files: [], own: null, ownKey: '' });
-    const ownKey = own ? JSON.stringify(own) : '';
+    const ownKey = own ? JSON.stringify(own) + JSON.stringify(extra && [extra.carryOut, extra.carryIn]) : '';
     if (el.__g1cDone && ownKey === S.ownKey) return;
-    S.own = own || null; S.ownKey = ownKey; el.__g1cDone = true;
+    S.own = own || null; S.extra = extra || null; S.ownKey = ownKey; el.__g1cDone = true;
     draw(el, S);
   }
 
   function draw(el, S) {
-    let h = `<section class="paper g1c" aria-labelledby="g1c-h"><h2 id="g1c-h">Check before you upload</h2>
+    let h = `<section class="paper g1c" aria-labelledby="g1c-h"><h2 id="g1c-h">4 · Check before you upload</h2>
       <p class="g1c-sub">Every rule the GST portal checks, and the ones a careful CA checks: GSTINs, tax from rate and value, state codes, Table 12 against your sales, document ranges, Table 14 against Table 7. Add a JSON from any tool to check it, or two to compare them.</p>
       <div class="g1c-pick"><label><input type="file" accept=".json,application/json" multiple data-g1c-file>📄 Add GSTR-1 JSON files</label>${S.files.length ? '<button type="button" class="text-link" data-g1c-clear>Clear</button>' : ''}</div>
       ${S.err ? `<p class="g1c-err" role="alert">${esc(S.err)}</p>` : ''}`;
@@ -576,9 +696,10 @@
     all.forEach((f, i) => {
       const R = check(f.json, { marketplace: true });
       f.R = R;
-      h += reportHtml(f.name, R, { open: !f.own });
+      if (f.own) h += threeBHtml(R) + carryHtml(S.extra);
+      h += reportHtml(f.name, R, { open: !f.own, own: f.own });
       const C = clean(f.json);
-      if (!f.own && C.changes.length) h += `<div class="g1c-acts"><button type="button" data-g1c-clean="${i}">Download cleaned copy</button><span class="fine-inline">${esc(C.changes.join(' '))} Amounts are not changed.</span></div>`;
+      h += `<div class="g1c-acts"><button type="button" class="${f.own ? 'pri' : ''}" data-g1c-xlsx="${i}">⬇ Excel for your CA</button>${!f.own && C.changes.length ? `<button type="button" data-g1c-clean="${i}">Download cleaned copy</button><span class="fine-inline">${esc(C.changes.join(' '))} Amounts are not changed.</span>` : ''}</div>`;
     });
     if (all.length >= 2) {
       for (let i = 1; i < all.length; i++) h += compareHtml(compare(all[0].json, all[i].json), short(all[0].name), short(all[i].name));
@@ -600,6 +721,10 @@
     });
     const clr = el.querySelector('[data-g1c-clear]');
     if (clr) clr.addEventListener('click', () => { S.files = []; S.err = ''; draw(el, S); });
+    el.querySelectorAll('[data-g1c-xlsx]').forEach((b) => b.addEventListener('click', () => {
+      const f = all[+b.dataset.g1cXlsx], R = f.R;
+      saveBlob(`GSTR1_${R.gstin || 'GSTIN'}_${R.fp || ''}_workings.xlsx`, workbook(f.json, f.own ? S.extra : null), XLSX_TYPE);
+    }));
     el.querySelectorAll('[data-g1c-clean]').forEach((b) => b.addEventListener('click', () => {
       const f = all[+b.dataset.g1cClean];
       save(f.name.replace(/\.json$/i, '') + '_checked.json', clean(f.json).json);

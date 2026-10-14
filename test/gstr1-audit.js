@@ -29,7 +29,7 @@ eq(G.covered([{ prefix: 'A', lo: 1, hi: 10 }, { prefix: 'A', lo: 5, hi: 20 }, { 
 
 /* a clean file: no errors, no warnings */
 const GOOD = {
-  gstin: '23AZYPA2461L1Z4', fp: '092026', version: 'GST3.1.6', hash: 'hash',
+  gstin: '23AZYPA2461L1Z4', fp: '092026', version: 'GST3.2.4', hash: 'hash',
   b2b: [{ ctin: '27AAPFU0939F1ZV', inv: [{ inum: 'RBH/26-27/0001', idt: '15-09-2026', val: 10500, pos: '27', rchrg: 'N', inv_typ: 'R', itms: [{ num: 1, itm_det: { rt: 5, txval: 10000, iamt: 500, csamt: 0 } }] }] }],
   b2cl: [{ pos: '29', inv: [{ inum: 'RBH/26-27/0002', idt: '20-09-2026', val: 210000, itms: [{ num: 1, itm_det: { rt: 5, txval: 200000, iamt: 10000, csamt: 0 } }] }] }],
   b2cs: [
@@ -94,7 +94,11 @@ broken((J) => { J.supeco.clttx[0].suppval = 400000; }, /more than all the sales/
 broken((J) => { J.fp = '122025'; J.b2cs[0].rt = 12; J.b2cs[0].iamt = 6000; J.supeco.clttx[0].igst = 6000; J.b2b[0].inv[0].idt = '15-12-2025'; J.b2cl[0].inv[0].idt = '20-12-2025'; }, /12% after September 2025/, 'info', 'rates: 12% after the September 2025 GST change is flagged to check');
 broken((J) => { J.b2cs[0].rt = 0; J.b2cs[0].iamt = 0; }, /belongs in nil-rated/, 'warn', 'Table 7: a 0% line');
 broken((J) => { J.extra = 1; }, /Unknown section/, 'warn', 'header: an unknown section');
-broken((J) => { J.b2cs[0].txval = -100; J.b2cs[0].iamt = -5; }, /Negative B2C lines/, 'warn', 'Table 7: negative after returns');
+broken((J) => { J.b2cs[0].txval = -100; J.b2cs[0].iamt = -5; }, /Negative B2C lines.*do not take negative values/, 'error', 'Table 7: negative after returns is refused by the portal');
+broken((J) => { J.hsn.hsn_b2c[0].qty = -3; }, /negative after returns/, 'error', 'Table 12: a negative HSN line is refused');
+broken((J) => { J.supeco.clttx[0].suppval = -5; }, /negative value/, 'error', 'Table 14: a negative value is refused');
+broken((J) => { J.version = 'GST3.1.6'; }, /version GST3\.1\.6.*3\.2\.4/, 'warn', 'header: a file made for an old offline tool');
+broken((J) => { J.b2cs[0].typ = 'E'; J.b2cs[0].etin = '23AARCM9332R1CW'; }, /type E/, 'info', 'Table 7: type E is noted, Table 14 is the place now');
 {
   const J = clone(GOOD); J.b2cs[0].iamt = 2500.9;
   ok(!G.check(J).issues.some((x) => /IGST/.test(x.msg)), 'Table 7: Rs 0.90 of rounding is accepted');
@@ -137,9 +141,29 @@ eq(C.json.b2cs.length, 2, 'clean: the zero line is dropped');
 eq(C.json.doc_issue.doc_det[0].docs, [{ num: 1, from: 'rsium274899', to: 'rsium2718596', totnum: 13467, cancel: 0, net_issue: 13467 }], 'clean: three monthly invoice ranges become one, count kept');
 eq(C.json.doc_issue.doc_det[1].docs.map((d) => [d.from, d.to, d.totnum]), [['rsium27C1324', 'rsium27C5397', 3584], ['rsium27CM215', 'rsium27CM648', 407]], 'clean: credit notes, one range per series, counts kept');
 const RC = G.check(C.json, { marketplace: true });
-eq([RC.errors, RC.warns], [1, 0], 'clean: only the missing Table 12 is left');
+eq([RC.errors, RC.warns], [1, 1], 'clean: only the missing Table 12 and the old version are left');
 eq([RC.totals.b2cs.txval, RC.totals.b2cs.iamt, RC.totals.supeco.txval], [RO.totals.b2cs.txval, RO.totals.b2cs.iamt, RO.totals.supeco.txval], 'clean: no amount changes');
 eq(G.clean(GOOD).changes, [], 'clean: a clean file is left as it is');
+
+/* the Excel workbook for a CA */
+{
+  const wb = G.workbook(GOOD, { carryOut: [{ pos: '11', rate: 5, etin: '23AARCM9332R1CW', txval: -1000, tax: -50, qty: -2 }] });
+  ok(wb[0] === 0x50 && wb[1] === 0x4b, 'Excel: a zip file');
+  const txt = Buffer.from(wb).toString('latin1');
+  for (const sh of ['Summary', 'Table 7 B2C', 'Table 4 B2B', 'Table 5 B2C large', 'Table 12 HSN B2C', 'Table 12 HSN B2B', 'Table 13 Documents', 'Table 14 E-commerce', 'GSTR-3B', 'Carried to next return', 'Checks']) ok(txt.includes(`name="${sh}"`), 'Excel: sheet ' + sh);
+  ok(txt.includes('<v>50000</v>') && txt.includes('Maharashtra'), 'Excel: Table 7 values and state names');
+  // the zip reads back: every stored file's CRC matches
+  let pos = 0, files = 0, okCrc = true;
+  while (wb[pos] === 0x50 && wb[pos + 1] === 0x4b && wb[pos + 2] === 3) {
+    const crc = wb.readUInt32LE ? null : null; // Uint8Array: read by hand
+    const u32 = (o) => (wb[o] | (wb[o + 1] << 8) | (wb[o + 2] << 16) | (wb[o + 3] << 24)) >>> 0, u16 = (o) => wb[o] | (wb[o + 1] << 8);
+    const size = u32(pos + 18), nl = u16(pos + 26), data = wb.subarray(pos + 30 + nl, pos + 30 + nl + size);
+    if (G.crc32(data) !== u32(pos + 14)) okCrc = false;
+    void crc; files++; pos += 30 + nl + size;
+  }
+  ok(files >= 15 && okCrc, 'Excel: every part stored with the right CRC', files + ' files');
+  eq(G.crc32(new TextEncoder().encode('123456789')), 0xcbf43926, 'zip: CRC-32 of the standard test string');
+}
 
 /* compare */
 eq(G.compare(GOOD, clone(GOOD)).differ.length, 0, 'compare: a file with itself has no differences');
