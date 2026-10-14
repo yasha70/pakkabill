@@ -223,8 +223,8 @@ const KB = [
   },
   {
     id: 'design', cats: ['bills'],
-    re: /design|template|royal|elegant|boutique|colou?r|look(s)? of (the )?bill|format/i,
-    text: (f) => `You can change the bill design from the Design picker when you make or edit a bill. Carbon, Modern, Classic, Ledger and Plain are free${f.locked ? '; Royal, Elegant and Boutique are part of PakkaBill Pro' : ', and so are Royal, Elegant and Boutique right now'}. You can also pick your brand colour on the Shop page.`,
+    re: /design|template|royal|elegant|boutique|studio|utsav|prism|trader|bill ?book|compact|colou?r|look(s)? of (the )?bill|format/i,
+    text: (f) => `You can change the bill design from the Design picker when you make or edit a bill. There are 14: Carbon, Modern, Classic, Ledger, Plain, Trader (the full GST format in boxes), Compact (30+ items on one page) and Bill book (with Rs. and P. columns) are free${f.locked ? '; Royal, Elegant, Boutique, Studio, Utsav and Prism are part of PakkaBill Pro' : ', and so are Royal, Elegant, Boutique, Studio, Utsav and Prism right now'}. You can also pick your brand colour on the Shop page.`,
     actions: ['shop'], outcome: 'answered',
   },
   {
@@ -454,7 +454,8 @@ const SYSTEM = `You are the PakkaBill support assistant. PakkaBill is a GST bill
 What PakkaBill does:
 - Bills: GST tax invoices and estimates. Tax is CGST+SGST when the buyer's state equals the shop's state, IGST otherwise. Items page holds products with HSN and GST rate; Parties page holds customers with state/GSTIN; Shop page holds shop details, logo, signature, brand colour, and "Download backup" / "Restore from backup".
 - Bills are stored only on the customer's device (in the browser). PakkaBill has no server copy of bills. Lost data can only come back from a backup file or from another browser/device where it still exists.
-- Designs: Carbon, Modern, Classic, Ledger and Plain are free; Royal, Elegant and Boutique are Pro (when Pro is enforced).
+- Designs (14): Carbon, Modern, Classic, Ledger, Plain, Trader, Compact and Bill book are free; Royal, Elegant, Boutique, Studio, Utsav and Prism are Pro (when Pro is enforced).
+- Columns on the bill: tap the chips above Items (or on the bill, or Shop > Columns on your bills for new bills): HSN code, Item code, Description, Size, Colour, MRP (shows what the buyer saves, and warns if the price with GST is above MRP), Unit column, Rate with GST, Tax split per item (CGST and SGST, or IGST). HSN always shows on bills to GST-registered buyers.
 - Free plan: a monthly number of bills (given in the findings), estimates don't count, resets on the 1st. Pro adds unlimited bills, PDF download, WhatsApp sharing, logo and signature, GSTR-1 JSON export, Pro designs.
 - Pro payment: the customer pays the shop's UPI QR on the Plan page and submits the 12-digit UTR. A person checks the UTR against the bank statement and approves it, usually within a few hours. Nobody can approve a payment automatically.
 - GST summary page: monthly B2B/B2C/HSN tables and GSTR-1 JSON (Pro).

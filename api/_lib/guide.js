@@ -74,10 +74,16 @@ const ARTICLES = [
     actions: ['shop'],
   },
   {
-    id: 'design', related: ['logo', 'print', 'pro'], topic: 'setup', title: 'Change bill design and colour',
-    q: ['design', 'template', 'bill design', 'colour', 'color', 'theme of bill', 'royal', 'elegant', 'boutique', 'carbon', 'modern', 'classic', 'ledger', 'plain', 'format change', 'accent'],
-    text: (ctx) => `On the Shop page under "Look of your bills", pick a Design (Carbon, Modern, Classic, Ledger, Plain, Royal, Elegant, Boutique) and an Accent colour. New bills use it. To change one bill, use the Bill design picker while making it or the design buttons on the bill itself.${ctx.locked ? ' Royal, Elegant and Boutique are part of PakkaBill Pro.' : ''}`,
+    id: 'design', related: ['columns', 'logo', 'print', 'pro'], topic: 'setup', title: 'Change bill design and colour',
+    q: ['design', 'template', 'bill design', 'colour', 'color', 'theme of bill', 'royal', 'elegant', 'boutique', 'carbon', 'modern', 'classic', 'ledger', 'plain', 'trader', 'compact', 'bill book', 'billbook', 'studio', 'utsav', 'prism', 'format change', 'accent'],
+    text: (ctx) => `On the Shop page under "Look of your bills", pick a Design (Carbon, Modern, Classic, Ledger, Plain, Trader, Compact, Bill book, Royal, Elegant, Boutique, Studio, Utsav, Prism) and an Accent colour. New bills use it. To change one bill, use the Bill design picker while making it or the design buttons on the bill itself.${ctx.locked ? ' Royal, Elegant, Boutique, Studio, Utsav and Prism are part of PakkaBill Pro.' : ''}`,
     actions: ['shop'],
+  },
+  {
+    id: 'columns', related: ['design', 'items'], topic: 'bills', title: 'Add size, colour, MRP or other columns to a bill',
+    q: ['column', 'columns', 'size column', 'colour column', 'color column', 'mrp', 'mrp on bill', 'item code', 'sku on bill', 'description on bill', 'cgst sgst per item', 'tax split', 'rate with gst', 'unit column', 'size kaise dale', 'mrp kaise dale'],
+    text: () => 'Above the Items on a bill, tap the column chips you want: HSN code, Item code, Description, Size, Colour, MRP, Unit column, Rate with GST and Tax split per item (CGST and SGST, or IGST, for each line). Boxes for size, colour, MRP, code and description then show under each item. With MRP on, the bill shows what the buyer saves, and PakkaBill warns you if the price with GST is above the MRP. To use the same columns on every new bill, set them on the Shop page under "Columns on your bills". Bills to GST-registered buyers always show the HSN code.',
+    actions: ['new_bill', 'shop'],
   },
   {
     id: 'upi_bank', related: ['whatsapp', 'paid', 'logo'], topic: 'setup', title: 'Add UPI QR and bank details to bills',
@@ -196,7 +202,7 @@ const ARTICLES = [
   {
     id: 'pro', related: ['pay_how', 'limit', 'account'], topic: 'plan', title: 'PakkaBill Pro: what you get and prices',
     q: ['pro', 'premium', 'price', 'plan', 'subscription', 'kitne ka hai', 'kitne ka', 'pro kitne', 'how much', 'charges', 'fees', 'is it free', 'free hai', 'free app', 'pakkabill free', 'free to use', 'free or paid', 'cost of pro', 'paid plan', 'upgrade', 'free plan', 'benefits', 'kya milta hai', 'monthly price', 'yearly price'],
-    text: (ctx) => `PakkaBill Pro gives unlimited bills every month; up to 10 shops (GSTINs); cloud backup on every device you log in on; Royal, Elegant and Boutique designs; your logo and signature; PDF download, share and WhatsApp; and GSTR-1 JSON from marketplace reports. It costs ₹${ctx.prices.monthly} a month or ₹${ctx.prices.yearly} a year${ctx.trialDays ? `, and every new account gets ${ctx.trialDays} days of Pro free` : ''}. The free plan has ${ctx.freeBills} bills a month (estimates don't count), one shop, the other five designs and printing.\n\nTo buy: open the Plan page, log in or create an account, choose a plan, pay the UPI QR and enter the 12-digit UTR. We switch Pro on after checking it, usually within a few hours.`,
+    text: (ctx) => `PakkaBill Pro gives unlimited bills every month; up to 10 shops (GSTINs); cloud backup on every device you log in on; all 14 bill designs; your logo and signature; PDF download, share and WhatsApp; and GSTR-1 JSON from marketplace reports. It costs ₹${ctx.prices.monthly} a month or ₹${ctx.prices.yearly} a year${ctx.trialDays ? `, and every new account gets ${ctx.trialDays} days of Pro free` : ''}. The free plan has ${ctx.freeBills} bills a month (estimates don't count), one shop, the other five designs and printing.\n\nTo buy: open the Plan page, log in or create an account, choose a plan, pay the UPI QR and enter the 12-digit UTR. We switch Pro on after checking it, usually within a few hours.`,
     actions: ['plan'],
   },
   {

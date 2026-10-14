@@ -14,6 +14,19 @@ bar so bills stay one tap away on a phone. The logo opens the P&L.
 - Billing: bills with Original / Duplicate / Triplicate copies, CGST+SGST or IGST by place of supply,
   the garment 5% / 18% slab, UPI QR, PDF, printing and WhatsApp sharing; GSTR-1 JSON built from
   Meesho's sales, sales return and tax invoice reports.
+- Bill designs and columns: 14 designs in a picture gallery (Shop, the bill form and the bill view).
+  Free: Carbon, Modern, Classic, Ledger, Plain, Trader (the full GST tax invoice format, every part in a
+  box), Compact (small type, 30+ items on one page) and Bill book (like a printed bill book, amounts in
+  Rs. and P. columns); Pro: Royal, Elegant, Boutique, Studio (bold type, big total), Utsav (festive toran
+  border) and Prism (slanted colour header). Columns are chips above the items, on the bill view and on
+  the Shop page for new bills: HSN code, Item code, Description, Size, Colour, MRP, Unit column, Rate
+  with GST and Tax split per item (CGST and SGST, or IGST, rate and amount on each line). HSN can't be
+  turned off on a bill to a GST-registered buyer. The discount shows its rupee amount (without GST when
+  rates include GST, so quantity x rate - discount = taxable value) and its total. With MRP on, the bill
+  shows the MRP total and what the buyer saves against the amount paid, and the bill form warns when
+  the price with GST is above the MRP. Items keep MRP and item code. Old bills keep their design and the usual columns.
+  When a table is too wide for the page it first lets long numbers break after a comma, then uses
+  smaller type, so nothing is cut off in the PDF.
 - Auto listing (`autolist.js`, #/autolist, with `lens/list.js` and `lens/listcore.js` in PakkaBill Lens 2.3):
   templates (Meesho category, every detail, sizes with price, return price, MRP and stock, name and
   description patterns) made in PakkaBill or saved straight from a form filled in Meesho; products with

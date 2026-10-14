@@ -104,7 +104,7 @@
 
   const WHY = {
     bills: (n) => `You have used your ${n} free bills this month.`,
-    design: () => 'The Royal, Elegant and Boutique bill designs are part of PakkaBill Pro.',
+    design: () => 'The Royal, Elegant, Boutique, Studio, Utsav and Prism bill designs are part of PakkaBill Pro.',
     logo: () => 'Your logo and signature on bills are part of PakkaBill Pro.',
     gstr1: () => 'GSTR-1 JSON export is part of PakkaBill Pro.',
     autolist: () => 'More listing templates, and sending more than 5 products to Meesho at a time, are part of PakkaBill Pro.',
@@ -123,7 +123,7 @@
     'Unlimited bills every month',
     'Up to 10 shops (GSTINs) in one app',
     'Cloud backup: your bills on every phone and laptop you log in on',
-    'Royal, Elegant and Boutique designs, your logo and signature',
+    'All 14 bill designs, including Royal, Utsav and Prism, with your logo and signature',
     'PDF download, share and WhatsApp',
     'GSTR-1 JSON from Meesho, Amazon and Flipkart reports',
     'Auto listing on Meesho: unlimited templates and products',
@@ -137,7 +137,7 @@
       ['Bills every month', `${free}`, 'Unlimited'],
       ['Shops (GSTINs)', '1', 'Up to 10'],
       ['Cloud backup and sync', '–', '✓'],
-      ['Bill designs', '5', 'All 8'],
+      ['Bill designs', '8', 'All 14'],
       ['Logo and signature on bills', '–', '✓'],
       ['PDF, share and WhatsApp', 'Print only', '✓'],
       ['GSTR-1 JSON from marketplace reports', '–', '✓'],
@@ -706,7 +706,7 @@
     else if (isPro() && daysLeft() <= 5) status = `<div class="pbp-status is-pro is-soon"><b>Your Pro plan ends in ${daysLeft()} day${daysLeft() === 1 ? '' : 's'}</b><span>On ${dateStr(acct.user.paidUntil)}. Renew now; the new time adds on top of what is left.</span></div>`;
     else if (isPro()) status = `<div class="pbp-status is-pro"><b>PakkaBill Pro is active</b><span>Till ${dateStr(acct.user.paidUntil)}. Everything is unlocked; nothing to pay now.</span></div>`;
     else if (acct && acct.user && acct.user.paidUntil) status = `<div class="pbp-status is-free"><b>Your Pro plan ended on ${dateStr(acct.user.paidUntil)}</b><span>You are on the free plan: ${cfg.freeBills} bills a month.</span></div>`;
-    else status = `<div class="pbp-status is-free"><b>You are on the free plan</b><span>${cfg.freeBills} bills a month, Carbon, Modern, Classic, Ledger and Plain designs, printing.</span></div>`;
+    else status = `<div class="pbp-status is-free"><b>You are on the free plan</b><span>${cfg.freeBills} bills a month, 8 bill designs including Trader and Bill book, printing.</span></div>`;
     // Pro already active with more than a week left: no buying section, only "Extend Pro early" folded away
     const proOn = isPro() && acct.user.lastPlan !== 'trial' && daysLeft() > 7;
     const payLine = playApp() ? '' : `<p class="pbp-fine">${cfg && cfg.razorpay ? 'Pay by UPI, card or net banking. Pro turns on as soon as you pay.' : 'Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.'}</p>`;
