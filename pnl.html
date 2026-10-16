@@ -198,7 +198,35 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: .88rem; co
 
 /* period bar */
 .period { display: grid; gap: 10px; grid-template-columns: 1fr; }
-@media (min-width: 620px) { .period { grid-template-columns: 1fr auto; align-items: end; } }
+@media (min-width: 620px) { .period { grid-template-columns: minmax(220px, 1fr) minmax(0, auto); align-items: end; } }
+.period > p { grid-column: 1 / -1; }
+/* what the numbers say */
+.ins { padding: 16px 18px; }
+.ins h2 { margin: 0 0 10px; font: 700 17px/1.25 var(--f-head); }
+.ins h3 { margin: 0 0 3px; font: 700 14.5px/1.3 var(--f-head); color: var(--ink); }
+.wf { border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; }
+.wf p { margin: 0 0 8px; }
+.wf-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.wf-row { display: grid; grid-template-columns: minmax(120px, 210px) 1fr minmax(76px, auto); gap: 10px; align-items: center; font-size: 13.5px; color: var(--ink-2); }
+.wf-row b { text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; }
+.wf-t { position: relative; height: 14px; background: var(--carbon-soft); border-radius: 4px; overflow: hidden; }
+.wf-t i { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+.wf-sale .wf-t i { background: var(--carbon); }
+.wf-sale .wf-l, .wf-np .wf-l { font-weight: 700; color: var(--ink); }
+.wf-np { border-top: 1px dashed var(--rule-2); padding-top: 6px; }
+.wf-np .wf-t i { background: var(--pos); }
+.wf-np b { color: var(--pos); }
+.wf-np.neg .wf-t i { background: var(--neg); }
+.wf-np.neg b { color: var(--neg); }
+.ins-cards { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.ins-card { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--rule); border-radius: 8px; padding: 12px; font-size: 14px; line-height: 1.45; }
+.ins-card > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ins-card p { margin: 0; color: var(--ink-2); }
+.ins-card p b { color: var(--ink); }
+.ins-card small { display: block; margin-top: 4px; font-size: 12.5px; }
+.ins-card .btn { margin-top: 8px; }
+.ins-card .ez-ic { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; background: var(--carbon-soft); }
+@media (max-width: 560px) { .ins { padding: 14px; } .wf-row { grid-template-columns: minmax(96px, 128px) 1fr auto; gap: 8px; font-size: 13px; } .ins-cards { grid-template-columns: 1fr; } }
 .dl { display: flex; gap: 8px; flex-wrap: wrap; }
 .lock { display: grid; overflow: hidden; padding: 0; }
 .lock > * { grid-area: 1 / 1; }
@@ -565,7 +593,10 @@ details.more[open] > summary { margin-bottom: 10px; }
   function money(p, opt) {
     opt = opt || {};
     p = Math.round(+p || 0);
-    var neg = p < 0, a = Math.abs(p), r = Math.floor(a / 100), ps = a % 100;
+    var neg = p < 0, a = Math.abs(p);
+    if (opt.noPaise) a = Math.round(a / 100) * 100; // whole rupees are rounded, not cut: 75.99 is 76
+    var r = Math.floor(a / 100), ps = a % 100;
+    if (!a) neg = false;
     var s = grp(String(r)) + (opt.noPaise ? '' : '.' + pad(ps));
     if (opt.sym) s = opt.sym + s;
     if (!neg) return s;
@@ -1174,6 +1205,9 @@ details.more[open] > summary { margin-bottom: 10px; }
       if (!y.od) y.od = o.od;
       if (!y.hasPay) y.q = o.q || 1;
     }
+    /* Meesho took the sale back but the status still says delivered (or nothing): the reports lag, the
+       money does not. It is a customer return (an RTO is never paid, so it has no sale to take back). */
+    list.forEach(function (x) { if (x.ret >= 0 && x.rank < RANK.EXCHANGE) { x.st = 'RETURN'; x.rank = RANK.RETURN; x.stInf = true; } });
     var cf = costFn(costs), extra = [], PK = {};
     list.forEach(function (x) {
       if (x.rank < 0) x.rank = 0;
@@ -1311,7 +1345,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   function compute(M, IX, cfg, expenses, per) {
     var P = M.pay, reg = M.reg, L = IX.L, REGD = !!cfg.gstReg, claim = cfg.taxCredits !== 'expense';
     function inP(d) { return !!d && d >= per.from && d <= per.to; }
-    var K = { S: 0, R: 0, OUT: 0, T: 0, D: 0, CP: 0, CL: 0, RC: 0, O: 0, F: 0, fwd: 0, rst: 0, loss: 0, pack: 0, fu: 0, ru: 0, lu: 0, rlu: 0, rlv: 0, parcels: 0, retn: 0, rton: 0, rdef: 0, sales: 0, legs: 0, unexpl: 0, revPend: 0, revPendV: 0, AD: 0, ADG: 0, REF: 0, ADJ: 0, IG: 0 };
+    var K = { S: 0, R: 0, OUT: 0, T: 0, D: 0, CP: 0, CL: 0, RC: 0, O: 0, F: 0, fwd: 0, rst: 0, loss: 0, pack: 0, fu: 0, ru: 0, lu: 0, rlu: 0, rlv: 0, parcels: 0, retn: 0, rton: 0, rdef: 0, sales: 0, legs: 0, unexpl: 0, revPend: 0, revPendV: 0, revPendNR: 0, revPendBack: 0, revPendP: 0, AD: 0, ADG: 0, REF: 0, ADJ: 0, IG: 0 };
     var CH = {}; CHARGE_CATS.forEach(function (c) { CH[c] = { v: 0, g: 0 }; });
     var COLS = {}, SK = {}, NC = {};
     // each order's sale less its reversal over all files, whatever the period: an order sold in
@@ -1353,7 +1387,13 @@ details.more[open] > summary { margin-bottom: 10px; }
       K.IG += L.gfwd[i] - L.grst[i] + L.gloss[i];
       K.fu += L.fu[i]; K.ru += L.ru[i]; K.lu += L.lu[i]; K.rlu += L.rlu[i]; K.rlv += L.rlv[i];
       K.parcels += L.parcel[i]; K.retn += L.retn[i]; K.rton += L.rto[i]; K.rdef += L.rdef[i]; K.sales += L.sale[i];
-      if (L.sale[i]) { var xo = IX.O[p.id]; if (xo && (xo.st === 'RETURN' || xo.st === 'RTO') && xo.ret < 0) { K.revPend++; K.revPendV += p.s; } }
+      if (L.sale[i]) {
+        var xo = IX.O[p.id];
+        if (xo && (xo.st === 'RETURN' || xo.st === 'RTO') && xo.ret < 0) {
+          K.revPend++; K.revPendV += p.s; K.revPendNR += p.s - out;
+          if (xo.cond !== 'loss') K.revPendBack += (xo.cost || 0) * (xo.q || 1);
+        }
+      }
       if (L.nc[i]) NC[p.sku || '(no SKU)'] = (NC[p.sku || '(no SKU)'] || 0) + L.nc[i];
       s.S += p.s; s.R += p.r; s.OUT += out; s.COGS += cg; s.MC += mc; s.OCR += ocr; s.TX += tx; s.pack += L.pack[i];
       s.sold += L.sale[i]; s.units += L.fu[i]; s.retU += L.ru[i] + L.rlu[i]; s.rto += L.rto[i];
@@ -1376,6 +1416,8 @@ details.more[open] > summary { margin-bottom: 10px; }
 
     var CHv = 0, CHG = 0;
     CHARGE_CATS.forEach(function (c) { CHv += CH[c].v; CHG += CH[c].g; });
+    // a pending return will also cost a return shipping fee: this period's average per return and RTO
+    if (K.revPend) { var nb = K.retn + K.rton; K.revPendP = K.revPendNR - K.revPendBack + (nb ? Math.round(-(CH.shipret.v - CH.shipret.g) / nb) * K.revPend : 0); }
     var NS = K.S + K.R, NR = NS - K.OUT, COGS = K.fwd - K.rst + K.loss, GP = NR - COGS;
     var MCx = CHv - CHG + K.O, taxExp = claim ? 0 : K.T + K.D, OCR = K.CP + K.CL + K.RC;
     var adsNet = K.AD - K.ADG, credits = OCR + K.ADJ + K.REF, OPEX = K.pack + EXP;
@@ -1501,8 +1543,124 @@ details.more[open] > summary { margin-bottom: 10px; }
   function monthly(M, IX, cfg, expenses, basis) {
     return dataMonths(M, IX, basis).map(function (m) {
       var r = compute(M, IX, cfg, expenses, { from: monthStart(m), to: monthEnd(m), basis: basis, mode: 'month', m: m });
-      return { m: m, NS: r.NS, NR: r.NR, COGS: r.COGS, GP: r.GP, MCx: r.MCx, ads: r.adsNet, credits: r.credits, OPEX: r.OPEX, NP: r.NP, payout: r.payout, orders: r.K.sales, parcels: r.K.parcels };
+      return { m: m, NS: r.NS, NR: r.NR, COGS: r.COGS, GP: r.GP, MCx: r.MCx, ads: r.adsNet, credits: r.credits, OPEX: r.OPEX, NP: r.NP, payout: r.payout, orders: r.K.sales, parcels: r.K.parcels,
+        del: r.K.del, taxExp: r.taxExp, tax: r.UNU + r.tcsLoss, skuSum: r.checks.skuSum };
     });
+  }
+
+  /* ---------------- insights: what the numbers say ----------------
+     Each one is worked out from the same totals as the statement, so it always agrees with it.
+       unit     one order a buyer keeps, step by step: what the buyer paid and where it went (the parts
+                of E.hundred divided by the orders kept; they add up to the profit per order exactly)
+       mom      this month against the month before, with the biggest reason (or the pace per day when
+                a month is not complete in the files)
+       conc     how much of the product profit the top 1 to 3 products make
+       ads      what one kept order earns before ads, and how many more the ads must bring to pay off
+       cash     days from the order to Meesho's payment
+       ship     a product that pays much more forward shipping per order than the rest
+       priceUp  what Rs 10 more on the best seller adds in a month, if orders stay the same */
+  function spanDays(M, per) { var d = dataSpan(M, per); return d.exact ? diffDays(d.from, d.to) + 1 : 0; }
+  function insights(R, MO, M, IX, per, cfg) {
+    var out = [], K = R.K, del = K.del, REGD = !!cfg.gstReg, reg = M.reg;
+    function inP(p) { var d = per.basis === 'order' ? (p.od || p.pd) : p.pd; return !!d && d >= per.from && d <= per.to; }
+    var days = spanDays(M, per);
+
+    // unit
+    var HU = hundred(R);
+    if (HU && del >= 5 && R.NS > 0) {
+      var parts = HU.segs.filter(function (x) { return x.k !== 'np'; }).map(function (x) { return { k: x.k, l: x.l, v: Math.round(x.v / del) }; });
+      var sale = Math.round(R.NS / del), profit = Math.round(R.NP / del), left = sale - parts.reduce(function (t, x) { return t + x.v; }, 0) - profit;
+      // rounding each part to the paisa can leave a few paise: the biggest part takes them
+      if (parts.length && Math.abs(left) <= parts.length) parts.slice().sort(function (p2, q2) { return q2.v - p2.v; })[0].v += left;
+      if (parts.length && sale - parts.reduce(function (t, x) { return t + x.v; }, 0) === profit) out.push({ k: 'unit', del: del, sale: sale, parts: parts, profit: profit });
+    }
+
+    // mom
+    var mo = (MO || []).filter(function (m) { return m.NS || m.NP || m.payout; }), ci = -1;
+    if (per.mode === 'month') { for (var i = 0; i < mo.length; i++) if (mo[i].m === per.m) ci = i; }
+    else if (per.mode === 'all') ci = mo.length - 1;
+    if (ci >= 1 && nextMonth(mo[ci - 1].m) === mo[ci].m) {
+      var cur = mo[ci], prev = mo[ci - 1], pay = per.basis !== 'order', slack = pay ? 6 : 2;
+      // a month is complete in the files when its data starts in the first days and ends in the last
+      // (payments come once a week, so a week either way)
+      function span(m) {
+        var sp = dataSpan(M, { from: monthStart(m.m), to: monthEnd(m.m), basis: per.basis });
+        return { from: sp.from, to: sp.to, full: sp.exact && diffDays(monthStart(m.m), sp.from) <= slack && diffDays(sp.to, monthEnd(m.m)) <= slack };
+      }
+      var sc = span(cur), sp2 = span(prev);
+      var o = { k: 'mom', m: cur.m, pm: prev.m, np: cur.NP, pnp: prev.NP, d: cur.NP - prev.NP, ns: cur.NS, pns: prev.NS,
+        margin: cur.NR ? cur.NP / cur.NR : 0, pmargin: prev.NR ? prev.NP / prev.NR : 0, full: sc.full && sp2.full, cur: sc, prev: sp2,
+        perOrder: cur.del ? Math.round(cur.NP / cur.del) : 0, pPerOrder: prev.del ? Math.round(prev.NP / prev.del) : 0, del: cur.del, pdel: prev.del,
+        // product profit per kept order, before ads and monthly expenses: a month only partly in the files cannot bend it
+        cpo: cur.del ? Math.round(cur.skuSum / cur.del) : 0, pcpo: prev.del ? Math.round(prev.skuSum / prev.del) : 0 };
+      var dr = [['sales', (cur.NR - cur.COGS) - (prev.NR - prev.COGS)], ['charges', cur.MCx - prev.MCx], ['credits', cur.credits - prev.credits],
+        ['ads', cur.ads - prev.ads], ['opex', -(cur.OPEX - prev.OPEX)], ['tax', (cur.taxExp - cur.tax) - (prev.taxExp - prev.tax)]];
+      if (o.full && o.d && dr.reduce(function (t, x) { return t + x[1]; }, 0) === o.d) {
+        var same = dr.filter(function (x) { return x[1] && (x[1] > 0) === (o.d > 0); }).sort(function (p2, q2) { return Math.abs(q2[1]) - Math.abs(p2[1]); });
+        if (same.length) o.main = { k: same[0][0], v: same[0][1] };
+      }
+      if (o.full || (o.del >= 5 && o.pdel >= 5)) out.push(o);
+    }
+
+    // conc
+    var pos = R.skus.filter(function (x) { return x.contrib > 0; }).sort(function (p2, q2) { return q2.contrib - p2.contrib; });
+    var ptot = pos.reduce(function (t, x) { return t + x.contrib; }, 0);
+    if (pos.length >= 4 && ptot > 0) {
+      var top = [], acc = 0;
+      for (var j = 0; j < 3 && acc < ptot / 2; j++) { top.push(pos[j]); acc += pos[j].contrib; }
+      if (acc >= ptot / 2) out.push({ k: 'conc', skus: top.map(function (x) { return x.sku; }), share: acc / ptot, n: pos.length, amt: acc });
+    }
+
+    // ads
+    if (R.adsNet < 0 && del > 0 && R.checks.skuSum > 0) {
+      var each = R.checks.skuSum / del, need = Math.ceil(-R.adsNet / each);
+      out.push({ k: 'ads', cost: -R.adsNet, share: R.NS > 0 ? -R.adsNet / R.NS : 0, each: Math.round(each), need: need, perWeek: days >= 7 ? need * 7 / days : 0 });
+    }
+
+    // cash
+    var gaps = [];
+    M.pay.forEach(function (p) { if (p.s > 0 && p.od && p.pd && p.pd >= p.od && inP(p)) gaps.push(diffDays(p.od, p.pd)); });
+    if (gaps.length >= 10) {
+      gaps.sort(function (p2, q2) { return p2 - q2; });
+      out.push({ k: 'cash', n: gaps.length, med: gaps[Math.floor((gaps.length - 1) / 2)], p90: gaps[Math.floor(gaps.length * 0.9)] || gaps[gaps.length - 1] });
+    }
+
+    // ship
+    var SH = {}, shN = 0, shV = 0;
+    M.pay.forEach(function (p) {
+      if (!(p.s > 0) || !inP(p)) return;
+      var v = 0; for (var k in p.a) if ((reg[k] || {}).cat === 'shipfwd') v -= p.a[k];
+      if (v <= 0) return;
+      var key = p.sku || '(no SKU)', x = SH[key] || (SH[key] = { sku: key, pn: p.pn || '', n: 0, v: 0 });
+      x.n++; x.v += v; shN++; shV += v;
+    });
+    if (shN >= 20 && Object.keys(SH).length >= 2) {
+      var avgAll = shV / shN, cand = null;
+      Object.keys(SH).forEach(function (key) {
+        var x = SH[key], othN = shN - x.n, avgOth = othN ? (shV - x.v) / othN : 0, avg = x.v / x.n;
+        if (x.n < 5 || !othN || avg - avgOth < 500 || avg < avgOth * 1.08) return;
+        var extra = (avg - avgOth) * x.n;
+        if (!cand || extra > cand.extra) cand = { k: 'ship', sku: x.sku, pn: x.pn, n: x.n, avg: Math.round(avg), others: Math.round(avgOth), all: Math.round(avgAll), extra: Math.round(extra) };
+      });
+      if (cand) out.push(cand);
+    }
+
+    // priceUp
+    var best = R.skus.filter(function (x) { return x.delivered >= 10 && x.sku !== '(no SKU)'; }).sort(function (p2, q2) { return q2.delivered - p2.delivered; })[0];
+    if (best && days >= 7) {
+      var gs = {}, S0 = 0, CM = 0;
+      M.pay.forEach(function (p) {
+        if (p.sku !== best.sku || !inP(p)) return;
+        if (p.s > 0) { gs[p.g] = (gs[p.g] || 0) + 1; S0 += p.s; }
+        for (var k in p.a) if ((reg[k] || {}).cat === 'comm') CM -= p.a[k];
+      });
+      var g = +Object.keys(gs).sort(function (x, y) { return gs[y] - gs[x]; })[0] || +cfg.defaultGst || 5;
+      var commShare = S0 > 0 ? Math.max(0, CM / S0) : 0;
+      var keepShare = (REGD ? 100 / (100 + g) : 1) - commShare * (REGD ? 100 / 118 : 1);
+      var add = 1000, perOrder = Math.round(add * keepShare), perMonth = Math.round(perOrder * best.delivered * 30 / days);
+      if (perOrder > 0) out.push({ k: 'priceUp', sku: best.sku, pn: best.pn, add: add, perOrder: perOrder, perMonth: perMonth, kept: best.delivered, gst: REGD ? g : 0 });
+    }
+    return out;
   }
 
   /* ---------------- returns, RTO and exchanges, each on its own ----------------
@@ -1830,7 +1988,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     else if (R.K.sales) out.push({ k: 'costs', lvl: 'ok', t: 'Every SKU sold has a cost', d: 'Cost of goods is complete for this period.' });
     if (!H.ordRows) out.push({ k: 'orders', lvl: 'warn', t: 'Orders report not added', d: 'Without it, orders that are not paid yet (in transit, awaiting or overdue payment) cannot be shown.', act: 'data' });
     if (R.K.rdef) out.push({ k: 'conds', lvl: 'info', n: R.K.rdef, t: R.K.rdef + ' returns and RTO parcels use the default condition', d: 'Mark any that came back damaged, used or wrong as Not resellable for exact stock cost.', act: 'returned' });
-    if (R.K.revPend) out.push({ k: 'revpend', lvl: 'info', n: R.K.revPend, t: R.K.revPend + ' returns not reversed by Meesho yet', d: 'Profit will drop by about ' + money(R.K.revPendV, { sym: '\u20b9' }) + ' of sales when Meesho takes these back.' });
+    if (R.K.revPend) out.push({ k: 'revpend', lvl: 'info', n: R.K.revPend, t: R.K.revPend + ' returns not reversed by Meesho yet', d: 'When Meesho takes these back, profit will drop by about ' + money(Math.max(0, R.K.revPendP), { sym: '\u20b9', noPaise: true }) + ' (' + money(R.K.revPendV, { sym: '\u20b9', noPaise: true }) + ' of sales, less the GST and the goods that come back to stock).' });
     var other = 0; IX.list.forEach(function (x) { if (x.st === 'OTHER') other++; });
     if (other) out.push({ k: 'status', lvl: 'info', n: other, t: other + ' orders have a status PakkaBill does not know', d: 'They are counted by their payments; check them in Reconcile under Other.' });
     var bad = 0, warn = 0; out.forEach(function (c) { if (c.lvl === 'bad') bad++; else if (c.lvl === 'warn') warn++; });
@@ -2241,7 +2399,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     monthStart: monthStart, monthEnd: monthEnd, nextMonth: nextMonth, fmtDate: fmtDate, fmtMonth: fmtMonth, money: money,
     skuLetters: skuLetters, nameCount: nameCount, packRule: packRule, piecesOf: piecesOf, normSt: normSt, classify: classify, detect: detect, parsePay: parsePay, parseAds: parseAds, parseAmt: parseAmt, parseOrd: parseOrd,
     calibrate: calibrate, ingest: ingest, merge: merge, index: index, dataMonths: dataMonths, periodFor: periodFor, expFor: expFor,
-    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, taxCheck: taxCheck, hundred: hundred, recoveries: recoveries, recKind: recKind, returnsDeep: returnsDeep, normSize: normSize, sizeCmp: sizeCmp, groupSize: groupSize, dataSpan: dataSpan, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
+    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, taxCheck: taxCheck, hundred: hundred, recoveries: recoveries, recKind: recKind, returnsDeep: returnsDeep, normSize: normSize, sizeCmp: sizeCmp, groupSize: groupSize, dataSpan: dataSpan, insights: insights, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
   };
 });
 
@@ -3596,7 +3754,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       ? ['Returns, RTO and exchanges by size, product, state and price', 'The sizes and products that come back most', 'Money lost on every return, and what to fix']
       : what === 'rc'
       ? ['Every order with its Meesho payment, side by side', 'Payments overdue, recoveries and rows that do not add up', 'Mark each return or RTO as resellable or not', 'Search by order ID or SKU']
-      : ['Profit and loss statement, line by line', 'RTO, returns and exchanges with every Meesho fee', 'Profit by product and by category, with break-even price', 'GST, TCS and TDS worked out', 'Month by month', 'Download as PDF and Excel'];
+      : ['What your numbers say: one order step by step, this month against last, do ads pay', 'Profit and loss statement, line by line', 'RTO, returns and exchanges with every Meesho fee', 'Profit by product and by category, with break-even price', 'GST, TCS and TDS worked out', 'Month by month', 'Download as PDF and Excel'];
     var btn = !x.login ? '<button class="btn pri" data-act="unlock" data-k="' + what + '">Log in or sign up free</button>'
       : x.play ? '<p class="small">Log in with an account that has Pro to see it here.</p>'
       : '<button class="btn pri" data-act="unlock" data-k="' + what + '">Get PakkaBill Pro</button>';
@@ -3632,7 +3790,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     function tip(ic, text, btn) { tips.push('<li><span class="ez-ic" aria-hidden="true">' + ic + '</span><span class="ez-t">' + text + '</span>' + (btn || '') + '</li>'); }
     var costs = HU ? HU.segs.filter(function (x) { return x.k !== 'np' && x.k !== 'gst'; }).sort(function (p, q) { return q.v - p.v; }) : [];
     if (costs.length) tip('\ud83d\udcb8', '<span>Biggest cost:</span> <b>' + esc(costs[0].l) + '</b><span>, ' + per100(costs[0].per100) + ' of every \u20b9100 of sales.</span>');
-    var back = S.RV ? S.RV.rtoRate + S.RV.retRate : 0;
+    var back = S.RV && S.RV.done ? (S.RV.G.rto.n + S.RV.G.ret.n) / S.RV.done : 0;
     if (back >= 0.15) tip('\u21a9\ufe0f', '<span>' + Math.round(back * 100) + ' of every 100 parcels came back as RTO or a return.</span> <span>The Returns tab shows which sizes and products.</span>', '<button class="btn sm" data-act="tab" data-tab="ret">Returns</button>');
     var losers = R.skus.filter(function (x) { return x.sold >= 3 && x.contrib < 0; }).sort(function (p, q) { return p.contrib - q.contrib; });
     if (losers.length) tip('\u26a0\ufe0f', '<b>' + esc(losers[0].sku) + '</b><span>' + (losers.length > 1 ? ' and ' + (losers.length - 1) + ' more SKUs lose money.' : ' loses money.') + '</span> <span>Price check shows the price where it stops losing.</span>', '<button class="btn sm" data-act="tab" data-tab="calc">Price check</button>');
@@ -3641,6 +3799,75 @@ details.more[open] > summary { margin-bottom: 10px; }
       if (best && R.skus.length > 1) tip('\u2b50', '<span>Your best SKU is </span><b>' + esc(best.sku) + '</b><span>: ' + rs(best.contrib, true) + ' profit, ' + rs(best.perOrder, true) + ' on every delivered order.</span>');
     }
     return '<section class="sheet ez" aria-label="Your profit in plain words"><h2>In short</h2>' + lead + bar + (tips.length ? '<ul class="ez-tips">' + tips.join('') + '</ul>' : '') + '</section>';
+  }
+
+  /* ---------------- what the numbers say (E.insights) ----------------
+     Sentences are whole pieces of text, with SKU codes in their own <b>, so the Hindi switch can
+     turn each one round. */
+  var INS_IC = { mom: '📅', conc: '🏆', ads: '📣', cash: '⏳', ship: '🚚', priceUp: '🏷️' };
+  var INS_T = { mom: 'This month against last', conc: 'Where your profit comes from', ads: 'Do your ads pay?', cash: 'When Meesho pays you', ship: 'Shipping per order', priceUp: 'A little more on your best seller' };
+  var WHY = { sales: 'Sales, after the cost of the products', charges: 'Meesho charges', credits: 'Claims and credits', ads: 'Ads', opex: 'Packaging and expenses', tax: 'TCS and TDS' };
+  function insightCard(x) {
+    var t = '', btn = '';
+    function sp(v) { return '<span>' + v + '</span>'; }
+    if (x.k === 'mom') {
+      if (x.full) {
+        t = sp(E.fmtMonth(x.m) + ': profit ' + rs(x.np, true) + ', ' + (x.d >= 0 ? 'up ' : 'down ') + rs(Math.abs(x.d), true) + ' from ' + E.fmtMonth(x.pm) + '.');
+        if (x.main) t += ' ' + sp('Biggest reason:') + ' <b>' + esc(WHY[x.main.k]) + '</b> ' + sp('(' + (x.main.v > 0 ? '+' : '−') + rs(Math.abs(x.main.v), true) + ').');
+        t += ' ' + sp('Margin ' + pct(x.margin) + ', was ' + pct(x.pmargin) + '.');
+      } else {
+        t = sp('Profit on each kept order, before ads and monthly expenses: ' + rs(x.cpo, true) + ' in ' + E.fmtMonth(x.m) + ', ' + rs(x.pcpo, true) + ' in ' + E.fmtMonth(x.pm) + '.') +
+          ' <small class="muted">' + sp('Your files do not have all of both months, so their totals are not compared.') +
+          (S.per.basis !== 'order' ? ' ' + sp('Counted by payment date, a month also carries the returns of orders from the month before.') : '') + '</small>';
+      }
+    } else if (x.k === 'conc') {
+      t = '<b>' + esc(x.skus.join(', ')) + '</b>' + sp((x.skus.length > 1 ? ' make ' : ' makes ') + pct(x.share) + ' of your product profit (' + rs(x.amt, true) + ').') + ' ' +
+        sp('Keep ' + (x.skus.length > 1 ? 'them' : 'it') + ' in stock and watch the ratings: a bad week there shows in your total.');
+    } else if (x.k === 'ads') {
+      t = sp('Ads cost ' + rs(x.cost, true) + ', ' + pct(x.share) + ' of your sales.') + ' ' +
+        sp('Each order a buyer keeps earns ' + rs(x.each, true) + ' before ads and monthly expenses, so the ads pay for themselves only if they bring ' + x.need + ' or more extra kept orders' +
+          (x.perWeek >= 0.5 ? ' (about ' + Math.round(x.perWeek) + ' a week).' : '.'));
+    } else if (x.k === 'cash') {
+      t = sp('Meesho pays an order about ' + x.med + ' days after it is placed; 9 in 10 within ' + x.p90 + ' days.') + ' ' + sp('Keep money aside for this gap when you buy stock.');
+    } else if (x.k === 'ship') {
+      t = '<b>' + esc(x.sku) + '</b>' + sp(' pays ' + rs(x.avg) + ' shipping per order with GST, ' + rs(x.avg - x.others) + ' more than your other products: ' + rs(x.extra, true) + ' extra in this period.') + ' ' +
+        sp('Check its packed weight and size: a lighter, smaller pack can move it to a lower shipping slab.');
+      btn = '<a class="btn sm" href="/#/lowship" target="_top">Low shipping image</a>';
+    } else if (x.k === 'priceUp') {
+      t = '<b>' + esc(x.sku) + '</b>' + sp(': ' + rs(x.add, true) + ' more on the price would add about ' + rs(x.perMonth, true) + ' a month (' + rs(x.perOrder) + ' on each kept order' + (x.gst ? ', after GST' : '') + '), if orders stay the same.') + ' ' +
+        sp('Price check shows what any price leaves you.');
+      btn = '<button class="btn sm" data-act="tab" data-tab="calc">Price check</button>';
+    }
+    if (!t) return '';
+    return '<li class="ins-card"><span class="ez-ic" aria-hidden="true">' + INS_IC[x.k] + '</span><div><h3>' + esc(INS_T[x.k]) + '</h3><p>' + t + '</p>' + btn + '</div></li>';
+  }
+  // the same sentences as plain text (English), for the Excel file and the PDFs
+  function unesc(t) { return String(t).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim(); }
+  A.insightsPlain = function () {
+    return E.insights(S.R, S.MO, S.M, S.IX, S.per, A.cfg()).map(function (x) {
+      if (x.k === 'unit') return x;
+      var c = insightCard(x), m = /<h3>([\s\S]*?)<\/h3><p>([\s\S]*?)<\/p>/.exec(c);
+      return m ? { k: x.k, title: unesc(m[1]), text: unesc(m[2]) } : null;
+    }).filter(Boolean);
+  };
+  function insightsHtml() {
+    var I = E.insights(S.R, S.MO, S.M, S.IX, S.per, A.cfg());
+    if (!I.length) return '';
+    var u = I.filter(function (x) { return x.k === 'unit'; })[0], h = '';
+    if (u) {
+      var scale = Math.max(u.sale, u.sale - u.profit), run = u.sale;
+      var rows = '<li class="wf-row wf-sale"><span class="wf-l">What the buyer paid</span><span class="wf-t"><i style="left:0;width:' + (u.sale / scale * 100).toFixed(2) + '%"></i></span><b>' + rs(u.sale) + '</b></li>';
+      u.parts.forEach(function (p) {
+        var hi = run, lo = run - p.v; run = lo;
+        var l = Math.max(0, lo) / scale * 100, w = (Math.min(hi, scale) - Math.max(0, lo)) / scale * 100;
+        rows += '<li class="wf-row"><span class="wf-l">' + esc(p.l) + '</span><span class="wf-t"><i style="left:' + l.toFixed(2) + '%;width:' + Math.max(0.6, w).toFixed(2) + '%;background:' + (EZC[p.k] || EZC.other) + '"></i></span><b>−' + rs(p.v) + '</b></li>';
+      });
+      rows += '<li class="wf-row wf-np' + (u.profit < 0 ? ' neg' : '') + '"><span class="wf-l">' + (u.profit < 0 ? 'You lose' : 'You keep') + '</span><span class="wf-t"><i style="left:0;width:' + (Math.abs(u.profit) / scale * 100).toFixed(2) + '%"></i></span><b>' + rs(u.profit) + '</b></li>';
+      h += '<div class="wf"><h3>One order, step by step</h3><p class="small muted">' + '<span>An average order a buyer kept (' + u.del + ' of them), with the cost of returns, RTO, ads and expenses spread over them.</span></p><ol class="wf-list">' + rows + '</ol></div>';
+    }
+    var cards = I.filter(function (x) { return x.k !== 'unit'; }).map(insightCard).join('');
+    if (cards) h += '<ul class="ins-cards">' + cards + '</ul>';
+    return '<section class="sheet ins" aria-label="What your numbers say"><h2>What your numbers say</h2>' + h + '</section>';
   }
 
   /* ---------------- P&L ---------------- */
@@ -3658,7 +3885,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<button data-act="basis" data-v="pay" aria-pressed="' + (S.sel.basis === 'pay') + '">Payment date</button>' +
       '<button data-act="basis" data-v="order" aria-pressed="' + (S.sel.basis === 'order') + '">Order date</button></div></div></div>' +
       '<div class="dl"><button class="btn pri" data-act="pdfEasy">Easy summary PDF</button><button class="btn" data-act="pdf">Full report PDF (for CA)</button><button class="btn" data-act="xlsx">Excel</button><button class="btn wa" data-act="share">Share on WhatsApp</button></div>' +
-      '<p class="small muted" style="margin:6px 0 0">Easy summary: your profit in plain words, on two pages. Full report: the statement your accountant needs.</p></div></section>';
+      '<p class="small muted" style="margin:6px 0 0">Easy summary: your profit in plain words. Full report: the statement your accountant needs.</p></div></section>';
 
     if (!S.H.legs) {
       h += '<div class="note bad"><p>Add the payment report to see profit. The orders report alone has no settlement amounts.</p></div>';
@@ -3669,8 +3896,8 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<div><small>Net sales</small><strong>' + rs(R.NS, true) + '</strong></div>' +
       '<div><small>Received from Meesho</small><strong>' + rs(R.payout, true) + '</strong></div>' +
       '<div><small>Orders sold</small><strong>' + K.sales + '</strong></div>' +
-      '<div><small>Delivered (no return or RTO)</small><strong>' + K.del + '</strong></div>' +
-      '<div><small>Profit per delivered order</small><strong class="' + (R.NP < 0 ? 'neg' : '') + '">' + (K.del ? rs(Math.round(R.NP / K.del), true) : '\u2013') + '</strong></div>' +
+      '<div><small>Kept by buyers (no return or RTO)</small><strong>' + K.del + '</strong></div>' +
+      '<div><small>Profit per kept order</small><strong class="' + (R.NP < 0 ? 'neg' : '') + '">' + (K.del ? rs(Math.round(R.NP / K.del), true) : '\u2013') + '</strong></div>' +
       '<div><small>RTO \u00b7 Return \u00b7 Exchange</small><strong>' + (S.RV ? pct(S.RV.rtoRate) + ' \u00b7 ' + pct(S.RV.retRate) + ' \u00b7 ' + pct(S.RV.exchRate) : (K.parcels ? pct(R.returnRate) : '0%')) + '</strong></div></div>';
 
     h += easyHtml();
@@ -3684,6 +3911,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     // a wrong TCS or TDS is shown to everyone: it is money the seller can get back
     if (!A.full()) return '<div class="stack">' + h + (taxOff() ? '<section class="sheet" id="gst-more">' + taxCheckHtml() + '</section>' : '') + lockHtml('pl') + '</div>';
 
+    h += insightsHtml();
     var lines = '';
     R.lines.forEach(function (l) {
       if (l.k === 'sec') lines += '<div class="lg-sec">' + esc(l.l) + '</div>';
@@ -4406,6 +4634,24 @@ details.more[open] > summary { margin-bottom: 10px; }
     P.push([t(R.claim ? 'Both are claimable, so they are added back to profit.' : 'Both are counted as an expense (Settings).', ST.note)]);
     X.utils.book_append_sheet(wb, sheet(P, [58, 18], { xSplit: 0, ySplit: 8 }), 'P&L');
 
+    /* Insights: the same sentences as the P&L tab */
+    var INS = window.HA && window.HA.insightsPlain ? window.HA.insightsPlain() : [];
+    if (INS.length) {
+      var IN = [[t('What your numbers say', ST.title)], [t('From the same figures as the P&L sheet, ' + E.fmtDate(span.from) + ' to ' + E.fmtDate(span.to) + '.', ST.sub)], []];
+      INS.forEach(function (x) {
+        if (x.k !== 'unit') return;
+        IN.push(heads(['One order, step by step (' + x.del + ' orders kept by buyers)', 'Per order (Rs)']));
+        IN.push([t('What the buyer paid', ST.bold), m(x.sale, ST.bold)]);
+        x.parts.forEach(function (p) { IN.push([t(p.l, ST.row), m(-p.v)]); });
+        IN.push([t(x.profit < 0 ? 'You lose' : 'You keep', ST.np), m(x.profit, ST.np)]);
+        IN.push([]);
+      });
+      INS.forEach(function (x) { if (x.k !== 'unit') { IN.push([t(x.title, ST.sec), t('', ST.sec)]); IN.push([t(x.text, ST.note)]); IN.push([]); } });
+      var wsI = sheet(IN, [100, 16]);
+      wsI['!rows'] = IN.map(function (row) { var c = row && row[0]; return c && c.s === ST.note ? { hpt: Math.max(30, Math.ceil(String(c.v).length / 95) * 15) } : null; });
+      X.utils.book_append_sheet(wb, wsI, 'Insights');
+    }
+
     /* SKU wise */
     var SK = [heads(['SKU', 'Product', 'Pieces per order', 'Orders sold', 'Pieces sold', 'Pieces returned', 'RTO parcels', 'Gross sales', 'Returns', 'Net sales', 'Output GST', 'Net revenue', 'Cost of goods', 'Meesho charges', 'Claims and recoveries', 'TCS/TDS as expense', 'Packaging', 'Profit', 'Delivered orders (no return or RTO)', 'Profit per delivered order', 'Profit per piece', 'Customer price per order', 'Break-even customer price'])];
     R.skus.forEach(function (x) {
@@ -4818,6 +5064,72 @@ details.more[open] > summary { margin-bottom: 10px; }
     function newPage() { doc.addPage(); cursor = TOP + 4; }
     function ensure(h) { if (cursor + h > PH - BOT) newPage(); }
 
+    /* ---------- what the numbers say: the same sentences as the P&L tab ---------- */
+    var INS = HA.insightsPlain ? HA.insightsPlain() : [], UNIT = INS.filter(function (x) { return x.k === 'unit'; })[0], CARDS = INS.filter(function (x) { return x.k !== 'unit'; });
+    var INS_ICON = { mom: 'chart', conc: 'star', ads: 'mega', cash: 'coins', ship: 'truck', priceUp: 'tag' };
+    function rs2(p) { return (p < 0 ? MINUS : '') + RS + E.money(Math.abs(Math.round(p))); }
+    // one kept order as a waterfall: the buyer's payment, each cost taken out, and what is left
+    function unitChart(u, y, opt) {
+      opt = opt || {};
+      var LW = opt.lw || 170, AW = 74, tx = M + LW, tw = CW - LW - AW - 8, rh = opt.rh || 17, scale = Math.max(u.sale, u.sale - u.profit), run = u.sale;
+      var rows = [{ l: 'What the buyer paid', v: u.sale, a: 0, b: u.sale, c: INDIGO, bold: true }];
+      u.parts.forEach(function (p) { var hi = run, lo = run - p.v; run = lo; rows.push({ l: p.l, v: -p.v, a: Math.max(0, lo), b: Math.min(hi, scale), c: SEG[p.k] || SEG.other }); });
+      rows.push({ l: u.profit < 0 ? 'You lose' : 'You keep', v: u.profit, a: 0, b: Math.abs(u.profit), c: u.profit < 0 ? NEG : POS, bold: true, last: true });
+      rows.forEach(function (r, i) {
+        var yy = y + i * rh;
+        if (r.last) { stroke(RULE); doc.setLineWidth(0.6); doc.setLineDashPattern([2, 2], 0); doc.line(M, yy - 5, PW - M, yy - 5); doc.setLineDashPattern([], 0); }
+        ink(r.bold ? INK : GREY); font(r.bold ? FN.disp : FN.serif, r.bold ? 'bold' : 'normal', r.bold ? 9.2 : 9); doc.text(a(r.l), M, yy + 7);
+        fill(SOFT); doc.roundedRect(tx, yy, tw, 9, 2.5, 2.5, 'F');
+        var bx = tx + tw * r.a / scale, bw2 = Math.max(1.5, tw * (r.b - r.a) / scale);
+        fill(r.c); doc.roundedRect(bx, yy, bw2, 9, 2.5, 2.5, 'F');
+        ink(r.last ? (u.profit < 0 ? NEG : POS) : INK); font(FN.disp, 'bold', r.bold ? 9.6 : 9);
+        doc.text(a(i === 0 || r.last ? rs2(r.v) : MINUS + rs2(-r.v)), PW - M, yy + 7.5, { align: 'right' });
+      });
+      return rows.length * rh;
+    }
+    // what to do next, from the shop's own numbers (the easy summary and the full report)
+    function todo() {
+      var NS = R.NS, NP = R.NP, lost = NP < 0, tips = [];
+      var worst = R.skus.filter(function (x) { return x.contrib < 0; }).sort(function (p, q) { return p.contrib - q.contrib; }).slice(0, 3);
+      if (R.missing.length) tips.push(['Add the cost of ' + R.missing.length + ' product' + (R.missing.length > 1 ? 's' : '') + ' on the Costs tab. Until then this profit shows too high.', 'tag']);
+      var cl = E.claims ? E.claims(S.M, S.IX, S.REC, st) : null;
+      if (cl && cl.total > 0) tips.push(['Claim ' + rup(cl.total) + ' from Meesho for ' + cl.list.length + ' order' + (cl.list.length > 1 ? 's' : '') + '. Ready-made ticket text is on the Reconcile tab.', 'receipt']);
+      if (worst.length) tips.push([worst.length + ' product' + (worst.length > 1 ? 's' : '') + ' lost money (' + worst.map(function (x) { return x.sku; }).join(', ') + '). Use Price check to find the payout you need, then raise the price or stop them.', 'percent']);
+      if (RV_OK && RV.rtoRate >= 0.12) tips.push(['RTO is ' + pc(RV.rtoRate) + ' of parcels. Call or WhatsApp buyers of cash-on-delivery orders before you ship, and watch the pincodes that send parcels back.', 'truck']);
+      if (RV_OK && RV.retRate >= 0.1) tips.push(['Returns are ' + pc(RV.retRate) + ' of delivered orders. Clear photos, a size chart and honest descriptions bring them down.', 'hanger']);
+      var ads = -(groups.filter(function (g) { return kindOf(g.l) === 'ads'; }).reduce(function (t, g) { return t + g.tot.v; }, 0));
+      if (NS > 0 && ads > NS * 0.08) tips.push(['Ads took ' + pc(ads / NS) + ' of your sales. Keep only the ads that bring orders.', 'mega']);
+      if (!lost && !R.missing.length && NS > 0 && NP / NS >= 0.12) tips.push(['You keep ' + pc(NP / NS) + ' of sales as profit. Keep your best products in stock, and upload next month’s file to keep track.', 'heart']);
+      if (!tips.length) tips.push(['Upload your Meesho payment file every month to see how your shop is doing.', 'calc']);
+      return tips;
+    }
+    // insight cards, two to a row, each as tall as its text
+    function insightCards(list, y, cols) {
+      cols = cols || 2;
+      var gap = 10, w = (CW - gap * (cols - 1)) / cols, rowTop = y, rowH = 0;
+      list.forEach(function (x, i) {
+        font(FN.serif, 'normal', 8.8); var l = wrap(x.text, w - 46), h = 34 + l.length * 11;
+        var col = i % cols;
+        if (col === 0 && i) { rowTop += rowH + gap; rowH = 0; }
+        if (col === 0) {
+          var need = h; for (var j = i + 1; j < Math.min(list.length, i + cols); j++) { font(FN.serif, 'normal', 8.8); need = Math.max(need, 34 + wrap(list[j].text, w - 46).length * 11); }
+          if (rowTop + need > PH - BOT) { newPage(); rowTop = cursor + 6; }
+        }
+        rowH = Math.max(rowH, h);
+        var x0 = M + col * (w + gap);
+        fill(WHITE); stroke(RULE); doc.setLineWidth(0.8);
+        var hh = h; for (var k = i - col; k < Math.min(list.length, i - col + cols); k++) { font(FN.serif, 'normal', 8.8); hh = Math.max(hh, 34 + wrap(list[k].text, w - 46).length * 11); }
+        doc.roundedRect(x0, rowTop, w, hh, 8, 8, 'FD');
+        fill(SOFT); doc.circle(x0 + 18, rowTop + 18, 10, 'F');
+        icon(INS_ICON[x.k] || 'star', x0 + 18, rowTop + 18, 13, 0, INDIGO, 1);
+        ink(INK); font(FN.disp, 'bold', 9.6); doc.text(a(x.title), x0 + 36, rowTop + 21);
+        ink(INK); font(FN.serif, 'normal', 8.8); doc.text(l, x0 + 36, rowTop + 34);
+        rowH = Math.max(rowH, hh);
+      });
+      return rowTop + rowH;
+    }
+
+
     /* ================= the easy summary: two pages in plain words, for sellers who are not accountants ================= */
     if (ctx.kind === 'summary') return easySummary();
     function easySummary() {
@@ -4953,6 +5265,11 @@ details.more[open] > summary { margin-bottom: 10px; }
         stroke(RULE); doc.setLineWidth(0.5); doc.line(M, yy + 15, PW - M, yy + 15);
         cursor = yy + 15;
       }
+      if (UNIT) {
+        head2('One order, step by step', 'An average order a buyer kept (' + UNIT.del + ' of them), with the cost of returns, RTO, ads and expenses spread over them.', 'receipt');
+        ensure(UNIT.parts.length * 17 + 50);
+        cursor += 14 + unitChart(UNIT, cursor + 10, { lw: 160 });
+      }
       var ranked = R.skus.slice().sort(function (p, q) { return q.contrib - p.contrib; });
       var best = ranked.filter(function (x) { return x.contrib > 0; }).slice(0, 3), worst = ranked.filter(function (x) { return x.contrib < 0; }).reverse().slice(0, 3);
       if (best.length) { head2('Your best products', 'Profit after the product cost, Meesho’s fees and packing, before ads and monthly expenses.', 'star'); best.forEach(function (x, i) { prodRow(x, i, POS); }); }
@@ -4961,7 +5278,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       // profit month by month (one series, so the title names it and there is no legend)
       if (S.MO.length > 1) {
         head2('Profit month by month', 'After every cost, including ads and monthly expenses.', 'chart');
-        var MO = S.MO.slice(-12), ch = 96, lo = 0, hi = 0;
+        var MO = S.MO.slice(-12), ch = MO.length <= 3 ? 64 : 88, lo = 0, hi = 0;
         MO.forEach(function (m) { hi = Math.max(hi, m.NP); lo = Math.min(lo, m.NP); });
         ensure(ch + 40);
         var top = cursor + 22, span = (hi - lo) || 1, sc = ch / span, base = top + hi * sc, slot = CW / MO.length, bw = Math.min(24, slot * 0.5);
@@ -4978,18 +5295,12 @@ details.more[open] > summary { margin-bottom: 10px; }
         cursor = base - lo * sc + (lo < 0 ? 26 : 18);
       }
 
-      // what to do next, from the shop's own numbers
-      var tips = [];
-      if (R.missing.length) tips.push(['Add the cost of ' + R.missing.length + ' product' + (R.missing.length > 1 ? 's' : '') + ' on the Costs tab. Until then this profit shows too high.', 'tag']);
-      var cl = E.claims ? E.claims(S.M, S.IX, S.REC, st) : null;
-      if (cl && cl.total > 0) tips.push(['Claim ' + rup(cl.total) + ' from Meesho for ' + cl.list.length + ' order' + (cl.list.length > 1 ? 's' : '') + '. Ready-made ticket text is on the Reconcile tab.', 'receipt']);
-      if (worst.length) tips.push([worst.length + ' product' + (worst.length > 1 ? 's' : '') + ' lost money (' + worst.map(function (x) { return x.sku; }).join(', ') + '). Use Price check to find the payout you need, then raise the price or stop them.', 'percent']);
-      if (RV_OK && RV.rtoRate >= 0.12) tips.push(['RTO is ' + pc(RV.rtoRate) + ' of parcels. Call or WhatsApp buyers of cash-on-delivery orders before you ship, and watch the pincodes that send parcels back.', 'truck']);
-      if (RV_OK && RV.retRate >= 0.1) tips.push(['Returns are ' + pc(RV.retRate) + ' of delivered orders. Clear photos, a size chart and honest descriptions bring them down.', 'hanger']);
-      var ads = -(groups.filter(function (g) { return kindOf(g.l) === 'ads'; }).reduce(function (t, g) { return t + g.tot.v; }, 0));
-      if (NS > 0 && ads > NS * 0.08) tips.push(['Ads took ' + pc(ads / NS) + ' of your sales. Keep only the ads that bring orders.', 'mega']);
-      if (!lost && !R.missing.length && NS > 0 && NP / NS >= 0.12) tips.push(['You keep ' + pc(NP / NS) + ' of sales as profit. Keep your best products in stock, and upload next month’s file to keep track.', 'heart']);
-      if (!tips.length) tips.push(['Upload your Meesho payment file every month to see how your shop is doing.', 'calc']);
+      if (CARDS.length) {
+        head2('Good to know', 'From the same numbers as your profit.', 'star');
+        cursor = insightCards(CARDS, cursor + 10, 2) + 4;
+      }
+
+      var tips = todo();
       head2('What to do next', '', 'clip');
       tips.slice(0, 5).forEach(function (t2) {
         font(FN.serif, 'normal', 9.6); var l = wrap(t2[0], CW - 60), hh = Math.max(30, l.length * 12.5 + 12);
@@ -5061,12 +5372,12 @@ details.more[open] > summary { margin-bottom: 10px; }
     var miss = R.missing.length;
     ink(miss ? NEG : GREY); font(FN.serif, 'italic', 8.6);
     if (miss) doc.text(wrap('Cost is missing for ' + miss + ' SKU' + (miss > 1 ? 's' : '') + ', so this profit shows too high. Add costs on the Costs tab.', 150), M + 16, y0 + 80);
-    else doc.text(wrap((R.NR ? pc(R.margin) + ' of net revenue' : '') + (K.del ? ' · ' + rup(Math.round(R.NP / K.del)) + ' per delivered order' : ''), 150), M + 16, y0 + 80);
+    else doc.text(wrap((R.NR ? pc(R.margin) + ' of net revenue' : '') + (K.del ? ' · ' + rup(Math.round(R.NP / K.del)) + ' per order kept' : ''), 150), M + 16, y0 + 80);
     alpha(0.95); ink(CORAL); font(FN.hand, 'normal', 15); doc.text(R.NP < 0 ? 'fix this!' : miss ? 'add costs!' : 'pakka!', M + (miss ? 124 : 150), y0 + 26, { angle: 9 }); alpha(1);
     var tiles = [
       ['NET SALES', rup(R.NS), K.sales + ' orders sold'],
       ['RECEIVED FROM MEESHO', rup(R.payout), S.PO.length + ' payout' + (S.PO.length === 1 ? '' : 's') + ' in the period'],
-      ['DELIVERED ORDERS', String(K.del), 'kept by the buyer, of ' + K.parcels + ' parcels'],
+      ['ORDERS KEPT', String(K.del), 'by buyers, of ' + K.parcels + ' parcels sent'],
       ['RTO  ·  RETURNS', RV_OK ? pc(RV.rtoRate) + '  ·  ' + pc(RV.retRate) : (K.parcels ? pc(R.returnRate) : '-'), RV_OK ? rup(RV.loss) + ' lost on them' : 'of parcels shipped']
     ];
     var tx0 = M + 218, tw = (PW - M - tx0 - 10) / 2, th = 56;
@@ -5111,6 +5422,46 @@ details.more[open] > summary { margin-bottom: 10px; }
     var tocY = 552;
     cursor = PH; // the next part starts on its own page
 
+    /* ================= page 2: what your numbers say ================= */
+    if (UNIT || CARDS.length) {
+      newPage();
+      toc.push({ t: 'What your numbers say', p: page(), main: true });
+      var iy = TOP + 14;
+      ink(INK); font(FN.disp, 'bold', 18); doc.text('What your numbers say', M, iy + 8);
+      squiggle(M + 1, iy + 15, 150, CORAL, 1.4, 2);
+      alpha(0.8); icon('star', PW - M - 14, iy + 2, 24, -0.12, BRAND, 1.05); alpha(1);
+      ink(GREY); font(FN.serif, 'italic', 9); doc.text(wrap('For the owner: what the figures in this report mean for the shop. Every number comes from the statement that follows, ' + spanTxt + '.', CW - 40), M, iy + 32);
+      cursor = iy + 52;
+      if (UNIT) {
+        var bh = UNIT.parts.length * 18 + 82;
+        fill(PAPER); stroke(RULE); doc.setLineWidth(0.8); doc.roundedRect(M - 8, cursor, CW + 16, bh, 10, 10, 'FD');
+        ink(INDIGO); font(FN.disp, 'bold', 11); doc.text('One order, step by step', M + 4, cursor + 20);
+        ink(GREY); font(FN.serif, 'italic', 8.4); doc.text(wrap('An average order a buyer kept (' + UNIT.del + ' of them), with the cost of returns, RTO, ads and expenses spread over them.', CW - 20), M + 4, cursor + 33);
+        unitChart(UNIT, cursor + 46, { lw: 170, rh: 18 });
+        cursor += bh + 14;
+      }
+      if (CARDS.length) cursor = insightCards(CARDS, cursor, 2) + 8;
+      // the action list goes under the insights only as far as it fits: it never spills onto a page of its own
+      var td = todo().slice(0, 5), fit = [], room = PH - BOT - cursor - 34;
+      td.forEach(function (t2) {
+        font(FN.serif, 'normal', 9.2); var hh = Math.max(26, wrap(t2[0], CW - 60).length * 12 + 10);
+        if (room >= hh + 8 && fit.length === td.indexOf(t2)) { fit.push(t2); room -= hh + 8; }
+      });
+      if (fit.length >= 2) {
+        ink(INK); font(FN.disp, 'bold', 12); doc.text('What to do next', M, cursor + 22);
+        squiggle(M + 1, cursor + 28, 90, CORAL, 1.2, 1.8);
+        cursor += 34;
+        fit.forEach(function (t2) {
+          font(FN.serif, 'normal', 9.2); var l = wrap(t2[0], CW - 60), hh = Math.max(26, l.length * 12 + 10);
+          var yy = cursor + 8;
+          stroke(INDIGO); doc.setLineWidth(1); doc.roundedRect(M, yy + 2, 10, 10, 2.5, 2.5, 'S');
+          icon(t2[1], PW - M - 10, yy + 8, 15, 0, GREY, 0.9);
+          ink(INK); font(FN.serif, 'normal', 9.2); doc.text(l, M + 20, yy + 10);
+          cursor = yy + hh;
+        });
+      }
+    }
+
     /* ================= page 2: Statement of Profit and Loss ================= */
     function titleBlock(title) {
       var y = TOP + 12;
@@ -5124,7 +5475,8 @@ details.more[open] > summary { margin-bottom: 10px; }
     newPage();
     toc.push({ t: 'Statement of Profit and Loss', p: page(), main: true });
     titleBlock('Statement of Profit and Loss');
-    (function () {
+    (function statement(tight) {
+      var stPage = page(), pd = tight ? 1.5 : 2.2, fz = tight ? 8.5 : 8.8;
       var roman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'], si = 0, body = [], meta = [];
       R.lines.forEach(function (l) {
         var lab = a(l.l);
@@ -5142,17 +5494,17 @@ details.more[open] > summary { margin-bottom: 10px; }
         startY: cursor + 8, theme: 'plain', margin: { left: M, right: M, top: TOP, bottom: BOT }, rowPageBreak: 'avoid',
         head: [['Particulars', 'Note', { content: a('For the period ended ' + endDay), colSpan: 2, styles: { halign: 'right' } }]],
         body: body,
-        styles: { font: FN.serif, fontSize: 8.8, textColor: INK, cellPadding: { top: 2.2, bottom: 2.2, left: 6, right: 6 }, overflow: 'linebreak', valign: 'middle' },
+        styles: { font: FN.serif, fontSize: fz, textColor: INK, cellPadding: { top: pd, bottom: pd, left: 6, right: 6 }, overflow: 'linebreak', valign: 'middle' },
         headStyles: { font: FN.disp, fontStyle: 'bold', fontSize: 7.6, textColor: INDIGO, fillColor: SOFT, cellPadding: { top: 6, bottom: 6, left: 6, right: 6 } },
         columnStyles: { 1: { halign: 'center', cellWidth: 36 }, 2: { halign: 'right', cellWidth: 100 }, 3: { halign: 'right', cellWidth: 104 } },
         didParseCell: function (d) {
           if (d.section !== 'body') return;
           var k = meta[d.row.index], s = d.cell.styles, c0 = d.column.index === 0;
-          if (k === 'sec') { s.fontStyle = 'bold'; s.textColor = INDIGO; s.cellPadding = { top: 6, bottom: 2.2, left: 6, right: 6 }; if (d.column.index === 1) { s.font = FN.disp; s.fontSize = 8; } }
-          if ((k === 'row' || k === 'sub') && c0) s.cellPadding = { top: 2.2, bottom: 2.2, left: 24, right: 6 };
+          if (k === 'sec') { s.fontStyle = 'bold'; s.textColor = INDIGO; s.cellPadding = { top: tight ? 4 : 6, bottom: pd, left: 6, right: 6 }; if (d.column.index === 1) { s.font = FN.disp; s.fontSize = 8; } }
+          if ((k === 'row' || k === 'sub') && c0) s.cellPadding = { top: pd, bottom: pd, left: 24, right: 6 };
           if (k === 'sub') s.fontStyle = 'italic';
-          if (k === 'tot') { s.fontStyle = 'bold'; s.cellPadding = { top: 3, bottom: 3.5, left: c0 ? 24 : 6, right: 6 }; }
-          if (k === 'gp' || k === 'np') { s.fontStyle = 'bold'; s.fillColor = k === 'np' ? SOFT : PAPER; s.fontSize = k === 'np' ? 10.4 : 9.6; s.cellPadding = { top: 5.5, bottom: 5.5, left: 6, right: 6 }; }
+          if (k === 'tot') { s.fontStyle = 'bold'; s.cellPadding = { top: tight ? 2.4 : 3, bottom: tight ? 2.8 : 3.5, left: c0 ? 24 : 6, right: 6 }; }
+          if (k === 'gp' || k === 'np') { s.fontStyle = 'bold'; s.fillColor = k === 'np' ? SOFT : PAPER; s.fontSize = k === 'np' ? 10.4 : 9.6; s.cellPadding = { top: tight ? 4 : 5.5, bottom: tight ? 4 : 5.5, left: 6, right: 6 }; }
           if (k === 'np' && d.column.index === 3) s.textColor = R.NP < 0 ? NEG : POS;
         },
         didDrawCell: function (d) {
@@ -5169,6 +5521,11 @@ details.more[open] > summary { margin-bottom: 10px; }
         }
       });
       cursor = doc.lastAutoTable.finalY;
+      if (!tight && page() === stPage && cursor + 74 > PH - BOT) {
+        // the signature would sit alone on the next page: draw the statement again, a little tighter
+        doc.deletePage(stPage); newPage(); titleBlock('Statement of Profit and Loss');
+        return statement(true);
+      }
       ensure(74);
       var y = cursor + 14;
       ink(GREY); font(FN.serif, 'italic', 8);

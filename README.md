@@ -119,6 +119,19 @@ size comes from the product name ("Combo of 2", "Pack of 5"), or from the letter
 the SKU (BPYG05 = 4 pieces) when the seller's names show their SKUs follow that rule. Downloads the P&L as
 Excel and PDF.
 
+"What your numbers say" (`E.insights`, on the P&L tab, in the Excel file's Insights sheet, on page 2 of
+the full report and in the easy summary) works from the same totals as the statement, so it always agrees
+with it: one kept order step by step (the parts of "every Rs 100" divided by the orders kept, adding up to
+the profit per order to the paisa), this month against the month before (totals and the biggest reason
+when both months are complete in the files, otherwise product profit per kept order, which a part-month
+cannot bend), how much of the product profit the top products make, how many extra kept orders the ads
+must bring to pay for themselves, days from order to Meesho's payment, a product that pays much more
+shipping per order than the rest, and what Rs 10 more on the best seller adds in a month (less its GST
+and any commission). A sale Meesho took back counts as a customer return even when the status column
+still says delivered or is blank. Returns not reversed yet show the profit they will really take (the
+sale less its GST and the goods back in stock, plus a return fee), not the sale. Whole rupees are rounded,
+not cut. Tests: `node test/pnl-audit.js` (950 checks).
+
 - `pnl.html` the whole tool, shown inside PakkaBill in a frame (`pnl.html?embed=1`) with PakkaBill's
   colours, fonts and light/dark setting. Shop name and GSTIN start from Shop settings.
 - `pnl-libs.js` SheetJS (xlsx-js-style), jsPDF, jsPDF-AutoTable and JSZip, loaded only by `pnl.html`.

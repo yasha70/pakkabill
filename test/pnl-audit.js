@@ -545,5 +545,84 @@ for (const cfg of settings) {
   }
 }
 
+/* ---------------------------------------------------------------- a sale taken back is a return */
+{
+  // the reversal leg says "Delivered" or nothing (the status column lags): it is still a customer return
+  for (const st of ['Delivered', '']) {
+    const legs = LEGS.map((l) => l.slice());
+    legs[2][4] = st; legs[1][4] = 'Delivered';
+    const rows = [LH].concat(legs.map((l) => { const [id, od, pd, sku, s1, q, s, r, sh, rs, tcs, tds, cl] = l; const f = s + r + sh + rs + tcs + tds + cl; return [id, od, pd, sku, sku === 'KURTI' ? 'Cotton Kurti' : 'Silk Saree', s1, '5', String(q), f.toFixed(2), String(s), String(r), String(sh), String(rs), String(tcs), String(tds), String(cl)]; }));
+    const x = run([{ name: 'l.xlsx', sheets: [{ name: 'Order Payments', rows }] }], { cfg: { gstReg: false }, costs });
+    const base = run([ledgerBook()], { cfg: { gstReg: false }, costs });
+    const tag = 'stale status "' + st + '"';
+    eq(x.IX.O['100000002_1'].st, 'RETURN', tag + ': the order is a return');
+    eq(x.R.NP, base.R.NP, tag + ': profit is the same as with the right status');
+    const RV = E.returnsView(x.M, x.IX, x.cfg, x.per), RV0 = E.returnsView(base.M, base.IX, base.cfg, base.per);
+    eq(RV.G.ret.n, RV0.G.ret.n, tag + ': counted as a customer return');
+    eq(RV.G.ret.loss, RV0.G.ret.loss, tag + ': with its loss');
+    eq(E.reconcile(x.M, x.IX, x.cfg).rows.find((r) => r.id === '100000002_1').b, 'returned', tag + ': reconcile puts it under returns');
+  }
+}
+
+/* ---------------------------------------------------------------- returns not reversed yet */
+{
+  // sold and paid, now a return, but Meesho has not taken the sale back yet
+  const legs = LEGS.filter((l) => !(l[0] === '100000002_1' && l[7] < 0)).map((l) => l.slice());
+  const rows = [LH].concat(legs.map((l) => { const [id, od, pd, sku, s1, q, s, r, sh, rs, tcs, tds, cl] = l; const f = s + r + sh + rs + tcs + tds + cl; return [id, od, pd, sku, sku === 'KURTI' ? 'Cotton Kurti' : 'Silk Saree', s1, '5', String(q), f.toFixed(2), String(s), String(r), String(sh), String(rs), String(tcs), String(tds), String(cl)]; }));
+  const ord = { name: 'o.csv', sheets: [{ name: 'Orders', rows: [['Reason for Credit Entry', 'Sub Order No', 'Order Date', 'SKU', 'Product Name', 'Quantity'], ['RETURN', '100000002_1', '2026-08-02', 'KURTI', 'Cotton Kurti', '1']] }] };
+  for (const cfg of [{ gstReg: false }, { gstReg: true }, { gstReg: true, returnDefault: 'loss' }]) {
+    const x = run([{ name: 'l.xlsx', sheets: [{ name: 'Order Payments', rows }] }, ord], { cfg, costs });
+    const K = x.R.K, tag = 'pending return ' + JSON.stringify(cfg);
+    eq(K.revPend, 1, tag + ': one');
+    eq(K.revPendV, 50000, tag + ': its sale');
+    const out = cfg.gstReg ? Math.round(50000 * 5 / 105) : 0, back = cfg.returnDefault === 'loss' ? 0 : 30000;
+    const fee = Math.round(-(x.R.CH.shipret.v - x.R.CH.shipret.g) / (K.retn + K.rton));
+    eq(K.revPendP, 50000 - out - back + fee, tag + ': profit drop = sale less GST, less goods back in stock, plus a return fee');
+    ok(K.revPendP < K.revPendV, tag + ': less than the sale');
+  }
+}
+
+/* ---------------------------------------------------------------- insights */
+{
+  for (const sel of [{ mode: 'all', basis: 'pay' }, { mode: 'all', basis: 'order' }, { mode: 'month', m: '2026-09', basis: 'pay' }, { mode: 'month', m: '2026-08', basis: 'order' }]) {
+    for (const cfg of [{}, { gstReg: false }, { taxCredits: 'expense' }]) {
+      const exp = [{ id: 'e1', name: 'Rent', amt: 300000, when: 'monthly' }];
+      const x = run([D.payBook, D.ordBook], { costs: D.costs, cfg: Object.assign({ pack: D.pack }, cfg), sel, expenses: exp });
+      const MO = E.monthly(x.M, x.IX, x.cfg, exp, sel.basis), I = E.insights(x.R, MO, x.M, x.IX, x.per, x.cfg), by = {};
+      I.forEach((i) => { by[i.k] = i; });
+      const tag = JSON.stringify(sel) + JSON.stringify(cfg);
+      const u = by.unit;
+      ok(u && u.sale - u.parts.reduce((t, p) => t + p.v, 0) === u.profit, 'insights unit: the parts take the sale down to the profit, to the paisa ' + tag);
+      ok(u && Math.abs(u.profit - x.R.NP / x.R.K.del) < 1 && Math.abs(u.sale - x.R.NS / x.R.K.del) < 1, 'insights unit: sale and profit per kept order ' + tag);
+      if (by.mom) {
+        const m = by.mom, cur = MO.find((r) => r.m === m.m), prev = MO.find((r) => r.m === m.pm);
+        ok(cur && prev && E.nextMonth(prev.m) === cur.m && m.np === cur.NP && m.d === cur.NP - prev.NP, 'insights mom: the two months next to each other ' + tag);
+        ok(!m.main || m.full, 'insights mom: a reason only when both months are complete ' + tag);
+      }
+      if (by.conc) ok(by.conc.share >= 0.5 && by.conc.skus.length <= 3, 'insights conc: half the product profit from at most 3 products ' + tag);
+      if (by.ads) ok(by.ads.need * by.ads.each >= by.ads.cost && (by.ads.need - 1) * by.ads.each < by.ads.cost + by.ads.each, 'insights ads: the fewest kept orders that pay the ads ' + tag);
+      if (by.cash) ok(by.cash.med <= by.cash.p90 && by.cash.med > 0, 'insights cash: days to payment ' + tag);
+      if (by.ship) ok(by.ship.avg - by.ship.others >= 500 && by.ship.extra > 0, 'insights ship: Rs 5 or more per order above the others ' + tag);
+      if (by.priceUp) ok(by.priceUp.perOrder === (cfg.gstReg === false ? 1000 : Math.round(1000 * 100 / 105)), 'insights priceUp: Rs 10 less its GST (no commission on this product) ' + tag, by.priceUp.perOrder);
+    }
+  }
+  // two complete months: the reasons add up to the change in profit
+  const two = [];
+  const book = JSON.parse(JSON.stringify(D.payBook));
+  const pr = book.sheets.find((s2) => s2.name === 'Order Payments').rows, ci = (n) => pr[0].indexOf(n);
+  pr.slice(2).forEach((r) => {
+    const d = r[ci('Payment Date')];
+    if (d < '2026-09-01') r[ci('Payment Date')] = '2026-08-' + String(Math.min(31, Math.max(1, (+d.slice(8)) * 2 - 22))).padStart(2, '0');
+    else r[ci('Payment Date')] = '2026-09-' + String(Math.min(30, +d.slice(8) + 7)).padStart(2, '0');
+  });
+  const x2 = run([book], { costs: D.costs, sel: { mode: 'all', basis: 'pay' } });
+  const MO2 = E.monthly(x2.M, x2.IX, x2.cfg, [], 'pay');
+  const sp = E.dataSpan(x2.M, { from: '2026-08-01', to: '2026-08-31', basis: 'pay' });
+  two.push(sp.from, sp.to);
+  const m2 = E.insights(x2.R, MO2, x2.M, x2.IX, x2.per, x2.cfg).find((i) => i.k === 'mom');
+  ok(m2 && m2.prev.full && m2.cur.full, 'insights mom: both months spread over the month are complete ' + two.join(' '));
+  ok(m2 && m2.main && (m2.main.v > 0) === (m2.d > 0) && Math.abs(m2.main.v) <= Math.abs(m2.d) * 10, 'insights mom: the biggest reason moves profit the same way', m2 && JSON.stringify(m2.main));
+}
+
 console.log(`${checks - fails} of ${checks} checks passed`);
 process.exit(fails ? 1 : 0);
