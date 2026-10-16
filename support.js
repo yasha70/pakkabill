@@ -165,6 +165,7 @@
       });
       return;
     }
+    if (a === 'login' && window.pbAuth && !acct()) return window.pbAuth({ mode: 'login', from: 'help' });
     if (PAGES[a]) location.hash = PAGES[a];
   }
   function actionBar(list) {
@@ -333,7 +334,7 @@
       h('section', { class: 'sup-sec', 'aria-labelledby': 'sup-topics-h' },
         h('h2', { id: 'sup-topics-h', class: 'form-sec__title' }, 'Or pick a topic'), topicGrid()),
       h('section', { class: 'sup-sec', 'aria-labelledby': 'sup-h' }, h('h2', { id: 'sup-h', class: 'form-sec__title' }, 'Your tickets'), box),
-      !a ? h('p', { class: 'fine sup-foot' }, 'Tickets you raise without an account are kept on this device. Log in on the Plan page to see them on every device.') : null));
+      !a ? h('p', { class: 'fine sup-foot' }, 'Tickets you raise without an account are kept on this device. Log in (button at the top) to see them on every device.') : null));
     call('list', { guests: guests() }).then(function (j) {
       j.tickets = Array.isArray(j && j.tickets) ? j.tickets : [];
       var unread = j.tickets.filter(function (t) { return t.unread; });

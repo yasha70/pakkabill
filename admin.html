@@ -862,8 +862,8 @@
         if (p + 1 >= r.pages) break;
       }
       const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-      const rows = [['Mobile', 'Shop', 'Plan', 'Pro until', 'Last plan', 'Last seen', 'Joined', 'Blocked', 'Note']].concat(
-        all.map((u) => [u.phone, u.shopName, u.pro ? 'Pro' : 'Free', u.paidUntil ? day(u.paidUntil) : '', u.lastPlan, u.lastSeen ? day(u.lastSeen) : '', day(u.createdAt), u.blocked ? 'Yes' : '', u.note]),
+      const rows = [['Mobile', 'Shop', 'Name', 'Sells', 'Sells on', 'Orders a day', 'City', 'Signed up from', 'Plan', 'Pro until', 'Last plan', 'Last seen', 'Joined', 'Blocked', 'Note']].concat(
+        all.map((u) => { const p = u.profile || {}; return [u.phone, u.shopName, p.name, (p.sells || []).join(', '), (p.where || []).join(', '), p.orders, p.city, fromLabel(u.from), u.pro ? 'Pro' : 'Free', u.paidUntil ? day(u.paidUntil) : '', u.lastPlan, u.lastSeen ? day(u.lastSeen) : '', day(u.createdAt), u.blocked ? 'Yes' : '', u.note]; }),
       );
       const blob = new Blob(['﻿' + rows.map((r) => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv' });
       const a = document.createElement('a');
@@ -874,6 +874,16 @@
     } catch (e) { toast(e.message, true); }
     b.disabled = false; b.textContent = 'Download CSV';
   });
+
+  // Where in the app a customer made their account (sent by pro.js as `from`).
+  const FROM = { header: 'Top bar button', menu: 'Side menu card', account: 'My account page', plan: 'Plan page', bills: 'After saving a bill', pnl: 'Meesho P&L', download: 'After a download', claim: 'Claiming an offer' };
+  const fromLabel = (f) => (f ? FROM[f] || (/^pro-/.test(f) ? 'Pro feature: ' + f.slice(4) : f) : '');
+  function aboutShop(u) {
+    const p = u.profile || {};
+    const rows = [['Name', p.name], ['Sells', (p.sells || []).join(', ')], ['Sells on', (p.where || []).join(', ')], ['Orders a day', p.orders], ['City', p.city], ['Signed up from', fromLabel(u.from)]].filter((r) => r[1]);
+    if (!rows.length) return `<div class="card"><h3 style="margin-top:0">About the shop</h3><p class="muted" style="margin:0">${u.profiled ? 'They chose not to share details.' : 'Not filled in yet.'}</p></div>`;
+    return `<div class="card"><h3 style="margin-top:0">About the shop</h3><dl>${rows.map((r) => `<dt>${r[0]}</dt><dd>${esc(r[1])}</dd>`).join('')}</dl></div>`;
+  }
 
   // ---------- one customer ----------
   const drawer = $('#cdrawer'), dback = $('#cback');
@@ -895,6 +905,7 @@
           <dt>Cloud backup</dt><dd>${u.cloud ? `${u.cloud.shops} shop${u.cloud.shops > 1 ? 's' : ''}, ${(u.cloud.bytes / 1048576).toFixed(1)} MB` : 'Off'}</dd>
           <dt>Notifications</dt><dd>${c.devices ? `On, ${c.devices} device${c.devices > 1 ? 's' : ''}` : 'Off'}</dd>
         </dl></div>
+        ${aboutShop(u)}
         <div class="card"><h3 style="margin-top:0">Plan</h3><div class="actions"><button class="btn sec sm" data-grant="30">+1 month</button><button class="btn sec sm" data-grant="365">+1 year</button><button class="btn sec sm" data-grant="?">+ days…</button>${u.pro ? '<button class="btn danger sm" data-revoke>Remove Pro</button>' : ''}</div></div>
         <div class="card"><h3 style="margin-top:0">Send a notification</h3>${c.devices ? `<input type="text" id="ntitle" maxlength="80" placeholder="Title, e.g. Your payment is confirmed"><textarea id="nbody" rows="2" maxlength="300" placeholder="Message (optional)" style="margin-top:8px"></textarea><div class="row" style="margin-top:8px"><button class="btn sm" data-notify>Send to their phone</button></div>` : '<p class="muted" style="margin:0">This customer has not turned on notifications. Use WhatsApp instead.</p>'}</div>
         <div class="card"><h3 style="margin-top:0">Private note</h3><textarea id="cnote" rows="3" maxlength="1000" placeholder="Only you see this. E.g. Paid by cash, gave extra month">${esc(u.note)}</textarea><div class="row" style="margin-top:8px"><button class="btn sec sm" data-note>Save note</button></div></div>

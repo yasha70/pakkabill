@@ -285,7 +285,7 @@
         + '<p class="pbs-fine">Using ' + mb(info.used) + ' of ' + Math.round(info.quota / 1048576) + ' MB.' + (lastError ? ' Last try: ' + esc(lastError) : '') + '</p>'
         + '<div class="pbs-actions"><button type="button" class="pbs-btn pbs-btn--sm" data-now>Back up now</button>'
         + '<label class="pbs-check"><input type="checkbox" data-auto' + (s.auto === false ? '' : ' checked') + '><span>Back up automatically</span></label></div>'
-        + '<p class="pbs-fine">On a new phone or laptop: open PakkaBill, log in on the Plan page with ' + esc(a.user.phone) + ', and your shops download by themselves.</p>';
+        + '<p class="pbs-fine">On a new phone or laptop: open PakkaBill, tap Log in at the top and use ' + esc(a.user.phone) + ', and your shops download by themselves.</p>';
     }
     box.innerHTML = h;
     var now = box.querySelector('[data-now]');

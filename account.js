@@ -83,7 +83,7 @@
     if (!a) {
       return '<section class="pba-card"><div class="pba-me"><div class="pba-av">?</div><div class="pba-who"><b>' + esc(b.name || 'Not logged in') + '</b>' +
         '<span>Your bills are saved only on this device. Log in to back them up and open them on any phone or computer.</span></div></div>' +
-        '<div class="pba-btns"><a class="pba-btn pri" href="#/plan">Log in or create account</a></div></section>';
+        '<div class="pba-btns"><button type="button" class="pba-btn pri" data-pba="signup">Create free account</button><button type="button" class="pba-btn" data-pba="login">Log in</button></div></section>';
     }
     var u = a.user, name = u.shopName || b.name || 'My account';
     var ini = name.replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/).slice(0, 2).map(function (w) { return w[0] || ''; }).join('').toUpperCase() || 'PB';
@@ -94,9 +94,16 @@
     if (b.email) rows.push(['Email', b.email]);
     var addr = [b.address, b.city, b.pincode].filter(Boolean).join(', ');
     if (addr) rows.push(['Address', addr]);
+    var p = u.profile || {};
+    if (p.name) rows.push(['Your name', p.name]);
+    if (p.sells && p.sells.length) rows.push(['Sells', p.sells.join(', ')]);
+    if (p.where && p.where.length) rows.push(['Sells on', p.where.join(', ')]);
+    if (p.orders) rows.push(['Orders a day', p.orders]);
+    if (p.city) rows.push(['City', p.city]);
+    var about = u.phone === 'owner' || !window.pbAuthProfile ? '' : '<button type="button" class="pba-btn" data-pba="profile">' + (p.name || p.city || (p.sells && p.sells.length) || (p.where && p.where.length) || p.orders ? 'Edit about my business' : 'Tell us about your business') + '</button>';
     return '<section class="pba-card"><div class="pba-me"><div class="pba-av">' + esc(ini) + '</div><div class="pba-who"><b>' + esc(name) + '</b>' + planPill(u) + '</div></div>' +
       '<dl class="pba-kv" style="margin-top:14px">' + rows.map(function (r) { return '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>'; }).join('') + '</dl>' +
-      '<div class="pba-btns"><a class="pba-btn pri" href="#/plan">Plan and payments</a><a class="pba-btn" href="#/shop">Edit shop details</a><button type="button" class="pba-btn" data-pba="logout">Log out</button></div></section>';
+      '<div class="pba-btns"><a class="pba-btn pri" href="#/plan">Plan and payments</a><a class="pba-btn" href="#/shop">Edit shop details</a>' + about + '<button type="button" class="pba-btn" data-pba="logout">Log out</button></div></section>';
   }
 
   function totalsHtml(shops) {
@@ -291,6 +298,8 @@
       else if (act === 'delete') deleteAccount(el);
       else if (act === 'password') changePassword(el);
       else if (act === 'appsettings' && window.PakkaBillApp) window.PakkaBillApp.settings();
+      else if (act === 'signup' || act === 'login') { if (window.pbAuth) window.pbAuth({ mode: act, from: 'account' }); else location.hash = '#/plan'; }
+      else if (act === 'profile' && window.pbAuthProfile) window.pbAuthProfile();
       else if (act === 'switch' && window.pbShops) window.pbShops.switchTo(b.getAttribute('data-id'), '#/account');
       else if (act === 'logout') {
         if (!confirm('Log out of PakkaBill on this device? Your bills stay on this device.')) return;
@@ -310,6 +319,7 @@
     load(el);
   };
   window.addEventListener('pb-account', function () { mounts.forEach(function (el) { if (el.isConnected) load(el); }); });
+  window.addEventListener('pb-profile', function () { mounts.forEach(function (el) { if (el.isConnected) load(el); }); });
 })();
 
 // PakkaBill "Get the app" page (#/app): download the Android app, install from the browser, or

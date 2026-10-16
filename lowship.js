@@ -662,6 +662,7 @@
     const url = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
+    if (window.pbNudge) window.pbNudge('image');
   }
 
   function wireCheck() {

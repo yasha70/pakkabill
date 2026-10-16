@@ -42,7 +42,7 @@ async function allOrders() {
 }
 
 function adminUser(u) {
-  return { ...core.publicUser(u), note: u.note || '', blocked: !!u.blocked };
+  return { ...core.publicUser(u), note: u.note || '', blocked: !!u.blocked, from: u.from || '' };
 }
 function cloudOf(raw) {
   try {

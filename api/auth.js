@@ -1,11 +1,20 @@
 // POST /api/auth  { action: 'signup' | 'login' | 'logout' | 'delete', phone, password, shopName }
 // POST /api/auth  { action: 'password', password, newPassword } (logged in) -> new token; other devices are logged out
+// POST /api/auth  { action: 'profile', name, sells, where, orders, city } or { action: 'profile', skip: true } (logged in):
+// the optional "about your shop" step after sign-up. Every field may be left empty.
 // 'delete' (logged in, with the password) removes the account and its cloud backups for good,
 // as Google Play requires for apps with sign-up.
 const core = require('./_lib/core');
 const db = require('./_lib/db');
 const sync = require('./_lib/sync');
 const push = require('./_lib/push');
+
+// The choices offered in the app's "About your shop" step. Anything else is dropped.
+const PROFILE = {
+  sells: ['Sarees', 'Kurtis & suits', 'Blouses', 'Lehengas', 'Jewellery', "Men's clothing", 'Kids', 'Home & kitchen', 'Beauty', 'Other'],
+  where: ['Meesho', 'Amazon', 'Flipkart', 'Own shop', 'Instagram / WhatsApp', 'Other'],
+  orders: ['Up to 10', '10 to 50', '50 to 200', 'More than 200'],
+};
 
 module.exports = core.handler(async (req, res) => {
   core.requireMethod(req, 'POST');
@@ -50,6 +59,28 @@ module.exports = core.handler(async (req, res) => {
     return core.send(res, 200, { token: await core.createSession(user.phone), user: core.publicUser(user) });
   }
 
+  if (action === 'profile') {
+    const user = await core.requireUser(req);
+    await core.rateLimit(`prof:${user.phone}`, 20, 3600);
+    const b = core.body(req);
+    if (!b.skip) {
+      const text = (v, n) => String(v || '').replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
+      const pick = (v, list) => (Array.isArray(v) ? v : []).map(String).filter((x, i, a) => list.includes(x) && a.indexOf(x) === i);
+      const p = {
+        name: text(b.name, 60),
+        sells: pick(b.sells, PROFILE.sells),
+        where: pick(b.where, PROFILE.where),
+        orders: PROFILE.orders.includes(String(b.orders)) ? String(b.orders) : '',
+        city: text(b.city, 40),
+      };
+      user.profile = { ...(user.profile || {}), ...Object.fromEntries(Object.entries(p).filter(([k]) => k in b)) };
+      if (b.shopName != null && user.phone !== 'owner') user.shopName = text(b.shopName, 80) || user.shopName;
+    }
+    user.profileAt = Date.now();
+    await core.saveUser(user);
+    return core.send(res, 200, { user: core.publicUser(user) });
+  }
+
   const phone = core.normPhone(rawPhone);
   if (!phone) throw new core.HttpError(400, 'Enter a 10-digit mobile number.');
   await core.rateLimit(`auth:${core.clientIp(req)}`, 30, 900);
@@ -64,6 +95,9 @@ module.exports = core.handler(async (req, res) => {
       lastSeen: Date.now(),
       paidUntil: 0,
     };
+    // which button or tool the account was made from (for the admin; never shown to the customer)
+    const from = String(core.body(req).from || '').toLowerCase();
+    if (/^[a-z0-9-]{1,20}$/.test(from)) user.from = from;
     // new accounts start with a free Pro trial (set in the admin panel; 0 turns it off)
     const s = await core.getSettings();
     const used = await db.cmd(['SISMEMBER', 'trialused', core.sha256('trial:' + phone)]);

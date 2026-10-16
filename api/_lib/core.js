@@ -124,6 +124,8 @@ function publicUser(u) {
     createdAt: u.createdAt,
     lastSeen: u.lastSeen || 0,
     tempPw: !!u.tempPw,
+    profile: u.profile || null,
+    profiled: !!u.profileAt,
   };
 }
 

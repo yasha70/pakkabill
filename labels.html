@@ -1150,6 +1150,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     var url = URL.createObjectURL(o.blob), a = document.createElement('a');
     a.href = url; a.download = o.name; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+    try { var P = window.parent !== window ? window.parent : window; if (P.pbNudge) P.pbNudge('labels'); } catch (e) { /* ignore */ }
   }
   function canShare() { try { return !!(navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.pdf', { type: 'application/pdf' })] })); } catch (e) { return false; } }
   function previews(o) {

@@ -242,7 +242,7 @@ const KB = [
   {
     id: 'backup', cats: ['bills', 'account', 'other'],
     re: /backup|back up|restore|new (phone|mobile)|another (phone|mobile|device)|change (phone|mobile)|transfer|laptop|computer|pc\b|sync/i,
-    text: () => 'To move PakkaBill to another phone or computer:\n1. On the old device, open the Shop page and tap "Download backup" (under Offline and backup). A PakkaBill-backup file is saved.\n2. Send that file to the new device (WhatsApp to yourself, email or Drive).\n3. On the new device, open PakkaBill, go to the Shop page and tap "Restore from backup", then pick the file.\n\nYour Pro plan follows your account: just log in on the Plan page with the same mobile number.',
+    text: () => 'To move PakkaBill to another phone or computer:\n1. On the old device, open the Shop page and tap "Download backup" (under Offline and backup). A PakkaBill-backup file is saved.\n2. Send that file to the new device (WhatsApp to yourself, email or Drive).\n3. On the new device, open PakkaBill, go to the Shop page and tap "Restore from backup", then pick the file.\n\nYour Pro plan follows your account: just log in with the same mobile number (Log in button at the top of the screen).',
     actions: ['shop'], outcome: 'answered',
   },
   {
@@ -280,7 +280,7 @@ const KB = [
     re: /log ?in|sign ?in|password|otp|logged out|log out|can'?t (open|access) (my )?account|number change|mobile change/i,
     text: (f) => /forgot|reset|password (bhool|galat|wrong)|wrong password/i.test(f.said)
       ? 'We can reset your password for you. Our support team will check that this account is yours and reply here with the next step. For your safety we never ask for your OTP or bank details.'
-      : 'To log in, open the Plan page and enter your mobile number and password. If it says "Mobile number or password is wrong", check the number has 10 digits with no +91, and try the password again carefully. If you have forgotten the password, reply here and our team will help you reset it.',
+      : 'To log in, tap "Log in" at the top of the screen (on a computer, in the side menu; or open My account) and enter your mobile number and password. If it says "Mobile number or password is wrong", check the number has 10 digits with no +91, and try the password again carefully. If you have forgotten the password, reply here and our team will help you reset it.',
     actions: ['login'], outcome: (f) => (/forgot|reset|password (bhool|galat|wrong)|wrong password|bhool gay/i.test(f.said) ? 'escalate' : 'answered'),
   },
   {

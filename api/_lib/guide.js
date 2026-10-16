@@ -142,7 +142,7 @@ const ARTICLES = [
   {
     id: 'backup', related: ['install', 'account', 'lost'], topic: 'data', title: 'Backup, restore and move to a new phone',
     q: ['backup', 'restore', 'new phone', 'change phone', 'transfer data', 'laptop', 'computer', 'another device', 'data save', 'sync', 'data kaise wapas', 'mobile change'],
-    text: (ctx) => `Easiest: log in on the Plan page${ctx.locked && !ctx.pro ? ' with PakkaBill Pro' : ''} and cloud backup saves your shops by themselves; on the new phone just log in with the same number and everything downloads.\n\nWith a file instead:\n1. On the Shop page, under "Offline and backup", tap "Download backup" (it saves the open shop).\n2. Send the file to the other device (WhatsApp to yourself, email or Drive).\n3. On the new device open PakkaBill → Shop → "Restore from backup" and pick the file.`,
+    text: (ctx) => `Easiest: log in (the Log in button at the top of the screen, or My account)${ctx.locked && !ctx.pro ? ' with PakkaBill Pro' : ''} and cloud backup saves your shops by themselves; on the new phone just log in with the same number and everything downloads.\n\nWith a file instead:\n1. On the Shop page, under "Offline and backup", tap "Download backup" (it saves the open shop).\n2. Send the file to the other device (WhatsApp to yourself, email or Drive).\n3. On the new device open PakkaBill → Shop → "Restore from backup" and pick the file.`,
     actions: ['shops', 'shop'],
   },
   {
@@ -154,13 +154,13 @@ const ARTICLES = [
   {
     id: 'cloud', related: ['backup', 'shops', 'account'], topic: 'data', title: 'Cloud backup: your bills on every device',
     q: ['cloud', 'cloud backup', 'sync', 'other device', 'another phone', 'new phone data', 'login other device', 'data automatically', 'online backup', 'auto backup', 'data kaise aayega', 'laptop and phone same data'],
-    text: (ctx) => `Log in on the Plan page and ${ctx.locked && !ctx.pro ? 'with PakkaBill Pro ' : ''}your shops are backed up to your account by themselves whenever something changes. On another phone or laptop, open PakkaBill and log in with the same mobile number: your shops and bills download automatically. If you work on two devices, changes from both are merged.\n\nSee what is saved, and back up on demand, on the "Shops & cloud" page. You can still download a backup file from the Shop page too.`,
+    text: (ctx) => `Log in (the Log in button at the top of the screen, or My account) and ${ctx.locked && !ctx.pro ? 'with PakkaBill Pro ' : ''}your shops are backed up to your account by themselves whenever something changes. On another phone or laptop, open PakkaBill and log in with the same mobile number: your shops and bills download automatically. If you work on two devices, changes from both are merged.\n\nSee what is saved, and back up on demand, on the "Shops & cloud" page. You can still download a backup file from the Shop page too.`,
     actions: (ctx) => (ctx.locked && !ctx.pro ? ['shops', 'plan'] : ['shops']),
   },
   {
     id: 'lost', related: ['backup', 'install', 'support'], topic: 'data', title: 'My bills disappeared',
     q: ['bills gone', 'data lost', 'bills missing', 'data delete', 'sab gayab', 'bill nahi dikh raha', 'everything gone', 'data chala gaya'],
-    text: () => 'PakkaBill keeps bills inside the browser on each device. They disappear if the browser\'s data was cleared, or when you open PakkaBill in a different browser or on another phone. Also check the shop button at the top: you may have another shop open.\n\nTo get them back: if cloud backup was on, log in on the Plan page and they download by themselves. If you have a backup file, open Shop → "Restore from backup". If they are still in another browser or the installed app, open it there, tap "Download backup" and restore the file here.',
+    text: () => 'PakkaBill keeps bills inside the browser on each device. They disappear if the browser\'s data was cleared, or when you open PakkaBill in a different browser or on another phone. Also check the shop button at the top: you may have another shop open.\n\nTo get them back: if cloud backup was on, log in (Log in button at the top) and they download by themselves. If you have a backup file, open Shop → "Restore from backup". If they are still in another browser or the installed app, open it there, tap "Download backup" and restore the file here.',
     actions: ['shop'],
   },
   {
@@ -214,7 +214,7 @@ const ARTICLES = [
   {
     id: 'account', related: ['backup', 'pro', 'pay_how'], topic: 'plan', title: 'Create an account or log in',
     q: ['login', 'log in', 'sign up', 'create account', 'account', 'register', 'password', 'logout', 'log out', 'multiple devices'],
-    text: () => 'Open the Plan page and choose "Create account" (Mobile number, Shop name, Password) or "Log in". Your account carries your Pro plan and cloud backup to every phone and laptop you log in on: log in on a new device and your shops download by themselves. Forgot your password? Ask here and our team will help you reset it.',
+    text: () => 'Tap "Sign up" or "Log in" at the top of the screen (on a computer, in the side menu; you can also use My account or the Plan page). To create an account you need only your mobile number, shop name and a password; telling us about your business after that is optional. Your account carries your Pro plan and cloud backup to every phone and laptop you log in on: log in on a new device and your shops download by themselves. Forgot your password? Ask here and our team will help you reset it.',
     actions: ['login'],
   },
   {

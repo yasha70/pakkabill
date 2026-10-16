@@ -5,6 +5,8 @@
 (function () {
   const ACCT = 'pb-acct';
   const CFG = 'pb-cfg';
+  const LAST_PHONE = 'pb-last-phone'; // the number last logged in on this device, to fill in next time
+  const ASK_PROFILE = 'pb-ask-profile'; // set on sign-up: ask about the shop once (optional)
   const read = (k) => {
     try {
       return JSON.parse(localStorage.getItem(k) || 'null');
@@ -63,7 +65,9 @@
     if ((next && next.user ? next.user.phone : '') !== was) {
       try { window.dispatchEvent(new Event('pb-account')); } catch {}
     }
-    if (reloadOnChange && before !== pbPro()) setTimeout(() => location.reload(), 600);
+    const reloading = reloadOnChange && before !== pbPro();
+    if (reloading) setTimeout(() => location.reload(), 600);
+    return reloading;
   }
 
   async function refresh() {
@@ -159,15 +163,16 @@
     </div>`;
   }
 
-  function authHtml(mode) {
-    return `<form class="pbp-auth" data-mode="${mode}">
+  function authHtml(mode, from = '') {
+    const last = mode === 'login' ? read(LAST_PHONE) || '' : '';
+    return `<form class="pbp-auth" data-mode="${mode}" data-from="${esc(from)}">
       <div class="pbp-tabs"><button type="button" data-mode="login" class="${mode === 'login' ? 'is-on' : ''}">Log in</button><button type="button" data-mode="signup" class="${mode === 'signup' ? 'is-on' : ''}">Create account</button></div>
-      <label>Mobile number<input name="phone" inputmode="numeric" autocomplete="tel" placeholder="10-digit mobile" required></label>
+      <label>Mobile number<input name="phone" inputmode="numeric" autocomplete="tel" placeholder="10-digit mobile" maxlength="14" value="${esc(last)}" required></label>
       ${mode === 'signup' ? '<label>Shop name<input name="shopName" autocomplete="organization" placeholder="As on your bills"></label>' : ''}
       <label>Password<span class="pbp-pw"><input name="password" type="password" autocomplete="${mode === 'signup' ? 'new-password' : 'current-password'}" autocapitalize="none" autocorrect="off" spellcheck="false" minlength="6" required><button type="button" class="pbp-show" aria-label="Show password">Show</button></span></label>
       <p class="pbp-err" role="alert"></p>
       <button class="pbp-btn" type="submit">${mode === 'signup' ? (cfg && cfg.trialDays ? `Create account: ${cfg.trialDays} days of Pro free` : 'Create account') : 'Log in'}</button>
-      <p class="pbp-fine">${mode === 'login' ? 'Log in and your shops and bills from your other devices download here. Forgot your password? Ask PakkaBill support to reset it.' : `${cfg && cfg.trialDays ? `Every new account gets ${cfg.trialDays} days of Pro free, no payment needed. ` : ''}Your account keeps your Pro plan and cloud backup on every phone and laptop you log in on. By creating an account you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.`}</p>
+      <p class="pbp-fine">${mode === 'login' ? 'Log in and your shops and bills from your other devices download here. Forgot your password? <a href="#/support?new=1&amp;topic=account&amp;p=login">Ask support to reset it</a>.' : `${cfg && cfg.trialDays ? `Every new account gets ${cfg.trialDays} days of Pro free, no payment needed. ` : ''}Your account keeps your Pro plan and cloud backup on every phone and laptop you log in on. By creating an account you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.`}</p>
     </form>`;
   }
 
@@ -183,6 +188,9 @@
       }),
     );
     root.querySelectorAll('.pbp-tabs button').forEach((b) => b.addEventListener('click', () => redraw(b.dataset.mode)));
+    root.querySelectorAll('[data-auth]').forEach((b) => b.addEventListener('click', () => openAuth({ mode: b.dataset.auth, from: b.dataset.from || 'plan' })));
+    // a link inside a dialog (Terms, Ask support) leaves the dialog
+    if (dialog && dialog.contains(root)) root.querySelectorAll('a[href^="#/"]').forEach((a) => a.addEventListener('click', closeUpgrade));
     const form = root.querySelector('.pbp-auth');
     if (form)
       form.querySelectorAll('.pbp-show').forEach((b) => b.addEventListener('click', () => {
@@ -201,16 +209,26 @@
         btn.disabled = true;
         try {
           const r = await api('auth', {
-            body: { action: form.dataset.mode, phone: f.get('phone'), password: f.get('password'), shopName: f.get('shopName') || '' },
+            body: { action: form.dataset.mode, phone: f.get('phone'), password: f.get('password'), shopName: f.get('shopName') || '', from: form.dataset.from || '' },
           });
+          if (/^\d{10}$/.test(r.user.phone)) write(LAST_PHONE, r.user.phone);
+          // a new account: ask about the shop once (optional), now or when the app opens next
+          const fresh = form.dataset.mode === 'signup' && !r.user.profiled && r.user.phone !== 'owner';
+          if (fresh) write(ASK_PROFILE, 1);
           // logged in with a password PakkaBill support made: ask them to set their own
           if (r.user && r.user.tempPw) setTimeout(() => { if (confirm('You logged in with a temporary password from PakkaBill support. Set your own password now?')) location.hash = '#/account?pw=1'; }, 900);
           const claimId = pendingClaim;
           pendingClaim = '';
-          setAcct({ token: r.token, user: r.user }, !claimId);
-          if (claimId) return claimOffer(claimId);
-          toast(r.user.pro ? 'Logged in. Pro is active.' : 'Logged in.');
+          const done = root._pbDone;
+          const reloading = setAcct({ token: r.token, user: r.user }, !claimId);
+          if (claimId) {
+            if (done) closeUpgrade();
+            return claimOffer(claimId);
+          }
+          toast(form.dataset.mode === 'signup' ? (r.user.trial ? 'Account created. Your free Pro trial is on.' : 'Account created. You are logged in.') : r.user.pro ? 'Logged in. Pro is active.' : 'Logged in.');
           loadNews();
+          if (done) done(r.user, reloading, fresh);
+          else if (fresh && !reloading && !dialog) setTimeout(askProfile, 900);
         } catch (e) {
           err.textContent = e.message;
           btn.disabled = false;
@@ -229,6 +247,201 @@
     if (!acct || !acct.user) return '';
     const u = acct.user;
     return `<div class="pbp-acct"><span>${u.phone === 'owner' ? 'Owner account' : 'Logged in as ' + esc(u.phone)}${u.shopName && u.phone !== 'owner' ? ' · ' + esc(u.shopName) : ''}</span><span><a class="pbp-link" href="#/account">My account</a> · <button type="button" class="pbp-link" data-logout>Log out</button></span></div>`;
+  }
+
+  // ---------- Quick log in / sign up sheet ----------
+  const trialDays = () => (enforced() && cfg && Number(cfg.trialDays)) || 0;
+  // What a free account really gives on this server (cloud backup needs Pro once paid plans are on).
+  function accountGets() {
+    const t = trialDays();
+    if (enforced()) return [t ? `${t} days of Pro free: full Meesho P&L, unlimited bills, PDF and WhatsApp` : 'Your Pro plan on every phone and laptop you log in on', t ? 'Cloud backup of your bills while Pro is on' : 'Offers and free Pro days from PakkaBill', 'Your help requests in one place'];
+    return ['Cloud backup: your bills stay safe even if you lose your phone', 'Open your shops on any phone or laptop', 'Offers and help requests in one place'];
+  }
+  function authWhy(feature, arg) {
+    const t = trialDays();
+    if (/^pnl/.test(feature)) return `Create a free account or log in to open your full profit and loss report${feature === 'pnlDl' ? ' and download it' : ''}.${t ? ` New accounts get ${t} days of Pro free.` : ''}`;
+    if (feature === 'claim') return WHY.claim();
+    return `${(WHY[feature] || WHY.pdf)(arg)} ${t ? `Create a free account and get ${t} days of Pro free, no payment needed.` : 'Log in or create a free account first.'}`;
+  }
+  // { mode: 'login' | 'signup', why, from, then(user) }. A returning device opens on Log in.
+  function openAuth(o = {}) {
+    if (acct && acct.token) return o.then ? o.then(acct.user) : undefined;
+    let mode = o.mode || (read(LAST_PHONE) ? 'login' : 'signup');
+    const box = showDialog(() => {});
+    dialog.classList.add('pbp-sheetwrap');
+    box.classList.add('pbp-sheet');
+    const draw = (m) => {
+      if (m) mode = m;
+      const signup = mode === 'signup';
+      box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button>
+        <h2 id="pbp-title">${signup ? 'Create your free account' : 'Log in to PakkaBill'}</h2>
+        <p class="pbp-why">${esc(o.why || (signup ? 'Only your mobile number and a password. Takes 20 seconds.' : 'Your shops, bills and plan come to this device.'))}</p>
+        ${signup ? `<ul class="pbp-gets">${accountGets().map((g) => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}
+        ${authHtml(mode, o.from || '')}
+        <p class="pbp-keep">Bills already on this device stay as they are.</p>
+        <button type="button" class="pbp-link pbp-later" data-later>Not now</button>`;
+      box.querySelector('.pbp-x').addEventListener('click', closeUpgrade);
+      box.querySelector('[data-later]').addEventListener('click', closeUpgrade);
+      box._pbDone = (u, reloading, fresh) => {
+        closeUpgrade();
+        if (reloading) return; // Pro turned on: the app reloads, and asks about the shop after
+        if (o.then) o.then(u);
+        else if (fresh) setTimeout(askProfile, 700);
+      };
+      wire(box, draw);
+      const ph = box.querySelector('input[name=phone]');
+      (ph && ph.value ? box.querySelector('input[name=password]') : ph)?.focus({ preventScroll: true });
+    };
+    draw();
+  }
+
+  // ---------- "About your shop": once, after sign-up; every answer optional ----------
+  const PROFILE = {
+    sells: ['Sarees', 'Kurtis & suits', 'Blouses', 'Lehengas', 'Jewellery', "Men's clothing", 'Kids', 'Home & kitchen', 'Beauty', 'Other'],
+    where: ['Meesho', 'Amazon', 'Flipkart', 'Own shop', 'Instagram / WhatsApp', 'Other'],
+    orders: ['Up to 10', '10 to 50', '50 to 200', 'More than 200'],
+  };
+  function askProfile(edit) {
+    if (!acct || !acct.user || acct.user.phone === 'owner' || (!edit && acct.user.profiled)) return write(ASK_PROFILE, null);
+    if (!edit && dialog) return; // something else is open: ask the next time the app opens
+    write(ASK_PROFILE, null);
+    const p = acct.user.profile || {};
+    const st = { sells: [...(p.sells || [])], where: [...(p.where || [])], orders: p.orders || '' };
+    const chips = (k, multi) => `<div class="pbp-chips" role="group" data-k="${k}" data-multi="${multi ? 1 : ''}">${PROFILE[k].map((v) => `<button type="button" aria-pressed="${multi ? st[k].includes(v) : st[k] === v}" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>`;
+    const box = showDialog(() => {});
+    dialog.classList.add('pbp-sheetwrap');
+    box.classList.add('pbp-sheet');
+    const shop = acct.user.shopName;
+    box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button>
+      <h2 id="pbp-title">${edit ? 'About your shop' : `Welcome${shop ? ', ' + esc(shop) : ''}!`}</h2>
+      <p class="pbp-why">${edit ? 'Change anything you like. Every answer is optional.' : 'Tell us a little about your business, so PakkaBill can show tips that fit you. Every answer is optional.'}</p>
+      <form class="pbp-auth pbp-prof">
+        <label>Your name<input name="name" autocomplete="name" maxlength="60" value="${esc(p.name || '')}" placeholder="Optional"></label>
+        <fieldset><legend>What do you sell?</legend>${chips('sells', 1)}</fieldset>
+        <fieldset><legend>Where do you sell?</legend>${chips('where', 1)}</fieldset>
+        <fieldset><legend>Orders a day</legend>${chips('orders', 0)}</fieldset>
+        <label>City<input name="city" autocomplete="address-level2" maxlength="40" value="${esc(p.city || '')}" placeholder="Optional"></label>
+        <p class="pbp-err" role="alert"></p>
+        <button class="pbp-btn" type="submit">Save</button>
+        <button type="button" class="pbp-link pbp-later" data-skip>${edit ? 'Cancel' : 'Skip'}</button>
+      </form>`;
+    const form = box.querySelector('form');
+    form.querySelectorAll('.pbp-chips').forEach((g) => g.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-v]');
+      if (!b) return;
+      const k = g.dataset.k, v = b.dataset.v;
+      if (g.dataset.multi) st[k] = st[k].includes(v) ? st[k].filter((x) => x !== v) : [...st[k], v];
+      else st[k] = st[k] === v ? '' : v;
+      g.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(g.dataset.multi ? st[k].includes(x.dataset.v) : st[k] === x.dataset.v)));
+    }));
+    const send = (body) => api('auth', { body: { action: 'profile', ...body } }).then((r) => {
+      if (r.user && acct) setAcct({ ...acct, user: r.user }, false);
+      try { window.dispatchEvent(new Event('pb-profile')); } catch {}
+      return r;
+    });
+    // closing without saving counts as "no thanks": never asked again
+    const skip = () => { closeUpgrade(); if (!edit) send({ skip: true }).catch(() => {}); };
+    box.querySelector('.pbp-x').addEventListener('click', skip);
+    box.querySelector('[data-skip]').addEventListener('click', skip);
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const f = new FormData(form);
+      const body = { name: f.get('name') || '', city: f.get('city') || '', ...st };
+      if (!edit && !body.name.trim() && !body.city.trim() && !st.sells.length && !st.where.length && !st.orders) return skip();
+      const btn = form.querySelector('.pbp-btn');
+      btn.disabled = true;
+      try {
+        await send(body);
+        closeUpgrade();
+        toast(edit ? 'Saved.' : 'Thank you! Saved.');
+      } catch (e) {
+        form.querySelector('.pbp-err').textContent = e.message;
+        btn.disabled = false;
+      }
+    });
+  }
+
+  // ---------- Log in / Sign up buttons in the top bar and the side menu ----------
+  const chips = new Set();
+  const cards = new Set();
+  const initials = (n) => String(n || '').replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase();
+  function drawChip(el) {
+    if (acct && acct.token && acct.user) {
+      const u = acct.user;
+      el.className = 'pb-authchip is-in';
+      el.innerHTML = `<a class="pbp-av" href="#/account" title="My account" aria-label="My account">${esc(initials(u.shopName) || (u.phone === 'owner' ? 'PB' : '☺'))}</a>`;
+      return;
+    }
+    // on small phones only one button fits: the one this device most likely needs
+    el.className = 'pb-authchip' + (read(LAST_PHONE) ? ' is-back' : '');
+    el.innerHTML = '<button type="button" class="pbp-in pbp-in--ghost" data-a="login">Log in</button><button type="button" class="pbp-in" data-a="signup">Sign up</button>';
+  }
+  function drawCard(el) {
+    if (acct && acct.token) {
+      el.hidden = true;
+      el.replaceChildren();
+      return;
+    }
+    el.hidden = false;
+    const t = trialDays();
+    el.innerHTML = `<div class="pbp-acard"><b>Keep your work safe</b><span>${t ? `Free account, with ${t} days of Pro free` : enforced() ? 'Free account: your plan on every device' : 'Free account with cloud backup'}</span><div><button type="button" class="pbp-btn pbp-btn--sm" data-a="signup">Sign up free</button><button type="button" class="pbp-link" data-a="login">Log in</button></div></div>`;
+  }
+  function mountAuth(set, draw, from) {
+    return (el) => {
+      if (!el || set.has(el)) return;
+      set.add(el);
+      el.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-a]');
+        if (b) openAuth({ mode: b.dataset.a, from });
+      });
+      draw(el);
+    };
+  }
+  const pbAuthChip = mountAuth(chips, drawChip, 'header');
+  const pbAuthCard = mountAuth(cards, drawCard, 'menu');
+
+  // ---------- A gentle reminder after useful work, for people not logged in ----------
+  // Never on opening the app, never over a dialog, at most 3 times, 3 days apart, and never again
+  // after "Don't ask again". Only when an account really gives something (backup, or a Pro trial).
+  const NUDGE = 'pb-nudge';
+  const NUDGE_TXT = {
+    bill: 'Your bills are saved only on this phone.',
+    labels: 'Your labels are ready.',
+    image: 'Your images are ready.',
+  };
+  let nudgeEl = null;
+  function pbNudge(kind) {
+    const ok = () => {
+      const s = read(NUDGE) || {};
+      return !(acct && acct.token) && !s.off && (s.n || 0) < 3 && Date.now() - (s.at || 0) > 3 * 864e5 && !dialog && !nudgeEl && !document.querySelector('.pbp-news') && (!enforced() || trialDays() > 0);
+    };
+    if (!ok()) return;
+    setTimeout(() => {
+      if (!ok()) return;
+      const s = read(NUDGE) || {};
+      write(NUDGE, { ...s, n: (s.n || 0) + 1, at: Date.now() });
+      const t = trialDays();
+      nudgeEl = document.createElement('aside');
+      nudgeEl.className = 'pbp-news pbp-nudge';
+      nudgeEl.setAttribute('aria-label', 'Create a free account');
+      nudgeEl.innerHTML = `<button type="button" class="pbp-x" aria-label="Hide">×</button><b class="pbp-news__title">${esc(NUDGE_TXT[kind] || 'Keep your work safe.')} Want a free account?</b><p class="pbp-news__msg">${t ? `Get ${t} days of Pro free, with cloud backup of your bills on any phone or laptop.` : 'Back up your bills for free and open them on any phone or laptop.'}</p><div class="pbp-news__row"><button type="button" class="pbp-btn pbp-btn--sm" data-yes>Sign up free</button><button type="button" class="pbp-link" data-no>Not now</button><button type="button" class="pbp-link pbp-off" data-off>Don't ask again</button></div>`;
+      const hide = () => { nudgeEl?.remove(); nudgeEl = null; };
+      nudgeEl.querySelector('.pbp-x').onclick = hide;
+      nudgeEl.querySelector('[data-no]').onclick = hide;
+      nudgeEl.querySelector('[data-off]').onclick = () => { write(NUDGE, { ...(read(NUDGE) || {}), off: 1 }); hide(); toast('Okay, we will not ask again. You can log in any time from the top of the screen.'); };
+      nudgeEl.querySelector('[data-yes]').onclick = () => { hide(); openAuth({ mode: 'signup', from: kind }); };
+      document.body.appendChild(nudgeEl);
+      const me = nudgeEl;
+      setTimeout(() => { if (nudgeEl === me) hide(); }, 30000);
+    }, 1500);
+  }
+  // A bill was just saved (the editor opens it with ?fresh=1): from the second bill on this device.
+  function onRoute() {
+    if (!/^#\/bill\/[^?]+\?(.*&)?fresh=1/.test(location.hash) || (acct && acct.token)) return;
+    const s = read(NUDGE) || {};
+    const bills = (s.bills || 0) + 1;
+    write(NUDGE, { ...s, bills });
+    if (bills >= 2) pbNudge('bill');
   }
 
   // ---------- UPI payment screen ----------
@@ -662,6 +875,8 @@
   function openUpgrade(feature, arg) {
     // Already Pro (a page asked from an old state): say so instead of asking to pay again.
     if (isPro() && !['renew', 'offer', 'claim'].includes(feature)) return toast(`PakkaBill Pro is already active till ${dateStr(acct.user.paidUntil)}.`);
+    // Not logged in: the short sign-in sheet first, then the plans if Pro is still needed.
+    if (!(acct && acct.token)) return openAuth({ why: authWhy(feature, arg), from: 'pro-' + String(feature).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16), then: () => { if (feature === 'offer' || !pbPro()) openUpgrade(feature, arg); } });
     let mode = 'signup';
     const draw = (m) => {
       if (m) mode = m;
@@ -696,6 +911,8 @@
   function rerender() {
     if (dialogDraw) dialogDraw();
     plans.forEach((el) => (el.isConnected ? drawPlan(el) : plans.delete(el)));
+    chips.forEach((el) => (el.isConnected ? drawChip(el) : chips.delete(el)));
+    cards.forEach((el) => (el.isConnected ? drawCard(el) : cards.delete(el)));
   }
   function drawPlan(el, mode = el._pbMode || 'signup') {
     el._pbMode = mode;
@@ -721,7 +938,7 @@
           ${acct && acct.token ? plansHtml() + payLine : authHtml(mode)}</section>`;
     el.innerHTML = `<div class="page-head"><div><h1 class="page-title">Plan</h1><p class="page-sub">Your PakkaBill account and Pro plan.</p></div></div>
       <div class="pbp-page">
-        <section class="paper pbp-card">${status}${ordersHtml()}${accountHtml()}${isPro() ? '' : '<p class="pbp-fine pbp-help">Paid but Pro is not on yet, or a question about your plan? <a href="#/support?new=1&amp;topic=payment">Raise a support ticket</a>.</p>'}${acct && acct.token ? '<p class="pbp-fine pbp-help">☁️ <a href="#/shops">Your shops and cloud backup →</a></p>' : ''}</section>
+        <section class="paper pbp-card">${status}${ordersHtml()}${accountHtml()}${acct && acct.token ? '' : '<div class="pbp-acct"><span>Not logged in. Your bills are saved on this device only.</span><span class="pbp-acct__btns"><button type="button" class="pbp-btn pbp-btn--sm" data-auth="signup">Create free account</button><button type="button" class="pbp-link" data-auth="login">Log in</button></span></div>'}${isPro() ? '' : '<p class="pbp-fine pbp-help">Paid but Pro is not on yet, or a question about your plan? <a href="#/support?new=1&amp;topic=payment">Raise a support ticket</a>.</p>'}${acct && acct.token ? '<p class="pbp-fine pbp-help">☁️ <a href="#/shops">Your shops and cloud backup →</a></p>' : ''}</section>
         ${newsListHtml()}
         ${proCard}
       </div>`;
@@ -909,7 +1126,39 @@
 @media (width<1024px){.pbp-news{right:16px;bottom:calc(76px + env(safe-area-inset-bottom,0px))}}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .pbp-news.tone-offer{background:var(--paper)}}
 :root[data-theme=dark] .pbp-news.tone-offer{background:var(--paper)}
-@media print{.pbp-news,.pbp-toast{display:none!important}}`;
+@media print{.pbp-news,.pbp-toast{display:none!important}}
+.pbp-gets{list-style:none;margin:0 0 14px;padding:12px 14px;display:grid;gap:7px;border-radius:12px;background:var(--carbon-tint,#f6f2ff);font-size:14px}
+.pbp-gets li{padding-left:24px;position:relative}
+.pbp-gets li:before{content:"";position:absolute;left:3px;top:5px;width:11px;height:6px;border-left:2.4px solid var(--green,#12714b);border-bottom:2.4px solid var(--green,#12714b);transform:rotate(-45deg)}
+.pbp-keep{font-size:12.5px;color:var(--ink-3,#777);margin:10px 0 0;text-align:center}
+.pbp-later{display:block;margin:8px auto 0;padding:8px 12px;color:var(--ink-2,#555);text-decoration:none;font-weight:600}
+.pbp-sheet h2{font-size:26px}
+@media (width<600px){.pbp-sheetwrap{place-items:end center;padding:0}.pbp-sheet{width:100%;border-radius:20px 20px 0 0;max-height:calc(100dvh - 24px - env(safe-area-inset-top,0px));padding-bottom:calc(18px + env(safe-area-inset-bottom,0px));animation:pbp-sheet .22s ease-out}}
+@keyframes pbp-sheet{from{transform:translateY(40px);opacity:0}}
+@media (prefers-reduced-motion:reduce){.pbp-sheet{animation:none}}
+.pbp-prof fieldset{border:0;margin:0;padding:0;display:grid;gap:6px}
+.pbp-prof legend{font-size:13px;font-weight:600;color:var(--ink-2,#555);padding:0;margin-bottom:6px}
+.pbp-chips{display:flex;flex-wrap:wrap;gap:6px}
+.pbp-chips button{font:inherit;font-size:13.5px;font-weight:600;padding:6px 12px;border-radius:999px;border:1.5px solid var(--rule,#ddd);background:var(--paper,#fff);color:var(--ink-2,#555);cursor:pointer}
+.pbp-chips button[aria-pressed=true]{border-color:var(--carbon,#5b3fe6);background:var(--carbon-tint,#f6f2ff);color:var(--carbon,#5b3fe6)}
+.pbp-chips button[aria-pressed=true]:before{content:"✓ "}
+.pb-authchip{display:inline-flex;align-items:center;gap:4px;margin:0 2px;flex:none}
+.pb-authchip:empty{display:none}
+.pbp-in{font:inherit;font-size:14px;font-weight:700;height:36px;padding:0 13px;border-radius:999px;border:1.5px solid transparent;cursor:pointer;white-space:nowrap;color:var(--btn-fg,#fff);background:var(--btn-bg,#6c4dff);background-image:var(--btn-grad,none)}
+.pbp-in--ghost{background:none;background-image:none;color:var(--carbon,#5b3fe6);border-color:var(--rule,#ddd)}
+.pbp-in:focus-visible,.pbp-av:focus-visible{outline:2px solid var(--focus,#ff7a59);outline-offset:2px}
+.pbp-av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:800;color:#fff;text-decoration:none;background:linear-gradient(135deg,#5b3fe6,#ff7a59)}
+@media (width<560px){.pb-authchip .pbp-in--ghost{display:none}.pb-authchip.is-back .pbp-in--ghost{display:inline-block}.pb-authchip.is-back .pbp-in:not(.pbp-in--ghost){display:none}.pb-authchip.is-in{display:none}.pbp-in{height:34px;padding:0 11px;font-size:13.5px}.topbar__right:has(.pb-authchip:not(.is-in)) .topbar__help-txt{display:none}.topbar__right:has(.pb-authchip:not(.is-in)) .topbar__help{padding:0 9px}}
+.pb-authcard{display:block;margin:0 0 10px}
+.pb-authcard[hidden]{display:none}
+.pbp-acard{display:grid;gap:3px;padding:12px 14px;border-radius:14px;border:1px solid var(--rule,#ddd);background:var(--paper,#fff);color:var(--ink,#222)}
+.pbp-acard b{font-size:14.5px}
+.pbp-acard span{font-size:12.5px;color:var(--ink-3,#777);line-height:1.35}
+.pbp-acard div{display:flex;align-items:center;gap:10px;margin-top:8px}
+.pbp-acct__btns{display:inline-flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pbp-nudge .pbp-news__row{gap:6px 12px}
+.pbp-nudge .pbp-off{font-size:12.5px;color:var(--ink-3,#777);font-weight:500}
+@media print{.pb-authchip,.pb-authcard{display:none!important}}`;
 
   function init() {
     const st = document.createElement('style');
@@ -918,6 +1167,19 @@
     document.head.appendChild(st);
     refresh();
     window.addEventListener('online', refresh);
+    window.addEventListener('hashchange', onRoute);
+    // logged in or out in another tab, or on My account
+    window.addEventListener('storage', (e) => {
+      if (e.key !== ACCT) return;
+      acct = read(ACCT);
+      rerender();
+    });
+    window.addEventListener('pb-account', () => {
+      acct = read(ACCT);
+      rerender();
+    });
+    // signed up just before the app reloaded (the free trial turned Pro on): ask about the shop now
+    if (read(ASK_PROFILE)) setTimeout(() => { if (acct && acct.token && !acct.user.profiled && !dialog) askProfile(); else if (!(acct && acct.token)) write(ASK_PROFILE, null); }, 1800);
   }
   // When a new version of the app takes over, reload once so it shows straight away.
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
@@ -985,5 +1247,5 @@
     const login = !!(acct && acct.token);
     return { login, pro: login && pbPro(), trialDays: (cfg && cfg.trialDays) || 0, play: playApp() };
   };
-  Object.assign(window, { pbPnlAccess, pbPro, pbGate, pbCanAddBill, pbPlanMount, pbLocked, pbUpgrade: openUpgrade, pbUnzipFiles, pbRefreshAccount: refresh });
+  Object.assign(window, { pbPnlAccess, pbPro, pbGate, pbCanAddBill, pbPlanMount, pbLocked, pbUpgrade: openUpgrade, pbUnzipFiles, pbRefreshAccount: refresh, pbAuth: openAuth, pbAuthChip, pbAuthCard, pbNudge, pbAuthProfile: () => askProfile(true) });
 })();
