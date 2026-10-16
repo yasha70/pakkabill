@@ -367,5 +367,12 @@
       "apk-build": false,
       "apk-shots": false
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/home",
+      "destination": "/?home=1",
+      "permanent": false
+    }
+  ]
 }

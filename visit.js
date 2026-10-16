@@ -14,6 +14,7 @@
     var last = Number(ls.getItem('pb-vlast') || 0), lastPath = '', human = false;
     function path() {
       var p = location.pathname;
+      if (document.documentElement.classList.contains('pb-home-on')) return '/home';
       if (p === '/' || p === '/index.html') return '/#/' + ((location.hash || '').replace(/^#\/?/, '').split(/[?/]/)[0] || '');
       return p;
     }

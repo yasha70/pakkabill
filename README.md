@@ -53,6 +53,16 @@ bar so bills stay one tap away on a phone. The logo opens the P&L.
   document type names), never an amount. Tests: `node test/gstr1-audit.js`.
 - Everything stays in the browser on the device. No server, no accounts, no data leaves the phone or laptop.
 
+## Home page
+
+`index.html` starts with the home page (`#pb-home`, between the `<!--pb-home-->` markers): what
+PakkaBill does, the tools, three steps, real screens with sample data (`img/home-*.webp`), Free and
+Pro with prices and trial days read from `/api/config`, questions, in English and Hindi (the choice is
+saved as `hisaab:lang`, so the P&L and Labels tools open in the same language). It shows at `/` only to
+first-time visitors; anyone who has used the app on that device, the installed app, the Android app
+and links to a tool (`/#/pnl`) go straight to the app. `/home`, `/?home=1` and `#/home` (Tools →
+Home page, My account) always show it. Share preview image: `img/og.jpg` (1200×630).
+
 ## Deploying
 
 Static site, no build step. Vercel serves the repository root as-is.

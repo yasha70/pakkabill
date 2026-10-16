@@ -81,7 +81,8 @@
         write(ACCT, acct);
       }
       rerender();
-      if (before !== pbPro()) location.reload();
+      // not while the home page shows: nothing there depends on Pro, and the tools read it fresh when opened
+      if (before !== pbPro() && !document.documentElement.classList.contains('pb-home-on')) location.reload();
       renewNudge();
     } catch {
       /* offline or server not deployed: keep the last known state */
@@ -286,7 +287,8 @@
         closeUpgrade();
         if (reloading) return; // Pro turned on: the app reloads, and asks about the shop after
         if (o.then) o.then(u);
-        else if (fresh) setTimeout(askProfile, 700);
+        // after `then` (an upgrade dialog may be open: askProfile then waits for the next app start)
+        if (fresh) setTimeout(askProfile, 700);
       };
       wire(box, draw);
       const ph = box.querySelector('input[name=phone]');

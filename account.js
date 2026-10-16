@@ -172,7 +172,7 @@
 
   function legalHtml() {
     var L = [['About PakkaBill', '/about'], ['Terms & conditions', '/terms'], ['Privacy policy', '/privacy'], ['Refund & cancellation', '/refund'], ['Contact us', '/contact']];
-    return '<section class="pba-card"><h2>About &amp; legal</h2><div class="pba-legal">' + L.map(function (l) { return '<a href="' + l[1] + '" target="_blank" rel="noopener">' + l[0] + '</a>'; }).join('') + '</div></section>';
+    return '<section class="pba-card"><h2>About &amp; legal</h2><div class="pba-legal"><a href="#/home">PakkaBill home page</a>' + L.map(function (l) { return '<a href="' + l[1] + '" target="_blank" rel="noopener">' + l[0] + '</a>'; }).join('') + '</div></section>';
   }
 
   // Google Play asks every app with sign-up to let people delete their account from inside the app.
