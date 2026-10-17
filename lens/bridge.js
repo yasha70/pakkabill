@@ -15,12 +15,15 @@
     else if (m.type === 'pb-lens-remove' && Array.isArray(m.ids)) chrome.storage.local.remove(m.ids.filter(id => /^[a-z0-9]{1,40}$/i.test(id)).map(id => 'p:' + id));
     else if (m.type === 'pb-lens-clear') chrome.storage.local.get(null, all => chrome.storage.local.remove(Object.keys(all).filter(k => k.startsWith('p:'))));
     // shipping check: PakkaBill's Image tab sends photo versions; ship.js tries them in Meesho's supplier panel
-    else if (m.type === 'pb-ship-hello') chrome.storage.local.get('shipres', x => window.postMessage({ type: 'pb-ship-state', version: chrome.runtime.getManifest().version }, ORIGIN));
+    else if (m.type === 'pb-ship-hello') chrome.storage.local.get(['shipres', 'mcats'], x => window.postMessage({ type: 'pb-ship-state', version: chrome.runtime.getManifest().version, cats: x.mcats || [], lens: (x.shipres && x.shipres.lens) || null }, ORIGIN));
     else if (m.type === 'pb-ship-queue' && Array.isArray(m.items)) {
       const items = m.items.filter(it => it && typeof it.id === 'string' && it.id.length <= 80 && typeof it.data === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(it.data) && it.data.length < 4e6)
         .slice(0, 200).map(it => ({ id: it.id, label: String(it.label || '').slice(0, 80), name: String(it.name || 'photo.jpg').slice(0, 80), data: it.data }));
+      // up to 5 categories: a name, and Meesho's id when PakkaBill already knows it
+      const cats = (Array.isArray(m.cats) ? m.cats : []).filter(c => c && typeof c.name === 'string' && c.name.trim()).slice(0, 5)
+        .map(c => ({ name: c.name.trim().slice(0, 80), id: /^\d{1,12}$/.test(String(c.id || '')) ? String(c.id) : null }));
       const at = Date.now();
-      chrome.storage.local.set({ shipq: { at, cat: String(m.cat || '').slice(0, 40), items }, shipres: { at, results: {} } });
+      chrome.storage.local.set({ shipq: { at, gen: String(m.gen || '').slice(0, 40), cats, items }, shipres: { at, results: {}, cats: {} } });
     }
   });
   // auto listing: PakkaBill sends templates and products; list.js fills Meesho's form and reports back
@@ -52,7 +55,10 @@
   chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && (ch.listtpl || ch.liststat)) listState(); });
   // shipping read in Meesho goes straight back to the open Image tab
   chrome.storage.onChanged.addListener((ch, area) => {
-    if (area === 'local' && ch.shipres && ch.shipres.newValue) window.postMessage({ type: 'pb-ship-results', results: ch.shipres.newValue.results || {}, current: ch.shipres.newValue.current || null }, ORIGIN);
+    if (area !== 'local') return;
+    if (ch.shipres && ch.shipres.newValue) { const v = ch.shipres.newValue; window.postMessage({ type: 'pb-ship-results', results: v.results || {}, cats: v.cats || {}, current: v.current || null, lens: v.lens || null }, ORIGIN); }
+    // Meesho's category list, seen in the seller's supplier panel: for PakkaBill's category picker
+    if (ch.mcats && Array.isArray(ch.mcats.newValue)) window.postMessage({ type: 'pb-ship-cats', cats: ch.mcats.newValue }, ORIGIN);
   });
   send();
 })();

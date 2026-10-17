@@ -23,7 +23,7 @@ js = ('// PakkaBill: Meesho Lens page. Built by lens/build.py from lens/core.js 
       '(function () {\n' + core + '\nvar PBL_BM_CORE = ' + json.dumps(bm, ensure_ascii=False) + ';\n' + page + '\n})();\n')
 open(os.path.join(ROOT, 'lens.js'), 'w', encoding='utf-8').write(js)
 
-files = ['manifest.json', 'core.js', 'content.js', 'bridge.js', 'ship.js', 'listcore.js', 'list.js', 'popup.html', 'popup.js', 'README.txt']
+files = ['manifest.json', 'core.js', 'content.js', 'bridge.js', 'shipcore.js', 'shiphook.js', 'ship.js', 'listcore.js', 'list.js', 'popup.html', 'popup.js', 'README.txt']
 with zipfile.ZipFile(os.path.join(ROOT, 'pakkabill-lens.zip'), 'w', zipfile.ZIP_DEFLATED) as z:
     for f in files:
         info = zipfile.ZipInfo('pakkabill-lens/' + f, date_time=(2026, 1, 1, 0, 0, 0))

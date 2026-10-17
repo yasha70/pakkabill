@@ -1,4 +1,4 @@
-PakkaBill Lens - Meesho insights, auto listing and shipping check (Chrome extension, version 2.3)
+PakkaBill Lens - Meesho insights, auto listing and shipping check (Chrome extension, version 3.0)
 
 Works in Chrome or Edge on a laptop or desktop. On a phone, use the Lens bookmark
 from PakkaBill's Meesho Lens page instead (phone Chrome can't run extensions).
@@ -29,18 +29,26 @@ SETTINGS
 Open "Settings for estimates" to set shipping, GST %, orders per rating, your cost per
 piece, your returns % and loss per return. PakkaBill's Meesho Lens page shares them.
 
-SHIPPING CHECK (LOW SHIPPING IMAGE)
-1. In PakkaBill's Image tab, add your product photo. PakkaBill makes professional versions
-   (product full size; slight zoom, turn, light, colour, white background). Tap "Check in Meesho".
+SHIPPING CHECK (LOW SHIPPING IMAGE) - EXACT SHIPPING FROM MEESHO
+1. In PakkaBill's Image tab (Low shipping), choose up to 5 categories, upload your product
+   photo and tap "Generate images". PakkaBill makes versions (framed, stickers, slight zoom,
+   turn, light, white background) and sends them to the Lens with your categories.
 2. In the same browser, open supplier.meesho.com -> Catalog Upload -> Add Single Catalog.
-   Pick the category and fill the details until Meesho shows a shipping charge.
-3. In the PakkaBill panel (bottom left), tap "Check all". Each version goes into Meesho's
-   photo box; the shipping Meesho shows is read and sent back to PakkaBill live, which
-   marks the cheapest and shows the saving against your own photo. If the panel cannot find the photo box or the shipping charge, use
-   "Point to it" and click it once; it is remembered.
-4. "Put it in Meesho's photo box" puts the cheapest version in, so you can carry on.
-It only fills the photo box on the page you have open, in your own account. It never
-submits a catalogue.
+   Pick a category and upload your own photo once by hand, as you always do, until Meesho
+   shows a shipping charge.
+3. The PakkaBill panel (bottom left) says "Learned: Meesho priced your photo at Rs X". It
+   learnt how Meesho's own page asks for the shipping price (from your upload, in your tab).
+4. Tap "Check all". First your own photo is sent again; it must come back at the same Rs X,
+   or nothing else is checked. Then each version is sent to Meesho the same way, once per
+   category, and the shipping is read from Meesho's own answer, so it is the exact number
+   Meesho would show. Results appear in PakkaBill live: shipping rate per category on every
+   image, cheapest first, and a Download button.
+5. If it cannot learn (Meesho changed its page), open "Not working? Other ways": "Read from
+   Meesho's screen" puts each version in the photo box and reads the charge shown, and
+   "Copy a report for support" copies only the shape of the requests (no photos, no tokens,
+   no cookies) to send to PakkaBill support.
+It works only in the Meesho tab you have open, in your own account, with your own login.
+It never submits a catalogue and never saves or sends your login anywhere.
 
 AUTO LISTING (FILL MEESHO'S CATALOGUE FORM IN ONE CLICK)
 1. Save a template once. Easiest: in supplier.meesho.com -> Catalog Upload -> Add Single

@@ -132,5 +132,26 @@ try {
 } catch (e) { zipOut = 'error ' + e.message; }
 eq(zipOut, 'blouse-meesho-55.jpg:0102030405|साड़ी-60.jpg:68656c6c6f', 'ZIP opens, names (Hindi too) and contents intact');
 
+// Looks: natural only, natural with coloured frames, frames with stickers (like other tools make).
+const looks = ['natural', 'mix', 'stickers'].map((l) => E.tweaks(40, l));
+looks.forEach((list, i) => {
+  const name = ['natural', 'mix', 'stickers'][i];
+  eq([list[0].key, list.length], ['orig', 40], `${name}: your own photo first, 40 versions`);
+  eq(new Set(list.map((t) => t.key)).size, list.length, `${name}: no version twice`);
+});
+ok(!looks[0].some((t) => t.frame || t.sticker), 'natural: no frames or stickers');
+ok(E.tweaks(12, 'mix').filter((t) => t.frame).length >= 4 && !looks[1].some((t) => t.sticker), 'natural and frames: frames among the first 12, no stickers');
+ok(E.tweaks(12, 'stickers').filter((t) => t.sticker).length >= 3, 'frames and stickers: stickers among the first 12');
+ok(E.FRAMES.every((t) => t.frame > 0 && t.frame <= 0.04 && t.frameColor.length === 3), 'frames are thin (at most 4% of the photo) with a colour');
+ok(E.STICKERS.every((t) => /^(tl|tr|bl|br)$/.test(t.corner)), 'every sticker sits in a corner');
+eq(new Set(E.STICKERS.map((t) => t.corner)).size, 4, 'stickers use all four corners across versions');
+eq([E.keyLabel('frame-maroon'), E.keyLabel(E.STICKERS[0].key)], ['Maroon frame', 'Hot sale sticker, navy blue frame'], 'frame and sticker names in plain words');
+eq(Object.keys(E.LOOKS), ['natural', 'mix', 'stickers'], 'three looks');
+// results per category: { version: { category: rupees } }
+const per = E.byCategory({ orig: { 1234: 85, 1240: 90 }, zin3: { 1234: 72, 1240: 95 }, 'frame-teal': { 1234: 72 }, white: { 1240: 88 } });
+eq([per[1234].low, per[1234].best, per[1234].own, per[1234].save], [72, ['zin3', 'frame-teal'], 85, 13], 'per category: cheapest, ties, your photo, saving (Blouses)');
+eq([per[1240].low, per[1240].best, per[1240].save], [88, ['white'], 2], 'per category: a different winner in another category (Sarees)');
+eq(E.byCategory({}), {}, 'nothing checked: no summaries');
+
 console.log(`${checks - fails}/${checks} low shipping image checks passed`);
 if (fails) process.exit(1);

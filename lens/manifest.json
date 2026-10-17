@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "PakkaBill Lens – Meesho insights, auto listing and shipping check",
-  "version": "2.3.0",
-  "description": "Fills Meesho's catalogue form from your PakkaBill templates in one click, checks which photo gets the lowest shipping, and shows a Meesho product's seller price and sales speed.",
+  "version": "3.0.0",
+  "description": "Checks Meesho's real shipping for every photo version and category, fills Meesho's catalogue form from your PakkaBill templates, and shows a Meesho product's seller price and sales speed.",
   "permissions": [
     "storage",
     "unlimitedStorage"
@@ -12,6 +12,18 @@
     "https://supplier.meesho.com/*"
   ],
   "content_scripts": [
+    {
+      "matches": [
+        "https://supplier.meesho.com/*"
+      ],
+      "js": [
+        "shipcore.js",
+        "shiphook.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": false
+    },
     {
       "matches": [
         "https://www.meesho.com/*"
@@ -27,6 +39,7 @@
         "https://supplier.meesho.com/*"
       ],
       "js": [
+        "shipcore.js",
         "ship.js",
         "listcore.js",
         "list.js"
