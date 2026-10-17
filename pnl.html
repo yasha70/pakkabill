@@ -281,6 +281,59 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: .88rem; co
 .slip .np strong { font-size: 1.9rem; line-height: 1.1; }
 @media (min-width: 620px) { .slip { grid-template-columns: repeat(4, 1fr); } .slip > div:nth-last-child(-n+2):not(.np) { grid-column: span 2; } }
 /* the P&L in plain words: what was kept, where every Rs 100 went, what to do */
+/* simple view: the P&L in big, plain words */
+.sv { display: grid; gap: 14px; }
+.sv-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.sv-mode { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--sheet); border: 1px solid var(--rule); }
+.sv-mode button { border: 0; background: none; font: 700 15px/1 var(--f-body); color: var(--ink-2); padding: 0 16px; min-height: 40px; border-radius: 999px; cursor: pointer; }
+.sv-mode button[aria-pressed="true"] { background: var(--carbon); color: var(--carbon-ink); }
+.sv-link { border: 0; background: none; color: var(--carbon); font: 700 15px/1 var(--f-body); padding: 10px 4px; cursor: pointer; }
+.sv-chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 4px; scrollbar-width: none; }
+.sv-chips::-webkit-scrollbar { display: none; }
+.sv-chips button { flex: none; border: 1.5px solid var(--rule-2); background: var(--sheet); color: var(--ink); font: 700 15px/1 var(--f-body); padding: 0 18px; min-height: 44px; border-radius: 999px; cursor: pointer; }
+.sv-chips button[aria-pressed="true"] { background: var(--carbon); border-color: var(--carbon); color: var(--carbon-ink); }
+.sv-card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 18px; padding: 18px; }
+.sv-card h3 { margin: 0 0 12px; font: 700 20px/1.25 var(--f-head); color: var(--ink); }
+.sv-res { text-align: center; padding: 22px 18px 20px; border-width: 2px; }
+.sv-res.good { border-color: var(--pos); } .sv-res.bad { border-color: var(--neg); }
+.sv-ic { font-size: 34px; line-height: 1; }
+.sv-res h2 { margin: 8px 0 2px; font: 700 21px/1.2 var(--f-head); color: var(--ink-2); }
+.sv-big { display: block; font: 800 clamp(46px, 13vw, 66px)/1.05 var(--f-head); color: var(--pos); }
+.sv-res.bad .sv-big { color: var(--neg); }
+.sv-per { margin: 6px 0 10px; color: var(--ink-3); font-weight: 600; font-size: 16px; }
+.sv-lead { margin: 0 auto 14px; max-width: 34em; font-size: 18px; line-height: 1.45; color: var(--ink); }
+.sv-mt { margin: 14px 0 0; }
+.sv-acts { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.sv-acts.sv-left { justify-content: flex-start; }
+.sv-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: 999px; border: 1.5px solid var(--rule-2); background: var(--sheet); color: var(--ink); font: 700 16px/1.1 var(--f-body); cursor: pointer; text-align: center; }
+.sv-btn.pri { background: var(--carbon); border-color: var(--carbon); color: var(--carbon-ink); }
+.sv-btn.wa { background: #128C4A; border-color: #128C4A; color: #fff; }
+.sv-btn[aria-pressed="true"] { border-color: var(--carbon); box-shadow: inset 0 0 0 1px var(--carbon); }
+.sv-steps { list-style: none; margin: 0; padding: 0; }
+.sv-steps li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--rule); font-size: 17px; }
+.sv-steps li:first-child { border-top: 0; padding-top: 2px; }
+.sv-i { flex: none; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; font-size: 21px; background: var(--paper); }
+.sv-steps .sv-l { flex: 1; min-width: 0; line-height: 1.3; color: var(--ink); }
+.sv-steps .sv-v { font: 700 19px/1.2 var(--f-head); white-space: nowrap; color: var(--ink); }
+.sv-steps li.sv-total { border-top: 2px solid var(--ink); font-weight: 700; }
+.sv-steps li.sv-total .sv-v { font-size: 24px; color: var(--pos); } .sv-steps li.sv-total.bad .sv-v { color: var(--neg); }
+.sv-note { margin: 12px 0 0; font-size: 15px; color: var(--ink-3); line-height: 1.45; }
+.sv-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 10px; }
+.sv-tile { background: var(--paper); border-radius: 14px; padding: 14px 8px; text-align: center; }
+.sv-ti { font-size: 24px; line-height: 1; }
+.sv-tile b { display: block; font: 800 30px/1.1 var(--f-head); margin: 6px 0 4px; color: var(--ink); }
+.sv-tile > span:last-child { display: block; font-size: 15px; color: var(--ink-2); line-height: 1.25; }
+.sv-todo { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.sv-todo li { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; background: var(--paper); flex-wrap: wrap; }
+.sv-todo .sv-i { background: var(--sheet); }
+.sv-tt { flex: 1 1 180px; font-size: 16.5px; line-height: 1.4; color: var(--ink); }
+.sv-ok { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 17px; }
+.sv-more { text-align: center; }
+.sv-more > p:last-child { color: var(--ink-3); margin: 12px 0 0; font-size: 15px; }
+.sv-trust { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0 0 14px; font-size: 16px; font-weight: 600; color: var(--ink-2); flex-wrap: wrap; }
+.sv-trust.bad { color: var(--neg); }
+@media (max-width: 420px) { .sv-card { padding: 16px 14px; } .sv-tile b { font-size: 26px; } .sv-steps li { font-size: 16px; gap: 10px; } .sv-i { width: 38px; height: 38px; font-size: 19px; } .sv-btn { padding: 0 16px; } }
+@media print { .sv-top, .sv-chips { display: none; } }
 .ez { padding: 16px 18px; }
 .ez h2 { margin: 0 0 4px; font: 700 17px/1.25 var(--f-head); }
 .ez-lead { margin: 0 0 12px; font-size: 16px; line-height: 1.45; font-weight: 600; color: var(--ink); }
@@ -2681,6 +2734,8 @@ details.more[open] > summary { margin-bottom: 10px; }
   }
   A.recompute = recompute;
   function hasData() { return W().files.length > 0; }
+  A.plView = function () { try { return localStorage.getItem('hisaab:plv') === 'full' ? 'full' : 'simple'; } catch (e) { return 'simple'; } };
+  function stopSay() { try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) { /* ignore */ } }
 
   /* ---------------- access: the full report and downloads need a login and Pro ---------------- */
   function lsJSON(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
@@ -3227,6 +3282,34 @@ details.more[open] > summary { margin-bottom: 10px; }
     unlock: function () { askAccess('pnl'); },
     taxgo: function () { var d = document.getElementById('gst-more'); if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); } },
     stepsHide: function () { try { localStorage.setItem('hisaab:steps', '1'); } catch (e) { /* ignore */ } refresh(); },
+    plMode: function (el) {
+      var v = el.getAttribute('data-v') === 'full' ? 'full' : 'simple';
+      try { localStorage.setItem('hisaab:plv', v); } catch (e) { /* ignore */ }
+      stopSay(); render(); window.scrollTo(0, 0);
+    },
+    perChip: function (el) {
+      var v = el.getAttribute('data-v');
+      if (v === 'custom') return;
+      if (v === 'all') S.sel.mode = 'all'; else { S.sel.mode = 'month'; S.sel.m = v; }
+      stopSay(); refresh();
+    },
+    say: function (el) {
+      if (!window.speechSynthesis) return;
+      if (speechSynthesis.speaking) { stopSay(); return; }
+      var root = document.getElementById('p-pl');
+      var text = [].map.call(root ? root.querySelectorAll('[data-say]') : [], function (n) { return n.textContent.replace(/\s+/g, ' ').trim(); })
+        .filter(Boolean).map(function (t) { return /[.?!\u0964]$/.test(t) ? t : t + '.'; }).join(' ')
+        .replace(/[\uD83C-\uDBFF][\uDC00-\uDFFF]|[\u2600-\u27BF\uFE0F\u200D]/g, '').replace(/[\u2212+] /g, '');
+      try {
+        var u = new SpeechSynthesisUtterance(text), hi = LANG === 'hi';
+        u.lang = hi ? 'hi-IN' : 'en-IN'; u.rate = hi ? 0.9 : 0.95;
+        var vs = speechSynthesis.getVoices().filter(function (v) { return v.lang && v.lang.toLowerCase().replace('_', '-').indexOf(hi ? 'hi' : 'en-in') === 0; });
+        if (vs[0]) u.voice = vs[0];
+        u.onend = u.onerror = function () { el.setAttribute('aria-pressed', 'false'); };
+        speechSynthesis.cancel(); speechSynthesis.speak(u);
+        el.setAttribute('aria-pressed', 'true');
+      } catch (e) { /* no voice on this phone */ }
+    },
     rmFile: function (el) {
       var id = el.getAttribute('data-id');
       if (S.demo) return;
@@ -3870,10 +3953,101 @@ details.more[open] > summary { margin-bottom: 10px; }
     return '<section class="sheet ins" aria-label="What your numbers say"><h2>What your numbers say</h2>' + h + '</section>';
   }
 
+  /* ---------------- P&L, simple view ----------------
+     The first thing a seller sees: one big answer (profit or loss), how it was worked out from the
+     money Meesho paid, the orders, money still to come and at most three things to do, in big plain
+     words. Every number is the same one the full P&L shows (the money steps are the full report's
+     "how profit ties to money received"). "See full details" opens the full P&L. */
+  function modeBar(cur) {
+    return '<div class="sv-top no-print"><div class="sv-mode" role="group" aria-label="How much to show">' +
+      '<button data-act="plMode" data-v="simple" aria-pressed="' + (cur === 'simple') + '">Simple view</button>' +
+      '<button data-act="plMode" data-v="full" aria-pressed="' + (cur === 'full') + '">Full details</button></div>' +
+      '<button class="sv-link" data-act="tab" data-tab="guide">▶ How to use</button></div>';
+  }
+  function simpleHtml() {
+    var R = S.R, K = R.K, per = S.per, loss = R.NP < 0, h = modeBar('simple') + demoBar();
+    // period: All, then the months, newest first
+    var chips = '<button data-act="perChip" data-v="all" aria-pressed="' + (S.sel.mode === 'all') + '">All</button>';
+    S.months.slice().reverse().forEach(function (m) { chips += '<button data-act="perChip" data-v="' + m + '" aria-pressed="' + (S.sel.mode === 'month' && S.sel.m === m) + '">' + E.fmtMonth(m) + '</button>'; });
+    if (S.sel.mode === 'custom') chips += '<button data-act="perChip" data-v="custom" aria-pressed="true">' + esc(per.label) + '</button>';
+    h += '<div class="sv-chips no-print" role="group" aria-label="Period">' + chips + '</div>';
+    if (!S.H.legs) return '<div class="sv">' + h + '<section class="sv-card sv-res"><div class="sv-ic" aria-hidden="true">📄</div><p class="sv-lead">Add the payment report to see profit. The orders report alone has no settlement amounts.</p><div class="sv-acts"><button class="sv-btn pri" data-act="tab" data-tab="data">Upload</button></div></section></div>';
+
+    // 1. the answer
+    var lead = R.NS > 0 ? (loss ? 'Your costs were more than your sales.' : 'Out of every ₹100 of sales, ' + per100(R.NP / R.NS * 100) + ' stayed with you.') : '';
+    var canSay = !!window.speechSynthesis;
+    h += '<section class="sv-card sv-res ' + (loss ? 'bad' : 'good') + '"><div class="sv-ic" aria-hidden="true">' + (loss ? '📉' : '💰') + '</div>' +
+      '<h2 data-say>' + (loss ? 'Your loss' : 'Your profit') + '</h2><strong class="sv-big" data-say>' + rs(Math.abs(R.NP), true) + '</strong>' +
+      '<p class="sv-per" data-say>' + esc(per.label) + '</p>' + (lead ? '<p class="sv-lead" data-say>' + lead + '</p>' : '') +
+      '<div class="sv-acts no-print">' + (canSay ? '<button class="sv-btn" data-act="say" aria-pressed="false">🔊 Listen</button>' : '') +
+      '<button class="sv-btn wa" data-act="share">Share on WhatsApp</button></div></section>';
+
+    // 2. how it was worked out: from the money Meesho paid to the profit (the full report's bridge)
+    var B = R.bridge, at = -1;
+    B.forEach(function (b, i) { if (b.k === 'sub') at = i; });
+    var rows = at >= 0 ? B.slice(at) : [], sum = 0, steps = '';
+    rows.forEach(function (b) {
+      if (b.k === 'np') return;
+      sum += b.v;
+      var lab, ic;
+      if (b.k === 'sub') { lab = 'Meesho paid you'; ic = '🏦'; }
+      else if (/^Add back/.test(b.l)) { lab = 'Tax Meesho cut that you get back (TCS, TDS)'; ic = '🧾'; }
+      else if (/GST payable/.test(b.l)) { if (!b.v) return; lab = 'GST to pay to the government'; ic = '🏛️'; }
+      else if (/GST paid to suppliers/.test(b.l)) { lab = 'GST you paid when buying stock'; ic = '🧾'; }
+      else if (/cost of goods/.test(b.l)) { lab = 'Cost of your products'; ic = '📦'; }
+      else if (/operating expenses/.test(b.l)) { if (!b.v) return; lab = 'Packing, rent and other costs'; ic = '🧰'; }
+      else { lab = b.l; ic = '•'; }
+      steps += '<li class="' + (b.k === 'sub' ? '' : b.v < 0 ? 'sv-minus' : 'sv-plus') + '"><span class="sv-i" aria-hidden="true">' + ic + '</span><span class="sv-l" data-say>' + esc(lab) + '</span>' +
+        '<b class="sv-v" data-say>' + (b.k === 'sub' ? '' : b.v < 0 ? '− ' : '+ ') + rs(Math.abs(b.v), true) + '</b></li>';
+    });
+    if (steps && sum === R.NP) {
+      steps += '<li class="sv-total' + (loss ? ' bad' : '') + '"><span class="sv-i" aria-hidden="true">' + (loss ? '📉' : '💰') + '</span><span class="sv-l" data-say>' + (loss ? 'Your loss' : 'Your profit') + '</span><b class="sv-v" data-say>' + (loss ? '− ' : '') + rs(Math.abs(R.NP), true) + '</b></li>';
+      h += '<section class="sv-card"><h3 data-say>How we worked it out</h3><ol class="sv-steps">' + steps + '</ol>' +
+        (per.basis !== 'order' ? '<p class="sv-note">Your bank should show the same ' + rs(R.payout, true) + ' from Meesho for these payment dates.</p>' : '') + '</section>';
+    }
+
+    // 3. orders
+    var RV = S.RV, back = RV && RV.done ? Math.round((RV.G.rto.n + RV.G.ret.n) / RV.done * 100) : null;
+    h += '<section class="sv-card"><h3 data-say>Your orders</h3><div class="sv-tiles">' +
+      '<div class="sv-tile"><span class="sv-ti" aria-hidden="true">📦</span><b>' + K.sales + '</b><span>Orders sold</span></div>' +
+      '<div class="sv-tile"><span class="sv-ti" aria-hidden="true">✅</span><b>' + K.del + '</b><span>Kept by buyers</span></div>' +
+      (back != null ? '<div class="sv-tile"><span class="sv-ti" aria-hidden="true">↩️</span><b>' + back + '%</b><span>Parcels that came back</span></div>' : '') + '</div>' +
+      (K.del ? '<p class="sv-lead sv-mt" data-say>' + (loss ? 'You lose ' + rs(Math.round(-R.NP / K.del), true) + ' on each order a buyer keeps.' : 'You earn ' + rs(Math.round(R.NP / K.del), true) + ' on each order a buyer keeps.') + '</p>' : '') + '</section>';
+
+    // 4. money still to come
+    if (S.H.ordRows) {
+      var w = E.onTheWay(S.REC), due = w.awaiting.n + w.overdue.n, way = '';
+      if (due) way += '<p class="sv-lead" data-say>' + (due === 1 ? 'Meesho will still pay you about ' + rs(w.due, true) + ' for ' + due + ' delivered order.' : 'Meesho will still pay you about ' + rs(w.due, true) + ' for ' + due + ' delivered orders.') + '</p>';
+      if (w.transit.n) way += '<p class="sv-note">' + (w.transit.n === 1 ? w.transit.n + ' more order is on the way to the buyer.' : w.transit.n + ' more orders are on the way to buyers.') + '</p>';
+      if (way) h += '<section class="sv-card"><h3 data-say>Money still to come</h3>' + way + (due ? '<div class="sv-acts sv-left no-print"><button class="sv-btn" data-act="rcgo" data-b="awaiting">See orders</button></div>' : '') + '</section>';
+    }
+
+    // 5. what to do next: the three that matter most
+    var todo = [];
+    function td(ic, text, btn) { todo.push('<li><span class="sv-i" aria-hidden="true">' + ic + '</span><span class="sv-tt">' + text + '</span>' + btn + '</li>'); }
+    if (R.missing.length) td('⚠️', '<span>' + (R.missing.length === 1 ? 'Add the cost of ' + R.missing.length + ' product.' : 'Add the cost of ' + R.missing.length + ' products.') + '</span> <span>Until then, profit shows more than it really is.</span>', '<button class="sv-btn pri" data-act="tab" data-tab="costs">Add costs</button>');
+    var C = (A.full() || S.demo) && A.claimsData ? A.claimsData() : { list: [] };
+    if (C.list.length) td('💸', '<span>' + rs(C.total, true) + ' you may get back from Meesho, on ' + C.list.length + (C.list.length === 1 ? ' order.' : ' orders.') + '</span>', '<button class="sv-btn" data-act="rcgo" data-b="claims">See</button>');
+    var losers = R.skus.filter(function (x) { return x.sold >= 3 && x.contrib < 0; }).sort(function (p, q) { return p.contrib - q.contrib; });
+    if (losers.length) td('🔻', '<b>' + esc(losers[0].sku) + '</b> <span>' + (losers.length > 1 ? 'and ' + (losers.length - 1) + ' more products lose money.' : 'loses money on every order.') + '</span>', '<button class="sv-btn" data-act="tab" data-tab="calc">Check price</button>');
+    if (back != null && back >= 15) td('↩️', '<span>' + back + ' of every 100 parcels come back.</span> <span>See which products and sizes.</span>', '<button class="sv-btn" data-act="tab" data-tab="ret">See returns</button>');
+    if (K.rdef && !flag('hisaab:rv')) td('🔍', '<span>' + (K.rdef === 1 ? 'Check ' + K.rdef + ' returned item: can it be sold again?' : 'Check ' + K.rdef + ' returned items: can they be sold again?') + '</span>', '<button class="sv-btn" data-act="rcgo" data-b="returned">Check</button>');
+    h += '<section class="sv-card no-print"><h3>Do this next</h3>' + (todo.length ? '<ul class="sv-todo">' + todo.slice(0, 3).join('') + '</ul>' : '<p class="sv-ok"><span aria-hidden="true">✅</span><span>Nothing to fix right now.</span></p>') + '</section>';
+
+    // 6. can it be trusted, and the way to everything else
+    var A2 = E.accuracy((S.demo || S.real).files, S.M, S.IX, S.R, S.H, A.cfg(), new Date().toISOString().slice(0, 10));
+    h += '<section class="sv-card sv-more no-print"><p class="sv-trust ' + (A2.bad ? 'bad' : 'ok') + '"><span aria-hidden="true">' + (A2.bad ? '⚠️' : '✅') + '</span><span>' +
+      (A2.bad ? 'Something in your files needs checking.' : 'Checked with Meesho’s payments, to the paisa.') + '</span></p>' +
+      '<div class="sv-acts"><button class="sv-btn pri" data-act="plMode" data-v="full">See full details</button><button class="sv-btn" data-act="pdfEasy">Easy summary PDF</button></div>' +
+      '<p>For you or your CA: every fee, the full statement, returns, GST and each product.</p></section>';
+    return '<div class="sv">' + h + '</div>';
+  }
+
   /* ---------------- P&L ---------------- */
   V.pl = function () {
     if (!A.hasData()) return empty();
-    var R = S.R, K = R.K, st = A.cfg(), per = S.per, h = hero(false) + demoBar();
+    if (A.plView() === 'simple') return simpleHtml();
+    var R = S.R, K = R.K, st = A.cfg(), per = S.per, h = modeBar('full') + hero(false) + demoBar();
     h += stepsHtml();
     var opts = '<option value="all"' + (S.sel.mode === 'all' ? ' selected' : '') + '>All data</option>';
     S.months.forEach(function (m) { opts += '<option value="m:' + m + '"' + (S.sel.mode === 'month' && S.sel.m === m ? ' selected' : '') + '>' + E.fmtMonth(m) + '</option>'; });
@@ -6069,8 +6243,8 @@ details.more[open] > summary { margin-bottom: 10px; }
       en: ['Step 5: Check expenses and settings', 'In Expenses add costs outside Meesho, like rent, salary or internet. In Settings: GST registered (yes if you have a GSTIN), Tax credits (claim TCS and TDS in your returns), and whether returned and RTO items usually go back into stock. Change these once; they apply to every report.'],
       hi: ['स्टेप 5: खर्चे और सेटिंग देखें', 'Expenses में Meesho के बाहर के खर्चे जोड़ें, जैसे किराया, सैलरी या इंटरनेट। Settings में: GST registered (GSTIN है तो हाँ), Tax credits (TCS और TDS आप रिटर्न में क्लेम करते हैं) और रिटर्न व RTO का माल आम तौर पर वापस स्टॉक में जाता है या नहीं। इन्हें एक बार सेट करें; हर रिपोर्ट पर लागू होंगे।'] },
     { art: 'read',
-      en: ['Step 6: Read your P&L', 'Open P&L. At the top you see your real profit and margin. Choose the Period (all data, a month or your own dates). Count by payment date matches your bank; count by order date shows when you sold. The statement lists sales, returns, GST, cost of goods, every Meesho charge, ads and expenses down to net profit.'],
-      hi: ['स्टेप 6: अपना P&L पढ़ें', 'P&L खोलें। ऊपर आपका असली मुनाफ़ा और मार्जिन दिखता है। Period चुनें (सारा डेटा, एक महीना या अपनी तारीखें)। Payment date से गिनती बैंक से मिलती है; Order date से गिनती बताती है कि आपने कब बेचा। स्टेटमेंट में बिक्री, रिटर्न, GST, माल की लागत, Meesho के सारे चार्ज, ads और खर्चे से लेकर शुद्ध मुनाफ़े तक सब है।'] },
+      en: ['Step 6: Read your P&L', 'Open P&L. The Simple view shows your profit in big letters, then how it was worked out: the money Meesho paid you, less product cost, GST and other costs. Below are your orders, money still to come and what to do next. Tap a month to see only that month, and Listen to hear it. Full details has the full statement for your CA: sales, returns, GST, every Meesho charge, ads and expenses, by payment date (matches your bank) or order date.'],
+      hi: ['स्टेप 6: अपना P&L पढ़ें', 'P&L खोलें। आसान व्यू में आपका मुनाफ़ा बड़े अक्षरों में दिखता है, फिर हिसाब कैसे लगा: Meesho ने जो पैसे दिए, उसमें से माल की लागत, GST और दूसरे खर्च घटाकर। नीचे आपके ऑर्डर, अभी आने वाला पैसा और अब क्या करना है। सिर्फ़ एक महीना देखने के लिए उस महीने पर टैप करें, और सुनने के लिए सुनें दबाएँ। पूरी जानकारी में CA के लिए पूरा स्टेटमेंट है: बिक्री, रिटर्न, GST, Meesho के सारे चार्ज, ads और खर्चे, payment date (बैंक से मिलता है) या order date से।'] },
     { art: 'returns',
       en: ['Step 7: Returns, RTO and best products', 'Below the statement: RTO, customer returns and exchanges, each with its rate and the money lost on it. Profit by category and Profit by SKU show which products earn and which lose. Break-even price is the lowest selling price where a SKU still makes no loss.'],
       hi: ['स्टेप 7: रिटर्न, RTO और सबसे अच्छे प्रोडक्ट', 'स्टेटमेंट के नीचे: RTO, कस्टमर रिटर्न और एक्सचेंज, हर एक की दर और उस पर हुआ नुकसान। Category और SKU के हिसाब से मुनाफ़ा बताता है कि कौन से प्रोडक्ट कमाते हैं और कौन से नुकसान करते हैं। Break-even price वह सबसे कम कीमत है जिस पर SKU में नुकसान नहीं होता।'] },

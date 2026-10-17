@@ -22,6 +22,12 @@ new Function('module', 'self', html.slice(start, html.indexOf('</script>', start
 const E = mod.exports;
 
 let fails = 0, checks = 0;
+// The simple view's "How we worked it out": from the money Meesho paid, each step after it, to the profit.
+function simpleTies(R) {
+  const at = R.bridge.findIndex((b) => b.k === 'sub');
+  if (at < 0 || R.bridge[at].v !== R.payout) return false;
+  return R.bridge.slice(at).filter((b) => b.k !== 'np').reduce((t, b) => t + b.v, 0) === R.NP;
+}
 function ok(cond, what, detail) {
   checks++;
   if (!cond) { fails++; console.log('FAIL  ' + what + (detail ? '  ' + detail : '')); }
@@ -192,6 +198,7 @@ for (const cfg of [{}, { gstReg: false }, { taxCredits: 'expense' }]) {
     eq(R.K.D, want.D, tag + ': TDS');
     eq(R.NP, want.NP, tag + ': net profit');
     ok(R.checks.bridge && R.checks.sku, tag + ': identities');
+    ok(simpleTies(R), tag + ': simple view steps add up to the profit');
   }
 }
 
@@ -276,11 +283,13 @@ for (const cfg of settings) {
   const all = run([D.payBook, ORD], { cfg, ...real });
   const tag = JSON.stringify(cfg);
   ok(all.R.checks.bridge && all.R.checks.sku, 'identities all data ' + tag);
+  ok(simpleTies(all.R), 'simple view steps add up, all data ' + tag);
   const months = E.dataMonths(all.M, all.IX, 'pay');
   const sum = { NS: 0, payout: 0, COGS: 0, pre: 0, F: 0, EXP: 0 };
   for (const m of months) {
     const r = run([D.payBook, ORD], { cfg, ...real, sel: { mode: 'month', m, basis: 'pay' } }).R;
     ok(r.checks.bridge && r.checks.sku, `identities ${m} ${tag}`);
+    ok(simpleTies(r), `simple view steps add up, ${m} ${tag}`);
     sum.NS += r.NS; sum.payout += r.payout; sum.COGS += r.COGS; sum.pre += r.NP + r.UNU + r.tcsLoss; sum.EXP += r.EXP;
   }
   eq(sum.NS, all.R.NS, 'months add up: net sales ' + tag);
@@ -290,6 +299,7 @@ for (const cfg of settings) {
   eq(sum.pre, all.R.NP + all.R.UNU + all.R.tcsLoss, 'months add up: profit before unusable credit ' + tag);
   const byOrder = run([D.payBook, ORD], { cfg, ...real, sel: { mode: 'all', basis: 'order' } }).R;
   ok(byOrder.checks.bridge && byOrder.checks.sku, 'identities by order date ' + tag);
+  ok(simpleTies(byOrder), 'simple view steps add up, by order date ' + tag);
   eq(byOrder.payout, all.R.payout, 'order date basis covers the same money ' + tag);
   eq(byOrder.NS, all.R.NS, 'order date basis covers the same sales ' + tag);
   const rec = E.reconcile(all.M, all.IX, all.cfg);
