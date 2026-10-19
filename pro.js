@@ -165,15 +165,22 @@
   }
 
   function authHtml(mode, from = '') {
-    const last = mode === 'login' ? read(LAST_PHONE) || '' : '';
+    const otpOn = !!(cfg && cfg.otp), viaOtp = mode === 'otp' && otpOn;
+    if (mode === 'otp' && !otpOn) mode = 'login';
+    const last = mode !== 'signup' ? read(LAST_PHONE) || '' : '';
+    // OTP by SMS (only when set up on the server): sign-up checks the number, log in can skip the password
+    const otpRow = (purpose) => `<label>OTP sent by SMS<span class="pbp-pw"><input name="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit OTP" required><button type="button" class="pbp-show pbp-otpb" data-purpose="${purpose}">Send OTP</button></span></label>`;
+    const pwRow = `<label>Password<span class="pbp-pw"><input name="password" type="password" autocomplete="${mode === 'signup' ? 'new-password' : 'current-password'}" autocapitalize="none" autocorrect="off" spellcheck="false" minlength="6" required><button type="button" class="pbp-show" aria-label="Show password">Show</button></span></label>`;
+    const forgot = otpOn ? 'Forgot your password? <button type="button" class="pbp-link pbp-inl" data-to="otp">Log in with OTP</button>, then change it in My account.' : 'Forgot your password? <a href="#/support?new=1&amp;topic=account&amp;p=login">Ask support to reset it</a>.';
     return `<form class="pbp-auth" data-mode="${mode}" data-from="${esc(from)}">
-      <div class="pbp-tabs"><button type="button" data-mode="login" class="${mode === 'login' ? 'is-on' : ''}">Log in</button><button type="button" data-mode="signup" class="${mode === 'signup' ? 'is-on' : ''}">Create account</button></div>
+      <div class="pbp-tabs"><button type="button" data-mode="login" class="${mode !== 'signup' ? 'is-on' : ''}">Log in</button><button type="button" data-mode="signup" class="${mode === 'signup' ? 'is-on' : ''}">Create account</button></div>
       <label>Mobile number<input name="phone" inputmode="numeric" autocomplete="tel" placeholder="10-digit mobile" maxlength="14" value="${esc(last)}" required></label>
+      ${mode === 'signup' && otpOn ? otpRow('signup') : ''}
       ${mode === 'signup' ? '<label>Shop name<input name="shopName" autocomplete="organization" placeholder="As on your bills"></label>' : ''}
-      <label>Password<span class="pbp-pw"><input name="password" type="password" autocomplete="${mode === 'signup' ? 'new-password' : 'current-password'}" autocapitalize="none" autocorrect="off" spellcheck="false" minlength="6" required><button type="button" class="pbp-show" aria-label="Show password">Show</button></span></label>
+      ${viaOtp ? otpRow('login') : pwRow}
       <p class="pbp-err" role="alert"></p>
       <button class="pbp-btn" type="submit">${mode === 'signup' ? (cfg && cfg.trialDays ? `Create account: ${cfg.trialDays} days of Pro free` : 'Create account') : 'Log in'}</button>
-      <p class="pbp-fine">${mode === 'login' ? 'Log in and your shops and bills from your other devices download here. Forgot your password? <a href="#/support?new=1&amp;topic=account&amp;p=login">Ask support to reset it</a>.' : `${cfg && cfg.trialDays ? `Every new account gets ${cfg.trialDays} days of Pro free, no payment needed. ` : ''}Your account keeps your Pro plan and cloud backup on every phone and laptop you log in on. By creating an account you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.`}</p>
+      ${viaOtp ? '<p class="pbp-fine"><button type="button" class="pbp-link pbp-inl" data-to="login">Use my password instead</button></p>' : `<p class="pbp-fine">${mode === 'login' ? `Log in and your shops and bills from your other devices download here. ${forgot}` : `${cfg && cfg.trialDays ? `Every new account gets ${cfg.trialDays} days of Pro free, no payment needed. ` : ''}Your account keeps your Pro plan and cloud backup on every phone and laptop you log in on. By creating an account you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.`}</p>`}
     </form>`;
   }
 
@@ -189,12 +196,34 @@
       }),
     );
     root.querySelectorAll('.pbp-tabs button').forEach((b) => b.addEventListener('click', () => redraw(b.dataset.mode)));
+    root.querySelectorAll('[data-to]').forEach((b) => b.addEventListener('click', () => redraw(b.dataset.to)));
     root.querySelectorAll('[data-auth]').forEach((b) => b.addEventListener('click', () => openAuth({ mode: b.dataset.auth, from: b.dataset.from || 'plan' })));
     // a link inside a dialog (Terms, Ask support) leaves the dialog
     if (dialog && dialog.contains(root)) root.querySelectorAll('a[href^="#/"]').forEach((a) => a.addEventListener('click', closeUpgrade));
     const form = root.querySelector('.pbp-auth');
     if (form)
-      form.querySelectorAll('.pbp-show').forEach((b) => b.addEventListener('click', () => {
+      form.querySelectorAll('.pbp-otpb').forEach((b) => b.addEventListener('click', async () => {
+        const err = form.querySelector('.pbp-err'), phone = form.querySelector('input[name=phone]').value;
+        err.textContent = '';
+        b.disabled = true;
+        try {
+          await api('auth', { body: { action: 'otpSend', phone, purpose: b.dataset.purpose } });
+          toast('OTP sent by SMS. It works for 10 minutes.');
+          form.querySelector('input[name=otp]').focus();
+          let left = 30;
+          b.textContent = `Resend ${left}s`;
+          const t = setInterval(() => {
+            left--;
+            if (left > 0 && b.isConnected) b.textContent = `Resend ${left}s`;
+            else { clearInterval(t); b.disabled = false; b.textContent = 'Resend OTP'; }
+          }, 1000);
+        } catch (e) {
+          err.textContent = e.message;
+          b.disabled = false;
+        }
+      }));
+    if (form)
+      form.querySelectorAll('.pbp-show:not(.pbp-otpb)').forEach((b) => b.addEventListener('click', () => {
         const inp = b.previousElementSibling, show = inp.type === 'password';
         inp.type = show ? 'text' : 'password';
         b.textContent = show ? 'Hide' : 'Show';
@@ -210,7 +239,7 @@
         btn.disabled = true;
         try {
           const r = await api('auth', {
-            body: { action: form.dataset.mode, phone: f.get('phone'), password: f.get('password'), shopName: f.get('shopName') || '', from: form.dataset.from || '' },
+            body: { action: form.dataset.mode === 'otp' ? 'otpLogin' : form.dataset.mode, phone: f.get('phone'), password: f.get('password') || '', otp: f.get('otp') || '', shopName: f.get('shopName') || '', from: form.dataset.from || '' },
           });
           if (/^\d{10}$/.test(r.user.phone)) write(LAST_PHONE, r.user.phone);
           // a new account: ask about the shop once (optional), now or when the app opens next
@@ -292,7 +321,7 @@
       };
       wire(box, draw);
       const ph = box.querySelector('input[name=phone]');
-      (ph && ph.value ? box.querySelector('input[name=password]') : ph)?.focus({ preventScroll: true });
+      (ph && ph.value ? box.querySelector('input[name=password], input[name=otp]') : ph)?.focus({ preventScroll: true });
     };
     draw();
   }
@@ -1021,7 +1050,7 @@
 .pbp-plan.is-busy b:after{content:"…"}
 .pbp-auth{display:grid;gap:10px}
 .pbp-auth label{display:grid;gap:4px;font-size:13px;font-weight:600;color:var(--ink-2,#555)}
-.pbp-pw{position:relative;display:block}.pbp-pw input{width:100%;box-sizing:border-box;padding-right:64px!important}.pbp-show{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--brand,#5b3fe6);font:inherit;font-size:13px;font-weight:700;padding:6px 8px;cursor:pointer}
+.pbp-inl{display:inline;padding:0;margin:0;font-size:inherit}.pbp-pw input[name=otp]{padding-right:104px!important;letter-spacing:.15em}.pbp-pw{position:relative;display:block}.pbp-pw input{width:100%;box-sizing:border-box;padding-right:64px!important}.pbp-show{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--brand,#5b3fe6);font:inherit;font-size:13px;font-weight:700;padding:6px 8px;cursor:pointer}
 .pbp-auth input{font:inherit;font-size:16px;padding:10px 12px;border-radius:var(--r-ctl,9px);border:1.5px solid var(--rule,#ddd);background:var(--paper,#fff);color:var(--ink,#222)}
 .pbp-auth input:focus{outline:2px solid var(--focus,#ff7a59);outline-offset:1px}
 .pbp-tabs{display:flex;gap:4px;padding:4px;background:var(--carbon-tint,#f6f2ff);border-radius:999px}

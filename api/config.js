@@ -3,6 +3,7 @@
 const core = require('./_lib/core');
 const gst = require('./_lib/gst');
 const rzp = require('./_lib/razorpay');
+const otp = require('./_lib/otp');
 
 module.exports = core.handler(async (req, res) => {
   const gstin = new URL(req.url, 'http://x').searchParams.get('gstin');
@@ -19,6 +20,7 @@ module.exports = core.handler(async (req, res) => {
     upiId: s.upiId,
     razorpay: (rzp.config(s) || {}).keyId || '', // the Key ID is public by design; the secret never leaves the server
     payeeName: s.payeeName,
+    otp: otp.enabled(), // sign-up checks the number by SMS; log in with OTP is offered
     trialDays: core.paymentsReady(s) && s.enforce ? Number(s.trialDays) || 0 : 0,
     biz: { name: s.bizName, email: s.bizEmail, phone: s.bizPhone, address: s.bizAddress, grievance: s.grievanceName },
   }, 'public, max-age=0, must-revalidate');

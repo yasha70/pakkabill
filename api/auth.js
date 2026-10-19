@@ -1,4 +1,7 @@
 // POST /api/auth  { action: 'signup' | 'login' | 'logout' | 'delete', phone, password, shopName }
+// POST /api/auth  { action: 'otpSend', phone, purpose: 'signup' | 'login' }  sends an OTP by SMS (when set up, see _lib/otp.js)
+// POST /api/auth  { action: 'otpLogin', phone, otp }  log in with the OTP instead of the password
+// When OTP is set up, 'signup' also needs { otp }: the number is checked before the account is made.
 // POST /api/auth  { action: 'password', password, newPassword } (logged in) -> new token; other devices are logged out
 // POST /api/auth  { action: 'profile', name, sells, where, orders, city } or { action: 'profile', skip: true } (logged in):
 // the optional "about your shop" step after sign-up. Every field may be left empty.
@@ -8,6 +11,7 @@ const core = require('./_lib/core');
 const db = require('./_lib/db');
 const sync = require('./_lib/sync');
 const push = require('./_lib/push');
+const otp = require('./_lib/otp');
 
 // The choices offered in the app's "About your shop" step. Anything else is dropped.
 const PROFILE = {
@@ -85,8 +89,31 @@ module.exports = core.handler(async (req, res) => {
   if (!phone) throw new core.HttpError(400, 'Enter a 10-digit mobile number.');
   await core.rateLimit(`auth:${core.clientIp(req)}`, 30, 900);
 
+  if (action === 'otpSend') {
+    const purpose = core.body(req).purpose === 'login' ? 'login' : 'signup';
+    const user = await core.getUser(phone);
+    if (purpose === 'signup' && user) throw new core.HttpError(409, 'This number already has an account. Log in instead.');
+    if (purpose === 'login' && !user) throw new core.HttpError(404, 'No account with this mobile number. Check the number, or create an account.');
+    return core.send(res, 200, await otp.send(phone, purpose, core.clientIp(req)));
+  }
+
+  if (action === 'otpLogin') {
+    if (!otp.enabled()) throw new core.HttpError(400, 'OTP is not set up yet. Use your password.');
+    const user = await core.getUser(phone);
+    if (!user) throw new core.HttpError(404, 'No account with this mobile number. Check the number, or create an account.');
+    await otp.check(phone, 'login', core.body(req).otp);
+    if (user.blocked) throw new core.HttpError(403, 'This account has been stopped. Please contact PakkaBill support.');
+    user.lastSeen = Date.now();
+    await core.saveUser(user);
+    return core.send(res, 200, { token: await core.createSession(phone), user: core.publicUser(user) });
+  }
+
   if (action === 'signup') {
     if (String(password).length < 6) throw new core.HttpError(400, 'Use a password of at least 6 characters.');
+    if (otp.enabled()) {
+      if (await core.getUser(phone)) throw new core.HttpError(409, 'This number already has an account. Log in instead.');
+      await otp.check(phone, 'signup', core.body(req).otp);
+    }
     const user = {
       phone,
       shopName: String(shopName).trim().slice(0, 80),

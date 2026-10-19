@@ -4,7 +4,7 @@
   "description": "PakkaBill GST billing app: static PWA with Vercel serverless functions in api/",
   "scripts": {
     "dev": "node scripts/dev-server.js",
-    "test": "node test/pnl-audit.js && node test/labels-audit.js && node test/gst-audit.js && node test/razorpay-audit.js && node test/lowship-audit.js && node test/shipsync-audit.js && node test/gstr1-audit.js && node test/autolist-audit.js"
+    "test": "node test/pnl-audit.js && node test/labels-audit.js && node test/gst-audit.js && node test/razorpay-audit.js && node test/lowship-audit.js && node test/shipsync-audit.js && node test/gstr1-audit.js && node test/autolist-audit.js && node test/otp-audit.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",

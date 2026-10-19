@@ -63,6 +63,11 @@ first-time visitors; anyone who has used the app on that device, the installed a
 and links to a tool (`/#/pnl`) go straight to the app. `/home`, `/?home=1` and `#/home` (Tools →
 Home page, My account) always show it. Share preview image: `img/og.jpg` (1200×630).
 
+## OTP sign-up (off until you add an SMS key)
+
+Sign-up by OTP and "Log in with OTP" are built in and switch on by themselves when an SMS provider
+key is added in Vercel. Plain steps: [docs/TURN-ON-OTP.md](docs/TURN-ON-OTP.md).
+
 ## Deploying
 
 Static site, no build step. Vercel serves the repository root as-is.
