@@ -1,0 +1,96 @@
+<!doctype html>
+<!-- A stand-in for Meesho's catalogue form with drop-downs built several ways, for test/autolist-browser.js -->
+<html><head><meta charset="utf-8"><title>Form</title>
+<style>
+body{font:14px sans-serif;padding:20px}.form-group{margin:10px 0}.dropdown-box,.select-box,.tog{border:1px solid #999;height:34px;width:260px;display:flex;align-items:center;padding:0 8px;cursor:pointer}
+.pop{position:absolute;background:#fff;border:1px solid #333;z-index:10;max-height:300px;overflow:auto;width:260px}.pop>*{padding:4px 8px}
+table td,table th{border:1px solid #ccc;padding:2px}
+</style></head><body>
+<nav><ul><li>Home</li><li>Catalog Upload</li><li>Orders</li></ul></nav>
+<form id="f" onsubmit="window.SUBMITTED=1;return false">
+  <div class="form-group"><label for="pn">Product Name *</label><input id="pn"></div>
+  <div class="form-group"><span>Fabric *</span><div class="dropdown-box" id="fab"><span class="v">Select</span><svg width="10" height="10"><path d="M0 0L5 5L10 0"/></svg></div></div>
+  <div class="form-group"><span>Pattern *</span><div><input id="pat" readonly placeholder="Select"></div></div>
+  <div class="form-group"><span>Occasion</span><div class="tog" id="occ" role="combobox" aria-expanded="false"><span class="v">Select</span></div></div>
+  <div class="form-group"><span>Size *</span><div class="select-box" id="size"><span class="v">Select</span></div></div>
+  <div class="form-group"><label for="gst">GST *</label><select id="gst"><option value="">Select</option><option>0</option><option>5</option><option>12</option></select></div>
+  <div class="form-group"><label for="col">Color</label><input id="col" role="combobox" aria-autocomplete="list" aria-expanded="false"></div>
+  <div class="form-group"><label for="br">Brand Name</label><input id="br" placeholder="Search brand"></div>
+  <div class="form-group"><label for="desc">Product Description</label><textarea id="desc"></textarea></div>
+  <div id="sizes"></div>
+  <button type="submit">Submit</button>
+</form>
+<script>
+const $ = s => document.querySelector(s);
+const state = {};
+function popAt(el, html) {
+  const b = el.getBoundingClientRect(), p = document.createElement('div');
+  p.className = 'pop'; p.style.left = b.left + scrollX + 'px'; p.style.top = b.bottom + scrollY + 'px'; p.innerHTML = html;
+  document.body.appendChild(p); return p;
+}
+// closes a pop when the page is pressed outside it
+function outside(p, owner, close) {
+  const h = e => { if (!p.contains(e.target) && !owner.contains(e.target)) { close(); document.removeEventListener('mousedown', h, true); } };
+  setTimeout(() => document.addEventListener('mousedown', h, true));
+}
+// 1. Fabric: a plain div that opens on pointerdown only (like Radix); options are divs with an "option" class
+let fabPop = null;
+$('#fab').addEventListener('pointerdown', e => {
+  if (fabPop) return;
+  setTimeout(() => {
+    fabPop = popAt($('#fab'), ['Cotton', 'Cotton Blend', 'Silk', 'Rayon'].map(x => `<div class="dd-option">${x}</div>`).join(''));
+    fabPop.querySelectorAll('.dd-option').forEach(o => o.addEventListener('click', () => { $('#fab .v').textContent = o.textContent; fabPop.remove(); fabPop = null; }));
+    outside(fabPop, $('#fab'), () => { fabPop && fabPop.remove(); fabPop = null; });
+  }, 30);
+});
+// 2. Pattern: read-only input, opens on mousedown, a long list showing only 5 until searched, li options
+const PATS = ['Abstract', 'Checked', 'Floral', 'Geometric', 'Paisley', 'Printed', 'Solid', 'Striped', 'Woven Design', 'Zari Work'];
+let patPop = null;
+$('#pat').addEventListener('mousedown', () => {
+  if (patPop) return;
+  patPop = popAt($('#pat'), '<input class="q" placeholder="Search"><ul></ul>');
+  const draw = q => { patPop.querySelector('ul').innerHTML = PATS.filter(x => x.toLowerCase().includes(q.toLowerCase())).slice(0, 5).map(x => `<li>${x}</li>`).join(''); };
+  draw('');
+  patPop.querySelector('.q').addEventListener('input', e => setTimeout(() => draw(e.target.value), 50));
+  patPop.addEventListener('click', e => { const li = e.target.closest('li'); if (!li) return; $('#pat').value = li.textContent; patPop.remove(); patPop = null; });
+  outside(patPop, $('#pat'), () => { patPop && patPop.remove(); patPop = null; });
+});
+// 3. Occasion: a toggle on click (so mousedown then click must not open and close it), multi, role listbox
+let occPop = null; state.occ = [];
+$('#occ').addEventListener('click', () => {
+  if (occPop) { occPop.remove(); occPop = null; $('#occ').setAttribute('aria-expanded', 'false'); return; }
+  $('#occ').setAttribute('aria-expanded', 'true');
+  occPop = popAt($('#occ'), '<div role="listbox" aria-multiselectable="true">' + ['Casual', 'Festive', 'Party', 'Wedding'].map(x => `<div role="option" aria-selected="${state.occ.includes(x)}">${x}</div>`).join('') + '</div>');
+  occPop.addEventListener('click', e => {
+    const o = e.target.closest('[role=option]'); if (!o) return;
+    const x = o.textContent, i = state.occ.indexOf(x); if (i >= 0) state.occ.splice(i, 1); else state.occ.push(x);
+    o.setAttribute('aria-selected', String(i < 0)); $('#occ .v').textContent = state.occ.join(', ') || 'Select';
+  });
+  outside(occPop, $('#occ'), () => { occPop && occPop.remove(); occPop = null; $('#occ').setAttribute('aria-expanded', 'false'); });
+});
+// 4. Size: tick boxes kept until Apply; Apply adds the size table
+let sizePop = null;
+$('#size').addEventListener('click', () => {
+  if (sizePop) return;
+  sizePop = popAt($('#size'), ['Free Size', 'S', 'M', 'L', 'XL'].map(x => `<label class="size-option"><input type="checkbox" value="${x}"> ${x}</label>`).join('') + '<div><button type="button" class="cancel">Cancel</button><button type="button" class="ap">Apply</button></div>');
+  sizePop.querySelector('.ap').onclick = () => {
+    const picked = [...sizePop.querySelectorAll('input:checked')].map(i => i.value);
+    $('#size .v').textContent = picked.join(', ') || 'Select'; sizePop.remove(); sizePop = null;
+    setTimeout(() => {
+      $('#sizes').innerHTML = picked.length ? '<table><thead><tr><th>Size</th><th>Meesho Price *</th><th>Wrong/Defective Returns Price *</th><th>MRP *</th><th>Inventory *</th><th>Supplier SKU ID</th></tr></thead><tbody>' +
+        picked.map(z => `<tr><td>${z}</td>${'<td><input></td>'.repeat(5)}</tr>`).join('') + '</tbody></table>' : '';
+    }, 150);
+  };
+  sizePop.querySelector('.cancel').onclick = () => { sizePop.remove(); sizePop = null; };
+});
+// 5. Color: a search box with an ARIA list under it
+const COLS = ['Black', 'Blue', 'Navy Blue', 'Red', 'Maroon'];
+let colPop = null;
+$('#col').addEventListener('input', e => {
+  const q = e.target.value.toLowerCase();
+  if (colPop) colPop.remove();
+  colPop = popAt($('#col'), '<ul role="listbox">' + COLS.filter(x => x.toLowerCase().includes(q)).map(x => `<li role="option">${x}</li>`).join('') + '</ul>');
+  colPop.addEventListener('click', ev => { const o = ev.target.closest('[role=option]'); if (!o) return; $('#col').value = o.textContent; colPop.remove(); colPop = null; });
+  outside(colPop, $('#col'), () => { colPop && colPop.remove(); colPop = null; });
+});
+</script></body></html>

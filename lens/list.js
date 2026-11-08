@@ -66,6 +66,22 @@
     if (!first || first === td || first.querySelector('input,textarea,select')) return '';
     return clean(first.textContent);
   }
+  // A box that opens a list but is not a real input: Meesho's own drop-downs are often a plain div
+  // ("Select" and an arrow) with a class like "dropdown" or "select-box".
+  const DROP_CLASS = /^(?:[a-z0-9]+[-_]+)*(?:select|dropdown|drop-down|picker|combobox)(?:[-_]+(?:box|input|control|trigger|field|container|wrapper|button|toggle|header|main|root))?$|^[A-Za-z]*(?:Select|Dropdown|DropDown|Picker|Combobox)(?:Box|Input|Control|Trigger|Field|Container|Wrapper|Button|Toggle|Header|Root)?$/i;
+  const INNER_CTRL = 'input:not([type=hidden]):not([aria-hidden=true]),textarea,select,[role=combobox],[role=listbox]';
+  function dropLike(el) {
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return false;
+    const ex = el.getAttribute('aria-expanded'), hp = el.getAttribute('aria-haspopup');
+    const byAttr = (hp && hp !== 'false') || ex === 'true' || ex === 'false';
+    const byClass = [...el.classList].some(c => DROP_CLASS.test(c));
+    if (!byAttr && !byClass) return false;
+    if (el.querySelector(INNER_CTRL)) return false; // the input inside is the field
+    const b = el.getBoundingClientRect();
+    return b.height >= 18 && b.height <= 90 && b.width >= 40;
+  }
+  // A text box that is really a search list ("Select", "Search", or marked as opening a list).
+  const softCombo = el => /^\s*(select|choose|search|pick|type to search)/i.test(el.getAttribute('placeholder') || '') || el.hasAttribute('aria-expanded') || (el.getAttribute('aria-haspopup') || 'false') !== 'false';
   function kindOf(el) {
     if (el.tagName === 'SELECT') return 'select';
     if (el.tagName === 'TEXTAREA') return 'text';
@@ -74,23 +90,28 @@
       if (t === 'file') return 'file';
       if (t === 'radio') return 'radio';
       if (t === 'checkbox') return 'checkbox';
-      if (el.getAttribute('role') === 'combobox' || el.getAttribute('aria-autocomplete') === 'list') return 'combo';
-      return ['text', 'number', 'tel', 'email', 'url', 'search', ''].includes(t) ? 'text' : null;
+      if (!['text', 'number', 'tel', 'email', 'url', 'search', ''].includes(t)) return null;
+      if (el.readOnly) return 'pick'; // a read-only box that opens a list on click
+      if (el.getAttribute('role') === 'combobox' || el.getAttribute('aria-autocomplete') === 'list' || softCombo(el)) return 'combo';
+      return 'text';
     }
-    if (el.getAttribute('role') === 'combobox' || el.getAttribute('aria-haspopup') === 'listbox') return 'pick';
+    if (el.getAttribute('role') === 'combobox' || el.getAttribute('aria-haspopup') === 'listbox' || dropLike(el)) return 'pick';
     return null;
   }
+  const FIELD_SEL = 'input,textarea,select,[role=combobox],[aria-haspopup],[aria-expanded],[class*="select" i],[class*="dropdown" i],[class*="picker" i]';
   // Every field on the page: { i, el, kind, label, row, multi, required }
   function scan() {
-    const out = [], radios = new Map();
-    const els = document.querySelectorAll('input,textarea,select,[role=combobox],[aria-haspopup=listbox]');
+    const out = [], radios = new Map(), picks = [];
+    const els = document.querySelectorAll(FIELD_SEL);
     for (const el of els) {
       if (mine(el) || el.disabled || el.readOnly && el.tagName === 'TEXTAREA') continue;
       if (el.getAttribute('aria-hidden') === 'true' || el.classList.contains('MuiSelect-nativeInput') || el.type === 'hidden') continue;
-      if (el.closest('[role=listbox],[role=dialog][aria-label*="PakkaBill"],header,nav')) continue;
+      if (el.closest('[role=listbox],[role=menu],[role=dialog][aria-label*="PakkaBill"],header,nav')) continue;
       const kind = kindOf(el);
       if (!kind) continue;
       if (kind !== 'file' && kind !== 'radio' && !visible(el)) continue;
+      // one drop-down box, not the box and the boxes inside it
+      if (kind === 'pick' && el.tagName !== 'INPUT') { if (picks.some(p => p.contains(el))) continue; picks.push(el); }
       if (kind === 'radio') {
         const g = el.closest('[role=radiogroup]') || el.form || document.body, key = (el.name || '') + '|' + (g.id || '');
         if (!radios.has(key)) { const f = { el: g, radios: [], kind: 'radio', label: g.getAttribute && g.getAttribute('role') === 'radiogroup' ? labelOf(g) : labelOf(el.closest('fieldset') || el), row: '' }; radios.set(key, f); out.push(f); }
@@ -101,7 +122,7 @@
       const label = labelOf(el);
       if (!label && kind !== 'file') continue;
       const root = el.closest('.MuiAutocomplete-root,.MuiInputBase-root,.MuiFormControl-root') || el.parentElement;
-      out.push({ el, kind, label, row: rowOf(el), multi: !!(root && root.querySelector('.MuiChip-root')) || el.multiple, required: /\*/.test((el.labels && el.labels[0] && el.labels[0].textContent) || '') || el.required || el.getAttribute('aria-required') === 'true' });
+      out.push({ el, kind, label, row: rowOf(el), soft: kind === 'combo' && el.getAttribute('role') !== 'combobox' && el.getAttribute('aria-autocomplete') !== 'list', multi: !!(root && root.querySelector('.MuiChip-root')) || el.multiple || el.getAttribute('aria-multiselectable') === 'true', required: /\*/.test((el.labels && el.labels[0] && el.labels[0].textContent) || '') || el.required || el.getAttribute('aria-required') === 'true' });
     }
     out.forEach((f, i) => { f.i = i; });
     return out;
@@ -114,7 +135,7 @@
     const el = f.el;
     if (f.kind === 'text' || f.kind === 'combo') { const c = chips(el); return c.length ? c : el.value; }
     if (f.kind === 'select') return el.selectedIndex > 0 || (el.selectedIndex === 0 && el.value) ? clean(el.options[el.selectedIndex].text) : '';
-    if (f.kind === 'pick') { const c = chips(el); return c.length ? c : clean(el.textContent); }
+    if (f.kind === 'pick') { const c = chips(el); return c.length ? c : el.tagName === 'INPUT' ? el.value : clean(el.textContent); }
     if (f.kind === 'radio') { const r = f.radios.find(x => x.checked); return r ? clean((r.closest('label') || r.parentElement).textContent) : ''; }
     if (f.kind === 'checkbox') return el.checked ? 'Yes' : '';
     return '';
@@ -122,67 +143,214 @@
 
   /* ---------- filling ---------- */
 
+  // Waits for fn() to give something, checking every 30 ms; null after ms.
+  async function until(fn, ms) {
+    const t0 = Date.now();
+    for (;;) {
+      const v = fn();
+      if (v) return v;
+      if (Date.now() - t0 >= ms) return null;
+      await sleep(30);
+    }
+  }
   function setNative(el, v) {
     const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : el.tagName === 'SELECT' ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
     Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v);
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
-  const listboxes = () => [...document.querySelectorAll('[role=listbox]')].filter(l => visible(l) && !mine(l));
-  async function waitList(ms = 2500) {
-    const t0 = Date.now();
-    while (Date.now() - t0 < ms) {
-      const l = listboxes().pop();
-      if (l && l.querySelector('[role=option]')) return l;
-      await sleep(80);
+  // A real press, the events a finger or mouse makes: pointer, mouse and click. Many drop-downs open on
+  // pointerdown or mousedown only and ignore a bare click().
+  function press(el, parts = 'down up click') {
+    const b = el.getBoundingClientRect();
+    const o = { bubbles: true, cancelable: true, composed: true, view: window, button: 0, buttons: 1, clientX: b.left + Math.min(b.width / 2, 40), clientY: b.top + b.height / 2, pointerId: 1, pointerType: 'mouse', isPrimary: true };
+    const P = typeof PointerEvent === 'function' ? PointerEvent : MouseEvent;
+    if (parts.includes('down')) {
+      el.dispatchEvent(new P('pointerover', o)); el.dispatchEvent(new MouseEvent('mouseover', o));
+      el.dispatchEvent(new P('pointerdown', o));
+      if (el.dispatchEvent(new MouseEvent('mousedown', o)) && el.focus) try { el.focus({ preventScroll: true }); } catch (e) { /* not focusable */ }
+    }
+    const up = { ...o, buttons: 0 };
+    if (parts.includes('up')) { el.dispatchEvent(new P('pointerup', up)); el.dispatchEvent(new MouseEvent('mouseup', up)); }
+    if (parts.includes('click')) el.dispatchEvent(new MouseEvent('click', up));
+  }
+  const CODES = { ArrowDown: 40, Enter: 13, ' ': 32, Escape: 27 };
+  function key(el, k) {
+    const o = { key: k, code: k === ' ' ? 'Space' : k, keyCode: CODES[k], which: CODES[k], bubbles: true, cancelable: true, composed: true };
+    el.dispatchEvent(new KeyboardEvent('keydown', o));
+    el.dispatchEvent(new KeyboardEvent('keyup', o));
+  }
+
+  // The options of an open list, however the page builds them: ARIA options, list items or "option"
+  // classes. Only options that were not on screen before the list was opened count, so the page's
+  // own menus and lists are never picked.
+  const ROLE_OPT = '[role=option],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=treeitem]';
+  const LOOSE_OPT = 'li,[class*="option" i],[class*="menu-item" i],[class*="menuitem" i],[class*="dropdown-item" i],[class*="list-item" i],[class*="listitem" i]';
+  const ANY_OPT = ROLE_OPT + ',' + LOOSE_OPT;
+  function optionEls() {
+    const out = [];
+    for (const o of document.querySelectorAll(ANY_OPT)) {
+      if (mine(o) || o.closest('header,nav')) continue;
+      const role = o.matches(ROLE_OPT);
+      if (o.querySelector(role ? ROLE_OPT : ANY_OPT)) continue; // the innermost one
+      if (o.querySelector('input:not([type=checkbox]):not([type=radio]),textarea,select')) continue;
+      const t = clean(o.textContent);
+      if (!t || t.length > 120 || !visible(o)) continue;
+      out.push(o);
+    }
+    return out;
+  }
+  const textOf = o => clean(o.textContent);
+  const freshOpts = before => optionEls().filter(o => !before.has(o));
+  const expanded = el => { const e = el.matches('[aria-expanded]') ? el : el.closest('[aria-expanded]') || el.querySelector('[aria-expanded]'); return !!e && e.getAttribute('aria-expanded') === 'true'; };
+  // The arrow of a drop-down, never its clear (×) button.
+  function arrowOf(el) {
+    const box = el.closest('.MuiAutocomplete-root,.MuiInputBase-root,.MuiFormControl-root') || el.parentElement || el;
+    const mui = box.querySelector('.MuiAutocomplete-popupIndicator,.MuiSelect-icon');
+    if (mui) return mui;
+    const c = [...box.querySelectorAll('button,[class*="indicator" i],[class*="arrow" i],[class*="chevron" i],[class*="caret" i],[class*="icon" i],svg')]
+      .filter(x => x !== el && !mine(x) && visible(x) && !/clear|close|remove|delete|cross/i.test((x.getAttribute('class') || '') + ' ' + (x.getAttribute('aria-label') || '') + ' ' + (x.getAttribute('title') || '')));
+    return c.pop() || null;
+  }
+  // Opens the list: each way a drop-down can be opened, until options show.
+  async function openList(el, before) {
+    const ways = [
+      () => press(el, 'down'),
+      () => press(el, 'up click'),
+      () => { const a = arrowOf(el); if (a) press(a); },
+      () => { if (el.focus) el.focus(); key(el, 'ArrowDown'); },
+      () => key(el, 'Enter'),
+      () => { const p = el.parentElement; if (p && p !== document.body) press(p); },
+    ];
+    for (const w of ways) {
+      w();
+      // a list that opened but is still loading its options gets longer
+      const got = await until(() => { const o = freshOpts(before); return o.length ? o : null; }, 200);
+      if (got) return got;
+      if (expanded(el)) { const late = await until(() => { const o = freshOpts(before); return o.length ? o : null; }, 2500); if (late) return late; }
     }
     return null;
   }
-  async function closeList() {
-    for (let i = 0; i < 3 && listboxes().length; i++) {
-      const l = listboxes().pop();
-      l.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      await sleep(150);
-      if (listboxes().length) { const b = document.querySelector('.MuiBackdrop-root,.MuiBackdrop-invisible'); if (b) b.click(); await sleep(150); }
-    }
-  }
-  function choose(list, value) {
-    const opts = [...list.querySelectorAll('[role=option]')];
-    const i = C.matchOption(opts.map(o => o.textContent), value);
+  const isOn = o => o.getAttribute('aria-selected') === 'true' || o.getAttribute('aria-checked') === 'true' || !!(o.querySelector('input[type=checkbox]:checked,input[type=radio]:checked'));
+  async function choose(opts, value) {
+    const i = C.matchOption(opts.map(textOf), value);
     if (i < 0) return false;
     const o = opts[i];
-    if (o.getAttribute('aria-selected') === 'true') return true;
+    if (isOn(o)) return true;
     o.scrollIntoView({ block: 'nearest' });
-    o.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-    o.click();
+    press(o);
+    // a list item with a tick box that only the box itself answers to
+    const box = o.querySelector('input[type=checkbox],input[type=radio]');
+    if (box && !box.checked && document.contains(box)) { await sleep(40); if (document.contains(box) && !box.checked && !isOn(o)) box.click(); }
     return true;
   }
-  // A value like "Festive, Wedding" is several choices when the field takes several (chips, a list that
-  // allows many) or when no single option is called that.
-  async function valuesFor(f, item) {
-    if (item.multi || f.multi) return C.splitMulti(item.value);
-    if (!/[,;|]/.test(item.value) || (f.kind !== 'pick' && f.kind !== 'combo')) return [item.value];
-    return f.manyOk ? C.splitMulti(item.value) : [item.value];
+  // The options that hold the value, waiting a moment for a search to come back.
+  const matching = (before, v, ms) => until(() => { const o = freshOpts(before); return o.length && C.matchOption(o.map(textOf), v) >= 0 ? o : null; }, ms);
+  const freshInput = (beforeIn, el) => [...document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file])')].find(x => x !== el && !beforeIn.has(x) && !mine(x) && visible(x) && !x.readOnly);
+  // Closes the list: an Apply / Done button in it first (size pickers keep ticks until then), then a
+  // click outside, then Escape. Never a button outside the list, so nothing is ever submitted.
+  async function closeList(before, el) {
+    let o = freshOpts(before);
+    if (!o.length) return;
+    let box = o[0];
+    for (let n = 0; n < 8 && box.parentElement && box.parentElement !== document.body; n++) {
+      box = box.parentElement;
+      if (box.contains(el) || box.tagName === 'FORM') break;
+      const b = [...box.querySelectorAll('button,[role=button]')].find(x => visible(x) && /^(apply|done|ok|okay|save|confirm|select|add)$/i.test(clean(x.textContent)));
+      if (b) { press(b); if (await until(() => !freshOpts(before).length, 400)) return; break; }
+    }
+    const ways = [
+      () => { const bd = [...document.querySelectorAll('.MuiBackdrop-invisible,.MuiPopover-root>.MuiBackdrop-root,.MuiMenu-root>.MuiBackdrop-root')].filter(visible).pop(); if (bd) press(bd); },
+      () => { press(document.body); document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); },
+      () => { o = freshOpts(before); if (o.length) key(o[0], 'Escape'); },
+    ];
+    for (const w of ways) { w(); if (await until(() => !freshOpts(before).length, 250)) return; }
+  }
+  // The field shows this value: the same words, or an option that starts with it ("620630 - Blouses").
+  // Strict, so "L" is not found inside "Select".
+  function same(h, v) {
+    const a = C.norm(h), b = C.norm(v);
+    if (!a || !b) return false;
+    if (a === b || a.replace(/ /g, '') === b.replace(/ /g, '') || a.indexOf(b + ' ') === 0) return true;
+    return /^\d+(\.\d+)?$/.test(b) && parseFloat(a) === parseFloat(b) && /^\d+(\.\d+)?\s*%?$/.test(a);
+  }
+  const hasVal = (f, v) => { const g = readValue(f); return (Array.isArray(g) ? g : C.splitMulti(g)).some(h => same(h, v)); };
+  // A drop-down or a search list: open it, find each value (typing to search when the list is long),
+  // choose it, and close the list.
+  async function pickValues(f, item) {
+    const el = f.el;
+    const loose = new Set(optionEls().filter(o => !o.matches(ROLE_OPT)));
+    if (freshOpts(loose).length) await closeList(loose, el); // a list left open by the page or a last try
+    const before = new Set(optionEls()), beforeIn = new Set(document.querySelectorAll('input'));
+    const typeable = el.tagName === 'INPUT' && !el.readOnly;
+    let values = item.multi || f.multi ? C.splitMulti(item.value) : [item.value];
+    let ok = 0, sawList = false;
+    // "Festive, Wedding" is two choices unless the list has one option called that
+    if (values.length === 1 && /[,;|]/.test(values[0])) {
+      let o = freshOpts(before);
+      if (!o.length) { if (typeable) { press(el); setNative(el, ''); o = await until(() => { const x = freshOpts(before); return x.length ? x : null; }, 1200); } else o = await openList(el, before); }
+      if (o && o.length) sawList = true;
+      const multiList = o && o.some(x => x.closest('[aria-multiselectable=true]'));
+      if (!o || multiList || !o.some(x => C.norm(textOf(x)) === C.norm(values[0]))) values = C.splitMulti(values[0]);
+    }
+    for (let k = 0; k < values.length; k++) {
+      const v = values[k];
+      if (hasVal(f, v)) { ok++; continue; }
+      let opts = freshOpts(before);
+      if (typeable) {
+        if (!opts.length || C.matchOption(opts.map(textOf), v) < 0) {
+          if (!opts.length) press(el);
+          setNative(el, v);
+          // a box that shows no list at all soon is a plain text box
+          if (f.soft && !(await until(() => freshOpts(before).length, 400))) { setNative(el, item.value); return 'text'; }
+          opts = await matching(before, v, 1500);
+          if (!opts) { setNative(el, String(v).split(/[\s,-]/)[0]); opts = await matching(before, v, 1000); }
+          if (!opts) { setNative(el, ''); const a = arrowOf(el); if (a) press(a); opts = await matching(before, v, 800); }
+        }
+      } else {
+        if (!opts.length) opts = await openList(el, before);
+        if (opts && C.matchOption(opts.map(textOf), v) < 0) {
+          // a long list with a search box of its own
+          const s = freshInput(beforeIn, el);
+          opts = (await matching(before, v, 300)) || (s ? (setNative(s, v), await matching(before, v, 1500)) : null);
+        }
+      }
+      if (opts || freshOpts(before).length) sawList = true;
+      if (!opts) continue;
+      if (await choose(opts, v)) {
+        ok++;
+        if (typeable && values.length > 1) await until(() => hasVal(f, v), 300);
+      }
+      await until(() => hasVal(f, v), 150);
+    }
+    await closeList(before, el);
+    if (typeable && el.blur) el.blur();
+    // a box that looked like a search list but never opened one is a plain text box
+    if (!sawList && f.soft) { setNative(el, item.value); return 'text'; }
+    return ok === values.length;
   }
   // Did the value stick? Read the field back the way the seller would see it.
   function holds(f, item) {
     const got = readValue(f), want = C.splitMulti(item.value);
     if (f.kind === 'text') return C.norm(got) === C.norm(item.value) || String(got).trim() === String(item.value).trim();
     if (f.kind === 'checkbox') return /^(yes|true|1|y)$/i.test(item.value) === (got === 'Yes');
-    const have = Array.isArray(got) ? got : [got];
-    if (have.length === 1 && want.length > 1 && C.matchOption(have, item.value) >= 0 && C.norm(have[0]) === C.norm(item.value)) return true;
-    return want.every(v => have.some(h => C.matchOption([h], v) >= 0 || C.matchOption([v], h) >= 0));
+    const have = Array.isArray(got) ? got : C.splitMulti(got).length > 1 ? C.splitMulti(got) : [got];
+    if (have.length === 1 && same(have[0], item.value)) return true;
+    if (want.every(v => have.some(h => same(h, v)))) return true;
+    // a drop-down that shows "3 selected", or all the choices in one line
+    const all = ' ' + C.norm(Array.isArray(got) ? got.join(' ') : got) + ' ';
+    return (f.kind === 'pick' || f.kind === 'combo') && (want.every(v => all.includes(' ' + C.norm(v) + ' ')) || (want.length > 1 && all.includes(' ' + want.length + ' selected ')));
   }
   async function fillOne(f, item) {
-    const ok = await fillTry(f, item);
-    await sleep(80);
-    return ok && holds(f, item);
+    const r = await fillTry(f, item);
+    if (r === 'text') return true;
+    if (!r) return false;
+    if (f.kind === 'pick' || f.kind === 'combo') return !!(await until(() => holds(f, item), 250));
+    return holds(f, item);
   }
   async function fillTry(f, item) {
     const el = f.el;
-    let values = await valuesFor(f, item);
-    el.scrollIntoView({ block: 'center' });
-    if (f.kind === 'text') { el.focus(); setNative(el, item.value); el.dispatchEvent(new Event('blur', { bubbles: true })); return true; }
+    if (f.kind === 'text') { setNative(el, item.value); el.dispatchEvent(new Event('blur', { bubbles: true })); el.dispatchEvent(new FocusEvent('focusout', { bubbles: true })); return true; }
     if (f.kind === 'select') {
       const i = C.matchOption([...el.options].map(o => o.text), item.value);
       if (i < 0) return false;
@@ -194,96 +362,65 @@
       f.radios[i].click(); return true;
     }
     if (f.kind === 'checkbox') { const want = /^(yes|true|1|y)$/i.test(item.value); if (el.checked !== want) el.click(); return true; }
-    if (f.kind === 'pick') {
-      let ok = 0;
-      const have = C.splitMulti(readValue(f));
-      if (values.length === 1 && /[,;|]/.test(values[0])) {
-        el.focus(); el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); el.click();
-        const l = await waitList();
-        const opts = l ? [...l.querySelectorAll('[role=option]')].map(o => C.norm(o.textContent)) : [];
-        if (l && (l.getAttribute('aria-multiselectable') === 'true' || !opts.includes(C.norm(values[0])))) values = C.splitMulti(values[0]);
-      }
-      for (const v of values) {
-        if (have.some(h => C.matchOption([h], v) >= 0)) { ok++; continue; }
-        if (!listboxes().length) { el.focus(); el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); el.click(); }
-        const l = await waitList();
-        if (l && choose(l, v)) ok++;
-        await sleep(120);
-      }
-      await closeList();
-      return ok === values.length;
-    }
-    if (f.kind === 'combo') {
-      let ok = 0;
-      if (values.length === 1 && /[,;|]/.test(values[0])) {
-        // open the whole list: a list that takes many, or one with no option of that full name, gets the parts
-        el.focus(); setNative(el, '');
-        const b = (el.closest('.MuiAutocomplete-root') || document).querySelector('.MuiAutocomplete-popupIndicator');
-        if (b) b.click(); else el.click();
-        const l = await waitList(1500);
-        const opts = l ? [...l.querySelectorAll('[role=option]')].map(o => C.norm(o.textContent)) : [];
-        if (!l || l.getAttribute('aria-multiselectable') === 'true' || !opts.includes(C.norm(values[0]))) values = C.splitMulti(values[0]);
-        await closeList();
-      }
-      for (const v of values) {
-        if (C.splitMulti(readValue(f)).some(h => C.matchOption([h], v) >= 0)) { ok++; continue; }
-        el.focus(); el.click();
-        setNative(el, v);
-        let l = await waitList(1500);
-        if (!l || C.matchOption([...l.querySelectorAll('[role=option]')].map(o => o.textContent), v) < 0) {
-          // a shorter search: the first word, then the whole list
-          setNative(el, String(v).split(/[\s-]/)[0]); l = await waitList(1200);
-          if (!l) { setNative(el, ''); const b = (el.closest('.MuiAutocomplete-root') || document).querySelector('.MuiAutocomplete-popupIndicator'); if (b) b.click(); l = await waitList(1200); }
-        }
-        if (l && choose(l, v)) ok++;
-        await sleep(150);
-      }
-      await closeList();
-      el.blur();
-      return ok === values.length;
-    }
+    if (f.kind === 'pick' || f.kind === 'combo') { el.scrollIntoView({ block: 'center' }); return pickValues(f, item); }
     return false;
   }
   async function putPhotos(photos) {
     const inputs = scan().filter(f => f.kind === 'file');
+    // every photo read at once
+    const files = await Promise.all(photos.map(async (p, k) => {
+      const blob = await (await fetch(p.data || p)).blob();
+      return new File([blob], p.name || `photo-${k + 1}.jpg`, { type: blob.type || 'image/jpeg', lastModified: Date.now() });
+    }));
     let i = 0, put = 0;
     for (const f of inputs) {
-      if (i >= photos.length) break;
-      const take = f.el.multiple ? photos.slice(i) : [photos[i]];
+      if (i >= files.length) break;
+      const take = f.el.multiple ? files.slice(i) : [files[i]];
       const dt = new DataTransfer();
-      for (const [k, p] of take.entries()) {
-        const blob = await (await fetch(p.data || p)).blob();
-        dt.items.add(new File([blob], p.name || `photo-${i + k + 1}.jpg`, { type: blob.type || 'image/jpeg', lastModified: Date.now() }));
-      }
+      take.forEach(x => dt.items.add(x));
       f.el.files = dt.files;
       f.el.dispatchEvent(new Event('input', { bubbles: true }));
       f.el.dispatchEvent(new Event('change', { bubbles: true }));
       i += take.length; put += take.length;
-      await sleep(400);
+      await sleep(120);
     }
     return put;
   }
   const keyOf = it => C.canon(it.label) + '|' + C.norm(it.row || '');
-  // Fills the form: up to four rounds, as some fields (the size rows) appear only after others are set.
+  const fieldsSig = () => document.querySelectorAll('input,textarea,select,[role=combobox]').length;
+  // Fills the form in rounds, as some fields (the size rows) appear only after others are set.
+  // Drop-downs go first in each round, as they are what makes new fields appear; each value gets
+  // two tries at most, so a field Meesho does not have never slows the form down.
   async function fill(tpl, prod) {
-    const items = C.plan(tpl, prod), done = new Set(), marks = [];
+    const items = C.plan(tpl, prod), done = new Set(), tries = new Map(), marks = [];
     const points = (tpl && tpl.points) || {};
-    for (let round = 0; round < 4 && done.size < items.length; round++) {
-      const fields = scan(), used = {};
+    for (let round = 0; round < 5 && done.size < items.length; round++) {
+      const fields = scan(), used = {}, sig = fieldsSig(), work = [];
       for (const it of items) {
-        if (done.has(it)) continue;
+        if (done.has(it) || (tries.get(it) || 0) >= 2) continue;
         let f = null;
         const p = points[keyOf(it)];
         if (p) { const el = byPath(p); if (el) f = fields.find(x => x.el === el || (x.radios && x.radios.includes(el))) || (kindOf(el) ? { el, kind: kindOf(el), label: it.label, row: it.row } : null); }
         if (!f) f = C.bestField(it, fields, used);
         if (!f) continue;
-        used[f.i] = true;
+        if (f.i != null) used[f.i] = true;
+        work.push([it, f]);
+      }
+      const opens = k => (k === 'pick' || k === 'combo' || k === 'radio' || k === 'select' ? 0 : 1);
+      work.sort((a, b) => opens(a[1].kind) - opens(b[1].kind));
+      let gained = 0;
+      for (const [it, f] of work) {
+        if (!document.contains(f.el)) continue; // re-drawn by the page; found again next round
+        tries.set(it, (tries.get(it) || 0) + 1);
         let ok = false;
         try { ok = await fillOne(f, it); } catch (e) { ok = false; }
-        if (ok) { done.add(it); marks.push(f.el); }
-        await sleep(60);
+        if (ok) { done.add(it); marks.push(f.el); gained++; }
       }
-      if (done.size < items.length) await sleep(700);
+      if (done.size >= items.length) break;
+      // wait only as long as new fields are still appearing
+      const grew = await until(() => fieldsSig() !== sig, gained ? 600 : 250);
+      if (!grew && !gained && !work.length) break;
+      if (grew) await sleep(120);
     }
     let photos = 0;
     if (prod && prod.photos && prod.photos.length) photos = await putPhotos(prod.photos);
@@ -320,6 +457,8 @@
       let el = e.target.closest('input,textarea,select,[role=combobox],[aria-haspopup=listbox]');
       if (!el) { const lab = e.target.closest('label'); el = lab && lab.control; }
       if (!el) { const box = e.target.closest('.MuiFormControl-root,.MuiAutocomplete-root,td,div'); el = box && box.querySelector('input:not([aria-hidden=true]):not([type=hidden]),textarea:not([aria-hidden=true]),select,[role=combobox],[aria-haspopup=listbox]'); }
+      // Meesho's own drop-down: a plain box, found from where the seller clicked
+      if (!el || !kindOf(el)) for (let x = e.target, n = 0; x && x !== document.body && n < 6; x = x.parentElement, n++) if (x.nodeType === 1 && kindOf(x) === 'pick') { el = x; break; }
       mode = 'idle';
       if (!el || !kindOf(el)) { note = 'No form field there. Click right on the box for ' + item.label + '.'; return draw(); }
       const f = kindOf(el) === 'radio' ? scan().find(x => x.radios && x.radios.includes(el)) : { el, kind: kindOf(el), label: item.label, row: item.row };
