@@ -26,6 +26,7 @@ const { chromium } = require('playwright');
     const r = await window.PBListPage.fill(tpl, prod);
     return { ...r, missing: r.missing.map(m => m.label + (m.row ? ' (' + m.row + ')' : '') + ': ' + m.value) };
   }, [tpl, prod]);
+  const empty = r.empty;
   const ms = Date.now() - t0;
   // Read all drop-downs: every choice of every list, the long one too
   const form = await page.evaluate(async () => (await window.PBListPage.readAll()).map(d => [d.label, d.options.length]));
@@ -86,6 +87,7 @@ const { chromium } = require('playwright');
   eq(after, ['Cotton', 'Neck 33', 0], 'reading the lists keeps the values and closes them');
   eq(got.submitted, false, 'never submits');
   eq(r.missing, [], 'nothing left');
+  eq(empty, ['Country of Origin'], 'required boxes the template has nothing for are listed (not optional ones)');
   if (ms > 8000) { fails++; console.log(`FAIL  too slow: ${ms} ms`); }
   eq(got2.chips, ['M', 'XXL'], 'form 2: size buttons pressed, XXL for 2XL');
   eq(got2.rp, '300', 'form 2: one Returns Price box for all sizes');

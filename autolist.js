@@ -10,7 +10,7 @@
   'use strict';
   const root = window;
   const C = root.PBListCore;
-  const KEY = 'pb-autolist', NEED = '3.3.0', FREE_TPL = 1, FREE_SEND = 5;
+  const KEY = 'pb-autolist', NEED = '3.4.0', FREE_TPL = 1, FREE_SEND = 5;
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const uid = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const pro = () => (typeof root.pbPro === 'function' ? root.pbPro() : true);
@@ -19,8 +19,8 @@
 
   /* ---------- saved data: templates and products in localStorage, photos in IndexedDB ---------- */
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch { return {}; } };
-  const S = Object.assign({ templates: [], products: [], removed: [], defTpl: '', perPhoto: true }, load(), { ext: '', stat: {}, edit: null, photos: new Map() });
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ templates: S.templates, products: S.products, removed: S.removed.slice(-200), defTpl: S.defTpl, perPhoto: S.perPhoto })); } catch { toast('Could not save on this device: storage is full.'); } };
+  const S = Object.assign({ templates: [], products: [], removed: [], defTpl: '', perPhoto: true, seller: { origin: 'India' } }, load(), { ext: '', stat: {}, edit: null, photos: new Map() });
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ templates: S.templates, products: S.products, removed: S.removed.slice(-200), defTpl: S.defTpl, perPhoto: S.perPhoto, seller: S.seller })); } catch { toast('Could not save on this device: storage is full.'); } };
 
   let dbp = null;
   const db = () => dbp || (dbp = new Promise((res, rej) => { const r = indexedDB.open('pb-autolist', 1); r.onupgradeneeded = () => r.result.createObjectStore('photos', { keyPath: 'id' }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
@@ -154,6 +154,14 @@
       <div class="pal-row"><button type="button" class="pal-btn pal-btn--ghost pal-btn--sm" data-edit="${t.id}">Edit</button><button type="button" class="pal-link" data-copy="${t.id}">Copy</button><button type="button" class="pal-link" data-deltpl="${t.id}">Delete</button></div></div>`;
   }
 
+  // The seller's details, typed once and put in every listing (Meesho asks for them every time).
+  function sellerHtml() {
+    const d = S.seller || {}, n = C.SELLER.filter(([k]) => String(d[k] || '').trim()).length;
+    const f = (k, label, ph) => `<label>${label}<input data-sd="${k}" value="${esc(d[k] || '')}" placeholder="${esc(ph)}"></label>`;
+    return `<section class="paper pal-card"><details${d.maker || d.packer ? '' : ' open'}><summary><b>Your details for every listing</b> <span class="pal-note" style="margin:0">${d.maker || d.packer ? `${n} saved · added to every product` : 'Type once: Meesho asks for these on every product'}</span></summary>
+      <div class="pal-fields" style="margin-top:10px">${f('maker', 'Manufacturer details', 'Name, full address, PIN')}${f('packer', 'Packer details', 'Name, full address, PIN')}${f('importer', 'Importer details', 'Only if you import')}${f('origin', 'Country of origin', 'India')}${f('brand', 'Brand name', 'Your brand, if any')}</div>
+      <p class="pal-note">A template's own value wins. These fill Meesho's boxes of the same name.</p></details></section>`;
+  }
   function editorHtml() {
     const t = S.edit;
     const rows = t.sizes.map((s, i) => `<tr><td><input data-sz="${i}" data-k="size" value="${esc(s.size)}" aria-label="Size"></td>${['price', 'rprice', 'mrp', 'stock'].map((k) => `<td><input data-sz="${i}" data-k="${k}" inputmode="numeric" value="${esc(s[k])}" aria-label="${k}"></td>`).join('')}<td><button type="button" class="pal-x" data-delsz="${i}" aria-label="Remove size">×</button></td></tr>`).join('');
@@ -168,6 +176,7 @@
         <datalist id="pal-labels">${COMMON.map((c) => `<option value="${esc(c)}">`).join('')}</datalist>
         <div style="overflow-x:auto"><table class="pal-tbl"><thead><tr><th>Label</th><th>Value</th><th></th></tr></thead><tbody>${fields}</tbody></table></div>
         <div class="pal-row" style="margin-top:6px"><button type="button" class="pal-btn pal-btn--ghost pal-btn--sm" data-addfl>+ Add detail</button></div></div>
+      <div class="pal-row" style="margin-top:12px"><button type="button" class="pal-btn pal-btn--ghost pal-btn--sm" data-writecopy>✍ Write name and description from the details</button></div>
       <div class="pal-sec pal-grid2"><label>Product name<input data-t="title" value="${esc(t.title)}" placeholder="{name}"></label><label>Description<textarea data-t="desc" placeholder="{color} {Fabric} blouse, {Sleeve Length}. Sizes {sizes}.">${esc(t.desc)}</textarea></label></div>
       <p class="pal-note">In the name and description, {name}, {color}, {sku} and {sizes} come from each product, and {Fabric} or any other {Label} from the details above.</p>
       <div class="pal-row" style="margin-top:12px"><button type="button" class="pal-btn" data-savetpl>Save template</button><button type="button" class="pal-btn pal-btn--ghost" data-cancel>Cancel</button></div></section>`;
@@ -184,7 +193,7 @@
     const title = t ? C.render(t.title || '{name}', t, p) : p.name;
     const st = S.stat[p.id];
     return `<div class="pal-p${st && st.state === 'done' ? ' is-done' : ''}" data-p="${p.id}">
-      <div class="pal-p__top"><span class="pal-p__title">${esc(title || 'Product without a name')} ${statusOf(p)}</span><button type="button" class="pal-x" data-delp="${p.id}" aria-label="Remove product">×</button></div>
+      <div class="pal-p__top"><span class="pal-p__title">${esc(title || 'Product without a name')} ${statusOf(p)}</span><span class="pal-row"><button type="button" class="pal-link" data-variants="${p.id}" title="Make a copy of this product for each colour">+ Colours</button><button type="button" class="pal-x" data-delp="${p.id}" aria-label="Remove product">×</button></span></div>
       <div class="pal-thumbs">${p.photos.map((id, i) => `<span class="pal-thumb"><img data-ph="${id}" alt="Photo ${i + 1}"><button type="button" data-delph="${p.id}|${id}" aria-label="Remove photo">×</button></span>`).join('')}${p.photos.length < 10 ? `<label class="pal-add" title="Add photos">+<input type="file" accept="image/*" multiple class="pal-sr" data-addph="${p.id}"></label>` : ''}</div>
       <div class="pal-fields">
         <label>Name<input data-pf="name" value="${esc(p.name)}" placeholder="Maroon cotton blouse"></label>
@@ -196,7 +205,8 @@
         <label>Stock per size<input data-pf="stock" inputmode="numeric" value="${esc(p.stock)}" placeholder="${esc(t && t.sizes[0] ? t.sizes[0].stock : '')}"></label>
       </div>
       ${probs.length ? `<ul class="pal-probs">${probs.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-      ${st && st.missing && st.missing.length && st.state !== 'done' ? `<p class="pal-note" style="margin:0">Not filled in Meesho: ${esc(st.missing.join(', '))}. Point to them in the panel once, or fill them there by hand.</p>` : ''}
+      ${st && st.missing && st.missing.length && st.state !== 'done' ? `<p class="pal-note" style="margin:0">Not filled in Meesho: ${esc(st.missing.join(', '))}.</p>` : ''}
+      ${st && st.empty && st.empty.length && st.state !== 'done' ? `<p class="pal-note" style="margin:0">Meesho also needs: ${esc(st.empty.join(', '))}. They are added to the template "${esc(t ? t.name : '')}": edit it to give them values.</p>` : ''}
     </div>`;
   }
 
@@ -221,6 +231,7 @@
         <li><b>Add products</b>Photos, name, colour and anything that differs. One photo set per product.</li>
         <li><b>Fill in Meesho</b>Open Add Single Catalog, tap Fill in the PakkaBill panel, check and submit.</li>
       </ol>${extHtml()}</section>
+      ${sellerHtml()}
       ${S.edit ? editorHtml() : ''}
       <section class="paper pal-card" aria-labelledby="pal-t-h"><div class="pal-head"><h2 id="pal-t-h" style="margin:0">Templates</h2>
         <div class="pal-row"><label class="pal-sr" for="pal-start">Start from</label><select id="pal-start" style="width:auto" data-start><option value="">New template from…</option><option value="blouse">Readymade blouse</option><option value="saree">Saree</option><option value="kurti">Kurti</option><option value="blank">Blank</option></select></div></div>
@@ -259,7 +270,7 @@
     for (const p of list) {
       const photos = [];
       for (const id of p.photos) { const ph = await getPhoto(id); if (ph) photos.push({ name: ph.name, data: ph.data }); }
-      items.push({ id: p.id, tpl: tplById(p.tplId), prod: { name: p.name, color: p.color, sku: p.sku, price: p.price, mrp: p.mrp, stock: p.stock, photos } });
+      items.push({ id: p.id, tpl: C.withSeller(tplById(p.tplId), S.seller), prod: { name: p.name, color: p.color, sku: p.sku, price: p.price, mrp: p.mrp, stock: p.stock, photos } });
       p.sent = Date.now();
     }
     pushTemplates();
@@ -303,6 +314,10 @@
       on('[data-addfl]', 'click', () => { t.fields.push({ label: '', value: '' }); paint(); const ins = el.querySelectorAll('[data-fl][data-k=label]'); if (ins.length) ins[ins.length - 1].focus(); });
       on('[data-delfl]', 'click', (e) => { t.fields.splice(+e.currentTarget.dataset.delfl, 1); paint(); });
       on('[data-cancel]', 'click', () => { S.edit = null; paint(); });
+      on('[data-writecopy]', 'click', () => {
+        if ((t.title && t.title !== '{name}') || t.desc) { if (!confirm('Replace the product name and description patterns?')) return; }
+        Object.assign(t, C.writeCopy(t)); paint(); toast('Name and description written. Each product\'s colour goes in.');
+      });
       on('[data-savetpl]', 'click', () => {
         t.name = (t.name || '').trim() || 'Template';
         t.fields = t.fields.filter((f) => f.label && f.label.trim()).map((f) => ({ ...f, label: f.label.trim(), value: String(f.value || '').trim() }));
@@ -328,6 +343,16 @@
     on('[data-addph]', 'change', (e) => addPhotos(e.target.files, e.target.dataset.addph));
     on('[data-delph]', 'click', (e) => { const [pid, id] = e.currentTarget.dataset.delph.split('|'); const p = findP(pid); p.photos = p.photos.filter((x) => x !== id); if (!S.products.some((x) => x.photos.includes(id))) delPhoto(id); save(); paint(); });
     on('[data-delp]', 'click', (e) => { const p = findP(e.currentTarget.dataset.delp); S.products = S.products.filter((x) => x !== p); p.photos.forEach((id) => { if (!S.products.some((x) => x.photos.includes(id))) delPhoto(id); }); save(); paint(); });
+    on('[data-sd]', 'input', (e) => { S.seller = { ...(S.seller || {}), [e.target.dataset.sd]: e.target.value }; save(); });
+    on('[data-variants]', 'click', (e) => {
+      const p = findP(e.currentTarget.dataset.variants);
+      const c = prompt('Colours for this product, separated by commas (for example: Red, Navy Blue, Green). Each becomes its own product with the same photos; change the photos after.', p.color || '');
+      if (!c || !C.splitMulti(c).length) return;
+      const vs = C.variants(p, c).map((v, i) => ({ ...v, id: i ? uid('p') : p.id, photos: p.photos.slice(), sent: 0, createdAt: Date.now() }));
+      if (!pro() && S.products.length - 1 + vs.length > 200) return toast('Too many products.');
+      S.products.splice(S.products.indexOf(p), 1, ...vs); save(); paint();
+      toast(`${vs.length} products, one per colour.`);
+    });
     on('[data-pf]', 'input', (e) => { const p = findP(e.target.closest('[data-p]').dataset.p); p[e.target.dataset.pf] = e.target.value; save(); });
     on('[data-pf]', 'change', () => paint());
     on('[data-cleardone]', 'click', () => {

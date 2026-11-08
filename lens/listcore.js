@@ -228,7 +228,49 @@ var PBListCore = (function () {
     return p;
   }
 
-  var api = { norm: norm, canon: canon, sizeKey: sizeKey, sameSize: sameSize, labelScore: labelScore, looseScore: looseScore, matchOption: matchOption, splitMulti: splitMulti, sortSizes: sortSizes, rowKeyOf: rowKeyOf, render: render, sizesOf: sizesOf, plan: plan, bestField: bestField, learn: learn, problems: problems, fieldValue: fieldValue };
+  // The seller's own details, entered once, added to every listing whose template lacks them.
+  var SELLER = [['maker', 'Manufacturer Details'], ['packer', 'Packer Details'], ['importer', 'Importer Details'], ['origin', 'Country of Origin'], ['brand', 'Brand Name']];
+  function withSeller(tpl, seller) {
+    if (!tpl || !seller) return tpl;
+    var fields = (tpl.fields || []).slice();
+    SELLER.forEach(function (x) {
+      var v = String(seller[x[0]] == null ? '' : seller[x[0]]).trim();
+      if (!v) return;
+      var i = -1;
+      fields.forEach(function (f, k) { if (i < 0 && labelScore(f.label, x[1]) >= 0.9) i = k; });
+      if (i < 0) fields.push({ label: x[1], value: v });
+      else if (!String(fields[i].value || '').trim()) fields[i] = Object.assign({}, fields[i], { value: v });
+    });
+    return Object.assign({}, tpl, { fields: fields });
+  }
+
+  // One product in several colours: "Red, Navy Blue" -> a copy per colour, SKU "BL01-RED", "BL01-NAVYBLUE".
+  function variants(prod, colours) {
+    var list = splitMulti(colours);
+    return list.map(function (c) {
+      var tag = c.toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 12);
+      return Object.assign({}, prod, { color: c, sku: prod.sku ? String(prod.sku).replace(/-[A-Z0-9]+$/, '') + '-' + tag : '' });
+    });
+  }
+
+  // A product name and description written from the template's details, as patterns, so each
+  // product's colour and name go in: "{color} {Fabric} {Pattern} Kurti".
+  function writeCopy(tpl) {
+    tpl = tpl || {};
+    var has = function (l) { var v = fieldValue(tpl.fields, l); return v != null && String(v).trim() !== ''; };
+    var lab = function (l) { var f = (tpl.fields || []).filter(function (x) { return labelScore(x.label, l) >= 0.9; })[0]; return f ? f.label : l; };
+    var leaf = String(tpl.category || tpl.name || '').split(/>|›|\//).pop().trim().replace(/ies$/i, 'y').replace(/([^s])s$/i, '$1') || 'Product';
+    var parts = ['{color}'];
+    ['Fabric', 'Saree Fabric', 'Material', 'Pattern', 'Print or Pattern Type', 'Sleeve Length', 'Occasion'].forEach(function (l) { if (has(l) && parts.length < 5 && !splitMulti(fieldValue(tpl.fields, l)).some(function (v) { return v.length > 20; })) parts.push('{' + lab(l) + '}'); });
+    var title = parts.concat(leaf).join(' ');
+    var skip = /manufacturer|packer|importer|hsn|gst|net weight|country|supplier sku|brand/i;
+    var lines = (tpl.fields || []).filter(function (f) { return f.label && String(f.value || '').trim() && !skip.test(f.label) && !rowKeyOf(f.label) && canon(f.label) !== 'product description'; })
+      .slice(0, 8).map(function (f) { return f.label.replace(/\s*\(.*?\)\s*/g, ' ').trim() + ': {' + f.label + '}'; });
+    var desc = title + '.' + (lines.length ? ' ' + lines.join('. ') + '.' : '') + ((tpl.sizes || []).length ? ' Sizes: {sizes}.' : '');
+    return { title: title, desc: desc };
+  }
+
+  var api = { norm: norm, canon: canon, sizeKey: sizeKey, sameSize: sameSize, labelScore: labelScore, looseScore: looseScore, matchOption: matchOption, splitMulti: splitMulti, sortSizes: sortSizes, rowKeyOf: rowKeyOf, render: render, sizesOf: sizesOf, plan: plan, bestField: bestField, learn: learn, problems: problems, fieldValue: fieldValue, withSeller: withSeller, variants: variants, writeCopy: writeCopy, SELLER: SELLER };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();

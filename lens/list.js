@@ -58,6 +58,18 @@
     }
     return clean(el.getAttribute('placeholder') || '');
   }
+  // Meesho marks a required box with * by its label (or the page marks it required).
+  function requiredOf(el, label) {
+    if (el.required || el.getAttribute('aria-required') === 'true') return true;
+    if (el.labels && el.labels[0] && /\*/.test(el.labels[0].textContent)) return true;
+    const want = C.norm(label);
+    for (let e = el.parentElement, n = 0; e && e !== document.body && n < 4; e = e.parentElement, n++) {
+      if ([...e.querySelectorAll('input,textarea,select,[role=combobox]')].filter(x => x !== el && !el.contains(x) && x.type !== 'hidden').length > 1) break; // reached other fields
+      const raw = (e.textContent || '').slice(0, 160);
+      if (want && C.norm(raw).includes(want)) return /\*/.test(raw);
+    }
+    return false;
+  }
   // The size a control belongs to, when it sits in a row of the size table.
   function rowOf(el) {
     const td = el.closest('td');
@@ -158,7 +170,7 @@
       const label = labelOf(el);
       if (!label && kind !== 'file') continue;
       const root = el.closest('.MuiAutocomplete-root,.MuiInputBase-root,.MuiFormControl-root') || el.parentElement;
-      out.push({ el, kind, label, row: rowOf(el), soft: kind === 'combo' && el.getAttribute('role') !== 'combobox' && el.getAttribute('aria-autocomplete') !== 'list', multi: !!(root && root.querySelector('.MuiChip-root')) || el.multiple || el.getAttribute('aria-multiselectable') === 'true', required: /\*/.test((el.labels && el.labels[0] && el.labels[0].textContent) || '') || el.required || el.getAttribute('aria-required') === 'true' });
+      out.push({ el, kind, label, row: rowOf(el), soft: kind === 'combo' && el.getAttribute('role') !== 'combobox' && el.getAttribute('aria-autocomplete') !== 'list', multi: !!(root && root.querySelector('.MuiChip-root')) || el.multiple || el.getAttribute('aria-multiselectable') === 'true', required: requiredOf(el, label) });
     }
     out.forEach((f, i) => { f.i = i; });
     assignRows(out, sizes || sizesShown(out));
@@ -652,7 +664,10 @@
     let photos = 0;
     if (prod && prod.photos && prod.photos.length) photos = await putPhotos(prod.photos);
     flash(marks);
-    return { total: items.length, filled: done.size, missing: items.filter(it => !done.has(it)), photos };
+    // Meesho's required boxes the template has nothing for: shown, so nothing is forgotten
+    const want = new Set(items.map(it => C.canon(it.label)));
+    const empty = [...new Set(scan(planSizes).filter(f => f.required && f.kind !== 'file' && !f.row && !want.has(C.canon(f.label)) && C.canon(f.label) !== 'size' && !String(readValue(f) || '').replace(/^(select|choose)\b.*$/i, '').trim()).map(f => f.label))];
+    return { total: items.length, filled: done.size, missing: items.filter(it => !done.has(it)), photos, empty };
   }
   function flash(els) {
     els.forEach(el => { const box = el.closest('.MuiInputBase-root,.MuiFormControl-root,td') || el; const o = box.style.outline; box.style.outline = '2px solid #1f9d55'; setTimeout(() => { box.style.outline = o; }, 4000); });
@@ -799,7 +814,18 @@
     const secs = ((Date.now() - t0) / 1000).toFixed(1);
     last = { missing: r.missing, tplId: tpl && tpl.id };
     note = `Filled ${r.filled} of ${r.total} in ${secs} s${r.photos ? ` and ${r.photos} photo${r.photos > 1 ? 's' : ''}` : ''}.` + (r.missing.length ? ' Point to the ones left, or fill them by hand.' : ' Check the form, then submit it in Meesho.');
-    if (id) { S[id] = { state: 'filled', filled: r.filled, total: r.total, missing: r.missing.map(m => m.label + (m.row ? ' (' + m.row + ')' : '')), at: Date.now() }; await set({ liststat: S }); }
+    // the empty required boxes go on the template (with Meesho's choices when read), to fill in PakkaBill
+    if (r.empty.length && tpl) {
+      const k = T.findIndex(t => t.id === tpl.id);
+      if (k >= 0) {
+        const t = { ...T[k], fields: (T[k].fields || []).slice(), updatedAt: Date.now() };
+        r.empty.forEach(l => { if (!t.fields.some(f => C.labelScore(f.label, l) >= 0.9)) { const d = SAVED && SAVED.fields && SAVED.fields.find(x => C.labelScore(x.label, l) >= 0.9); t.fields.push(d && d.options.length ? { label: l, value: '', opts: d.options.slice(0, 400) } : { label: l, value: '' }); } });
+        T[k] = t;
+        await set({ listtpl: T });
+      }
+      note += ` Meesho also needs: ${r.empty.slice(0, 8).join(', ')}${r.empty.length > 8 ? '…' : ''}. Fill them here; they are added to the template in PakkaBill for next time.`;
+    }
+    if (id) { S[id] = { state: 'filled', filled: r.filled, total: r.total, missing: r.missing.map(m => m.label + (m.row ? ' (' + m.row + ')' : '')), empty: r.empty, at: Date.now() }; await set({ liststat: S }); }
     draw();
   }
 
@@ -860,7 +886,7 @@
         <div class="pager"><button class="btn sm" data-prev${cur ? '' : ' disabled'}>‹</button><span class="muted">Product ${cur + 1} of ${Q.items.length}${st ? ` · <span class="tag${st.state === 'done' ? ' ok' : ''}">${st.state === 'done' ? 'Done' : 'Filled'}</span>` : ''}</span><button class="btn sm" data-next${cur < Q.items.length - 1 ? '' : ' disabled'}>›</button></div>
         <div class="prod">${it.prod.photos && it.prod.photos[0] ? `<img src="${it.prod.photos[0].data || it.prod.photos[0]}" alt="">` : ''}<div><b>${esc(C.render((tpl && tpl.title) || '{name}', tpl, it.prod) || it.prod.name || 'Product')}</b><span class="muted">${esc(tpl ? tpl.name : '')}${it.prod.sku ? ' · ' + esc(it.prod.sku) : ''} · ${C.sizesOf(tpl, it.prod).map(s => esc(s.size)).join(', ')} · ${(it.prod.photos || []).length} photo${(it.prod.photos || []).length === 1 ? '' : 's'}</span></div></div>
         <div class="acts"><button class="btn pri" data-fill${busy ? ' disabled' : ''}>Fill this form</button><button class="btn" data-done${busy ? ' disabled' : ''}>Submitted, next ›</button></div>
-        <p class="muted" style="margin:8px 0 0">Open <b>Catalog Upload → Add Single Catalog</b>, pick the category <b>${esc((tpl && tpl.category) || '')}</b>, then tap Fill. PakkaBill never submits: check and submit in Meesho.</p>
+        <p class="muted" style="margin:8px 0 0">Keys: <b>Alt+Shift+F</b> fill, <b>Alt+Shift+N</b> next. Open <b>Catalog Upload → Add Single Catalog</b>, pick the category <b>${esc((tpl && tpl.category) || '')}</b>, then tap Fill. PakkaBill never submits: check and submit in Meesho.</p>
       </div>` : `<div class="sec"><p style="margin:0">Add products in PakkaBill's <b>Auto listing</b> and tap <b>Send to Meesho</b>. They come here to fill in one click.</p><div class="acts"><a class="btn pri" href="${PB}" target="_blank" rel="noopener">Open PakkaBill</a></div></div>`;
     const missHtml = last && last.missing.length ? `<div class="sec"><b>Not filled yet</b><ul>${last.missing.slice(0, 30).map((m, i) => `<li><span title="${esc(m.value)}">${esc(m.label)}${m.row ? ' (' + esc(m.row) + ')' : ''}: ${esc(m.value)}</span><button class="btn sm" data-point="${i}">Point</button></li>`).join('')}</ul></div>` : '';
     root.innerHTML = `<style>${STYLE}</style><div class="card">
@@ -916,5 +942,12 @@
   let seenPath = '';
   setInterval(() => { const p = location.pathname + location.hash; if (p !== seenPath) { seenPath = p; if (want()) { if (shown) draw(); else load(); } else if (host) host.remove(); } }, 1500);
   get(['listq']).then(x => { if (want() || (x.listq && x.listq.items && x.listq.items.length)) load(); });
+  // Alt+Shift+F fills the form, Alt+Shift+N marks it submitted and goes to the next product.
+  document.addEventListener('keydown', e => {
+    if (!e.altKey || !e.shiftKey || !root) return;
+    const k = e.code === 'KeyF' ? '[data-fill]' : e.code === 'KeyN' ? '[data-done]' : null;
+    const b = k && root.querySelector(k);
+    if (b && !b.disabled) { e.preventDefault(); b.click(); }
+  }, true);
   window.PBListPage = { scan, readValue, fill, learnForm, category, readAll, report, readOptions }; // for checks in the browser console
 })();

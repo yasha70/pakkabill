@@ -105,5 +105,18 @@ ok(C.problems(TPL, { ...PROD, price: '1200' }).some((x) => /above MRP/.test(x)),
 ok(C.problems({ ...TPL, sizes: [{ size: 'M', price: '', mrp: '', stock: '' }] }, PROD).some((x) => /Price is missing/.test(x)), 'problems: no price');
 ok(C.problems({ ...TPL, sizes: [] }, PROD).some((x) => /no sizes/.test(x)), 'problems: no sizes');
 
+/* seller details, colour variants, written name and description */
+{
+  const t = { category: 'Women Fashion > Ethnic Wear > Kurtis', fields: [{ label: 'Fabric', value: 'Cotton' }, { label: 'Pattern', value: 'Printed' }, { label: 'Packer Details', value: '' }, { label: 'Brand', value: 'Rangrez' }], sizes: [{ size: 'M', price: 1, stock: 1 }] };
+  const w = C.withSeller(t, { maker: 'Rangrez, Surat', packer: 'Rangrez, Surat', origin: 'India', brand: 'Other' });
+  eq(C.fieldValue(w.fields, 'Manufacturer Details'), 'Rangrez, Surat', 'seller: manufacturer added');
+  eq(C.fieldValue(w.fields, 'Packer Details'), 'Rangrez, Surat', 'seller: an empty detail is filled');
+  eq(C.fieldValue(w.fields, 'Brand Name'), 'Rangrez', 'seller: the template\'s own value stays');
+  eq(t.fields.length, 4, 'seller: the template itself is not changed');
+  eq(C.variants({ sku: 'KT01', name: 'K' }, 'Red, Navy Blue').map(v => v.color + ' ' + v.sku), ['Red KT01-RED', 'Navy Blue KT01-NAVYBLUE'], 'variants: one per colour, SKU per colour');
+  const c = C.writeCopy(t);
+  eq(C.render(c.title, t, { color: 'Red' }), 'Red Cotton Printed Kurti', 'copy: name from colour, details and category');
+  eq(C.render(c.desc, t, { color: 'Red' }), 'Red Cotton Printed Kurti. Fabric: Cotton. Pattern: Printed. Sizes: M.', 'copy: description lists the details');
+}
 console.log(`${checks - fails}/${checks} auto listing checks passed`);
 process.exit(fails ? 1 : 0);
