@@ -10,7 +10,7 @@
   'use strict';
   const root = window;
   const C = root.PBListCore;
-  const KEY = 'pb-autolist', NEED = '3.1.0', FREE_TPL = 1, FREE_SEND = 5;
+  const KEY = 'pb-autolist', NEED = '3.2.0', FREE_TPL = 1, FREE_SEND = 5;
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const uid = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const pro = () => (typeof root.pbPro === 'function' ? root.pbPro() : true);
@@ -158,13 +158,13 @@
     const t = S.edit;
     const rows = t.sizes.map((s, i) => `<tr><td><input data-sz="${i}" data-k="size" value="${esc(s.size)}" aria-label="Size"></td>${['price', 'rprice', 'mrp', 'stock'].map((k) => `<td><input data-sz="${i}" data-k="${k}" inputmode="numeric" value="${esc(s[k])}" aria-label="${k}"></td>`).join('')}<td><button type="button" class="pal-x" data-delsz="${i}" aria-label="Remove size">×</button></td></tr>`).join('');
     const quick = ['Free Size', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'].filter((z) => !t.sizes.some((s) => C.norm(s.size) === C.norm(z)));
-    const fields = t.fields.map((f, i) => `<tr><td><input data-fl="${i}" data-k="label" list="pal-labels" value="${esc(f.label)}" placeholder="Meesho's label" aria-label="Label"></td><td><input data-fl="${i}" data-k="value" value="${esc(f.value)}" placeholder="Value, as Meesho shows it" aria-label="Value"></td><td><button type="button" class="pal-x" data-delfl="${i}" aria-label="Remove detail">×</button></td></tr>`).join('');
+    const fields = t.fields.map((f, i) => `<tr><td><input data-fl="${i}" data-k="label" list="pal-labels" value="${esc(f.label)}" placeholder="Meesho's label" aria-label="Label"></td><td><input data-fl="${i}" data-k="value" value="${esc(f.value)}"${f.opts && f.opts.length ? ` list="pal-o${i}"` : ''} placeholder="${f.opts && f.opts.length ? `Pick one of Meesho's ${f.opts.length} choices` : 'Value, as Meesho shows it'}" aria-label="Value">${f.opts && f.opts.length ? `<datalist id="pal-o${i}">${f.opts.map((o) => `<option value="${esc(o)}">`).join('')}</datalist>` : ''}</td><td><button type="button" class="pal-x" data-delfl="${i}" aria-label="Remove detail">×</button></td></tr>`).join('');
     return `<section class="paper pal-card pal-ed" aria-labelledby="pal-ed-h"><div class="pal-head"><h2 id="pal-ed-h" style="margin:0">${tplById(t.id) ? 'Edit template' : 'New template'}</h2><button type="button" class="pal-x" data-cancel aria-label="Close">×</button></div>
       <div class="pal-grid2"><label>Template name<input data-t="name" value="${esc(t.name)}"></label><label>Meesho category<input data-t="category" value="${esc(t.category)}" placeholder="Women Fashion > Ethnic Wear > Blouses"></label></div>
       <div class="pal-sec"><h3>Sizes, prices and stock</h3><p>Meesho price is what you get before Meesho's fees. Return price is for wrong or defective returns (usually the same).</p>
         <div style="overflow-x:auto"><table class="pal-tbl"><thead><tr><th>Size</th><th>Meesho price</th><th>Return price</th><th>MRP</th><th>Stock</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
         <div class="pal-row" style="margin-top:6px">${quick.map((z) => `<button type="button" class="pal-btn pal-btn--ghost pal-btn--sm" data-addsz="${esc(z)}">+ ${esc(z)}</button>`).join('')}<button type="button" class="pal-link" data-addsz="">Other size</button>${t.sizes.length > 1 ? '<button type="button" class="pal-link" data-samesz>Same price and stock for all</button>' : ''}</div></div>
-      <div class="pal-sec"><h3>Details</h3><p>Use Meesho's own labels and values (Fabric: Cotton, Sleeve Length: Short Sleeves). For a multi-choice, separate values with commas. Easiest: fill one product in Meesho and tap <b>Save this form as a template</b> in the PakkaBill panel there.</p>
+      <div class="pal-sec"><h3>Details</h3><p>Use Meesho's own labels and values (Fabric: Cotton, Sleeve Length: Short Sleeves). For a multi-choice, separate values with commas. Easiest: fill one product in Meesho and tap <b>Save this form as a template</b> in the PakkaBill panel there. Tap <b>Read all drop-downs</b> there too, and each detail here offers Meesho's exact choices.</p>
         <datalist id="pal-labels">${COMMON.map((c) => `<option value="${esc(c)}">`).join('')}</datalist>
         <div style="overflow-x:auto"><table class="pal-tbl"><thead><tr><th>Label</th><th>Value</th><th></th></tr></thead><tbody>${fields}</tbody></table></div>
         <div class="pal-row" style="margin-top:6px"><button type="button" class="pal-btn pal-btn--ghost pal-btn--sm" data-addfl>+ Add detail</button></div></div>

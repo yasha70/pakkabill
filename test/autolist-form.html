@@ -17,6 +17,8 @@ table td,table th{border:1px solid #ccc;padding:2px}
   <div class="form-group"><label for="col">Color</label><input id="col" role="combobox" aria-autocomplete="list" aria-expanded="false"></div>
   <div class="form-group"><label for="br">Brand Name</label><input id="br" placeholder="Search brand"></div>
   <div class="form-group"><label for="desc">Product Description</label><textarea id="desc"></textarea></div>
+  <div class="form-group"><p>Sleeve Styling <small>(choose one)</small></p><div class="sc-x1"><div id="slv" style="border:1px solid #999;height:34px;width:260px;cursor:pointer" aria-expanded="false"><b>Select</b></div></div></div>
+  <div class="form-group"><span>Neck</span><div class="dropdown-box" id="neck"><span class="v">Select</span></div></div>
   <div id="sizes"></div>
   <button type="submit">Submit</button>
 </form>
@@ -82,6 +84,27 @@ $('#size').addEventListener('click', () => {
     }, 150);
   };
   sizePop.querySelector('.cancel').onclick = () => { sizePop.remove(); sizePop = null; };
+});
+// 6. Sleeve: plain divs only (no option names), opened on click; Meesho's label differs from the template's
+let slvPop = null;
+$('#slv').addEventListener('click', () => {
+  if (slvPop) return;
+  $('#slv').setAttribute('aria-expanded', 'true');
+  slvPop = popAt($('#slv'), ['Short Sleeves', 'Three-Quarter Sleeves', 'Long Sleeves', 'Sleeveless'].map(x => `<div><div>${x}</div></div>`).join(''));
+  slvPop.addEventListener('click', e => { const t = e.target.closest('.pop > div'); if (!t) return; $('#slv b').textContent = t.textContent; slvPop.remove(); slvPop = null; $('#slv').setAttribute('aria-expanded', 'false'); });
+  outside(slvPop, $('#slv'), () => { slvPop && slvPop.remove(); slvPop = null; $('#slv').setAttribute('aria-expanded', 'false'); });
+});
+// 7. Neck: a long list that shows 8 rows at a time and draws the rest as it scrolls
+const NECKS = Array.from({ length: 40 }, (_, i) => 'Neck ' + (i + 1));
+let neckPop = null;
+$('#neck').addEventListener('mousedown', () => {
+  if (neckPop) return;
+  neckPop = popAt($('#neck'), '<div class="vl" style="height:200px;overflow:auto;position:relative"><div class="sp" style="height:1000px"></div></div>');
+  const vl = neckPop.querySelector('.vl');
+  const draw = () => { vl.querySelectorAll('.row').forEach(r => r.remove()); const a = Math.floor(vl.scrollTop / 25); NECKS.slice(a, a + 8).forEach((x, k) => { const d = document.createElement('div'); d.className = 'row'; d.style.cssText = `position:absolute;top:${(a + k) * 25}px;height:25px`; d.setAttribute('role', 'option'); d.textContent = x; vl.appendChild(d); }); };
+  vl.addEventListener('scroll', draw); draw();
+  vl.addEventListener('click', e => { const r = e.target.closest('.row'); if (!r) return; $('#neck .v').textContent = r.textContent; neckPop.remove(); neckPop = null; });
+  outside(neckPop, $('#neck'), () => { neckPop && neckPop.remove(); neckPop = null; });
 });
 // 5. Color: a search box with an ARIA list under it
 const COLS = ['Black', 'Blue', 'Navy Blue', 'Red', 'Maroon'];

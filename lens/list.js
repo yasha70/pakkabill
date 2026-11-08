@@ -201,7 +201,43 @@
     return out;
   }
   const textOf = o => clean(o.textContent);
-  const freshOpts = before => optionEls().filter(o => !before.has(o));
+  // Everything the page adds, so a list built from plain boxes (no "option" names at all) is still
+  // found: it is what appeared after the drop-down was pressed.
+  const ADDED = [];
+  new MutationObserver(ms => {
+    const t = Date.now();
+    for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1 && !mine(n)) ADDED.push([t, n]);
+    if (ADDED.length > 4000) ADDED.splice(0, ADDED.length - 2000);
+  }).observe(document.documentElement, { childList: true, subtree: true });
+  const NOT_OPT = /^(apply|done|ok|okay|cancel|clear|clear all|reset|close|select all|search|save|no options?|no results?( found)?|loading\W*)$/i;
+  function popupOpts(since, el) {
+    const roots = [];
+    for (let k = ADDED.length - 1; k >= 0 && ADDED[k][0] >= since; k--) {
+      const n = ADDED[k][1];
+      // not new form boxes (the size table), which hold several inputs; a list may hold one search box
+      if (n.isConnected && !n.contains(el) && !mine(n) && !n.closest('header,nav') && !n.matches('script,style,link') && n.querySelectorAll('input,textarea,select').length <= 1) roots.push(n);
+    }
+    const top = roots.filter(r => !roots.some(o => o !== r && o.contains(r)));
+    const out = [];
+    for (const r of top) {
+      if (el.contains(r)) continue;
+      for (const e of [r, ...r.querySelectorAll('*')]) {
+        if (e.closest('input,textarea,select,button,svg,script,style')) continue;
+        const t = clean(e.textContent);
+        if (!t || t.length > 120 || NOT_OPT.test(t)) continue;
+        if ([...e.children].some(c => !c.matches('svg,input,img') && clean(c.textContent))) continue; // the box with the words itself
+        if (!visible(e)) continue;
+        out.push(e);
+      }
+    }
+    return out;
+  }
+  // A "before" picture: the options already on screen, and the moment, for popupOpts.
+  const snap = el => { const b = new Set(optionEls()); b.since = Date.now(); b.el = el; return b; };
+  const freshOpts = before => {
+    const o = optionEls().filter(x => !before.has(x));
+    return o.length || !before.since ? o : popupOpts(before.since, before.el);
+  };
   const expanded = el => { const e = el.matches('[aria-expanded]') ? el : el.closest('[aria-expanded]') || el.querySelector('[aria-expanded]'); return !!e && e.getAttribute('aria-expanded') === 'true'; };
   // The arrow of a drop-down, never its clear (×) button.
   function arrowOf(el) {
@@ -232,8 +268,24 @@
     return null;
   }
   const isOn = o => o.getAttribute('aria-selected') === 'true' || o.getAttribute('aria-checked') === 'true' || !!(o.querySelector('input[type=checkbox]:checked,input[type=radio]:checked'));
-  async function choose(opts, value) {
-    const i = C.matchOption(opts.map(textOf), value);
+  async function choose(opts, value, before) {
+    let i = opts.findIndex(o => same(textOf(o), value));
+    // a long list draws only some rows: scroll it to find the exact one ("Neck 33", not "Neck 3")
+    if (i < 0 && before) {
+      const sc = scroller(opts[opts.length - 1]);
+      if (sc) {
+        const top = sc.scrollTop;
+        sc.scrollTop = 0; await sleep(50);
+        for (let n = 0; n < 80; n++) {
+          const now = freshOpts(before), k = now.findIndex(o => same(textOf(o), value));
+          if (k >= 0) { opts = now; i = k; break; }
+          if (sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 2) break;
+          sc.scrollTop += Math.max(sc.clientHeight - 20, 40); await sleep(45);
+        }
+        if (i < 0) { sc.scrollTop = top; await sleep(50); opts = freshOpts(before); }
+      }
+    }
+    if (i < 0) i = C.matchOption(opts.map(textOf), value);
     if (i < 0) return false;
     const o = opts[i];
     if (isOn(o)) return true;
@@ -249,23 +301,27 @@
   const freshInput = (beforeIn, el) => [...document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file])')].find(x => x !== el && !beforeIn.has(x) && !mine(x) && visible(x) && !x.readOnly);
   // Closes the list: an Apply / Done button in it first (size pickers keep ticks until then), then a
   // click outside, then Escape. Never a button outside the list, so nothing is ever submitted.
-  async function closeList(before, el) {
-    let o = freshOpts(before);
+  // keep: false only looks (Read all drop-downs): Cancel or a click outside, never Apply.
+  async function closeList(before, el, keep = true) {
+    const o = freshOpts(before);
     if (!o.length) return;
+    // closed when the options that were open are gone or hidden
+    const gone = () => o.every(x => !x.isConnected || !visible(x)) && !optionEls().some(x => !before.has(x)); // a long list swaps its rows
     let box = o[0];
     for (let n = 0; n < 8 && box.parentElement && box.parentElement !== document.body; n++) {
       box = box.parentElement;
       if (box.contains(el) || box.tagName === 'FORM') break;
-      const b = [...box.querySelectorAll('button,[role=button]')].find(x => visible(x) && /^(apply|done|ok|okay|save|confirm|select|add)$/i.test(clean(x.textContent)));
-      if (b) { press(b); if (await until(() => !freshOpts(before).length, 400)) return; break; }
+      const b = [...box.querySelectorAll('button,[role=button]')].find(x => visible(x) && (keep ? /^(apply|done|ok|okay|save|confirm|select|add)$/i : /^(cancel|close|discard|back)$/i).test(clean(x.textContent)));
+      if (b) { press(b); if (await until(gone, 400)) return; break; }
     }
     const ways = [
       () => { const bd = [...document.querySelectorAll('.MuiBackdrop-invisible,.MuiPopover-root>.MuiBackdrop-root,.MuiMenu-root>.MuiBackdrop-root')].filter(visible).pop(); if (bd) press(bd); },
       () => { press(document.body); document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); },
-      () => { o = freshOpts(before); if (o.length) key(o[0], 'Escape'); },
+      () => { const x = o.find(y => y.isConnected); if (x) key(x, 'Escape'); },
     ];
-    for (const w of ways) { w(); if (await until(() => !freshOpts(before).length, 250)) return; }
+    for (const w of ways) { w(); if (await until(gone, 250)) return; }
   }
+
   // The field shows this value: the same words, or an option that starts with it ("620630 - Blouses").
   // Strict, so "L" is not found inside "Select".
   function same(h, v) {
@@ -281,7 +337,8 @@
     const el = f.el;
     const loose = new Set(optionEls().filter(o => !o.matches(ROLE_OPT)));
     if (freshOpts(loose).length) await closeList(loose, el); // a list left open by the page or a last try
-    const before = new Set(optionEls()), beforeIn = new Set(document.querySelectorAll('input'));
+    const before = snap(el), beforeIn = new Set(document.querySelectorAll('input'));
+    f.why = '';
     const typeable = el.tagName === 'INPUT' && !el.readOnly;
     let values = item.multi || f.multi ? C.splitMulti(item.value) : [item.value];
     let ok = 0, sawList = false;
@@ -302,7 +359,7 @@
           if (!opts.length) press(el);
           setNative(el, v);
           // a box that shows no list at all soon is a plain text box
-          if (f.soft && !(await until(() => freshOpts(before).length, 400))) { setNative(el, item.value); return 'text'; }
+          if (f.soft && !(await until(() => freshOpts(before).length, 250))) { setNative(el, item.value); return 'text'; }
           opts = await matching(before, v, 1500);
           if (!opts) { setNative(el, String(v).split(/[\s,-]/)[0]); opts = await matching(before, v, 1000); }
           if (!opts) { setNative(el, ''); const a = arrowOf(el); if (a) press(a); opts = await matching(before, v, 800); }
@@ -315,9 +372,10 @@
           opts = (await matching(before, v, 300)) || (s ? (setNative(s, v), await matching(before, v, 1500)) : null);
         }
       }
-      if (opts || freshOpts(before).length) sawList = true;
-      if (!opts) continue;
-      if (await choose(opts, v)) {
+      const seen = opts || freshOpts(before);
+      if (seen.length) sawList = true;
+      if (!opts) { f.why = seen.length ? `"${v}" is not in the list. The list shows: ${seen.slice(0, 12).map(textOf).join(' | ')}` : 'The list did not open.'; continue; }
+      if (await choose(opts, v, before)) {
         ok++;
         if (typeable && values.length > 1) await until(() => hasVal(f, v), 300);
       }
@@ -327,7 +385,45 @@
     if (typeable && el.blur) el.blur();
     // a box that looked like a search list but never opened one is a plain text box
     if (!sawList && f.soft) { setNative(el, item.value); return 'text'; }
-    return ok === values.length;
+    if (ok === values.length) return true;
+    if (!f.why) f.why = 'Chosen, but the box did not keep it.';
+    return false;
+  }
+  // The scrolling box of a list, to load the rest of a long list.
+  function scroller(e) {
+    for (let x = e && e.parentElement, n = 0; x && x !== document.body && n < 8; x = x.parentElement, n++) {
+      const st = getComputedStyle(x);
+      if (x.scrollHeight > x.clientHeight + 4 && /auto|scroll/.test(st.overflowY)) return x;
+    }
+    return null;
+  }
+  // Every choice a drop-down offers: opens it, scrolls to the end of a long list, closes it.
+  async function readOptions(f) {
+    const el = f.el;
+    if (f.kind === 'select') return [...el.options].map(o => clean(o.text)).filter(t => t && !/^(select|choose)\b/i.test(t));
+    if (f.kind === 'radio') return f.radios.map(r => clean((r.closest('label') || r.parentElement).textContent)).filter(Boolean);
+    if (f.kind !== 'pick' && f.kind !== 'combo') return null;
+    el.scrollIntoView({ block: 'center' });
+    const loose = new Set(optionEls().filter(o => !o.matches(ROLE_OPT)));
+    if (freshOpts(loose).length) await closeList(loose, el);
+    const before = snap(el), typeable = el.tagName === 'INPUT' && !el.readOnly;
+    let opts;
+    if (typeable) { press(el); opts = await until(() => { const x = freshOpts(before); return x.length ? x : null; }, 900); if (!opts) { const a = arrowOf(el); if (a) { press(a); opts = await until(() => { const x = freshOpts(before); return x.length ? x : null; }, 900); } } }
+    else opts = await openList(el, before);
+    if (!opts) { f.why = 'The list did not open.'; return null; }
+    const seen = new Set(opts.map(textOf));
+    const sc = scroller(opts[opts.length - 1]);
+    if (sc) for (let n = 0; n < 60; n++) {
+      sc.scrollTop += Math.max(sc.clientHeight - 20, 40);
+      await sleep(45);
+      const more = freshOpts(before).map(textOf).filter(t => !seen.has(t));
+      more.forEach(t => seen.add(t));
+      if (!more.length && sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 2) break;
+    }
+    if (sc) { sc.scrollTop = 0; await sleep(50); }
+    await closeList(before, el, false);
+    if (typeable) { setNative(el, ''); if (el.blur) el.blur(); }
+    return [...seen].filter(t => !NOT_OPT.test(t));
   }
   // Did the value stick? Read the field back the way the seller would see it.
   function holds(f, item) {
@@ -391,8 +487,56 @@
   // Fills the form in rounds, as some fields (the size rows) appear only after others are set.
   // Drop-downs go first in each round, as they are what makes new fields appear; each value gets
   // two tries at most, so a field Meesho does not have never slows the form down.
+  let LOG = new Map(); // planned value -> { field, ok, why }, for the report
+  const OPTS = new WeakMap(); // drop-down -> its choices, read once per page
+  async function choicesOf(f) {
+    if (OPTS.has(f.el)) return OPTS.get(f.el);
+    const o = await readOptions(f);
+    OPTS.set(f.el, o);
+    return o;
+  }
+  // The values no label matched: each goes to the drop-down whose own choices hold it, so Meesho's
+  // labels do not have to match the template's and nothing has to be pointed at.
+  async function byChoices(items, done, marks, tpl) {
+    const t0 = Date.now();
+    const taken = new Set(marks);
+    const left = items.filter(it => !done.has(it) && !it.row);
+    if (!left.length) return;
+    const boxes = scan().filter(f => !f.row && !taken.has(f.el) && ['pick', 'combo', 'select', 'radio'].includes(f.kind));
+    const texts = scan().filter(f => !f.row && !taken.has(f.el) && f.kind === 'text' && !f.el.value);
+    for (const it of left) {
+      if (Date.now() - t0 > 25000) break;
+      const want = C.splitMulti(it.value);
+      // a box with a similar label first, then any box whose choices hold the value
+      const order = boxes.filter(f => !taken.has(f.el) && document.contains(f.el)).sort((a, b) => C.looseScore(b.label, it.label) - C.looseScore(a.label, it.label));
+      let hit = null, ok = false;
+      // the box with the closest label is simply tried: quicker than reading every list
+      const near = order[0] && C.looseScore(order[0].label, it.label) >= 0.5 ? order[0] : null;
+      if (near) {
+        try { ok = await fillOne(near, it); } catch (e) { ok = false; }
+        if (ok) { LOG.set(it, { field: near.label + ' [' + near.kind + '] by a similar label', ok }); done.add(it); marks.push(near.el); taken.add(near.el); continue; }
+      }
+      for (const f of order) {
+        if (f === near) continue;
+        if (Date.now() - t0 > 25000) break;
+        const o = await choicesOf(f);
+        if (!o || !o.length) continue;
+        const has = v => o.some(x => same(x, v));
+        if (has(it.value) || (want.length > 1 && want.every(has))) { hit = f; break; }
+      }
+      if (!hit) {
+        const tf = texts.filter(f => !taken.has(f.el) && C.looseScore(f.label, it.label) >= 0.7);
+        if (tf.length === 1) hit = tf[0];
+      }
+      if (!hit) continue;
+      try { ok = await fillOne(hit, it); } catch (e) { ok = false; }
+      LOG.set(it, { field: hit.label + ' [' + hit.kind + '] by its choices', ok, why: ok ? '' : hit.why || 'The value did not stay.' });
+      if (ok) { done.add(it); marks.push(hit.el); taken.add(hit.el); }
+    }
+  }
   async function fill(tpl, prod) {
     const items = C.plan(tpl, prod), done = new Set(), tries = new Map(), marks = [];
+    LOG = new Map();
     const points = (tpl && tpl.points) || {};
     for (let round = 0; round < 5 && done.size < items.length; round++) {
       const fields = scan(), used = {}, sig = fieldsSig(), work = [];
@@ -402,26 +546,28 @@
         const p = points[keyOf(it)];
         if (p) { const el = byPath(p); if (el) f = fields.find(x => x.el === el || (x.radios && x.radios.includes(el))) || (kindOf(el) ? { el, kind: kindOf(el), label: it.label, row: it.row } : null); }
         if (!f) f = C.bestField(it, fields, used);
-        if (!f) continue;
+        if (!f) { LOG.set(it, { field: '', why: 'No box with this label.' }); continue; }
         if (f.i != null) used[f.i] = true;
         work.push([it, f]);
       }
       const opens = k => (k === 'pick' || k === 'combo' || k === 'radio' || k === 'select' ? 0 : 1);
       work.sort((a, b) => opens(a[1].kind) - opens(b[1].kind));
-      let gained = 0;
+      let gained = 0, opened = 0, failed = 0;
       for (const [it, f] of work) {
         if (!document.contains(f.el)) continue; // re-drawn by the page; found again next round
         tries.set(it, (tries.get(it) || 0) + 1);
         let ok = false;
-        try { ok = await fillOne(f, it); } catch (e) { ok = false; }
-        if (ok) { done.add(it); marks.push(f.el); gained++; }
+        try { ok = await fillOne(f, it); } catch (e) { ok = false; f.why = 'Error: ' + e.message; }
+        LOG.set(it, { field: f.label + ' [' + f.kind + ']', ok, why: ok ? '' : f.why || 'The value did not stay.' });
+        if (ok) { done.add(it); marks.push(f.el); gained++; if (opens(f.kind) === 0) opened++; } else failed++;
       }
       if (done.size >= items.length) break;
-      // wait only as long as new fields are still appearing
-      const grew = await until(() => fieldsSig() !== sig, gained ? 600 : 250);
-      if (!grew && !gained && !work.length) break;
-      if (grew) await sleep(120);
+      // only a drop-down makes new fields appear (the size table): wait for them only then
+      const grew = opened ? await until(() => fieldsSig() !== sig, 1200) : fieldsSig() !== sig;
+      if (!grew && !failed) break;
+      if (grew) await sleep(100);
     }
+    if (done.size < items.length) await byChoices(items, done, marks, tpl);
     let photos = 0;
     if (prod && prod.photos && prod.photos.length) photos = await putPhotos(prod.photos);
     flash(marks);
@@ -494,7 +640,71 @@
     const tpl = C.learn(fields, cat, name.trim() || cat);
     T = [tpl, ...T.filter(t => t.id !== tpl.id)].slice(0, 200);
     await set({ listtpl: T });
+    await readAll(tpl.id);
     note = `Template "${tpl.name}" saved: ${tpl.fields.length} detail${tpl.fields.length === 1 ? '' : 's'} and ${tpl.sizes.length} size${tpl.sizes.length === 1 ? '' : 's'}. It is in PakkaBill's Auto listing too. Next time, add products there and fill in one click.`;
+    draw();
+  }
+  // Reads every drop-down on the form with all its choices. They are saved on the template, so
+  // PakkaBill's Auto listing offers Meesho's exact choices for each detail.
+  let FORM = null; // [{ label, kind, multi, options }]
+  async function readAll(tplId) {
+    if (busy) return;
+    busy = true; note = 'Reading every drop-down… keep this tab in front.'; draw();
+    const out = [];
+    try {
+      for (const f of scan()) {
+        // not Size: its picker makes the size table, and reading it could clear the sizes
+        if (f.row || C.canon(f.label) === 'size' || !['pick', 'combo', 'select', 'radio'].includes(f.kind) || !document.contains(f.el)) continue;
+        const keep = f.kind === 'pick' || f.kind === 'combo' ? readValue(f) : null;
+        const o = await choicesOf(f);
+        out.push({ label: f.label, kind: f.kind, multi: !!f.multi, options: o || [], why: o ? '' : f.why || '' });
+        if (keep && C.norm(String(keep)) !== C.norm(String(readValue(f)))) f.why = 'Reading changed the value.';
+      }
+    } finally { busy = false; }
+    FORM = out;
+    const id = tplId || (last && last.tplId) || (Q && Q.items[cur] && tplOf(Q.items[cur]) && tplOf(Q.items[cur]).id);
+    const k = T.findIndex(t => t.id === id);
+    let added = 0;
+    if (k >= 0) {
+      const t = { ...T[k], fields: (T[k].fields || []).map(x => ({ ...x })), updatedAt: Date.now() };
+      out.forEach(d => {
+        if (!d.options.length || C.canon(d.label) === 'size') return;
+        let fl = t.fields.find(x => C.labelScore(x.label, d.label) >= 0.9);
+        if (!fl) { fl = { label: d.label, value: '' }; t.fields.push(fl); added++; }
+        fl.opts = d.options.slice(0, 400);
+        if (d.multi) fl.multi = true;
+      });
+      T[k] = t;
+      if (Q) Q.items.forEach(x => { if (x.tpl && x.tpl.id === t.id) x.tpl = t; });
+    }
+    await set(Q ? { listtpl: T, listq: Q, listform: { at: Date.now(), cat: category(), fields: out } } : { listtpl: T, listform: { at: Date.now(), cat: category(), fields: out } });
+    const read = out.filter(d => d.options.length).length;
+    note = `Read ${read} of ${out.length} drop-down${out.length === 1 ? '' : 's'}` + (k >= 0 ? `. Saved their choices on template "${T[k].name}"${added ? ` (${added} new detail${added > 1 ? 's' : ''} to fill in PakkaBill)` : ''}.` : '. Pick a product or save a template to keep them.') + (read < out.length ? ' Some did not open: tap "Copy form report" and send it to PakkaBill support.' : '');
+    draw();
+    return out;
+  }
+  // Everything PakkaBill sees on this form, without any values typed by the seller, to send to support.
+  function report() {
+    const strip = h => String(h).replace(/\svalue="[^"]*"/g, '').replace(/<(svg|path)[^>]*>[\s\S]*?<\/\1>/g, '<svg/>').replace(/\s+/g, ' ').slice(0, 400);
+    const lines = ['PakkaBill Lens ' + chrome.runtime.getManifest().version + ' form report', 'Page: ' + location.pathname, 'Category: ' + category(),
+      'Frames: ' + document.querySelectorAll('iframe').length + ', shadow roots: ' + [...document.querySelectorAll('*')].filter(e => e.shadowRoot && !mine(e)).length, ''];
+    lines.push('FIELDS');
+    scan().forEach(f => {
+      const el = f.el, a = [...(el.attributes || [])].filter(x => /^(role|aria-|type|readonly|placeholder|name|class|id|data-testid)/.test(x.name)).map(x => x.name + '="' + String(x.value).slice(0, 60) + '"').join(' ');
+      const box = el.closest('.MuiFormControl-root,[class*="FormControl"],[class*="form-group"],td') || el.parentElement || el;
+      lines.push(`- ${f.label || '(no label)'}${f.row ? ' (' + f.row + ')' : ''} [${f.kind}${f.multi ? ', multi' : ''}] <${el.tagName.toLowerCase()} ${a}>`);
+      if (f.kind === 'pick' || f.kind === 'combo') lines.push('    html: ' + strip(box.outerHTML));
+    });
+    if (FORM) { lines.push('', 'DROP-DOWNS READ'); FORM.forEach(d => lines.push(`- ${d.label} [${d.kind}]: ${d.options.length} choices${d.options.length ? ': ' + d.options.slice(0, 15).join(' | ') : ''}${d.why ? ' (' + d.why + ')' : ''}`)); }
+    if (LOG.size) { lines.push('', 'LAST FILL'); LOG.forEach((r, it) => lines.push(`- ${it.label}${it.row ? ' (' + it.row + ')' : ''} = ${String(it.value).slice(0, 60)} -> ${r.field || 'no box'}: ${r.ok ? 'filled' : 'NOT filled. ' + r.why}`)); }
+    // what a list looks like when it is open: the first drop-down still unread is not opened here
+    return lines.join('\n');
+  }
+  async function copyReport() {
+    const t = report();
+    try { await navigator.clipboard.writeText(t); }
+    catch (e) { const a = document.createElement('textarea'); a.value = t; document.body.appendChild(a); a.select(); document.execCommand('copy'); a.remove(); }
+    note = 'Form report copied (no prices, photos or login). Paste it in a message to PakkaBill support.';
     draw();
   }
   async function fillNow(tpl, prod, id) {
@@ -574,7 +784,8 @@
       ${note ? `<div class="sec" style="padding-top:0;border:0"><div class="note">${esc(note)}</div></div>` : ''}
       ${missHtml}
       <div class="sec"><b>Templates</b>
-        <div class="acts"><button class="btn sm" data-learn${busy ? ' disabled' : ''}>Save this form as a template</button></div>
+        <div class="acts"><button class="btn sm" data-learn${busy ? ' disabled' : ''}>Save this form as a template</button><button class="btn sm" data-readall${busy ? ' disabled' : ''}>Read all drop-downs</button><button class="btn sm" data-report>Copy form report</button></div>
+        ${FORM ? `<details style="margin-top:6px"><summary class="muted">${FORM.length} drop-down${FORM.length === 1 ? '' : 's'} on this form</summary><ul>${FORM.map(d => `<li><span title="${esc(d.options.join(', '))}">${esc(d.label)}: <span class="muted">${d.options.length ? d.options.length + ' choices · ' + esc(d.options.slice(0, 4).join(', ')) : 'did not open'}</span></span></li>`).join('')}</ul></details>` : ''}
         ${T.length ? `<ul>${T.slice(0, 12).map((t, i) => `<li><span title="${esc(t.category)}">${esc(t.name)} <span class="muted">· ${t.fields.length} detail${t.fields.length === 1 ? '' : 's'}, ${t.sizes.length} size${t.sizes.length === 1 ? '' : 's'}</span></span><button class="btn sm" data-tfill="${i}"${busy ? ' disabled' : ''}>Fill</button></li>`).join('')}</ul>` : '<p class="muted" style="margin:6px 0 0">Fill one product in Meesho by hand and save it here, or make templates in PakkaBill.</p>'}
       </div>
       <div class="sec acts"><a class="btn sm" href="${PB}" target="_blank" rel="noopener">Open PakkaBill</a>${Q ? '<button class="btn sm" data-clear>Clear products</button>' : ''}</div>
@@ -592,6 +803,8 @@
       draw();
     });
     on('[data-learn]', learnForm);
+    on('[data-readall]', () => readAll());
+    on('[data-report]', copyReport);
     on('[data-clear]', async () => { if (!confirm('Remove these products from the panel? Templates stay.')) return; Q = null; last = null; note = ''; await set({ listq: null }); draw(); });
     root.querySelectorAll('[data-tfill]').forEach(b => b.onclick = () => fillNow(T[+b.dataset.tfill], { name: '' }, null));
     root.querySelectorAll('[data-point]').forEach(b => b.onclick = () => point(last.missing[+b.dataset.point]));
@@ -617,5 +830,5 @@
   let seenPath = '';
   setInterval(() => { const p = location.pathname + location.hash; if (p !== seenPath) { seenPath = p; if (want()) { if (shown) draw(); else load(); } else if (host) host.remove(); } }, 1500);
   get(['listq']).then(x => { if (want() || (x.listq && x.listq.items && x.listq.items.length)) load(); });
-  window.PBListPage = { scan, readValue, fill, learnForm, category }; // for checks in the browser console
+  window.PBListPage = { scan, readValue, fill, learnForm, category, readAll, report, readOptions }; // for checks in the browser console
 })();

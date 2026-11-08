@@ -21,6 +21,12 @@ eq(C.labelScore('Fabric', 'Pattern'), 0, 'labels: different fields');
 ok(C.labelScore('Sleeve Length', 'Sleeve Length Type') > 0.6, 'labels: most words shared');
 ok(C.labelScore('Blouse', 'Blouse Fabric') < 0.62, 'labels: Blouse is not Blouse Fabric');
 
+/* loose labels, for values no label matched */
+ok(C.looseScore('Net Weight', 'Net Weight (in gms)') >= 0.7, 'loose labels: every word of one in the other');
+ok(C.looseScore('Sleeves', 'Sleeve Styling (choose one)') >= 0.7, 'loose labels: plurals and helper words');
+ok(C.looseScore('Fabric', 'Pattern') === 0, 'loose labels: different fields');
+eq(C.looseScore('Fabric', 'Fabric *'), 1, 'loose labels: the same field');
+
 /* options */
 eq(C.matchOption(['0', '3', '5', '12', '18'], '5'), 2, 'options: GST 5');
 eq(C.matchOption(['0%', '3%', '5%', '12%'], '5'), 2, 'options: 5 matches 5%');

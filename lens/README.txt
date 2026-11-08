@@ -1,4 +1,4 @@
-PakkaBill Lens - Meesho insights, auto listing and shipping check (Chrome extension, version 3.1)
+PakkaBill Lens - Meesho insights, auto listing and shipping check (Chrome extension, version 3.2)
 
 Works in Chrome or Edge on a laptop or desktop. On a phone, use the Lens bookmark
 from PakkaBill's Meesho Lens page instead (phone Chrome can't run extensions).
@@ -61,8 +61,12 @@ AUTO LISTING (FILL MEESHO'S CATALOGUE FORM IN ONE CLICK)
    PakkaBill panel. Every detail, the sizes with price, MRP, stock and SKU, the product name,
    description and photos are filled. Check the form and submit it in Meesho, then tap
    "Submitted, next" for the next product. PakkaBill shows each product as submitted.
-4. If a detail is left ("Not filled yet"), tap "Point" and click Meesho's box for it once.
-   It is filled and remembered for that template.
+4. Tap "Read all drop-downs" once per category. PakkaBill opens every drop-down, reads all
+   its choices and saves them on the template, so PakkaBill's Auto listing offers Meesho's
+   exact choices for each detail. When filling, a value whose label is different in Meesho goes
+   to the drop-down that has that choice, so you do not need to point at anything.
+5. If something is still not filled, tap "Copy form report" and send it to PakkaBill support.
+   It has the form's labels and boxes only: no prices, photos or login. ("Point" still works.)
 It fills only the form on the page you have open, in your own account, and never presses
 Submit.
 

@@ -48,6 +48,21 @@ var PBListCore = (function () {
     return j >= 0.66 ? 0.5 + j * 0.3 : 0; // most words shared: Fabric is not Blouse Fabric
   }
 
+  // A looser match, for values no label matched: every word of one label in the other
+  // ("Net Weight" and "Net Weight (in gms)"), else the share of words both have.
+  function looseScore(a, b) {
+    var s = labelScore(a, b);
+    if (s) return s;
+    // "Sleeves" and "Sleeve Styling (choose one)": plurals and helper words do not count
+    var word = function (w) { return w.length > 3 ? w.replace(/s$/, '') : w; };
+    var skip = /^(choose|select|one|any|type|the|of|in|and|or|your|please|enter)$/;
+    var A = norm(a).split(' ').filter(function (w) { return w && !skip.test(w); }).map(word), B = norm(b).split(' ').filter(function (w) { return w && !skip.test(w); }).map(word);
+    if (!A.length || !B.length) return 0;
+    var both = A.filter(function (w) { return B.indexOf(w) >= 0; }).length;
+    if (both === Math.min(A.length, B.length)) return 0.7;
+    return 0.6 * both / (A.length + B.length - both);
+  }
+
   // The option that is the value: exact, then the same without spaces, then a number match
   // ("5" and "5%"), then one starting with the other ("620630" and "620630 - Blouses of cotton"),
   // then one containing it. -1 when nothing fits.
@@ -196,7 +211,7 @@ var PBListCore = (function () {
     return p;
   }
 
-  var api = { norm: norm, canon: canon, labelScore: labelScore, matchOption: matchOption, splitMulti: splitMulti, sortSizes: sortSizes, rowKeyOf: rowKeyOf, render: render, sizesOf: sizesOf, plan: plan, bestField: bestField, learn: learn, problems: problems, fieldValue: fieldValue };
+  var api = { norm: norm, canon: canon, labelScore: labelScore, looseScore: looseScore, matchOption: matchOption, splitMulti: splitMulti, sortSizes: sortSizes, rowKeyOf: rowKeyOf, render: render, sizesOf: sizesOf, plan: plan, bestField: bestField, learn: learn, problems: problems, fieldValue: fieldValue };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();
