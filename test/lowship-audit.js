@@ -146,12 +146,64 @@ ok(E.FRAMES.every((t) => t.frame > 0 && t.frame <= 0.04 && t.frameColor.length =
 ok(E.STICKERS.every((t) => /^(tl|tr|bl|br)$/.test(t.corner)), 'every sticker sits in a corner');
 eq(new Set(E.STICKERS.map((t) => t.corner)).size, 4, 'stickers use all four corners across versions');
 eq([E.keyLabel('frame-maroon'), E.keyLabel(E.STICKERS[0].key)], ['Maroon frame', 'Hot sale sticker, navy blue frame'], 'frame and sticker names in plain words');
-eq(Object.keys(E.LOOKS), ['natural', 'mix', 'stickers'], 'three looks');
+eq(Object.keys(E.LOOKS), ['smart', 'natural', 'mix', 'stickers'], 'four looks, smart first');
 // results per category: { version: { category: rupees } }
 const per = E.byCategory({ orig: { 1234: 85, 1240: 90 }, zin3: { 1234: 72, 1240: 95 }, 'frame-teal': { 1234: 72 }, white: { 1240: 88 } });
 eq([per[1234].low, per[1234].best, per[1234].own, per[1234].save], [72, ['zin3', 'frame-teal'], 85, 13], 'per category: cheapest, ties, your photo, saving (Blouses)');
 eq([per[1240].low, per[1240].best, per[1240].save], [88, ['white'], 2], 'per category: a different winner in another category (Sarees)');
 eq(E.byCategory({}), {}, 'nothing checked: no summaries');
+
+
+/* 9. smart: product size in the frame and studio backgrounds (what other low-shipping tools change) */
+const smart = E.order('smart');
+eq([smart[0].key, new Set(smart.map((t) => t.key)).size === smart.length], ['orig', true], 'smart: your photo first, no version twice');
+ok(E.tweaks(12, 'smart').filter((t) => t.fill).length >= 3 && E.tweaks(12, 'smart').some((t) => t.frame) && E.tweaks(12, 'smart').some((t) => t.zoom && !t.fill), 'smart: product sizes, small zooms and frames all among the first 12');
+ok(E.FILLS.every((t) => t.fill >= 0.5 && t.fill <= 0.92), 'product sizes stay between 50% and 92% of the square');
+ok(E.STUDIO.every((t) => E.BACKDROPS[t.bd] && E.BACKDROPS[t.bd].every((v) => v >= 230)), 'studio backgrounds are all soft and light');
+eq([E.needsCut({ fill: 0.8 }), E.needsCut({ bd: 'cream' }), E.needsCut({ white: true }), E.needsCut({ zoom: 1.03 }), E.needsCut({ frame: 0.03 })], [true, true, true, false, false], 'which versions need the product cut out');
+// busy photo: the versions needing a cut-out are skipped and others take their place, so the count stays
+const busy24 = E.pick(smart, 24, false), plain24 = E.pick(smart, 24, true);
+eq([busy24.length, plain24.length, busy24.some(E.needsCut)], [24, 24, false], 'busy photo still gets 24 versions, none needing a cut-out');
+eq(plain24.map((t) => t.key), E.tweaks(24, 'smart').map((t) => t.key), 'plain photo: the usual first 24');
+// past winners come first, right after your photo
+const led = E.pick(smart, 12, true, ['frame-teal', 'fill65', 'orig', 'gone-key']);
+eq([led[0].key, led[1].key, led[2].key, led.length, new Set(led.map((t) => t.key)).size], ['orig', 'frame-teal', 'fill65', 12, 12], 'cheapest before goes first; unknown keys ignored');
+eq(E.pick(smart, 6, false, ['fill65', 'turn2']).map((t) => t.key).slice(0, 2), ['orig', 'turn2'], 'a past winner that needs a cut-out is skipped on a busy photo');
+
+/* 10. product placement for "fills" versions */
+let pf = E.placeFill({ x: 100, y: 50, w: 200, h: 400 }, 600, 600, 1000, 1000, 0.8);
+ok(near(pf.dh * 400 / pf.sh, 800, 1) && near(pf.dy + (50 + 200 - pf.sy) * pf.dh / pf.sh, 500, 1) && near(pf.dx + (100 + 100 - pf.sx) * pf.dw / pf.sw, 500, 1), 'product fills 80% of the square, centred', JSON.stringify(pf));
+pf = E.placeFill({ x: 0, y: 0, w: 300, h: 100 }, 300, 100, 1000, 1000, 0.6, 0.04);
+ok(near(pf.dw, 600, 1) && near(pf.dy + 50 * pf.dh / pf.sh, 540, 1) && pf.sx === 0 && pf.sw === 300, 'wide product touching the edges: 60% wide, sitting a little low, crop kept inside the photo', JSON.stringify(pf));
+eq([E.fillOf({ x: 0, y: 0, w: 50, h: 80 }, 100, 100), E.fillOf(null, 1, 1)], [0.8, 1], 'how much of the photo the product fills');
+
+/* 11. versions around the cheapest ("Try more like this"), with names that survive a reload */
+const rt = { fill: 0.68, bd: 'cream', rot: -1, light: 0.03 };
+const k = E.encode(rt), back = E.decode(k);
+eq([k, back.fill, back.bd, back.rot, back.light], ['x-f68_rm1_l3_bdcream', 0.68, 'cream', -1, 0.03], 'settings kept in the version key');
+eq(E.keyLabel(k), 'Product fills 68%, cream background, turned −1°, brighter', 'its name in plain words after a reload');
+const fr = E.decode(E.encode({ fc: 'teal', frame: 0.03, frameColor: [14, 112, 114], zoom: 1.02 }));
+eq([fr.fc, fr.frame, fr.frameColor, fr.zoom], ['teal', 0.03, [14, 112, 114], 1.02], 'frame colour comes back from the key');
+eq([E.decode('zin3'), E.decode('x-'), E.keyLabel('x-zzz')], [null, null, 'Your photo again'], 'odd keys are safe');
+const ar = E.around(E.FILLS[0], 12, ['x-f84_bdwhite']);
+eq([ar.length, new Set(ar.map((t) => t.key)).size], [12, 12], '12 new versions around the cheapest, none twice');
+ok(ar.every((t) => t.key !== 'fill80' && t.key !== 'x-f84_bdwhite' && t.key.length <= 60 && /^x-[\w-]+$/.test(t.key)), 'none repeats what was already made; keys are short and safe');
+ok(ar.every((t) => t.fill >= 0.45 && t.fill <= 0.95 && Math.abs(t.rot || 0) <= 3 && Math.abs(t.light || 0) <= 0.1), 'every step stays small');
+ok(ar.some((t) => t.fill === 0.76) && ar.some((t) => t.bd && t.bd !== 'white'), 'steps in product size and in background colour');
+const af = E.around(E.FRAMES[3], 12);
+ok(af.some((t) => t.fc && t.fc !== 'teal') && af.some((t) => t.zoom), 'around a frame: other frame colours and zooms');
+ok(E.around({ key: 'orig', label: 'Your photo' }, 12).length >= 8, 'around your own photo when it was already the cheapest');
+ok(af.every((t) => E.decode(t.key) && E.decode(t.key).label === t.label), 'every new version can be named again from its key');
+
+/* 12. learning from past results */
+eq(E.ranking([{ results: { orig: [80], fill65: [70, 72], zin3: [78], white: [85] } }, { results: { orig: [60], 'frame-teal': [55], fill65: [61] } }]), ['fill65', 'frame-teal', 'zin3'], 'versions cheaper than your photo, best first, across categories');
+eq(E.ranking([{ results: { zin3: [70], white: [66] } }]), ['white'], 'own photo never checked: the cheapest only');
+eq(E.ranking([]), [], 'no history: nothing brought forward');
+
+/* 13. Meesho's photo rules */
+eq(E.photoCheck(1000, 1000, 300000, 0.8), [], 'a good 1000×1000 photo passes');
+eq(E.photoCheck(400, 600, 300000, null).map((n) => n.bad), [true, false], 'too small (and tall) is flagged');
+ok(E.photoCheck(1000, 1000, 3e6, 0.3).some((n) => /2 MB/.test(n.text)) && E.photoCheck(1000, 1000, 1, 0.3).some((n) => /fills 30%/.test(n.text)), 'heavy files and a tiny product are flagged');
 
 console.log(`${checks - fails}/${checks} low shipping image checks passed`);
 if (fails) process.exit(1);
