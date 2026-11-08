@@ -128,7 +128,14 @@ module.exports = core.handler(async (req, res) => {
     // new accounts start with a free Pro trial (set in the admin panel; 0 turns it off)
     const s = await core.getSettings();
     const used = await db.cmd(['SISMEMBER', 'trialused', core.sha256('trial:' + phone)]);
-    const trial = core.paymentsReady(s) && s.enforce && !used ? Math.max(0, Math.min(90, Number(s.trialDays) || 0)) : 0;
+    let trial = core.paymentsReady(s) && s.enforce && !used ? Math.max(0, Math.min(90, Number(s.trialDays) || 0)) : 0;
+    // Without OTP anyone can sign up made-up numbers: at most 3 free trials a day from one internet address
+    if (trial && !otp.enabled()) {
+      const k = `trialip:${core.sha256(core.clientIp(req))}`;
+      const [n, ttl] = await db.pipe([['INCR', k], ['TTL', k]]);
+      if (ttl < 0) await db.cmd(['EXPIRE', k, 86400]);
+      if (n > 3) trial = 0;
+    }
     if (trial) { user.paidUntil = Date.now() + trial * core.DAY; user.lastPlan = 'trial'; }
     const created = await db.cmd(['SET', `user:${phone}`, JSON.stringify(user), 'NX']);
     if (!created) throw new core.HttpError(409, 'This number already has an account. Log in instead.');

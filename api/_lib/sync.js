@@ -17,6 +17,8 @@ const MAX_PARTS = 80;
 const QUOTA_PRO = 30 * 1024 * 1024;
 const QUOTA_FREE = 3 * 1024 * 1024;
 const SHOP_ID = /^(main|s_[a-z0-9]{4,20})$/;
+const MAX_SHOPS = 10; // Pro allows up to 10 shops
+const PART_TTL = 3600; // a part not committed within an hour is dropped, so unfinished uploads cannot fill the database
 const B64 = /^[A-Za-z0-9+/=]*$/;
 
 const idxKey = (phone) => `sync:${phone}`;
@@ -67,6 +69,7 @@ async function put(user, b) {
   const phone = user.phone;
   const lock = lockKey(phone, shop);
   const ix = await getIndex(phone);
+  if (!ix.shops[shop] && Object.keys(ix.shops).length >= MAX_SHOPS) throw new core.HttpError(413, `Cloud backup holds up to ${MAX_SHOPS} shops. Delete a shop you no longer need from the cloud first.`);
   const cur = ix.shops[shop] || { version: 0, slot: 'b', slots: {} };
   const conflict = () => ({ conflict: true, version: cur.version });
 
@@ -78,7 +81,7 @@ async function put(user, b) {
     throw new core.HttpError(409, 'The upload took too long. Trying again.');
   }
   const slot = cur.slot === 'a' ? 'b' : 'a';
-  await db.cmd(['SET', partKey(phone, shop, slot, part), data]);
+  await db.cmd(['SET', partKey(phone, shop, slot, part), data, 'EX', PART_TTL]);
   if (part < parts - 1) return { ok: true, part };
 
   // last part: commit if nobody else saved this shop meanwhile
@@ -90,7 +93,12 @@ async function put(user, b) {
     if (vals.some((v) => v == null)) throw new core.HttpError(409, 'Some of the upload went missing. Trying again.');
     const bytes = vals.reduce((n, v) => n + v.length, 0);
     const others = Object.entries(ix.shops).filter(([id]) => id !== shop).reduce((n, [, x]) => n + (x.bytes || 0), 0);
-    if (others + bytes > acc.quota) throw new core.HttpError(413, `Your cloud space is full (${Math.round(acc.quota / 1048576)} MB). Delete shops you no longer need, or keep a downloaded backup instead.`);
+    if (others + bytes > acc.quota) {
+      await db.cmd(['DEL', ...keys]); // an upload that does not fit is not kept
+      throw new core.HttpError(413, `Your cloud space is full (${Math.round(acc.quota / 1048576)} MB). Delete shops you no longer need, or keep a downloaded backup instead.`);
+    }
+    // the upload is complete: its parts are kept for good
+    await db.pipe(keys.map((k) => ['PERSIST', k]));
     const info = b.info && typeof b.info === 'object' ? b.info : {};
     const counts = info.counts && typeof info.counts === 'object' ? info.counts : {};
     const slots = { ...(cur.slots || {}) };

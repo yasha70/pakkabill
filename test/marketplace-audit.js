@@ -177,5 +177,31 @@ function azBook(taxOnTop) {
   eq(E.brand('Money received from Meesho', ['meesho']), 'Money received from Meesho', 'Meesho alone: text unchanged');
 }
 
+/* ---------------------------------------------------------------- edge cases */
+{
+  // Amazon: an Easy Ship charge row without a SKU stays with the order; a refund that also reverses a promotion is a return
+  const H = AZ_HEAD, mk = (o) => H.map((h) => (h in o ? o[h] : (/sales|credits|rebates|tax|tcs|tds|fees|other|total/i.test(h) ? 0 : '')));
+  const rows = [H,
+    mk({ 'date/time': '1 Aug 2025', type: 'Order', 'order id': '404-1111111-1111111', sku: 'A1', quantity: 1, 'product sales': 500, 'promotional rebates': -50, 'selling fees': -59, total: 391 }),
+    mk({ 'date/time': '2 Aug 2025', type: 'Amazon Easy Ship Charges', 'order id': '404-1111111-1111111', 'other transaction fees': -70.8, total: -70.8 }),
+    mk({ 'date/time': '1 Aug 2025', type: 'Order', 'order id': '404-2222222-2222222', sku: 'B1', quantity: 1, 'product sales': 300, total: 300 }),
+    // only the refund of an order whose sale is in an older file
+    mk({ 'date/time': '9 Aug 2025', type: 'Refund', 'order id': '404-3333333-3333333', sku: 'C1', quantity: 1, 'product sales': -500, 'promotional rebates': 50, 'selling fees': 40, total: -410 })];
+  const { M, IX, R } = run([{ name: 'az.csv', sheets: [{ name: 'S', rows }] }]);
+  const legs = M.pay.filter((x) => x.id.startsWith('404-1111111'));
+  ok(legs.length === 2 && legs.every((x) => x.id === '404-1111111-1111111 / A1'), 'Amazon: Easy Ship charge joins its order and SKU');
+  const c1 = IX.O['404-3333333-3333333 / C1'];
+  ok(c1 && c1.sale < 0 && c1.ret >= 0, 'Amazon: refund with a promotion reversed is a return, not a sale');
+  ok(R.checks.bridge && R.checks.sku, 'Amazon edge cases: profit ties');
+  // accuracy counts only the marketplace on view
+  const D = E.demo(), cfg = cfgOf();
+  const files = [D.payBook, fkBook].map((b, i) => E.ingest('f' + i, 0, b.sheets, cfg));
+  const Mf = E.merge(files, { pl: 'flipkart' }), IXf = E.index(Mf, cfg, {}, {}), per = E.periodFor({ mode: 'all', basis: 'pay' }, Mf, IXf);
+  const Rf = E.compute(Mf, IXf, cfg, [], per), Hf = E.health(Mf);
+  const acc = E.accuracy(files, Mf, IXf, Rf, Hf, cfg, '2025-09-01');
+  const rowsCheck = (acc.list || acc.items || Object.values(acc).find(Array.isArray) || []).find((x) => x.k === 'rows');
+  ok(rowsCheck && /6 of 6/.test(rowsCheck.d), 'Flipkart view: rows check counts only Flipkart rows', rowsCheck && rowsCheck.d);
+}
+
 console.log(fails ? `${fails} of ${checks} marketplace checks FAILED` : `${checks}/${checks} marketplace checks passed`);
 process.exit(fails ? 1 : 0);

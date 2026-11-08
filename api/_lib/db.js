@@ -92,6 +92,10 @@ async function memory([op, ...a]) {
       return mem.exp.has(a[0]) ? Math.ceil((mem.exp.get(a[0]) - Date.now()) / 1000) : -1;
     case 'PING':
       return 'PONG';
+    case 'PERSIST':
+      if (!memAlive(a[0]) || !mem.exp.has(a[0])) return 0;
+      mem.exp.delete(a[0]);
+      return 1;
     case 'EXPIRE':
       if (!memAlive(a[0])) return 0;
       mem.exp.set(a[0], Date.now() + Number(a[1]) * 1000);

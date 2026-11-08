@@ -8,6 +8,8 @@ const visits = require('./_lib/visits');
 module.exports = async (req, res) => {
   try {
     if (req.method === 'POST' && db.configured()) {
+      // one address can count at most 300 page views an hour (a script cannot fill the stats)
+      await core.rateLimit(`visit:${core.clientIp(req)}`, 300, 3600);
       const b = core.body(req);
       let phone = '';
       if (b.kind === 'visit' && b.token) {

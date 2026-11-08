@@ -378,6 +378,8 @@ module.exports = core.handler(async (req, res) => {
     if (pw.length < 8) throw new core.HttpError(503, 'Set ADMIN_PASSWORD (8+ characters) in Vercel first.');
     core.requireDb();
     await core.rateLimit(`admin:${core.clientIp(req)}`, 10, 900);
+    // and from everywhere together, so guessing from many addresses is slow too
+    await core.rateLimit('admin:all', 60, 3600);
     if (!core.safeEqual(String(b.password || ''), pw)) throw new core.HttpError(401, 'Wrong admin password.');
     const t = core.token();
     await db.cmd(['SET', `asess:${core.sha256(t)}`, '1', 'EX', 12 * 3600]);

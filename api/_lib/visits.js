@@ -26,7 +26,7 @@ function device(ua, standalone) {
   return 'Computer';
 }
 function source(ref, utm) {
-  if (utm) return clip(utm, 40).toLowerCase();
+  if (utm) { const u = clip(utm, 40).toLowerCase(); return /^[a-z0-9_.-]+$/.test(u) ? u : 'other'; }
   let h = '';
   try { h = new URL(ref).hostname.replace(/^www\./, ''); } catch { /* none */ }
   if (!h) return 'Direct';

@@ -903,6 +903,9 @@ details.more[open] > summary { margin-bottom: 10px; }
 
     var reg = {}, recs = [], defG = +((cfg && cfg.defaultGst) || 5), pdFallback = 0;
     comps.forEach(function (cc) { reg[cc.key] = { label: cc.label, cat: cc.cat, gst: cc.gst }; });
+    // Amazon charges an order without its SKU (Easy Ship charges): they belong to the order's first SKU
+    var azSku = {};
+    if (AZ) data.forEach(function (r0) { var o0 = txt(r0[c.id]), s0 = txt(r0[c.sku]); if (s0 && !azSku[o0]) azSku[o0] = s0; });
     var taxI = -1;
     comps.forEach(function (cc, ix) { if (taxI < 0 && cc.flex && /tax/.test(h(cc.label))) taxI = ix; });
     // On Flipkart and Amazon a refund is the sale column written as a minus: kept apart as a return
@@ -920,6 +923,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       var st = txt(row[c.st]);
       if (FK) { var hs = h(st); st = /courier|rto|undeliver/.test(hs) ? 'RTO' : /customer|return/.test(hs) ? 'Customer return' : /cancel/.test(hs) ? 'Cancelled' : ''; }
       var sku = txt(row[c.sku]), id = txt(row[c.id]);
+      if (AZ && !sku) sku = azSku[id] || '';
       if (AZ) { var tyA = h(row[c.typ]); st = /refund|return/.test(tyA) ? 'Customer return' : /cancel/.test(tyA) ? 'Cancelled' : ''; if (sku) id += ' / ' + sku; }
       var rec = {
         id: id, st: st, od: toDate(row[c.od]), dd: toDate(row[c.dd]), pd: toDate(row[c.pd]) || (pl === 'meesho' ? '' : lastDateIn(row[c.pd])),
@@ -954,7 +958,7 @@ details.more[open] > summary { margin-bottom: 10px; }
         if (gs != null) rec.g = gs;
       }
       // a sale less the offers that leave nothing (or a minus) is not a sale
-      if (pl !== 'meesho' && rec.s < 0) { rec.r += rec.s; rec.s = 0; }
+      if (pl !== 'meesho' && (rec.s < 0 || (rec.r < 0 && rec.s > 0 && rec.s + rec.r <= 0))) { rec.r += rec.s; rec.s = 0; }
       rec.o = rec.f - sum;
       recs.push(rec);
     }
@@ -2196,6 +2200,8 @@ details.more[open] > summary { margin-bottom: 10px; }
      more than 15 days apart point to a payment file that was not uploaded (Meesho pays every week). */
   function accuracy(files, M, IX, R, H, cfg, today) {
     var out = [], mt = 0, nt = 0, fb = 0;
+    // only the marketplaces on view (M was merged for one marketplace or all)
+    if (M.pls && M.pls.length) files = (files || []).filter(function (f) { return M.pls.indexOf(f.pl || 'meesho') >= 0; });
     (files || []).forEach(function (f) { (f.sheets || []).forEach(function (s) { if (s.type === 'pay') { mt += s.matched || 0; nt += s.n || 0; fb += s.pdFallback || 0; } }); });
     out.push(R.checks.bridge && R.checks.sku
       ? { k: 'ties', lvl: 'ok', t: 'Profit ties to the money Meesho paid, to the paisa', d: 'Money received ' + money(R.payout, { sym: '\u20b9' }) + ' = Final Settlement of every payment row, plus ads, referral and compensation entries. Profit by SKU adds up to the total.' }
@@ -2918,6 +2924,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     if (S.plat !== 'all' && S.M.allPls.indexOf(S.plat) < 0) { S.plat = 'all'; S.M = E.merge(w.files); }
     S.IX = E.index(S.M, cfg(), w.costs, w.marks);
     S.H = E.health(S.M);
+    S.HA = S.plat === 'all' ? S.H : E.health(E.merge(w.files));
     S.months = E.dataMonths(S.M, S.IX, S.sel.basis);
     if (S.sel.mode === 'month' && S.months.indexOf(S.sel.m) < 0) S.sel.mode = 'all';
     S.per = E.periodFor(S.sel, S.M, S.IX);
@@ -3213,7 +3220,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   }
   A.saveBlob = saveBlob;
   function fileSlug() {
-    var p = S.per, biz = (cfg().biz || 'Meesho').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'Meesho';
+    var p = S.per, biz = (cfg().biz || (S.M && S.M.mk) || 'Meesho').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'Meesho';
     var tag = p.mode === 'month' ? E.fmtMonth(p.m).replace(' ', '-') : p.mode === 'custom' ? p.from + '_to_' + p.to : 'All-' + (S.months[0] || '') + '_to_' + (S.months[S.months.length - 1] || '');
     return biz + '_PnL_' + tag;
   }
@@ -4736,7 +4743,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       '<ul class="sheets">' + sh + '</ul>' + dup + '</div>';
   }
   V.data = function () {
-    var w = A.W(), H = S.H, files = w.files, skus = A.skuList();
+    var w = A.W(), H = S.HA || S.H, files = w.files, skus = A.skuList();
     var sold = skus.filter(function (x) { return x.units > 0; });
     var costDone = sold.length > 0 && sold.every(function (x) { return w.costs[x.sku] && w.costs[x.sku].c != null; });
     var h = (A.hasData() ? '' : hero(true)) + demoBar() + '<section class="sheet"><div class="sheet-h"><h2>Add your marketplace reports</h2></div><p class="small muted" style="margin:0 0 10px">Meesho, Flipkart and Amazon. Add one or all of them: each file is recognised by itself, and with more than one marketplace you can see each one alone or all together.</p><ol class="steps">' +
