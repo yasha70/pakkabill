@@ -72,17 +72,49 @@
     ['brown', 'Brown', [112, 70, 40]], ['pink', 'Pink', [204, 68, 132]], ['green', 'Green', [28, 122, 62]],
     ['grey', 'Grey', [112, 112, 122]], ['red', 'Red', [190, 32, 42]], ['blue', 'Blue', [38, 92, 196]],
   ];
-  const FRAMES = FRAME_COLORS.map(([k, name, c], i) => ({ key: 'frame-' + k, label: name + ' frame', frame: 0.03, frameColor: c, zoom: [1, 0.98, 1.02][i % 3] }));
+  const FRAMES = FRAME_COLORS.map(([k, name, c], i) => ({ key: 'frame-' + k, label: name + ' frame', frame: 0.03, frameColor: c, fc: k, zoom: [1, 0.98, 1.02][i % 3] }));
+
+  // Product size in the frame: what most low-shipping tools change. The product is cut out from a plain
+  // background and placed in the middle of a 1000×1000 square so its longer side is fill × the square
+  // (Meesho's photo guides ask for about 70-85%). Needs a plain background (the product's outline).
+  const BACKDROPS = { white: [255, 255, 255], cream: [250, 246, 236], grey: [241, 241, 243], blush: [252, 238, 240], sky: [236, 243, 252], mint: [235, 247, 239] };
+  const BD_NAMES = { white: 'white', cream: 'cream', grey: 'light grey', blush: 'blush pink', sky: 'sky blue', mint: 'mint' };
+  const FILLS = [
+    { key: 'fill80', label: 'Product fills 80%, square', fill: 0.8, bd: 'white' },
+    { key: 'fill65', label: 'Product fills 65%, square', fill: 0.65, bd: 'white' },
+    { key: 'fill90', label: 'Product fills 90%, square', fill: 0.9, bd: 'white' },
+    { key: 'fill72', label: 'Product fills 72%, square', fill: 0.72, bd: 'white' },
+    { key: 'fill58', label: 'Product fills 58%, square', fill: 0.58, bd: 'white' },
+    { key: 'fill85', label: 'Product fills 85%, square', fill: 0.85, bd: 'white' },
+    { key: 'fill75-low', label: 'Product fills 75%, sitting low', fill: 0.75, bd: 'white', dy: 0.04 },
+    { key: 'fill52', label: 'Product fills 52%, square', fill: 0.52, bd: 'white' },
+    { key: 'fill78-own', label: 'Product fills 78%, your background', fill: 0.78, bd: 'own' },
+    { key: 'fill68-own', label: 'Product fills 68%, your background', fill: 0.68, bd: 'own' },
+  ];
+  // Soft studio backgrounds behind the cut-out product, at the photo's own framing.
+  const STUDIO = [
+    { key: 'bd-cream', label: 'Cream background', bd: 'cream' },
+    { key: 'bd-grey', label: 'Light grey background', bd: 'grey' },
+    { key: 'fill75-cream', label: 'Product fills 75%, cream', fill: 0.75, bd: 'cream' },
+    { key: 'bd-blush', label: 'Blush pink background', bd: 'blush' },
+    { key: 'fill70-grey', label: 'Product fills 70%, light grey', fill: 0.7, bd: 'grey' },
+    { key: 'bd-sky', label: 'Sky blue background', bd: 'sky' },
+    { key: 'bd-mint', label: 'Mint background', bd: 'mint' },
+    { key: 'fill82-blush', label: 'Product fills 82%, blush pink', fill: 0.82, bd: 'blush' },
+  ];
+  // Versions that need the product's outline (a plain background).
+  const needsCut = (t) => !!(t.white || t.fill || (t.bd && t.bd !== 'own'));
   const STICKERS = [
     ['hot', 'Hot sale'], ['tick', 'Green tick'], ['new', 'New'], ['star', 'Star'], ['best', 'Best seller'], ['trend', 'Trending'],
     ['sale', 'Sale'], ['premium', 'Premium'], ['offer', 'Offer'], ['heart', 'Heart'], ['top', 'Top quality'], ['fast', 'Fast selling'],
   ].map(([k, name], i) => {
     const f = FRAME_COLORS[(i * 5 + 2) % FRAME_COLORS.length];
-    return { key: `sticker-${k}-${f[0]}`, label: `${name} sticker, ${f[1].toLowerCase()} frame`, frame: 0.03, frameColor: f[2], sticker: k, corner: ['tr', 'tl', 'br', 'bl'][i % 4] };
+    return { key: `sticker-${k}-${f[0]}`, label: `${name} sticker, ${f[1].toLowerCase()} frame`, frame: 0.03, frameColor: f[2], fc: f[0], sticker: k, corner: ['tr', 'tl', 'br', 'bl'][i % 4] };
   });
   // Looks: natural (the photo only), mix (natural and coloured frames), stickers (frames with stickers).
-  const LOOKS = { natural: 'Natural', mix: 'Natural and coloured frames', stickers: 'Frames and stickers' };
-  const ALL = [...TWEAKS, ...FRAMES, ...STICKERS];
+  // smart: product size, studio backgrounds, small changes and frames together (the widest search).
+  const LOOKS = { smart: 'Smart (product size, backgrounds, frames)', natural: 'Natural', mix: 'Natural and coloured frames', stickers: 'Frames and stickers' };
+  const ALL = [...TWEAKS, ...FILLS, ...STUDIO, ...FRAMES, ...STICKERS];
   // Takes turns from the lists given, skipping repeats, after the seller's own photo.
   function weave(lists) {
     const out = [TWEAKS[0]], seen = new Set(['orig']), pos = lists.map(() => 0);
@@ -92,10 +124,152 @@
     }
     return out;
   }
-  const ORDER = { natural: TWEAKS, mix: weave([TWEAKS.slice(1), FRAMES]), stickers: weave([STICKERS, FRAMES, TWEAKS.slice(1)]) };
-  // The first n versions of a look (the seller's own photo is always first).
-  const tweaks = (n, look) => { const l = ORDER[look] || TWEAKS; return l.slice(0, Math.max(1, Math.min(l.length, n || LEVELS.normal))); };
-  const keyLabel = (key) => (ALL.find((t) => t.key === key) || { label: 'An older version' }).label;
+  const ORDER = {
+    smart: weave([FILLS, TWEAKS.slice(1), STUDIO, FRAMES]),
+    natural: TWEAKS, mix: weave([TWEAKS.slice(1), FRAMES]), stickers: weave([STICKERS, FRAMES, TWEAKS.slice(1)]),
+  };
+  // Every version of a look, in order (the seller's own photo is always first).
+  const order = (look) => ORDER[look] || TWEAKS;
+  // The first n versions of a look.
+  const tweaks = (n, look) => { const l = order(look); return l.slice(0, Math.max(1, Math.min(l.length, n || LEVELS.normal))); };
+  // The first n versions this photo can have: on a busy background (no outline) the versions that need
+  // the product cut out are skipped and the next ones take their place, so the count stays the same.
+  // first: version keys to bring forward (what was cheapest before), right after the seller's photo.
+  function pick(list, n, plain, first) {
+    const ok = (t) => plain || !needsCut(t);
+    const lead = (first || []).map((k) => (k === 'orig' ? null : list.find((t) => t.key === k) || ALL.find((t) => t.key === k) || decode(k))).filter((t) => t && ok(t));
+    const out = [list[0]], seen = new Set([list[0].key]);
+    for (const t of [...lead, ...list.slice(1)]) { if (out.length >= n) break; if (!seen.has(t.key) && ok(t)) { out.push(t); seen.add(t.key); } }
+    return out;
+  }
+
+  /* ---------- versions made around the cheapest one ("Try more like this"). Their keys hold their
+     settings, so their names come back after a reload: x-f68_bdcream_z102 */
+  const CODEC = [
+    ['f', 'fill', 100], ['z', 'zoom', 100], ['r', 'rot', 1], ['l', 'light', 100], ['w', 'warm', 10], ['c', 'contrast', 100],
+    ['s', 'sat', 100], ['h', 'sharp', 100], ['b', 'border', 1000], ['x', 'dx', 100], ['y', 'dy', 100], ['q', 'q', 100],
+  ];
+  const FRAME_BY = Object.fromEntries(FRAME_COLORS.map(([k, , c]) => [k, c]));
+  function encode(t) {
+    const p = [];
+    CODEC.forEach(([c, f, m]) => { if (t[f] != null && !(f === 'zoom' && t[f] === 1) && t[f] !== 0) p.push(c + String(Math.round(t[f] * m)).replace('-', 'm')); });
+    if (t.bd || t.white) p.push('bd' + (t.bd || 'white'));
+    if (t.fc) p.push('fr' + t.fc);
+    if (t.sticker) p.push('st' + t.sticker + (t.corner || 'tr'));
+    if (t.flip) p.push('mi');
+    return 'x-' + (p.join('_') || 'same');
+  }
+  function decode(key) {
+    if (!/^x-[\w-]{1,60}$/.test(String(key || ''))) return null;
+    const t = { key };
+    for (const part of key.slice(2).split('_')) {
+      if (part.startsWith('bd') && BACKDROPS[part.slice(2)] || part === 'bdown') { t.bd = part.slice(2); continue; }
+      if (part.startsWith('fr') && FRAME_BY[part.slice(2)]) { t.fc = part.slice(2); t.frame = 0.03; t.frameColor = FRAME_BY[t.fc]; continue; }
+      if (part.startsWith('st')) { t.sticker = part.slice(2, -2); t.corner = part.slice(-2); continue; }
+      if (part === 'mi') { t.flip = true; continue; }
+      const c = CODEC.find(([k]) => part[0] === k && /^m?\d+$/.test(part.slice(1)));
+      if (c) t[c[1]] = Number(part.slice(1).replace('m', '-')) / c[2];
+    }
+    t.label = describe(t);
+    return t;
+  }
+  // A version's settings in plain words.
+  function describe(t) {
+    const w = [];
+    if (t.fill) w.push(`product fills ${Math.round(t.fill * 100)}%`);
+    if (t.bd && t.bd !== 'own' && !(t.fill && t.bd === 'white')) w.push(`${BD_NAMES[t.bd] || t.bd} background`);
+    if (t.bd === 'own' && t.fill) w.push('your background');
+    if (t.zoom && t.zoom !== 1) w.push(`zoom ${t.zoom > 1 ? 'in' : 'out'} ${Math.round(Math.abs(t.zoom - 1) * 100)}%`);
+    if (t.rot) w.push(`turned ${t.rot > 0 ? '' : '−'}${Math.abs(t.rot)}°`);
+    if (t.dy) w.push(t.dy > 0 ? 'moved down' : 'moved up');
+    if (t.dx) w.push(t.dx > 0 ? 'moved right' : 'moved left');
+    if (t.light) w.push(t.light > 0 ? 'brighter' : 'softer light');
+    if (t.warm) w.push(t.warm > 0 ? 'warmer' : 'cooler');
+    if (t.contrast) w.push(t.contrast > 1 ? 'more contrast' : 'less contrast');
+    if (t.sat) w.push(t.sat > 1 ? 'richer colour' : 'softer colour');
+    if (t.sharp) w.push('sharper');
+    if (t.border) w.push('thin border');
+    if (t.fc) w.push(`${(FRAME_COLORS.find(([k]) => k === t.fc) || [, 'colour'])[1].toLowerCase()} frame`);
+    if (t.sticker) w.push(`${t.sticker} sticker`);
+    if (t.flip) w.push('mirror image');
+    if (t.q) w.push('lighter file');
+    const s = w.join(', ') || 'Your photo again';
+    return s[0].toUpperCase() + s.slice(1);
+  }
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const r3 = (v) => Math.round(v * 1000) / 1000;
+  // Up to n new versions close to the cheapest one t: a little more or less product size or zoom, a
+  // degree of turn, light, warmth, sharpening, another background or frame colour. Every one is new
+  // (not in have) and every change stays small.
+  function around(t, n = 12, have = []) {
+    if (!t) return [];
+    const base = {};
+    ['fill', 'zoom', 'rot', 'light', 'warm', 'contrast', 'sat', 'sharp', 'border', 'dx', 'dy', 'bd', 'fc', 'frame', 'frameColor', 'sticker', 'corner', 'flip', 'q'].forEach((k) => { if (t[k] != null) base[k] = t[k]; });
+    if (t.white && !base.bd) base.bd = 'white';
+    // four kinds of step, taken in turns so 12 new versions try a bit of each
+    const size = [], look = [], swap = [], light = [];
+    if (base.fill) [-0.04, 0.04, -0.08, 0.08, -0.02, 0.02].forEach((d) => size.push({ fill: r3(clamp(base.fill + d, 0.45, 0.95)) }));
+    else [0.02, -0.02, 0.04, -0.04].forEach((d) => size.push({ zoom: r3(clamp((base.zoom || 1) + d, 0.88, 1.12)) }));
+    look.push({ rot: clamp((base.rot || 0) + 1, -3, 3) }, { dy: base.dy ? 0 : 0.02 }, { rot: clamp((base.rot || 0) - 1, -3, 3) });
+    light.push({ light: r3(clamp((base.light || 0) + 0.03, -0.08, 0.1)) }, { warm: base.warm ? 0 : 0.4 }, { sharp: base.sharp ? 0 : 0.35 });
+    if (base.fc) FRAME_COLORS.filter(([k]) => k !== base.fc).slice(0, 3).forEach(([k, , col]) => swap.push({ fc: k, frameColor: col }));
+    if (base.bd) Object.keys(BACKDROPS).filter((k) => k !== base.bd).slice(0, 3).forEach((k) => swap.push({ bd: k }));
+    if (!base.bd && !base.fc) swap.push({ bd: 'white', fill: 0.8 }, { border: 0.02 });
+    const c = [];
+    for (let i = 0; i < 6; i++) [size, swap, look, light].forEach((g) => { if (g[i]) c.push({ ...base, ...g[i] }); });
+    const seen = new Set([t.key, encode(t), ...have]), out = [];
+    for (const v of c) {
+      Object.keys(v).forEach((k) => { if (v[k] === 0) delete v[k]; });
+      v.key = encode(v); v.label = describe(v);
+      if (!seen.has(v.key)) { seen.add(v.key); out.push(v); }
+      if (out.length >= n) break;
+    }
+    return out;
+  }
+  const keyLabel = (key) => (ALL.find((t) => t.key === key) || decode(key) || { label: 'An older version' }).label;
+  const tweakOf = (key) => ALL.find((t) => t.key === key) || decode(key);
+
+  // Where the product goes for a "fills" version: the product's box (in the photo), a little margin
+  // round it so soft edges are kept, drawn in a W×H canvas so its longer side is fill × the canvas.
+  // Returns the part of the photo to take (s*) and where it lands (d*).
+  function placeFill(box, srcW, srcH, W, H, fill, dy = 0) {
+    const pad = Math.round(Math.max(box.w, box.h) * 0.02);
+    const sx = Math.max(0, box.x - pad), sy = Math.max(0, box.y - pad);
+    const sw = Math.min(srcW, box.x + box.w + pad) - sx, sh = Math.min(srcH, box.y + box.h + pad) - sy;
+    const k = (fill * Math.min(W, H)) / Math.max(box.w, box.h);
+    const dw = sw * k, dh = sh * k;
+    // the product's own centre goes to the middle (shifted by dy of the height)
+    const cx = (box.x + box.w / 2 - sx) * k, cy = (box.y + box.h / 2 - sy) * k;
+    return { sx, sy, sw, sh, dx: W / 2 - cx, dy: H / 2 + dy * H - cy, dw, dh };
+  }
+  // How much of the photo the product fills (longer side of the product against that side of the photo).
+  const fillOf = (box, w, h) => (box ? Math.max(box.w / w, box.h / h) : 1);
+
+  // Version keys from the seller's past results, cheapest first: per category, versions whose average
+  // shipping was below the seller's own photo (or the lowest when the photo was never checked).
+  function ranking(cats) {
+    const score = new Map();
+    for (const c of cats || []) {
+      const res = (c && c.results) || {};
+      const avg = (l) => l.reduce((a, b) => a + b, 0) / l.length;
+      const own = res.orig && res.orig.length ? avg(res.orig) : null;
+      const rows = Object.entries(res).filter(([k, l]) => k !== 'orig' && l && l.length).map(([k, l]) => [k, avg(l)]);
+      if (!rows.length) continue;
+      const low = Math.min(...rows.map((r) => r[1]));
+      rows.forEach(([k, v]) => { if ((own != null && v < own) || v === low) score.set(k, Math.min(score.get(k) ?? Infinity, v - low)); });
+    }
+    return [...score.entries()].sort((a, b) => a[1] - b[1]).map((e) => e[0]);
+  }
+
+  // Meesho's photo check, before upload: size, file weight, product size in the frame.
+  function photoCheck(w, h, bytes, fill) {
+    const notes = [];
+    if (Math.min(w, h) < 500) notes.push({ bad: true, text: `Small (${w}×${h}): Meesho asks for at least 500 px` });
+    if (bytes > 2 * 1024 * 1024) notes.push({ bad: true, text: 'Over 2 MB: Meesho may refuse it' });
+    if (fill != null && fill < 0.5) notes.push({ bad: false, text: `Product fills ${Math.round(fill * 100)}%: buyers see a small product` });
+    if (w / h > 1.4 || h / w > 1.4) notes.push({ bad: false, text: 'Very tall or wide: Meesho shows it cut to a square' });
+    return notes;
+  }
 
   // How much bigger a w×h photo must be drawn, turned by deg, so its corners still fill the frame.
   function coverScale(w, h, deg) {
@@ -274,7 +448,6 @@
     return { bg, uniform, plain, mask, box };
   }
 
-  // How big the product is in a square photo now (longer side of the product / longer side of the photo).
   // The shipping charge in Meesho's text: "Shipping Charges ₹ 1,234" -> 1234, "₹62.50" -> 62.5. null when none.
   function rupeesIn(text) {
     const t = String(text || '').replace(/\u00a0/g, ' ');
@@ -320,7 +493,7 @@
     return out;
   }
 
-  const engine = { TWEAKS, FRAMES, STICKERS, LOOKS, LEVELS, STRENGTH, tweaks, keyLabel, byCategory, coverScale, adjustPixels, sharpen, outSize, borderColor, backgroundMask, productBox, analyze, bestOf, summary, rupeesIn, crc32, zipParts };
+  const engine = { TWEAKS, FRAMES, STICKERS, FILLS, STUDIO, BACKDROPS, LOOKS, LEVELS, STRENGTH, tweaks, order, pick, needsCut, encode, decode, describe, around, placeFill, fillOf, ranking, photoCheck, tweakOf, keyLabel, byCategory, coverScale, adjustPixels, sharpen, outSize, borderColor, backgroundMask, productBox, analyze, bestOf, summary, rupeesIn, crc32, zipParts };
   root.PBShip = engine;
   if (typeof document === 'undefined') return;
 
@@ -348,60 +521,87 @@
     return c;
   }
 
-  // The photo's background colour, and a copy with the background made plain white (product untouched,
-  // same size and place). null when the photo has a busy background.
+  // The photo's background colour; the product cut out (background see-through, soft edge kept), the
+  // same on plain white, the product's box and how much of the photo it fills. Without a plain
+  // background (busy photo) only the colour.
   function study(src, strength) {
     const s = Math.min(1, SMALL / Math.max(src.width, src.height));
     const sm = canvas(Math.max(1, Math.round(src.width * s)), Math.max(1, Math.round(src.height * s)));
     const sx = sm.getContext('2d', { willReadFrequently: true });
     sx.drawImage(src, 0, 0, sm.width, sm.height);
     const a = analyze(sx.getImageData(0, 0, sm.width, sm.height), { strength });
-    if (!a.mask) return { bg: a.bg, white: null };
-    const w = canvas(src.width, src.height), wx = w.getContext('2d', { willReadFrequently: true });
-    wx.drawImage(src, 0, 0);
-    const id = wx.getImageData(0, 0, w.width, w.height), d = id.data, m = a.mask, W = sm.width, H = sm.height;
+    if (!a.mask) return { bg: a.bg, white: null, cut: null, box: null, fill: null };
+    const cut = canvas(src.width, src.height), cx = cut.getContext('2d', { willReadFrequently: true });
+    cx.drawImage(src, 0, 0);
+    const id = cx.getImageData(0, 0, cut.width, cut.height), d = id.data, m = a.mask, W = sm.width, H = sm.height;
     const fx = src.width / W, fy = src.height / H;
     const at = (x, y) => m[Math.min(H - 1, Math.max(0, y)) * W + Math.min(W - 1, Math.max(0, x))];
-    for (let y = 0; y < w.height; y++) {
+    for (let y = 0; y < cut.height; y++) {
       const fyv = (y + 0.5) / fy - 0.5, y0 = Math.floor(fyv), ty = fyv - y0;
-      for (let x = 0; x < w.width; x++) {
+      for (let x = 0; x < cut.width; x++) {
         const fxv = (x + 0.5) / fx - 0.5, x0 = Math.floor(fxv), tx = fxv - x0;
         const v = (at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx) * (1 - ty) + (at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx) * ty;
-        if (v <= 0) continue;
-        const i = (y * w.width + x) * 4; // blend towards white across the soft edge
-        d[i] += (255 - d[i]) * v; d[i + 1] += (255 - d[i + 1]) * v; d[i + 2] += (255 - d[i + 2]) * v;
+        if (v > 0) d[(y * cut.width + x) * 4 + 3] = 255 * (1 - v); // soft edge: background fades out
       }
     }
-    wx.putImageData(id, 0, 0);
-    return { bg: a.bg, white: w };
+    cx.putImageData(id, 0, 0);
+    const box = { x: Math.floor(a.box.x * fx), y: Math.floor(a.box.y * fy), w: Math.ceil(a.box.w * fx), h: Math.ceil(a.box.h * fy) };
+    return { bg: a.bg, cut, white: onColor(cut, BACKDROPS.white), box, fill: fillOf(a.box, W, H) };
+  }
+  // The cut-out product on a plain colour, same size and place.
+  function onColor(cut, rgb) {
+    const c = canvas(cut.width, cut.height), x = c.getContext('2d');
+    x.fillStyle = `rgb(${rgb.join(',')})`; x.fillRect(0, 0, c.width, c.height); x.drawImage(cut, 0, 0);
+    return c;
+  }
+  function backdrop(ph, name) {
+    if (name === 'white') return ph.white;
+    ph.bgs = ph.bgs || {};
+    return (ph.bgs[name] = ph.bgs[name] || onColor(ph.cut, BACKDROPS[name]));
   }
 
   // One version of the photo, full size, with the tweak t.
   function render(ph, t, shape) {
-    const src = t.white && ph.white ? ph.white : ph.src;
-    const { w: W, h: H } = outSize(src.width, src.height, shape);
+    const cutOk = !!ph.cut, bdName = t.bd || (t.white ? 'white' : null);
+    const colour = bdName && bdName !== 'own' && cutOk ? BACKDROPS[bdName] || BACKDROPS.white : null;
+    const src = colour && !t.fill ? backdrop(ph, BACKDROPS[bdName] ? bdName : 'white') : ph.src;
+    const fill = t.fill && cutOk;
+    const { w: W, h: H } = fill ? { w: 1000, h: 1000 } : outSize(src.width, src.height, shape);
     const c = canvas(W, H), x = c.getContext('2d', { willReadFrequently: true });
-    const bg = t.white && ph.white ? [255, 255, 255] : ph.bg;
+    const bg = colour || ph.bg;
     const m = Math.min(W, H);
     // a coloured frame: the frame colour all round, a thin white line inside it, the photo inside that
     const border = t.frame ? t.frame + 0.007 : t.border || 0;
     x.fillStyle = `rgb(${(t.frameColor || t.borderColor || bg).join(',')})`;
     x.fillRect(0, 0, W, H);
     if (t.frame) { const f = Math.round(m * t.frame); x.fillStyle = '#fff'; x.fillRect(f, f, W - 2 * f, H - 2 * f); }
-    // fit the photo in (same shape: fills it; square: as big as fits), then the tweak
-    const fit = Math.min(W / src.width, H / src.height);
-    let k = fit * (t.zoom || 1) * (1 - 2 * border);
-    const zoomIn = (t.zoom || 1) >= 1 && !border;
-    if (zoomIn && t.rot) k *= coverScale(src.width, src.height, t.rot); // turned: no empty corners
-    if (zoomIn && (t.dx || t.dy)) k *= 1 + 2 * Math.max(Math.abs(t.dx || 0), Math.abs(t.dy || 0)); // moved: no empty edge
     x.save();
-    if (border) { const b = Math.round(m * border); x.beginPath(); x.rect(b, b, W - 2 * b, H - 2 * b); x.clip(); x.fillStyle = `rgb(${bg.join(',')})`; x.fillRect(b, b, W - 2 * b, H - 2 * b); }
-    x.translate(W / 2 + (t.dx || 0) * W, H / 2 + (t.dy || 0) * H);
-    if (t.rot) x.rotate((t.rot * Math.PI) / 180);
-    if (t.flip) x.scale(-1, 1);
-    x.scale(k, k);
-    x.imageSmoothingQuality = 'high';
-    x.drawImage(src, -src.width / 2, -src.height / 2);
+    if (fill) {
+      // the cut-out product, its longer side fill × the space inside any frame, in the middle
+      const b = Math.round(m * border), IW = W - 2 * b, IH = H - 2 * b;
+      x.beginPath(); x.rect(b, b, IW, IH); x.clip();
+      x.fillStyle = `rgb(${bg.join(',')})`; x.fillRect(b, b, IW, IH);
+      const p = placeFill(ph.box, ph.cut.width, ph.cut.height, IW, IH, Math.min(0.97, t.fill * (t.zoom || 1)), t.dy || 0);
+      x.translate(b + IW / 2 + (t.dx || 0) * IW, b + IH / 2);
+      if (t.rot) x.rotate((t.rot * Math.PI) / 180);
+      if (t.flip) x.scale(-1, 1);
+      x.imageSmoothingQuality = 'high';
+      x.drawImage(ph.cut, p.sx, p.sy, p.sw, p.sh, p.dx - IW / 2, p.dy - IH / 2, p.dw, p.dh);
+    } else {
+      // fit the photo in (same shape: fills it; square: as big as fits), then the tweak
+      const fit = Math.min(W / src.width, H / src.height);
+      let k = fit * (t.zoom || 1) * (1 - 2 * border);
+      const zoomIn = (t.zoom || 1) >= 1 && !border;
+      if (zoomIn && t.rot) k *= coverScale(src.width, src.height, t.rot); // turned: no empty corners
+      if (zoomIn && (t.dx || t.dy)) k *= 1 + 2 * Math.max(Math.abs(t.dx || 0), Math.abs(t.dy || 0)); // moved: no empty edge
+      if (border) { const b = Math.round(m * border); x.beginPath(); x.rect(b, b, W - 2 * b, H - 2 * b); x.clip(); x.fillStyle = `rgb(${bg.join(',')})`; x.fillRect(b, b, W - 2 * b, H - 2 * b); }
+      x.translate(W / 2 + (t.dx || 0) * W, H / 2 + (t.dy || 0) * H);
+      if (t.rot) x.rotate((t.rot * Math.PI) / 180);
+      if (t.flip) x.scale(-1, 1);
+      x.scale(k, k);
+      x.imageSmoothingQuality = 'high';
+      x.drawImage(src, -src.width / 2, -src.height / 2);
+    }
     x.restore();
     if (t.light || t.contrast || t.sat != null || t.warm || t.sharp) {
       const id = x.getImageData(0, 0, W, H);
@@ -590,6 +790,9 @@
 .pls-v.is-now .pls-tag{background:var(--amber,#b26a00)}
 .pls-v.is-orig .pls-tag{background:#555}
 .pls-note{font-size:13px;color:var(--ink-3);margin:10px 0 0}
+.pls-meta{font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums;margin-top:-4px}
+.pls-meta.is-bad,.pls-warn.is-bad{color:var(--red,#b42318);font-weight:700}
+.pls-res__head .pls-warn{color:var(--amber,#b26a00);font-weight:600;margin-top:2px}
 .pls-tips{margin:0;padding-left:20px;display:grid;gap:6px;font-size:14px;color:var(--ink-2)}
 .pls-mine{width:100%;border-collapse:collapse;font-size:14px}
 .pls-mine td,.pls-mine th{padding:7px 6px;border-bottom:1px solid var(--rule);text-align:left}
@@ -609,7 +812,7 @@
   // names: category key -> name (keys are Meesho ids from Lens, or 'typed' for numbers typed in);
   // live: what PakkaBill Lens reports while it checks in Meesho; lens: what it learned in Meesho.
   const S = {
-    shape: 'photo', level: lsGet('pb-lowship-level', 'normal'), strength: 'normal', look: lsGet('pb-lowship-look', 'mix'),
+    shape: 'photo', level: lsGet('pb-lowship-level', 'normal'), strength: 'normal', look: lsGet('pb-lowship-look', 'smart'),
     cats: lsGet('pb-lowship-cats', []), mcats: lsGet('pb-ship-mcats', []), names: {}, sort: 'cheap', q: '',
     pending: [], photos: [], busy: 0, made: 0, total: 0, ext: null, sent: 0, live: null, lens: null, started: 0,
   };
@@ -632,7 +835,7 @@
     for (const p of list) {
       try {
         const { im, url } = await loadImage(p.file);
-        const ph = { id: Math.random().toString(36).slice(2, 10), name: p.file.name.replace(/\.[^.]+$/, '') || 'photo', url, src: sourceCanvas(im), file: p.file, ship: {}, live: {}, out: [] };
+        const ph = { id: Math.random().toString(36).slice(2, 10), name: p.file.name.replace(/\.[^.]+$/, '') || 'photo', url, src: sourceCanvas(im), im: { w: im.naturalWidth, h: im.naturalHeight }, file: p.file, ship: {}, live: {}, out: [] };
         await build(ph);
         S.photos.unshift(ph);
       } catch (e) {
@@ -647,24 +850,59 @@
     setTimeout(() => el && el.querySelector('[data-results]') && el.querySelector('[data-results]').scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
   }
 
+  // Versions that were cheapest before in the chosen categories (or in any, when none is chosen).
+  function pastWinners() {
+    const all = store().cats || {}, chosen = S.cats.map((c) => all[catKey(c.name)]).filter(Boolean);
+    return ranking(chosen.length ? chosen : Object.values(all)).slice(0, 4);
+  }
+  // Makes one version and adds it to the photo's results.
+  async function addVersion(ph, t, round) {
+    // "Your photo" is the seller's own file, byte for byte, so its shipping is what Meesho charges today
+    const own = t.key === 'orig' && ph.file && /^image\/(jpeg|png|webp)$/.test(ph.file.type) && ph.file.size <= 8 * 1024 * 1024;
+    const c = own ? null : render(ph, t, S.shape);
+    const blob = own ? ph.file : await jpeg(c, t.q);
+    if (!blob) return;
+    const w = c ? c.width : ph.im.w, h = c ? c.height : ph.im.h;
+    const fill = t.fill && ph.cut ? t.fill * (t.zoom || 1) : ph.fill != null ? Math.min(1, ph.fill * (t.zoom || 1) * (1 - 2 * (t.frame ? t.frame + 0.007 : t.border || 0))) : null;
+    ph.out.push({ ...t, blob, url: URL.createObjectURL(blob), w, h, bytes: blob.size, fillNow: fill, round: round || 0 });
+  }
   // Makes the versions of one photo with the current options.
   async function build(ph) {
     ph.out.forEach((o) => URL.revokeObjectURL(o.url));
     const st = study(ph.src, S.strength);
-    ph.bg = st.bg;
-    ph.white = st.white;
+    Object.assign(ph, { bg: st.bg, white: st.white, cut: st.cut, box: st.box, fill: st.fill, bgs: {} });
     ph.out = [];
-    for (const t of tweaks(LEVELS[S.level], S.look)) {
-      if (t.white && !ph.white) continue; // busy background: no clean white version
-      // "Your photo" is the seller's own file, byte for byte, so its shipping is what Meesho charges today
-      const own = t.key === 'orig' && ph.file && /^image\/(jpeg|png|webp)$/.test(ph.file.type) && ph.file.size <= 8 * 1024 * 1024;
-      const blob = own ? ph.file : await jpeg(render(ph, t, S.shape), t.q);
-      ph.out.push({ ...t, blob, url: URL.createObjectURL(blob) });
+    ph.lead = pastWinners();
+    for (const t of pick(order(S.look), LEVELS[S.level], !!ph.cut, ph.lead)) {
+      await addVersion(ph, t, 0);
       S.made++;
       const bar = el && el.querySelector('[data-made]');
       if (bar) bar.style.width = Math.min(100, Math.round((S.made / Math.max(1, S.total)) * 100)) + '%';
       await new Promise((r) => setTimeout(r)); // keep the page responsive
     }
+  }
+  // Round 2: up to 12 new versions close to the cheapest one of this photo.
+  async function more(ph) {
+    const all = sums(ph), k = catOrder().find((c) => all[c]);
+    if (!k) return toast('Check the versions in Meesho first (or type their shipping), so PakkaBill knows the cheapest.', true);
+    const best = ph.out.find((o) => o.key === all[k].best[0]);
+    const list = around(tweakOf(best.key) || best, 12, ph.out.map((o) => o.key)).filter((t) => ph.cut || !needsCut(t));
+    if (!list.length) return toast('No new versions left to try near this one.', true);
+    S.busy = 1; S.made = 0; S.total = list.length; S.started = Date.now();
+    refresh();
+    const before = new Set(ph.out.map((o) => o.key));
+    for (const t of list) {
+      await addVersion(ph, t, (ph.round || 0) + 1);
+      S.made++;
+      const bar = el && el.querySelector('[data-made]');
+      if (bar) bar.style.width = Math.round((S.made / S.total) * 100) + '%';
+      await new Promise((r) => setTimeout(r));
+    }
+    ph.round = (ph.round || 0) + 1;
+    S.busy = 0;
+    draw();
+    toast(`${list.length} new versions made around "${keyLabel(best.key)}".`);
+    if (S.ext && !verLess(S.ext, NEED)) sendToLens(true, (p, o) => p === ph && (!before.has(o.key) || o.key === 'orig'));
   }
 
   const fileName = (ph, key) => `${ph.name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'photo'}-meesho-${key}.jpg`;
@@ -684,13 +922,14 @@
     return `<div class="pls-sums">${order.map((k) => {
       const s = all[k], names = s.best.map((x) => esc(keyLabel(x))).join(', ');
       return `<div class="pls-sum"><span><b>${esc(catName(k))}</b></span><span>Cheapest <b>${rs(s.low)}</b> · ${names}</span>${s.own != null ? `<span>Your photo ${rs(s.own)}</span>${s.save > 0 ? `<span class="pls-save">Save ${rs(s.save)} on every order</span>` : '<span>Your photo is already the cheapest.</span>'}` : ''}<span class="pls-note" style="margin:0">${s.checked} of ${ph.out.length} checked</span></div>`;
-    }).join('')}</div>`;
+    }).join('')}<p style="margin:2px 0 0"><button type="button" class="pls-btn pls-btn--sm" data-around${S.busy ? ' disabled' : ''}>✨ Try 12 more like the cheapest</button> <span class="pls-note">Small steps around the winner (size, turn, light, background or frame colour), checked the same way.</span></p></div>`;
   }
   function tileState(ph, key, all, first) {
     const now = S.live && S.live.current === `${ph.id}|${key}`;
     const lowIn = Object.keys(all).filter((k) => ph.ship[key] && ph.ship[key][k] === all[k].low);
     const tip = !Object.keys(all).length && S.cats[0] && (bestFor(S.cats[0].name) || {}).key === key;
-    const tag = now ? 'Checking in Meesho…' : lowIn.length ? (lowIn.length === 1 && catOrder().length > 1 ? `Cheapest in ${catName(lowIn[0])}` : 'Cheapest ✓') : key === 'orig' ? 'Your photo' : tip ? 'Best last time' : '';
+    const o = ph.out.find((x) => x.key === key), fresh = o && o.round ? `New · round ${o.round + 1}` : '';
+    const tag = now ? 'Checking in Meesho…' : lowIn.length ? (lowIn.length === 1 && catOrder().length > 1 ? `Cheapest in ${catName(lowIn[0])}` : 'Cheapest ✓') : key === 'orig' ? 'Your photo' : tip || (ph.lead || []).includes(key) ? 'Best last time' : fresh;
     return { cls: now ? 'is-now' : lowIn.includes(first) || (lowIn.length && !first) ? 'is-best' : key === 'orig' ? 'is-orig' : tip ? 'is-tip' : '', tag };
   }
   function ratesHtml(ph, o, all) {
@@ -706,9 +945,17 @@
     return `<div class="pls-v ${st.cls}" data-key="${esc(o.key)}">${st.tag ? `<span class="pls-tag">${esc(st.tag)}</span>` : ''}
       <img src="${o.url}" alt="${esc(o.label)}" loading="lazy">
       <div class="pls-v__name">${esc(o.label)}</div>
+      ${metaHtml(o)}
       <div data-rates>${ratesHtml(ph, o, all)}</div>
       <a class="pls-btn pls-btn--ghost pls-btn--sm pls-dl" href="${o.url}" download="${esc(fileName(ph, o.key))}">⬇ Download image</a>
     </div>`;
+  }
+  // Meesho's photo check for one version: size, file weight, product size in the frame.
+  function metaHtml(o) {
+    if (!o.w) return '';
+    const notes = photoCheck(o.w, o.h, o.bytes, o.key === 'orig' ? null : o.fillNow), bad = notes.some((n) => n.bad);
+    const kb = o.bytes >= 1024 * 1024 ? (o.bytes / 1048576).toFixed(1) + ' MB' : Math.round(o.bytes / 1024) + ' KB';
+    return `<div class="pls-meta${bad ? ' is-bad' : ''}" title="${esc(notes.map((n) => n.text).join('. ') || 'Fits Meesho\'s photo rules')}">${o.w}×${o.h} · ${kb}${o.fillNow != null ? ` · fills ${Math.round(o.fillNow * 100)}%` : ''} ${notes.length ? (bad ? '⚠' : 'ⓘ') : '✓'}</div>`;
   }
   function sorted(ph) {
     if (S.sort !== 'cheap') return ph.out;
@@ -721,7 +968,7 @@
     const all = sums(ph);
     return `<section class="paper pls-res" data-ph="${ph.id}">
       <div class="pls-res__head"><img src="${ph.url}" alt=""><div><b>${esc(ph.name)}</b>
-        <span>${ph.out.length} versions · ${esc(LOOKS[S.look] || '')}. ${ph.white ? 'Plain background found: a clean white version is included.' : 'Busy background: no white-background version.'}</span></div>
+        <span>${ph.out.length} versions · ${esc(LOOKS[S.look] || '')}. ${ph.cut ? `Plain background found: product sizes and studio backgrounds are included. Your product fills <b>${Math.round(ph.fill * 100)}%</b> of the photo${ph.fill < 0.6 ? ' (small: the bigger versions often price differently)' : ph.fill > 0.92 ? ' (edge to edge: the versions with a little space often price differently)' : ''}.` : 'Busy background: product size and background versions are skipped; other versions take their place. A photo on a plain background gives more chances.'}${(ph.lead || []).some((k) => ph.out.some((o) => o.key === k)) ? ' Versions that were cheapest for you before come first.' : ''}</span>${photoCheck(ph.im.w, ph.im.h, ph.file.size, null).map((n) => `<span class="pls-warn${n.bad ? ' is-bad' : ''}">${n.bad ? '⚠' : 'ⓘ'} ${esc(n.text)}</span>`).join('')}</div>
         <button type="button" class="pls-x" data-del aria-label="Remove this photo">×</button></div>
       <div data-sum>${sumHtml(ph)}</div>
       <div class="pls-grid">${sorted(ph).map((o) => tileHtml(ph, o, all)).join('')}</div>
@@ -842,6 +1089,9 @@
       <section class="paper pls-card"><h2>Good to know</h2><ul class="pls-tips">
         <li>The shipping is Meesho's own number for your account, from Meesho's answer. PakkaBill never guesses it, and first checks that it gets back the same number Meesho showed for your photo.</li>
         <li>Use the cheapest version as the <b>first (main) photo</b> of the catalogue. Your other photos can stay as they are.</li>
+        <li><b>Smart</b> tries what other low-shipping tools change most: how big the product sits in a 1000 × 1000 square (52-90%), soft studio backgrounds, small turns and zooms, and coloured frames. It needs a photo on a plain background; on a busy photo the other versions take their place.</li>
+        <li>After the first check, tap <b>Try 12 more like the cheapest</b>: PakkaBill makes small steps around the winner, which often finds a rupee or two more. What wins is remembered per category and tried first next time.</li>
+        <li>Each version shows its size, file weight and how much of it the product fills. Meesho asks for at least 500 px and accepts files of a few MB; PakkaBill keeps each under 1 MB.</li>
         <li>Coloured frames keep the product whole. Stickers with words ("Hot sale", "Best seller") can be refused in Meesho's photo check; frames without words are safer.</li>
         <li>Enter the real weight and package size in Meesho. A lower weight than the real one can lead to weight disputes and penalties.</li>
         <li>"Mirror image" (in 40 versions) flips the photo: skip it if your product has writing or a logo.</li>
@@ -876,9 +1126,10 @@
     if (window.pbNudge) window.pbNudge('image');
   }
 
-  async function sendToLens(auto) {
+  // only(ph, o): which versions to send (round 2 sends the new ones and the seller's photo).
+  async function sendToLens(auto, only) {
     const items = [];
-    for (const ph of S.photos) for (const o of ph.out) items.push({ id: `${ph.id}|${o.key}`, label: `${ph.name} · ${o.label}`, name: fileName(ph, o.key), data: await asDataUrl(o.blob) });
+    for (const ph of S.photos) for (const o of ph.out) if (!only || only(ph, o)) items.push({ id: `${ph.id}|${o.key}`, label: `${ph.name} · ${o.label}`, name: fileName(ph, o.key), data: await asDataUrl(o.blob) });
     window.postMessage({ type: 'pb-ship-queue', gen: S.photos[0] ? S.photos[0].id : '', cats: S.cats.map((c) => ({ name: c.name, id: c.id || null })), items }, location.origin);
     S.sent = items.length;
     S.live = { current: null };
@@ -974,6 +1225,7 @@
     });
     el.querySelectorAll('[data-ph]').forEach((card) => {
       const ph = S.photos.find((p) => p.id === card.dataset.ph);
+      card.addEventListener('click', (e) => { const b = e.target.closest('[data-around]'); if (b && !S.busy) { b.disabled = true; more(ph); } });
       card.querySelector('[data-del]').addEventListener('click', () => {
         URL.revokeObjectURL(ph.url);
         ph.out.forEach((o) => URL.revokeObjectURL(o.url));

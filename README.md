@@ -173,7 +173,18 @@ the seller's photo. 12, 24 (default) or 40 versions, the seller's own photo firs
 zoom in or out 3-9%, a 1-3° turn (drawn a little bigger so no corners show), a small shift, a
 little more or less light, contrast or colour, warmer or cooler, a clean white background (found by
 flood-filling the plain background from the border), a thin border, sharpening and JPEG quality.
-Same shape as the photo (1000-1500 px) or square 1000×1000, each under 1 MB. Download one, the
+Same shape as the photo (1000-1500 px) or square 1000×1000, each under 1 MB.
+
+**Smart look (default)**, after what other low-shipping tools change most: the product is cut out from
+a plain background and placed in a 1000×1000 square at 52-90% of its size (white, sitting low, or the
+photo's own background), soft studio backgrounds (cream, light grey, blush, sky, mint), mixed with the
+small changes and coloured frames. On a busy photo the versions that need the cut-out are skipped and
+the next ones take their place, so the count stays 12 / 24 / 40. Versions that were cheapest before in
+the chosen categories (`ranking`) go first. After a check, **Try 12 more like the cheapest** (`around`)
+makes small steps round the winner (size ±2-8%, background or frame colour, 1° turn, light, warmth,
+sharpening) and sends only those, with the seller's photo, to the Meesho check; their keys hold their
+settings (`x-f65_bdcream`, `encode`/`decode`) so names survive a reload. Each version shows Meesho's
+photo check: size, file weight and how much of it the product fills (`photoCheck`). Download one, the
 cheapest of each photo, or all as a ZIP. Runs in the browser; photos never leave the device. Code:
 `lowship.js` (engine `window.PBShip`); tests: `node test/lowship-audit.js`.
 
