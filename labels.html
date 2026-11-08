@@ -162,7 +162,8 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
 <header class="band"><div class="band-in"><a class="brand" href="/">PakkaBill</a><a class="back" href="/#/labels">Open PakkaBill</a></div></header>
 <main class="wrap" id="app"></main>
 <script>
-/* PakkaBill label engine: reads the text of Meesho shipping labels and the manifest, and sorts the
+/* PakkaBill label engine: reads the text of Meesho shipping labels and the manifest (and Flipkart and
+   Amazon labels: Flipkart's SKU ID | Description | QTY table, Amazon's "ASIN ( SKU )" on the invoice), and sorts the
    labels. No browser APIs here, so test/labels-audit.js can run it in Node. */
 (function (root) {
   'use strict';
@@ -171,10 +172,10 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   var COURIERS = [['Valmo', /\bvalmo\b/i], ['Delhivery', /\bdelhivery\b/i], ['Xpress Bees', /xpress\s*bees/i], ['Ecom Express', /ecom\s*express/i],
     ['Shadowfax', /shadow\s*fax/i], ['Ekart', /\bekart\b/i], ['DTDC', /\bdtdc\b/i], ['Blue Dart', /blue\s*dart/i], ['Amazon Shipping', /amazon\s*(shipping|transportation)/i],
     ['India Post', /india\s*post|speed\s*post/i], ['Smartr', /\bsmartr\b/i], ['Elastic Run', /elastic\s*run/i], ['Loadshare', /load\s*share/i],
-    ['Shree Maruti', /shree\s*maruti/i], ['Gati', /\bgati\b/i], ['Shiprocket', /\bshiprocket\b/i]];
+    ['Shree Maruti', /shree\s*maruti/i], ['Gati', /\bgati\b/i], ['Shiprocket', /\bshiprocket\b/i], ['Amazon Easy Ship', /easy\s*ship/i]];
   var KEY = { sku: 'sku', skuid: 'sku', skucode: 'sku', size: 'size', qty: 'qty', quantity: 'qty', total: 'qty', color: 'color', colour: 'color',
     order: 'order', orderno: 'order', orderid: 'order', suborder: 'order', sub: 'order', s: 'sn', sno: 'sn', sr: 'sn', srno: 'sn', serial: 'sn',
-    awb: 'awb', awbno: 'awb', tracking: 'awb', packed: 'packed' };
+    awb: 'awb', awbno: 'awb', tracking: 'awb', packed: 'packed', description: 'desc', desc: 'desc', title: 'desc' };
   var STOP = /tax\s*invoice|\binvoice\b|bill\s*to|ship\s*to|sold\s*by|original\s*for|bill\s*of\s*supply/i;
   var GSTIN = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/;
   var SEP = String.fromCharCode(1);
@@ -262,7 +263,9 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       var cell = cellsOf(L, cols);
       var hasQ = cols.some(function (c) { return c.k === 'qty'; });
       if (cell.sku && (!hasQ || /\d/.test(cell.qty || '') || cell.order)) {
-        rows.push({ sku: cell.sku, size: cell.size || '', qty: cell.qty || '', color: cell.color || '', order: cell.order || '' });
+        // Flipkart writes a line number before the SKU ("1 KURTI-RED-M")
+        if (cell.desc != null && /^\d{1,2}\s+\S/.test(cell.sku)) cell.sku = cell.sku.replace(/^\d{1,2}\s+/, '');
+        rows.push({ sku: cell.sku, size: cell.size || '', qty: cell.qty || '', color: cell.color || '', order: cell.order || '', desc: cell.desc || '' });
       } else if (rows.length) {
         var r = rows[rows.length - 1];
         if (cell.sku) r.sku = joinSku(r.sku, cell.sku);
@@ -270,20 +273,43 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
         if (cell.color) r.color += ' ' + cell.color;
         if (cell.order) r.order += cell.order;
         if (cell.qty && !r.qty) r.qty = cell.qty;
+        if (cell.desc) r.desc = (r.desc ? r.desc + ' ' : '') + cell.desc;
       } else break;
       prevY = L.y; lastY = L.y; end = j;
     }
-    rows = rows.map(fixRow).filter(function (r) { return r.sku; });
+    rows = rows.map(function (r) { if (!String(r.size).trim() && r.desc) r.size = sizeIn(r.desc); return fixRow(r); }).filter(function (r) { return r.sku; });
     if (!rows.length) return { ok: false, why: 'table' };
     var cutY = null;
     for (var k = end + 1; k < ls.length; k++) if (STOP.test(ls[k].text)) { cutY = ls[k].y + ls[k].h * 0.95; break; }
     return finish({ ok: true, rows: rows, headY: head.y + head.h, lastY: lastY, cutY: cutY }, ls);
   }
-  // fallback for labels written as "SKU: ABC  Size: M  Qty: 1"
+  /* A size written in a product description, for labels without a Size column:
+     "Size: XL", "Size - 32", "(M)" or "- XXL" at the end, "Free Size". */
+  function sizeIn(d) {
+    var s = String(d || ''), m;
+    if ((m = s.match(/\bsize\s*[:\-]?\s*(free\s*size|[0-9]{1,2}(?:\.\d)?\s*(?:xl)?|x{0,4}[sml]|\dxl)\b/i))) return m[1];
+    if (/\bfree\s*size\b/i.test(s)) return 'Free Size';
+    if ((m = s.match(/(?:\(|\s[-,|]\s*)(XXS|XS|S|M|L|XL|XXL|XXXL|[2-8]XL)\)?\s*$/i))) return m[1];
+    return '';
+  }
+  // fallback for labels written as "SKU: ABC  Size: M  Qty: 1", and Amazon's invoice "B0ABCD1234 ( SKU-1 )"
   function kvLabel(ls) {
     var txt = ls.map(function (l) { return l.text; }).join('\n');
     var m = txt.match(/\bSKU(?:\s*(?:ID|Code))?\s*[:\-]\s*(\S+)/i);
-    if (!m) return { ok: false, why: ls.length ? 'table' : 'image' };
+    if (!m) {
+      var az = [], re = /\bB0[A-Z0-9]{8}\s*\(\s*([^()\n]+?)\s*\)/g, a;
+      while ((a = re.exec(txt))) az.push(a);
+      if (az.length) {
+        var oid = (txt.match(/\b\d{3}-\d{7}-\d{7}\b/) || [''])[0];
+        // the numbers after the SKU are prices, so the quantity is 1 (Amazon prints one label per parcel)
+        var rows = az.map(function (x) {
+          var line = txt.slice(txt.lastIndexOf('\n', x.index) + 1, txt.indexOf('\n', x.index) < 0 ? txt.length : txt.indexOf('\n', x.index));
+          return fixRow({ sku: x[1], size: sizeIn(line.slice(0, line.indexOf(x[0]))), qty: '', color: '', order: oid });
+        });
+        return finish({ ok: true, rows: rows, headY: null, lastY: null, cutY: null }, ls);
+      }
+      return { ok: false, why: ls.length ? 'table' : 'image' };
+    }
     var sz = txt.match(/\bSize\s*[:\-]\s*(.+?)(?=\s{1,}(?:Qty|Quantity|Colou?r|Order)\b|\n|$)/i);
     var q = txt.match(/\b(?:Qty|Quantity)\s*[:\-]\s*(\d+)/i), o = txt.match(/\bOrder\s*(?:No\.?|ID)?\s*[:\-]\s*([A-Za-z0-9_]+)/i);
     var r = fixRow({ sku: m[1], size: sz ? sz[1] : '', qty: q ? q[1] : '', color: '', order: o ? o[1] : '' });
@@ -538,7 +564,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   }
 
   root.PBL = { words: words, lines: lines, parseLabel: parseLabel, parseManifest: parseManifest, checkManifest: checkManifest, canonSize: canonSize,
-    showSize: showSize, sizeCmp: sizeCmp, skuCmp: skuCmp, itemCmp: itemCmp, sortLabels: sortLabels, pickList: pickList, isMixed: isMixed, courierOrder: courierOrder,
+    showSize: showSize, sizeIn: sizeIn, sizeCmp: sizeCmp, skuCmp: skuCmp, itemCmp: itemCmp, sortLabels: sortLabels, pickList: pickList, isMixed: isMixed, courierOrder: courierOrder,
     skuKey: skuKey, pageKind: pageKind, manifestPage: manifestPage, pickCheck: pickCheck, blouseSize: blouseSize, looksBlouse: looksBlouse, packChart: packChart };
 })(typeof window !== 'undefined' ? window : this);
 </script>
@@ -609,6 +635,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     'and {n} more': 'और {n}',
     '2+ products': '2+ प्रोडक्ट',
     'How it works': 'यह कैसे काम करता है',
+    'Selling on Flipkart or Amazon too? Add their label PDFs here as well: Flipkart labels (Seller Hub, Orders, Pending labels, Print labels) and Amazon Easy Ship labels with the invoice. The SKU, size and quantity are read and the labels are sorted the same way. There is no manifest check for them.': 'Flipkart या Amazon पर भी बेचते हैं? उनकी लेबल PDF भी यहाँ जोड़ें: Flipkart के लेबल (Seller Hub, Orders, Pending labels, Print labels) और Amazon Easy Ship के लेबल बिल के साथ। SKU, साइज़ और मात्रा पढ़कर लेबल उसी तरह क्रम में लगते हैं। इनके लिए मैनिफ़ेस्ट से मिलान नहीं होता।',
     'In the Meesho Supplier Panel, open Orders → Ready to Ship, select the orders and download the labels. Download the manifest from the same page.': 'Meesho सप्लायर पैनल में Orders → Ready to Ship खोलें, ऑर्डर चुनें और लेबल डाउनलोड करें। उसी पेज से मैनिफ़ेस्ट भी डाउनलोड करें।',
     'Add both PDFs here. PakkaBill reads the SKU, size, quantity and courier on each label.': 'दोनों PDF यहाँ जोड़ें। PakkaBill हर लेबल से SKU, साइज़, मात्रा और कूरियर पढ़ता है।',
     'Pick how to arrange them and download one PDF: pick list, labels in order, then the manifest.': 'क्रम चुनें और एक PDF डाउनलोड करें: पिक लिस्ट, क्रम में लेबल, फिर मैनिफ़ेस्ट।',
@@ -1308,7 +1335,8 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     return '<section class="card how"><h2>' + esc(t('How it works')) + '</h2><ol>' +
       '<li>' + esc(t('In the Meesho Supplier Panel, open Orders → Ready to Ship, select the orders and download the labels. Download the manifest from the same page.')) + '</li>' +
       '<li>' + esc(t('Add both PDFs here. With only the manifest you still get the packing chart. PakkaBill reads the SKU, size, quantity and courier of every parcel.')) + '</li>' +
-      '<li>' + esc(t('Pick how to arrange them and download one PDF: packing chart, labels in order, then the manifest.')) + '</li></ol>' +
+      '<li>' + esc(t('Pick how to arrange them and download one PDF: packing chart, labels in order, then the manifest.')) + '</li>' +
+      '<li>' + esc(t('Selling on Flipkart or Amazon too? Add their label PDFs here as well: Flipkart labels (Seller Hub, Orders, Pending labels, Print labels) and Amazon Easy Ship labels with the invoice. The SKU, size and quantity are read and the labels are sorted the same way. There is no manifest check for them.')) + '</li></ol>' +
       '<div class="priv">' + ICO.lock + '<span>' + esc(t('Your labels never leave this phone or computer. Nothing is uploaded.')) + '</span></div>' +
       (S.files.length ? '<div class="acts"><button type="button" class="btn" data-act="reset">' + esc(t('Start again')) + '</button></div>' : '') + '</section>';
   }

@@ -1,14 +1,16 @@
 # PakkaBill
 
-Tools for Meesho sellers, with GST billing on the side. One static page that works offline.
+Tools for Meesho, Flipkart and Amazon sellers, with GST billing on the side. One static page that works offline.
 
-The Meesho tools are the main navigation (sidebar group "Meesho tools"; phone tabs Profit · Labels ·
+The seller tools are the main navigation (sidebar group "Seller tools"; phone tabs Profit · Labels ·
 + New bill · Listing · Profile); Meesho Lens sits under "More tools". Billing is one compact tab: every billing page (Bills, Parties, Items, GST summary,
 GSTR-1) shows a small bar of chips to move between them, with New bill; the Profile page shows the same
 bar so bills stay one tap away on a phone. The logo opens the P&L.
 
-- Meesho P&L: profit and loss and payment reconciliation from Meesho's payment report, with Excel and PDF.
-- Labels & packing chart: a packing chart from Meesho's manifest (blouse sizes as L / XL / XXL), and shipping labels in SKU and size order, as one PDF.
+- Marketplace P&L: profit and loss and payment reconciliation from Meesho's payment report, Flipkart's settlement
+  report and Amazon's transaction report (alone or together, each marketplace on its own or all at once), with Excel and PDF.
+- Labels & packing chart: a packing chart from Meesho's manifest (blouse sizes as L / XL / XXL), and shipping labels
+  (Meesho, Flipkart, Amazon Easy Ship) in SKU and size order, as one PDF.
 - Meesho Lens: competitor prices and sales.
 - Meesho listing: the bulk catalog upload Excel from catalogue photos and a Meesho template.
 - Billing: bills with Original / Duplicate / Triplicate copies, CGST+SGST or IGST by place of supply,
@@ -162,6 +164,28 @@ not cut. Tests: `node test/pnl-audit.js` (950 checks).
 - `pnl-libs.js` SheetJS (xlsx-js-style), jsPDF, jsPDF-AutoTable and JSZip, loaded only by `pnl.html`.
 - Uploaded reports stay on the device in the `hisaab` IndexedDB; costs, expenses, return marks and
   settings in localStorage under `hisaab.v1.`. Settings > Download backup moves them to another device.
+
+## Flipkart and Amazon in the P&L
+
+The P&L engine reads two more reports into the same payment rows as Meesho's, so profit, reconciliation, SKU
+profit, returns and the exports work the same way:
+
+- **Flipkart settlement report** (Seller Hub > Payments > Reports, Excel). The sheet with `Order item ID` and
+  `Settlement Value` gives one row per order item and payment. Totals of other columns (Marketplace Fee, Taxes,
+  Total Discount in MP Fee) are left out so their parts (commission, fixed, collection, shipping, reverse shipping,
+  GST on MP fees, TCS, TDS) are counted once. Offers less Flipkart's share are "Offers and discounts" in revenue,
+  Protection Fund is a claim, Return Type `courier_return` is RTO. Other sheets with a Settlement Value and a date
+  (Ads, Storage & Recall, Non-order SPF...) are ads (`Ads` sheets, GST 18% inside) or account-level entries.
+- **Amazon transaction report** (Seller Central > Payments > Reports Repository > Date Range Reports > Transaction,
+  CSV with a few lines of notes on top). Rows with an order ID become payment rows (ID `order id / sku`), refunds
+  become returns, Transfer rows are left out, rows without an order are ads (Cost of Advertising) or account-level
+  charges. Amazon gives no GST rate, so it is worked out from the tax column; whether product sales include GST is
+  found by calibration. Amazon fees are treated as including 18% GST.
+
+`E.merge(files, { pl })` keeps one marketplace's files; the page shows chips (All / Meesho / Flipkart / Amazon)
+when the files come from more than one. Text is written for Meesho and `E.brand()` swaps the name, the seller panel
+and the settlement column name on screen, in the PDF, the Excel file and the WhatsApp summary, so the Hindi words
+still match. Tests: `node test/marketplace-audit.js`.
 
 ## Low shipping image (Meesho)
 

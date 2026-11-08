@@ -6,6 +6,16 @@
 (function () {
   'use strict';
   var D = {
+    /* other marketplaces */
+    'Add your marketplace reports': 'अपनी मार्केटप्लेस रिपोर्ट जोड़ें',
+    'Meesho, Flipkart and Amazon. Add one or all of them: each file is recognised by itself, and with more than one marketplace you can see each one alone or all together.': 'Meesho, Flipkart और Amazon। एक या सभी जोड़ें: हर फ़ाइल अपने-आप पहचानी जाती है, और एक से ज़्यादा मार्केटप्लेस हों तो हर एक को अलग या सबको साथ देख सकते हैं।',
+    'Meesho payment report': 'Meesho पेमेंट रिपोर्ट',
+    'Meesho orders report (optional)': 'Meesho ऑर्डर रिपोर्ट (ज़रूरी नहीं)',
+    'Flipkart (if you sell there)': 'Flipkart (अगर आप वहाँ बेचते हैं)',
+    'Amazon (if you sell there)': 'Amazon (अगर आप वहाँ बेचते हैं)',
+    'Drop Meesho, Flipkart or Amazon files here': 'Meesho, Flipkart या Amazon की फ़ाइलें यहाँ डालें',
+    'All marketplaces': 'सभी मार्केटप्लेस',
+    'Offers and discounts you paid for (after the marketplace\u2019s share)': 'आपके दिए ऑफ़र और छूट (मार्केटप्लेस का हिस्सा घटाकर)',
     /* what the numbers say */
     'What your numbers say': 'आपके आंकड़े क्या कहते हैं',
     'One order, step by step': 'एक ऑर्डर, कदम-दर-कदम',

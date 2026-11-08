@@ -678,7 +678,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     comm: 'Commission', shipfwd: 'Shipping charges', shipret: 'Return / RTO shipping',
     shipadj: 'GST compensation on shipping', fees: 'Platform & other fees', support: 'Other support services',
     penalty: 'Penalties', other: 'Other deductions',
-    sale: 'Sales', ret: 'Returns', tcs: 'TCS', tds: 'TDS', comp: 'Compensation', claims: 'Claims', recovery: 'Recovery'
+    sale: 'Sales', ret: 'Returns', disc: 'Offers and discounts', tcs: 'TCS', tds: 'TDS', comp: 'Compensation', claims: 'Claims', recovery: 'Recovery'
   };
   var CHARGE_CATS = ['comm', 'shipfwd', 'shipret', 'shipadj', 'fees', 'support', 'penalty', 'other'];
 
@@ -707,6 +707,64 @@ details.more[open] > summary { margin-bottom: 10px; }
     }
     return { cat: cat, gst: gst };
   }
+  /* ---------------- other marketplaces ----------------
+     Flipkart's settlement report (Seller Hub, Payments, Settled transactions: sheet Orders) and Amazon's
+     transaction report (Seller Central, Payments, Reports Repository, Date Range Reports, Transaction CSV)
+     are read into the same payment rows as Meesho's, so the P&L, reconciliation and SKU profit work the
+     same. Their columns get their own categories here; calibration still finds the signs and which
+     columns add up to the settlement on each row. */
+  var PLATS = ['meesho', 'flipkart', 'amazon'];
+  var PLAT_NAME = { meesho: 'Meesho', flipkart: 'Flipkart', amazon: 'Amazon' };
+  // [label pattern, category, GST mode, flex]. flex: a sale column calibration may leave out.
+  // skip: a total of other columns in the same file (Marketplace Fee, Taxes), never added on its own.
+  var PLAT_COLS = {
+    flipkart: [
+      [/^(bank\s*)?settlement\s*value/, 'skip'], [/^marketplace\s*fees?\b\s*(\(rs\.?\))?$/, 'skip'], [/^taxes\b/, 'skip'], [/^total\s*discount\s*in\s*mp/, 'skip'],
+      [/^sale\s*amount/, 'sale', 'sale'], [/refund/, 'ret', 'sale'],
+      [/offer|my\s*share|customer\s*add-?ons?\s*amount(?!.*recover)/, 'disc', 'none'],
+      [/protection\s*fund/, 'claims', 'none'], [/\btcs\b/, 'tcs', 'none'], [/\btds\b/, 'tds', 'none'],
+      [/\bgst\s*on\b/, 'fees', 'pure'], [/reverse\s*shipping|return\s*shipping/, 'shipret', 'none'],
+      [/shipping\s*fee|pick\s*(and|&)\s*pack/, 'shipfwd', 'none'], [/commission/, 'comm', 'none'],
+      [/fee|recovery/, 'fees', 'none']
+    ],
+    amazon: [
+      [/^product\s*sales/, 'sale', 'sale'], [/tax\s*liable|^total\s*sales\s*tax/, 'sale', 'sale', true],
+      [/shipping\s*credits|gift\s*wrap\s*credits/, 'sale', 'sale', true], [/promotional\s*rebates|promotion/, 'disc', 'none'],
+      [/\btcs\b/, 'tcs', 'none'], [/\btds\b/, 'tds', 'none'], [/fba\s*fees|fulfil+ment/, 'shipfwd', 'incl'],
+      [/selling\s*fees|transaction\s*fees|fees?$/, 'fees', 'incl'], [/^other$/, 'other', 'none']
+    ]
+  };
+  function platClassify(lbl, pl) {
+    var s = h(lbl), L = PLAT_COLS[pl];
+    if (L) for (var i = 0; i < L.length; i++) if (L[i][0].test(s)) return { cat: L[i][1], gst: L[i][2] || 'none', flex: !!L[i][3] };
+    return classify(lbl);
+  }
+  function platName(pls) {
+    pls = (pls || []).filter(function (p) { return PLAT_NAME[p]; });
+    if (!pls.length) return 'Meesho';
+    return pls.map(function (p) { return PLAT_NAME[p]; }).join(' + ');
+  }
+  /* Text is written for Meesho (and Hindi keeps the word Meesho as it is). For other marketplaces the
+     finished text is changed here: the name, the seller panel and the settlement column. */
+  var PANEL = { flipkart: 'Flipkart Seller Hub', amazon: 'Amazon Seller Central' };
+  var FINAL = { flipkart: 'Settlement Value', amazon: 'total' };
+  function brand(s, pls) {
+    s = String(s == null ? '' : s);
+    if (!pls || !pls.length || (pls.length === 1 && pls[0] === 'meesho') || s.indexOf('Meesho') < 0 && !/supplier\s+panel|final\s+settlement/i.test(s)) return s;
+    var one = pls.length === 1 ? pls[0] : '';
+    return s.replace(/(?:the\s+)?(?:Meesho(?:\u2019s|'s)?\s+)?Supplier\s+Panel/gi, function (m) { return (/^the\s/i.test(m) ? 'the ' : '') + (PANEL[one] || 'seller panel'); })
+      .replace(/Final\s+Settlement(\s+Amount)?/g, FINAL[one] || 'settlement amount')
+      .replace(/Meesho/g, platName(pls));
+  }
+
+  // the GST rate a sale implies: tax over the value without tax, snapped to a GST slab
+  function slabOf(tax, base) {
+    if (!(base > 0) || !(tax > 0)) return null;
+    var r = tax * 100 / base, best = null;
+    [0, 0.25, 3, 5, 12, 18, 28, 40].forEach(function (g) { if (best == null || Math.abs(g - r) < Math.abs(best - r)) best = g; });
+    return Math.abs(best - r) <= 1 ? best : null;
+  }
+
   function gstPart(v, mode) {
     if (mode === 'incl') return Math.round(v * 18 / 118);
     if (mode === 'pure') return v;
@@ -726,6 +784,11 @@ details.more[open] > summary { margin-bottom: 10px; }
       var cells = (rows[i] || []).map(h);
       var has = function (re) { for (var k = 0; k < cells.length; k++) if (re.test(cells[k])) return true; return false; };
       if (has(/sub\s*order/) && has(/final\s*settlement/)) return { type: 'pay', hr: i };
+      // Flipkart: one row per order item and payment (sheet Orders); other sheets (ads, storage...) carry only money
+      if (has(/order\s*item\s*id/) && has(/settlement\s*value/)) return { type: 'pay', hr: i, pl: 'flipkart' };
+      if (has(/^(bank\s*)?settlement\s*value/) && has(/date/) && !has(/sub\s*order/)) return { type: /\bads?\b|advert/.test(sn) ? 'ads' : 'adj', hr: i, pl: 'flipkart' };
+      // Amazon: the transaction report (date/time, settlement id, type, order id, sku ... total)
+      if (has(/^order\s*id$/) && has(/^type$/) && has(/^total$/) && (has(/product\s*sales/) || has(/selling\s*fees/))) return { type: 'pay', hr: i, pl: 'amazon' };
       if (has(/\bads?\s*cost/) && (has(/campaign/) || has(/deduction/))) return { type: 'ads', hr: i };
       if (has(/referral/) && has(/amount/)) return { type: 'ref', hr: i };
       if (/compensation|recovery/.test(sn) && has(/amount/)) return { type: 'adj', hr: i };
@@ -736,11 +799,37 @@ details.more[open] > summary { margin-bottom: 10px; }
   function digitCount(s) { var m = String(s).match(/\d/g); return m ? m.length : 0; }
 
   /* ---------------- Order Payments ---------------- */
-  var NONCOMP = /date|\bid\b|\bno\b|number|awb|%|percent|\brate\b|listing\s*price|quantity|\bqty\b|reason|status|type|name|sku|state|final\s*settlement|\bsize\b|hsn|invoice|packet|catalog|pincode|\butr\b|remark/;
+  var NONCOMP = /date|\bid\b|\bno\b|number|awb|%|percent|\brate\b|listing\s*price|quantity|\bqty\b|reason|status|type|name|sku|state|final\s*settlement|\bsize\b|hsn|invoice|packet|catalog|pincode|\butr\b|remark|weight|\bkgs?\b|slab|length|breadth|height|postal|\bzone\b|\btier\b|\bcity\b/;
 
-  function parsePay(rows, hr, sheetName, cfg) {
-    var raw = (rows[hr] || []).map(txt), H = raw.map(h);
-    var c = {
+  function parsePay(rows, hr, sheetName, cfg, pl) {
+    pl = pl || 'meesho';
+    var raw = (rows[hr] || []).map(txt), H = raw.map(h), FK = pl === 'flipkart', AZ = pl === 'amazon';
+    var c = FK ? {
+      id: findCol(H, [/order\s*item\s*id/]), oid: findCol(H, [/^order\s*id/]),
+      od: findCol(H, [/^order\s*date/, /order\s*date/]),
+      dd: findCol(H, [/dispatch\s*date/, /shipped\s*date/]),
+      pd: findCol(H, [/neft\s*date/, /payment\s*date/, /settlement\s*date/, /^date$/]),
+      st: findCol(H, [/return\s*type/, /item\s*return\s*status/, /order\s*status/]),
+      sku: findCol(H, [/seller\s*sku/, /\bsku\b/]),
+      pn: findCol(H, [/product\s*(title|name|description)/, /product\s*sub\s*category/, /^description/]),
+      g: findCol(H, [/item\s*gst\s*rate/, /gst\s*rate/]),
+      q: findCol(H, [/^quantity/, /quantity|\bqty\b/]),
+      tx: findCol(H, [/neft\s*id/, /\butr\b/, /payment\s*id/]),
+      f: findCol(H, [/^(bank\s*)?settlement\s*value/, /settlement\s*value/]),
+      lp: -1, pt: -1, wrc: -1, wcl: -1, wcp: -1
+    } : AZ ? {
+      id: findCol(H, [/^order\s*id$/]), typ: findCol(H, [/^type$/]),
+      od: -1, dd: -1,
+      pd: findCol(H, [/^date\s*\/?\s*time/, /^date$/, /date/]),
+      st: -1,
+      sku: findCol(H, [/^sku$/, /\bsku\b/]),
+      pn: findCol(H, [/^description$/, /description/]),
+      g: -1,
+      q: findCol(H, [/^quantity/]),
+      tx: findCol(H, [/settlement\s*id/]),
+      f: findCol(H, [/^total$/]),
+      lp: -1, pt: -1, wrc: -1, wcl: -1, wcp: -1
+    } : {
       id: findCol(H, [/^sub\s*order\s*(no|number|id)?\.?$/, /sub\s*order/]),
       od: findCol(H, [/^order\s*date/, /order\s*date/]),
       dd: findCol(H, [/dispatch\s*date/, /shipped\s*date/]),
@@ -758,14 +847,27 @@ details.more[open] > summary { margin-bottom: 10px; }
       wcl: findCol(H, [/claims?\s*reason/, /reason\s*for\s*claim/]),
       wcp: findCol(H, [/compensation\s*reason/, /reason\s*for\s*compensation/])
     };
+    if (FK && c.id < 0) c.id = c.oid;
     var idCols = {};
     for (var key0 in c) if (c[key0] >= 0) idCols[c[key0]] = 1;
 
-    var data = [], skipped = 0;
+    // Amazon rows without an order (ads, subscription, storage) are account-level money; transfers to the bank are not income
+    var data = [], skipped = 0, ads = [], adj = [];
     for (var i = hr + 1; i < rows.length; i++) {
       var r = rows[i];
       if (!r || !r.length) continue;
       var idv = txt(r[c.id]);
+      if (AZ) {
+        var ty = h(r[c.typ]), tot = cleanNum(r[c.f]);
+        if (/transfer|disburse/.test(ty)) continue;
+        if (!idv || digitCount(idv) < 5) {
+          if (tot === null || !tot || !ty) continue;
+          var ds = txt(r[c.pn]), dt = toDate(r[c.pd]) || lastDateIn(r[c.pd]);
+          if (/advertis|sponsored|\bads?\b/i.test(ds + ' ' + ty)) ads.push({ cid: ds || 'Amazon Ads', dt: dt, dur: '', t: paise(tot), g: Math.round(paise(tot) * 18 / 118) });
+          else adj.push({ dt: dt, t: paise(tot), desc: ds || txt(r[c.typ]), typ: txt(r[c.typ]) });
+          continue;
+        }
+      }
       if (!idv) continue;
       if (digitCount(idv) < 5 || cleanNum(r[c.f]) === null) { skipped++; continue; }
       data.push(r);
@@ -774,6 +876,8 @@ details.more[open] > summary { margin-bottom: 10px; }
     var comps = [], seen = {};
     for (var j = 0; j < H.length; j++) {
       if (idCols[j] || !H[j] || NONCOMP.test(H[j])) continue;
+      var cl = pl === 'meesho' ? classify(raw[j]) : platClassify(raw[j], pl);
+      if (cl.cat === 'skip') continue;
       var ne = 0, nn = 0;
       for (var d = 0; d < data.length; d++) {
         var v = data[d][j];
@@ -782,11 +886,10 @@ details.more[open] > summary { margin-bottom: 10px; }
         if (cleanNum(v) !== null) nn++;
       }
       if (!ne || nn / ne < 0.9) continue;
-      var key = slug(raw[j]);
+      var key = (pl === 'meesho' ? '' : pl + ':') + slug(raw[j]);
       if (seen[key]) { var k2 = 2; while (seen[key + '#' + k2]) k2++; key = key + '#' + k2; }
       seen[key] = 1;
-      var cl = classify(raw[j]);
-      comps.push({ j: j, key: key, label: raw[j], cat: cl.cat, gst: cl.gst, dup: key.indexOf('#') > 0 });
+      comps.push({ j: j, key: key, label: raw[j], cat: cl.cat, gst: cl.gst, flex: !!cl.flex, dup: key.indexOf('#') > 0 });
     }
 
     var n = data.length, m = comps.length;
@@ -800,38 +903,63 @@ details.more[open] > summary { margin-bottom: 10px; }
 
     var reg = {}, recs = [], defG = +((cfg && cfg.defaultGst) || 5), pdFallback = 0;
     comps.forEach(function (cc) { reg[cc.key] = { label: cc.label, cat: cc.cat, gst: cc.gst }; });
+    var taxI = -1;
+    comps.forEach(function (cc, ix) { if (taxI < 0 && cc.flex && /tax/.test(h(cc.label))) taxI = ix; });
+    // On Flipkart and Amazon a refund is the sale column written as a minus: kept apart as a return
+    function retKey(cc) {
+      var rk = cc.key + '~ret';
+      if (!reg[rk]) reg[rk] = { label: cc.label + ' (refunded)', cat: 'ret', gst: 'sale' };
+      return rk;
+    }
     for (var i3 = 0; i3 < n; i3++) {
       var row = data[i3];
       var q = Math.abs(cleanNum(row[c.q]) || 0) || 1;
       var g = cleanNum(row[c.g]);
       if (g != null && g > 0 && g < 1) g = g * 100;
       if (g == null || g < 0 || g > 40) g = defG;
+      var st = txt(row[c.st]);
+      if (FK) { var hs = h(st); st = /courier|rto|undeliver/.test(hs) ? 'RTO' : /customer|return/.test(hs) ? 'Customer return' : /cancel/.test(hs) ? 'Cancelled' : ''; }
+      var sku = txt(row[c.sku]), id = txt(row[c.id]);
+      if (AZ) { var tyA = h(row[c.typ]); st = /refund|return/.test(tyA) ? 'Customer return' : /cancel/.test(tyA) ? 'Cancelled' : ''; if (sku) id += ' / ' + sku; }
       var rec = {
-        id: txt(row[c.id]), st: txt(row[c.st]), od: toDate(row[c.od]), dd: toDate(row[c.dd]), pd: toDate(row[c.pd]),
-        tx: txt(row[c.tx]), sku: txt(row[c.sku]), pn: txt(row[c.pn]), q: q, g: g, f: F[i3], a: {}, s: 0, r: 0, o: 0,
+        id: id, st: st, od: toDate(row[c.od]), dd: toDate(row[c.dd]), pd: toDate(row[c.pd]) || (pl === 'meesho' ? '' : lastDateIn(row[c.pd])),
+        tx: txt(row[c.tx]), sku: sku, pn: txt(row[c.pn]), q: q, g: g, f: F[i3], a: {}, s: 0, r: 0, o: 0,
         lp: c.lp >= 0 ? paise(cleanNum(row[c.lp]) || 0) : 0, pt: txt(row[c.pt])
       };
+      if (pl !== 'meesho') rec.pl = pl;
       if (!rec.pd) { rec.pd = rec.dd || rec.od; pdFallback++; }
       var why = {}, wv;
       if ((wv = txt(row[c.wrc]))) why.rc = wv;
       if ((wv = txt(row[c.wcl]))) why.cl = wv;
       if ((wv = txt(row[c.wcp]))) why.cp = wv;
       if (why.rc || why.cl || why.cp) rec.why = why;
-      var sum = 0;
+      var sum = 0, base = 0;
       for (var k4 = 0; k4 < m; k4++) {
         if (!best.coef[k4]) continue;
         var val = best.coef[k4] * A[k4][i3];
         if (!val) continue;
-        rec.a[comps[k4].key] = val;
+        var cc4 = comps[k4], kk = cc4.key, cat = cc4.cat;
+        if (pl !== 'meesho' && cat === 'sale' && val < 0) { kk = retKey(cc4); cat = 'ret'; }
+        rec.a[kk] = (rec.a[kk] || 0) + val;
         sum += val;
-        if (comps[k4].cat === 'sale') rec.s += val;
-        else if (comps[k4].cat === 'ret') rec.r += val;
+        if (cat === 'sale') rec.s += val;
+        else if (cat === 'ret') rec.r += val;
+        else if (cat === 'disc') rec.s += val;
+        if (AZ && /^product\s*sales/.test(h(cc4.label))) base += val;
       }
+      // Amazon gives no GST rate: it follows from the GST in the row (the tax column, inside or on top of product sales)
+      if (AZ) {
+        var tv = taxI >= 0 ? Math.abs(A[taxI][i3]) : 0, ti = taxI;
+        var gs = ti >= 0 && best.coef[ti] ? slabOf(tv, Math.abs(base)) : slabOf(tv, Math.abs(base) - tv);
+        if (gs != null) rec.g = gs;
+      }
+      // a sale less the offers that leave nothing (or a minus) is not a sale
+      if (pl !== 'meesho' && rec.s < 0) { rec.r += rec.s; rec.s = 0; }
       rec.o = rec.f - sum;
       recs.push(rec);
     }
     return {
-      type: 'pay', recs: recs, reg: reg, skipped: skipped, pdFallback: pdFallback,
+      type: 'pay', pl: pl, recs: recs, reg: reg, skipped: skipped, pdFallback: pdFallback, ads: ads, adj: adj,
       cal: { matched: best.s, total: n, cols: comps.map(function (cc, idx) { return { key: cc.key, label: cc.label, cat: cc.cat, gst: cc.gst, coef: best.coef[idx] }; }) }
     };
   }
@@ -863,7 +991,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       for (var pass = 0; pass < 6; pass++) {
         var improved = false;
         for (var k2 = 0; k2 < m; k2++) {
-          if (comps[k2].cat === 'sale') continue;
+          if (comps[k2].cat === 'sale' && !comps[k2].flex) continue;
           var alts = [1, 0, -1];
           for (var ai = 0; ai < 3; ai++) {
             var alt = alts[ai];
@@ -970,6 +1098,29 @@ details.more[open] > summary { margin-bottom: 10px; }
     return { type: 'ord', recs: out, skipped: skipped };
   }
 
+  /* Flipkart sheets with money but no order (Ads, Storage & Recall, MP Fee Rebate, Non Order SPF,
+     TCS Recovery...): each row is an account-level amount, ads with GST at 18%. */
+  function parseFkMoney(rows, hr, type, sheetName) {
+    var H = (rows[hr] || []).map(h);
+    var c = {
+      amt: findCol(H, [/^(bank\s*)?settlement\s*value/, /settlement\s*value/]),
+      dt: findCol(H, [/neft\s*date/, /payment\s*date/, /settlement\s*date/, /^date$/, /date/]),
+      desc: findCol(H, [/description|remark|narration|reason/, /campaign/, /\btype\b/, /service/])
+    };
+    var out = [], name = txt(sheetName) || 'Flipkart';
+    for (var i = hr + 1; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r || !r.length) continue;
+      var t = cleanNum(r[c.amt]);
+      if (t === null || t === 0) continue;
+      var dt = toDate(r[c.dt]), desc = txt(r[c.desc]) || name;
+      if (!dt) continue; // a totals row
+      if (type === 'ads') out.push({ cid: desc, dt: dt, dur: '', t: paise(t), g: Math.round(paise(t) * 18 / 118) });
+      else out.push({ dt: dt, t: paise(t), desc: name + (desc !== name ? ': ' + desc : ''), typ: name });
+    }
+    return out;
+  }
+
   /* ---------------- one uploaded file (workbook or CSV) ---------------- */
   var seq = 0;
   function uid(p) { seq++; return (p || 'f') + Date.now().toString(36) + seq.toString(36) + Math.random().toString(36).slice(2, 6); }
@@ -983,14 +1134,19 @@ details.more[open] > summary { margin-bottom: 10px; }
       var info = { name: sh.name, type: d.type, n: 0 };
       var ct = readCats(rows);
       if (ct.n) { for (var ck in ct.map) f.cats[ck] = ct.map[ck]; info.cats = Object.keys(ct.map).length; }
+      if (d.pl) { info.pl = d.pl; f.pl = d.pl; }
       if (d.type === 'pay') {
-        var p = parsePay(rows, d.hr, sh.name, cfg);
+        var p = parsePay(rows, d.hr, sh.name, cfg, d.pl);
         f.pay = f.pay.concat(p.recs);
+        if (p.ads.length) f.ads = f.ads.concat(p.ads);
+        if (p.adj.length) f.adj = f.adj.concat(p.adj);
         for (var k in p.reg) f.reg[k] = p.reg[k];
         info.n = p.recs.length; info.matched = p.cal.matched; info.cols = p.cal.cols; info.skipped = p.skipped; info.pdFallback = p.pdFallback;
         p.recs.forEach(function (x) { if (x.pd > maxPd) maxPd = x.pd; });
         info.from = p.recs.reduce(function (a, x) { return !a || (x.pd && x.pd < a) ? x.pd : a; }, '');
         info.to = p.recs.reduce(function (a, x) { return x.pd > a ? x.pd : a; }, '');
+      } else if (d.pl === 'flipkart') {
+        var fm = parseFkMoney(rows, d.hr, d.type, sh.name); f[d.type] = f[d.type].concat(fm); info.n = fm.length;
       } else if (d.type === 'ads') {
         var a = parseAds(rows, d.hr); f.ads = f.ads.concat(a.recs); info.n = a.recs.length;
       } else if (d.type === 'ref' || d.type === 'adj') {
@@ -1022,9 +1178,25 @@ details.more[open] > summary { margin-bottom: 10px; }
     });
     return out;
   }
-  function merge(files) {
+  // platforms in these files ('meesho' when a file says nothing else)
+  function platsOf(files) {
+    var o = {};
+    (files || []).forEach(function (f) {
+      if (f.pl) o[f.pl] = 1;
+      else if ((f.pay || []).length || (f.ads || []).length || (f.ref || []).length || (f.adj || []).length || (f.ord || []).length) o.meesho = 1;
+    });
+    return PLATS.filter(function (p) { return o[p]; });
+  }
+  function fileOn(f, pl) { return !pl || pl === 'all' || (f.pl || 'meesho') === pl; }
+  /* opt.pl: only that marketplace's files ('all' or nothing for every file). Files with only
+     categories (no money) are always used. */
+  function merge(files, opt) {
     files = files || [];
+    var pl = opt && opt.pl;
+    var allPls = platsOf(files);
+    if (pl && pl !== 'all') files = files.filter(function (f) { return fileOn(f, pl) || !((f.pay || []).length || (f.ads || []).length || (f.ref || []).length || (f.adj || []).length || (f.ord || []).length); });
     var M = { pay: [], ads: [], ref: [], adj: [], ord: {}, reg: {}, dup: {} };
+    M.allPls = allPls; M.pls = platsOf(files); M.mk = platName(M.pls);
     files.forEach(function (f) { for (var k in f.reg) M.reg[k] = f.reg[k]; });
     M.pay = dedupe(files, 'pay', function (x) { return x.id + '|' + x.tx + '|' + x.pd + '|' + x.f; }, M.dup);
     M.pay.sort(function (a, b) { return a.pd < b.pd ? -1 : a.pd > b.pd ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
@@ -1398,7 +1570,7 @@ details.more[open] > summary { margin-bottom: 10px; }
   function compute(M, IX, cfg, expenses, per) {
     var P = M.pay, reg = M.reg, L = IX.L, REGD = !!cfg.gstReg, claim = cfg.taxCredits !== 'expense';
     function inP(d) { return !!d && d >= per.from && d <= per.to; }
-    var K = { S: 0, R: 0, OUT: 0, T: 0, D: 0, CP: 0, CL: 0, RC: 0, O: 0, F: 0, fwd: 0, rst: 0, loss: 0, pack: 0, fu: 0, ru: 0, lu: 0, rlu: 0, rlv: 0, parcels: 0, retn: 0, rton: 0, rdef: 0, sales: 0, legs: 0, unexpl: 0, revPend: 0, revPendV: 0, revPendNR: 0, revPendBack: 0, revPendP: 0, AD: 0, ADG: 0, REF: 0, ADJ: 0, IG: 0 };
+    var K = { S: 0, R: 0, OUT: 0, T: 0, D: 0, CP: 0, CL: 0, RC: 0, O: 0, F: 0, fwd: 0, rst: 0, loss: 0, pack: 0, fu: 0, ru: 0, lu: 0, rlu: 0, rlv: 0, parcels: 0, retn: 0, rton: 0, rdef: 0, sales: 0, legs: 0, unexpl: 0, revPend: 0, revPendV: 0, revPendNR: 0, revPendBack: 0, revPendP: 0, DS: 0, AD: 0, ADG: 0, REF: 0, ADJ: 0, IG: 0 };
     var CH = {}; CHARGE_CATS.forEach(function (c) { CH[c] = { v: 0, g: 0 }; });
     var COLS = {}, SK = {}, NC = {};
     // each order's sale less its reversal over all files, whatever the period: an order sold in
@@ -1420,6 +1592,7 @@ details.more[open] > summary { margin-bottom: 10px; }
         switch (R.cat) {
           case 'sale': K.S += v; break;
           case 'ret': K.R += v; break;
+          case 'disc': K.DS += v; break;
           case 'tcs': K.T += v; tx += v; break;
           case 'tds': K.D += v; tx += v; break;
           case 'comp': K.CP += v; ocr += v; break;
@@ -1471,7 +1644,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     CHARGE_CATS.forEach(function (c) { CHv += CH[c].v; CHG += CH[c].g; });
     // a pending return will also cost a return shipping fee: this period's average per return and RTO
     if (K.revPend) { var nb = K.retn + K.rton; K.revPendP = K.revPendNR - K.revPendBack + (nb ? Math.round(-(CH.shipret.v - CH.shipret.g) / nb) * K.revPend : 0); }
-    var NS = K.S + K.R, NR = NS - K.OUT, COGS = K.fwd - K.rst + K.loss, GP = NR - COGS;
+    var NS = K.S + K.DS + K.R, NR = NS - K.OUT, COGS = K.fwd - K.rst + K.loss, GP = NR - COGS;
     var MCx = CHv - CHG + K.O, taxExp = claim ? 0 : K.T + K.D, OCR = K.CP + K.CL + K.RC;
     var adsNet = K.AD - K.ADG, credits = OCR + K.ADJ + K.REF, OPEX = K.pack + EXP;
     var NP = GP + MCx + taxExp + credits + adsNet - OPEX;
@@ -1520,6 +1693,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     function tot(l, v, k) { lines.push({ k: k || 'tot', l: l, v: v }); }
     sec('Revenue');
     row('Gross sales' + (REGD ? ' (incl. GST)' : ''), K.S);
+    if (K.DS) row('Offers and discounts you paid for (after the marketplace\u2019s share)', K.DS);
     row('Less: customer returns', K.R);
     tot('Net sales' + (REGD ? ' (incl. GST)' : ''), NS, 'sub');
     if (REGD) row('Less: output GST on net sales', -K.OUT);
@@ -2452,6 +2626,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     monthStart: monthStart, monthEnd: monthEnd, nextMonth: nextMonth, fmtDate: fmtDate, fmtMonth: fmtMonth, money: money,
     skuLetters: skuLetters, nameCount: nameCount, packRule: packRule, piecesOf: piecesOf, normSt: normSt, classify: classify, detect: detect, parsePay: parsePay, parseAds: parseAds, parseAmt: parseAmt, parseOrd: parseOrd,
     calibrate: calibrate, ingest: ingest, merge: merge, index: index, dataMonths: dataMonths, periodFor: periodFor, expFor: expFor,
+    PLATS: PLATS, PLAT_NAME: PLAT_NAME, platName: platName, platsOf: platsOf, brand: brand, parseFkMoney: parseFkMoney, slabOf: slabOf,
     compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, taxCheck: taxCheck, hundred: hundred, recoveries: recoveries, recKind: recKind, returnsDeep: returnsDeep, normSize: normSize, sizeCmp: sizeCmp, groupSize: groupSize, dataSpan: dataSpan, insights: insights, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
   };
 });
@@ -2482,10 +2657,29 @@ details.more[open] > summary { margin-bottom: 10px; }
   var LANG = 'en';
   try { LANG = localStorage.getItem('hisaab:lang') === 'hi' ? 'hi' : 'en'; } catch (e) { /* ignore */ }
   A.lang = function () { return LANG; };
-  function tr(x) { return LANG === 'hi' && window.HI18N ? window.HI18N.tr(String(x)) : x; }
+  function tr(x) { return mk(LANG === 'hi' && window.HI18N ? window.HI18N.tr(String(x)) : x); }
   A.tr = tr;
   // Swaps English text inside `root` for Hindi (text, placeholders, labels and tooltips).
-  function trDom(root) {
+  /* Flipkart or Amazon on screen: the finished text names that marketplace instead of Meesho
+     (the Upload page and How to use keep their own words, marked data-nobrand). */
+  function mk(x) { return S.M ? E.brand(x, S.M.pls) : x; }
+  A.mk = mk;
+  function brandDom(root) {
+    if (!root || !S.M || !S.M.pls.length || (S.M.pls.length === 1 && S.M.pls[0] === 'meesho')) return;
+    var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: function (n) {
+      var el = n.parentNode;
+      return el && el.closest && el.closest('script,style,[data-nobrand]') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+    } }), n, list = [];
+    while ((n = w.nextNode())) list.push(n);
+    list.forEach(function (t) { var v = t.nodeValue, o = mk(v); if (o !== v) t.nodeValue = o; });
+    root.querySelectorAll('[placeholder],[aria-label],[title]').forEach(function (el) {
+      if (el.closest('[data-nobrand]')) return;
+      ['placeholder', 'aria-label', 'title'].forEach(function (a) { var v = el.getAttribute(a), o = v && mk(v); if (v && o !== v) el.setAttribute(a, o); });
+    });
+  }
+  A.brandDom = brandDom;
+  function trDom(root) { hiDom(root); brandDom(root); }
+  function hiDom(root) {
     if (LANG !== 'hi' || !window.HI18N || !root) return;
     // whole sentences whose word order changes in Hindi
     root.querySelectorAll('[data-i18n]').forEach(function (el) {
@@ -2542,8 +2736,10 @@ details.more[open] > summary { margin-bottom: 10px; }
     sel: { mode: 'all', basis: 'pay', m: '', from: '', to: '' },
     rc: { b: 'all', q: '', n: 60 },
     cf: { q: '', miss: false, cat: '', mode: 'same' },
-    db: null, uid: null, local: true
+    db: null, uid: null, local: true,
+    plat: 'all' // which marketplace the report shows: 'all', 'meesho', 'flipkart' or 'amazon'
   };
+  try { var pv0 = localStorage.getItem('hisaab:plat'); if (pv0 && E.PLATS.indexOf(pv0) >= 0) S.plat = pv0; } catch (e) { /* ignore */ }
   function W() { return S.demo || S.real; }
   A.W = W;
 
@@ -2718,7 +2914,8 @@ details.more[open] > summary { margin-bottom: 10px; }
   A.cfg = cfg;
   function recompute() {
     var w = W();
-    S.M = E.merge(w.files);
+    S.M = E.merge(w.files, { pl: S.plat });
+    if (S.plat !== 'all' && S.M.allPls.indexOf(S.plat) < 0) { S.plat = 'all'; S.M = E.merge(w.files); }
     S.IX = E.index(S.M, cfg(), w.costs, w.marks);
     S.H = E.health(S.M);
     S.months = E.dataMonths(S.M, S.IX, S.sel.basis);
@@ -2791,6 +2988,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     var brand = document.querySelector('.band .brand');
     if (brand) { if (!brand._en) brand._en = brand.innerHTML; brand.innerHTML = brand._en; }
     trDom($('#tabs-in')); trDom(brand);
+    var bz = $('#band-biz'); if (bz) brandDom(bz);
     var act = $('#t-' + S.tab), strip = $('#tabs-in');
     if (act && strip) {
       var l = act.offsetLeft - strip.offsetLeft, r = l + act.offsetWidth;
@@ -2798,12 +2996,21 @@ details.more[open] > summary { margin-bottom: 10px; }
       else if (r > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = r - strip.clientWidth + 16;
     }
   }
+  // Meesho / Flipkart / Amazon chips, when the files come from more than one marketplace
+  function platBar(tab) {
+    var all = S.M && S.M.allPls || [];
+    if (all.length < 2 || /^(data|set|guide|exp)$/.test(tab)) return '';
+    var o = [['all', 'All marketplaces']].concat(all.map(function (p) { return [p, E.PLAT_NAME[p]]; }));
+    return '<div class="chips platbar" role="group" aria-label="Marketplace" data-nobrand style="margin:0 0 12px">' + o.map(function (x) {
+      return '<button class="chip" data-act="plat" data-v="' + x[0] + '" aria-pressed="' + (S.plat === x[0]) + '">' + esc(x[1]) + '</button>';
+    }).join('') + '</div>';
+  }
   function render() {
     renderChrome();
     TABS.forEach(function (t) {
       var p = $('#p-' + t[0]);
       if (t[0] === S.tab) {
-        p.hidden = false; p.innerHTML = A.V[t[0]]();
+        p.hidden = false; p.innerHTML = platBar(t[0]) + A.V[t[0]]();
         if (t[0] !== 'guide') trDom(p);
         var chip = p.querySelector('.chip[aria-pressed="true"]');
         if (chip && chip.parentNode) chip.parentNode.scrollLeft = Math.max(0, chip.offsetLeft - chip.parentNode.offsetLeft - 16);
@@ -2945,7 +3152,7 @@ details.more[open] > summary { margin-bottom: 10px; }
         var f = E.ingest(it.name, size, sheets, target.settings);
         var nCats = Object.keys(f.cats || {}).length;
         if (!f.sheets.some(function (s) { return s.type !== 'skip' && s.n > 0; }) && !nCats) {
-          msgs.push(it.name + ' has no Meesho payment, ads or order rows, and no SKU and Category columns. Upload the payment report (Excel), the orders CSV, or a catalogue file with categories.');
+          msgs.push(it.name + ' has no Meesho, Flipkart or Amazon payment, ads or order rows, and no SKU and Category columns. Upload the payment report (Excel), the orders CSV, or a catalogue file with categories.');
           continue;
         }
         target.files.push(f); added++;
@@ -3271,6 +3478,7 @@ details.more[open] > summary { margin-bottom: 10px; }
 
   var ACT = {
     tab: function (el) { setTab(el.getAttribute('data-tab')); },
+    plat: function (el) { S.plat = el.getAttribute('data-v') || 'all'; try { localStorage.setItem('hisaab:plat', S.plat); } catch (e) { /* ignore */ } refresh(); },
     demo: startDemo,
     endDemo: endDemo,
     basis: function (el) { S.sel.basis = el.getAttribute('data-v'); lsSet('ui', { sel: { basis: S.sel.basis } }); refresh(); },
@@ -3818,7 +4026,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     if (top && top.contrib > 0) t.push('Best product: ' + top.sku + ' (' + r(top.contrib) + ' profit)');
     if (R.missing.length) t.push('(Cost not added yet for ' + pl(R.missing.length, 'SKU') + ')');
     t.push('', 'Made with PakkaBill: know your real profit', 'https://pakkabill1.vercel.app/#/pnl');
-    return t.join('\n');
+    return A.mk(t.join('\n'));
   }
   function shareSummary() {
     var text = summaryText();
@@ -4517,13 +4725,13 @@ details.more[open] > summary { margin-bottom: 10px; }
       if ((s.type === 'skip' || !s.n) && s.cats) return '<li>' + esc(s.name) + ': categories for ' + s.cats + ' SKU' + (s.cats === 1 ? '' : 's') + '</li>';
       if (s.type === 'skip' || !s.n) return '<li class="muted">' + esc(s.name) + ': not used</li>';
       var t = '<span class="tick" aria-hidden="true">\u2713</span> ' + esc(s.name) + ': ' + s.n + ' ' + what[s.type];
-      if (s.type === 'pay') t += ', paid ' + fd(s.from) + ' to ' + fd(s.to) + '. ' + s.matched + ' of ' + s.n + ' rows add up exactly to Final Settlement';
+      if (s.type === 'pay') t += ', paid ' + fd(s.from) + ' to ' + fd(s.to) + '. ' + s.matched + ' of ' + s.n + ' rows add up exactly to ' + ({ flipkart: 'Settlement Value', amazon: 'the total column' }[s.pl] || 'Final Settlement');
       if (s.type === 'ord' && s.from) t += ', ordered ' + fd(s.from) + ' to ' + fd(s.to);
       return '<li>' + t + '</li>';
     }).join('');
     var dup = S.M.dup[f.id] ? '<p class="small muted" style="margin:4px 0 0">' + pl(S.M.dup[f.id], 'row') + ' already in another file, counted once.</p>' : '';
     var when = ''; try { when = new Date(f.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { when = ''; }
-    return '<div class="file"><div class="file-h"><div class="grow"><b>' + esc(f.name) + '</b><div class="small muted">' + (f.size ? kb(f.size) + ', ' : '') + 'added ' + esc(when) + '</div></div>' +
+    return '<div class="file"><div class="file-h"><div class="grow"><b>' + esc(f.name) + '</b>' + (f.pl || (f.pay && f.pay.length) ? ' <span class="tag">' + E.PLAT_NAME[f.pl || 'meesho'] + '</span>' : '') + '<div class="small muted">' + (f.size ? kb(f.size) + ', ' : '') + 'added ' + esc(when) + '</div></div>' +
       (S.demo ? '' : '<button class="btn sm danger" data-act="rmFile" data-id="' + esc(f.id) + '" aria-label="Remove ' + esc(f.name) + '">Remove</button>') + '</div>' +
       '<ul class="sheets">' + sh + '</ul>' + dup + '</div>';
   }
@@ -4531,12 +4739,14 @@ details.more[open] > summary { margin-bottom: 10px; }
     var w = A.W(), H = S.H, files = w.files, skus = A.skuList();
     var sold = skus.filter(function (x) { return x.units > 0; });
     var costDone = sold.length > 0 && sold.every(function (x) { return w.costs[x.sku] && w.costs[x.sku].c != null; });
-    var h = (A.hasData() ? '' : hero(true)) + demoBar() + '<section class="sheet"><div class="sheet-h"><h2>Add your Meesho reports</h2></div><ol class="steps">' +
-      step(H.legs > 0, 'Payment report', '<span data-i18n="up.pay">In the Meesho Supplier Panel, open <strong>Payments</strong> and download the payment report for the dates you want. It is an Excel file with sheets such as Order Payments and Ads Cost. Add every payment file you have; rows that repeat across files are counted once.</span>') +
-      step(H.ordRows > 0, 'Orders report (optional)', '<span data-i18n="up.ord">From <strong>Orders</strong>, download the orders CSV. It adds orders that are not paid yet, so pending and overdue payments show up.</span>') +
+    var h = (A.hasData() ? '' : hero(true)) + demoBar() + '<section class="sheet"><div class="sheet-h"><h2>Add your marketplace reports</h2></div><p class="small muted" style="margin:0 0 10px">Meesho, Flipkart and Amazon. Add one or all of them: each file is recognised by itself, and with more than one marketplace you can see each one alone or all together.</p><ol class="steps">' +
+      step(S.M.allPls.indexOf('meesho') >= 0 && H.legs > 0, 'Meesho payment report', '<span data-i18n="up.pay">In the Meesho Supplier Panel, open <strong>Payments</strong> and download the payment report for the dates you want. It is an Excel file with sheets such as Order Payments and Ads Cost. Add every payment file you have; rows that repeat across files are counted once.</span>') +
+      step(H.ordRows > 0, 'Meesho orders report (optional)', '<span data-i18n="up.ord">From <strong>Orders</strong>, download the orders CSV. It adds orders that are not paid yet, so pending and overdue payments show up.</span>') +
+      step(S.M.allPls.indexOf('flipkart') >= 0, 'Flipkart (if you sell there)', 'In <strong>Flipkart Seller Hub</strong>, open <strong>Payments</strong>, then <strong>Reports</strong>, and download the <strong>Settlement report</strong> (settled transactions) for the dates you want. Add the Excel file as it is: the Orders sheet gives each order, and sheets such as Ads and Storage give the other charges.') +
+      step(S.M.allPls.indexOf('amazon') >= 0, 'Amazon (if you sell there)', 'In <strong>Amazon Seller Central</strong>, open <strong>Payments</strong>, then <strong>Reports Repository</strong>. Choose <strong>Transaction</strong> under Date Range Reports, pick the dates and download the CSV. Orders, refunds, fees, ads and subscription are read from it; transfers to your bank are left out.') +
       step(costDone, 'Product costs', 'Enter what one unit of each SKU costs you. <button class="btn link" data-act="tab" data-tab="costs">Open Costs</button>') +
       step(w.expenses.length > 0, 'Other expenses', 'Rent, packing help, internet, photoshoots. <button class="btn link" data-act="tab" data-tab="exp">Open Expenses</button>') +
-      '</ol><label class="drop" id="drop"><input type="file" id="fin" class="sr" multiple accept=".xlsx,.xlsm,.xls,.csv,.zip,application/zip,application/x-zip-compressed,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"><b>Drop Meesho files here</b><span class="muted small">or tap to choose. Excel (.xlsx, .xls), CSV or ZIP, many at once. ZIP files are opened for you.</span></label>' +
+      '</ol><label class="drop" id="drop"><input type="file" id="fin" class="sr" multiple accept=".xlsx,.xlsm,.xls,.csv,.zip,application/zip,application/x-zip-compressed,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"><b>Drop Meesho, Flipkart or Amazon files here</b><span class="muted small">or tap to choose. Excel (.xlsx, .xls), CSV or ZIP, many at once. ZIP files are opened for you.</span></label>' +
       '<p class="small muted" style="margin:10px 0 0">Files are read on this device and kept here for next time. Costs, expenses, return marks and settings are saved ' + (S.local ? 'in this browser.' : 'privately to your account.') + '</p>' +
       (S.real.files.length || S.demo ? '' : '<div class="row" style="margin-top:12px"><button class="btn" data-act="demo">Try with sample data</button></div>') + '</section>';
     if (files.length) {
@@ -4553,7 +4763,7 @@ details.more[open] > summary { margin-bottom: 10px; }
       h += '<section class="sheet"><h2 style="margin-bottom:10px">What your files cover</h2>' + kv(pairs) +
         '<div class="row" style="margin-top:14px"><button class="btn pri" data-act="tab" data-tab="pl">See profit and loss</button><button class="btn" data-act="tab" data-tab="costs">Enter product costs</button></div></section>';
     }
-    return '<div class="stack">' + h + '</div>';
+    return '<div class="stack" data-nobrand>' + h + '</div>';
   };
 
   /* ---------------- Costs ---------------- */
@@ -4761,6 +4971,7 @@ details.more[open] > summary { margin-bottom: 10px; }
           if (c === null || c === undefined) return;
           var cell = (typeof c === 'object') ? c : (typeof c === 'number' ? { v: c, t: 'n' } : { v: String(c), t: 's' });
           if (cell.t === 's' && cell.v === '' && !cell.s) return;
+          if (cell.t === 's' && window.HA && HA.mk) cell.v = HA.mk(cell.v);
           if (!cell.s) delete cell.s;
           ws[X.utils.encode_cell({ r: i, c: j })] = cell;
           if (j + 1 > maxC) maxC = j + 1;
@@ -5015,6 +5226,8 @@ details.more[open] > summary { margin-bottom: 10px; }
   HX.pdf = function (ctx) {
     var S = ctx.S, E = ctx.E, R = S.R, K = R.K, st = ctx.cfg, per = S.per, RV = S.RV, HA = window.HA || {};
     var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', compress: true });
+    // Flipkart or Amazon report: every text on the PDF names that marketplace (see A.mk)
+    if (HA.mk) { var text0 = doc.text; doc.text = function (str) { var a = Array.prototype.slice.call(arguments); a[0] = Array.isArray(str) ? str.map(function (x) { return HA.mk(x); }) : typeof str === 'string' ? HA.mk(str) : str; return text0.apply(doc, a); }; }
     var PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight(), M = 40, CW = PW - 2 * M, TOP = 66, BOT = 58;
     var INDIGO = [43, 52, 148], BRAND = [91, 63, 230], CORAL = [255, 122, 89], INK = [33, 30, 52], GREY = [108, 104, 132], LAV = [208, 204, 255],
       SOFT = [240, 236, 255], PAPER = [250, 248, 253], RULE = [222, 216, 238], NEG = [192, 30, 40], POS = [0, 118, 40], GOLD = [245, 196, 83], WHITE = [255, 255, 255];

@@ -198,5 +198,34 @@ eq(['26', '28', '30', '31', '32', '34', '35', '36', '38', '40', 'L', '2XL', 'Fre
   ok(!L.isMixed({ rows: [{ sku: 'all color 8.', size: '32', qty: 1 }, { sku: 'All color 8', size: '32', qty: 1 }] }), 'two spellings of one SKU and size are not a two-product order');
 }
 
+
+/* Flipkart: SKU ID | Description | QTY, a line number before the SKU, size inside the description */
+{
+  const fk = [it('Ekart Logistics', 28, 805, 12), it('Prepaid', 300, 805), it('OD330011223344556600', 28, 780, 10), it('FMPC1234567890', 300, 780, 10),
+    it('SKU ID', 28, 640), it('Description', 160, 640), it('QTY', 470, 640),
+    it('1 KURTI-RED-M', 28, 626), it('Women Printed Rayon Straight Kurta Size: M', 160, 626), it('1', 474, 626),
+    it('2 TOP-BLK', 28, 612), it('Women Solid Top (XL)', 160, 612), it('2', 474, 612),
+    it('Tax Invoice', 250, 500, 11), it('Description', 28, 480), it('Qty', 300, 480)];
+  const r = read(fk);
+  ok(r.ok, 'Flipkart label is read');
+  eq(r.rows.map((x) => [x.sku, x.size, x.qty]), [['KURTI-RED-M', 'M', 1], ['TOP-BLK', 'XL', 2]], 'Flipkart label: SKU without the line number or description, size from the description, qty');
+  eq(r.courier, 'Ekart', 'Flipkart label: courier');
+  ok(r.ids.includes('OD330011223344556600'), 'Flipkart label: order ID kept for matching');
+}
+/* Amazon: no SKU table; the invoice line has "ASIN ( SKU )" */
+{
+  const az = [it('Amazon Easy Ship', 28, 805, 12), it('Order ID: 403-1234567-1234567', 28, 780), it('Tax Invoice/Bill of Supply/Cash Memo', 200, 600, 10),
+    it('Sl. No', 28, 560), it('Description', 70, 560), it('Unit Price', 300, 560), it('Qty', 380, 560), it('Net Amount', 420, 560),
+    it('1 Ceramic Coffee Mug, White | B0ABCD1234 ( MUG-WHT-01 )', 28, 546), it('₹474.29', 300, 546), it('1', 384, 546), it('₹474.29', 420, 546),
+    it('2 Cotton Kurta, Size - XL | B0WXYZ5678 ( KURTA-XL )', 28, 530), it('₹899.00', 300, 530), it('1', 384, 530), it('₹899.00', 420, 530)];
+  const r = read(az);
+  ok(r.ok, 'Amazon label and invoice are read');
+  eq(r.rows.map((x) => [x.sku, x.size, x.qty, x.order]), [['MUG-WHT-01', '', 1, '403-1234567-1234567'], ['KURTA-XL', 'XL', 1, '403-1234567-1234567']], 'Amazon: SKU from "ASIN ( SKU )", size from the title, order ID');
+  eq(r.courier, 'Amazon Easy Ship', 'Amazon: courier');
+}
+eq(L.sizeIn('Kurta Size - 32'), '32', 'size in text: number');
+eq(L.sizeIn('Saree free size'), 'Free Size', 'size in text: free size');
+eq(L.sizeIn('Plain mug 350 ml'), '', 'size in text: none');
+
 console.log(`${checks - fails}/${checks} label checks passed`);
 if (fails) process.exit(1);
