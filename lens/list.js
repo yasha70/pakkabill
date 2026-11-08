@@ -66,6 +66,42 @@
     if (!first || first === td || first.querySelector('input,textarea,select')) return '';
     return clean(first.textContent);
   }
+  // The sizes chosen on the form, read from its Size box.
+  function sizesShown(out) {
+    const f = out.find(x => !x.row && C.canon(x.label) === 'size' && x.kind !== 'text');
+    if (!f) return [];
+    const v = readValue(f);
+    return (Array.isArray(v) ? v : C.splitMulti(v)).filter(z => C.sizeKey(z));
+  }
+  // A size named in a box: "M", "Size: M", "XXL".
+  function sizeIn(box, sizes) {
+    for (const e of [box, ...box.querySelectorAll('*')]) {
+      if (e.matches('input,textarea,select,option,script,style') || [...e.children].some(c => clean(c.textContent))) continue;
+      const t = clean(e.textContent);
+      if (!t || t.length > 30) continue;
+      const z = sizes.find(x => C.norm(x) === C.norm(t) || C.sameSize(x, t));
+      if (z) return z;
+    }
+    return '';
+  }
+  // Price, MRP, stock and SKU boxes that are not in a table: each size's boxes sit in a block that
+  // names the size ("Size: M"), else they come in the order of the sizes. A single box is for all.
+  function assignRows(out, sizes) {
+    if (!sizes || !sizes.length) return;
+    const groups = {};
+    out.forEach(f => { if (!f.row && (f.kind === 'text' || f.kind === 'combo')) { const k = C.rowKeyOf(f.label); if (k) (groups[k] = groups[k] || []).push(f); } });
+    for (const k in groups) {
+      const g = groups[k];
+      if (g.length === 1) { g[0].row = '*'; continue; }
+      g.forEach(f => {
+        let b = f.el;
+        while (b.parentElement && b.parentElement !== document.body && !g.some(o => o !== f && b.parentElement.contains(o.el))) b = b.parentElement;
+        f.row = sizeIn(b, sizes);
+      });
+      if (g.some(f => !f.row) && g.length === sizes.length) g.forEach((f, i) => { f.row = C.sortSizes(sizes)[i]; });
+      g.forEach(f => { if (!f.row) f.row = '?'; }); // not known: never filled with another size's price
+    }
+  }
   // A box that opens a list but is not a real input: Meesho's own drop-downs are often a plain div
   // ("Select" and an arrow) with a class like "dropdown" or "select-box".
   const DROP_CLASS = /^(?:[a-z0-9]+[-_]+)*(?:select|dropdown|drop-down|picker|combobox)(?:[-_]+(?:box|input|control|trigger|field|container|wrapper|button|toggle|header|main|root))?$|^[A-Za-z]*(?:Select|Dropdown|DropDown|Picker|Combobox)(?:Box|Input|Control|Trigger|Field|Container|Wrapper|Button|Toggle|Header|Root)?$/i;
@@ -100,7 +136,7 @@
   }
   const FIELD_SEL = 'input,textarea,select,[role=combobox],[aria-haspopup],[aria-expanded],[class*="select" i],[class*="dropdown" i],[class*="picker" i]';
   // Every field on the page: { i, el, kind, label, row, multi, required }
-  function scan() {
+  function scan(sizes) {
     const out = [], radios = new Map(), picks = [];
     const els = document.querySelectorAll(FIELD_SEL);
     for (const el of els) {
@@ -125,6 +161,7 @@
       out.push({ el, kind, label, row: rowOf(el), soft: kind === 'combo' && el.getAttribute('role') !== 'combobox' && el.getAttribute('aria-autocomplete') !== 'list', multi: !!(root && root.querySelector('.MuiChip-root')) || el.multiple || el.getAttribute('aria-multiselectable') === 'true', required: /\*/.test((el.labels && el.labels[0] && el.labels[0].textContent) || '') || el.required || el.getAttribute('aria-required') === 'true' });
     }
     out.forEach((f, i) => { f.i = i; });
+    assignRows(out, sizes || sizesShown(out));
     return out;
   }
   function chips(el) {
@@ -217,7 +254,7 @@
       // not new form boxes (the size table), which hold several inputs; a list may hold one search box
       if (n.isConnected && !n.contains(el) && !mine(n) && !n.closest('header,nav') && !n.matches('script,style,link') && n.querySelectorAll('input,textarea,select').length <= 1) roots.push(n);
     }
-    const top = roots.filter(r => !roots.some(o => o !== r && o.contains(r)));
+    const top = roots.filter(r => !roots.some(o => o !== r && o.contains(r)) && popupish(r));
     const out = [];
     for (const r of top) {
       if (el.contains(r)) continue;
@@ -231,6 +268,13 @@
       }
     }
     return out;
+  }
+  // A list that popped up: floating, put straight in the page, or named like a menu or popover.
+  function popupish(r) {
+    if (r.parentElement === document.body || r.matches('[role=listbox],[role=menu],[role=dialog],[role=presentation],[role=tooltip]')) return true;
+    if (/popover|popper|dropdown|drop-down|menu|options|overlay|portal|listbox|select/i.test((r.getAttribute('class') || '') + ' ' + (r.id || ''))) return true;
+    for (let x = r, n = 0; x && n < 3; x = x.firstElementChild, n++) { const p = getComputedStyle(x).position; if (p === 'absolute' || p === 'fixed') return true; }
+    return false;
   }
   // A "before" picture: the options already on screen, and the moment, for popupOpts.
   const snap = el => { const b = new Set(optionEls()); b.since = Date.now(); b.el = el; return b; };
@@ -251,8 +295,7 @@
   // Opens the list: each way a drop-down can be opened, until options show.
   async function openList(el, before) {
     const ways = [
-      () => press(el, 'down'),
-      () => press(el, 'up click'),
+      () => press(el),
       () => { const a = arrowOf(el); if (a) press(a); },
       () => { if (el.focus) el.focus(); key(el, 'ArrowDown'); },
       () => key(el, 'Enter'),
@@ -327,7 +370,7 @@
   function same(h, v) {
     const a = C.norm(h), b = C.norm(v);
     if (!a || !b) return false;
-    if (a === b || a.replace(/ /g, '') === b.replace(/ /g, '') || a.indexOf(b + ' ') === 0) return true;
+    if (a === b || a.replace(/ /g, '') === b.replace(/ /g, '') || a.indexOf(b + ' ') === 0 || C.sameSize(h, v)) return true;
     return /^\d+(\.\d+)?$/.test(b) && parseFloat(a) === parseFloat(b) && /^\d+(\.\d+)?\s*%?$/.test(a);
   }
   const hasVal = (f, v) => { const g = readValue(f); return (Array.isArray(g) ? g : C.splitMulti(g)).some(h => same(h, v)); };
@@ -497,6 +540,12 @@
   }
   // The values no label matched: each goes to the drop-down whose own choices hold it, so Meesho's
   // labels do not have to match the template's and nothing has to be pointed at.
+  // A drop-down's choices, if read before (this page, or "Read all drop-downs" for this category).
+  function knownChoices(f) {
+    if (OPTS.has(f.el)) return OPTS.get(f.el);
+    const d = SAVED && SAVED.fields && SAVED.fields.find(x => C.labelScore(x.label, f.label) >= 0.9 && x.options && x.options.length);
+    return d ? d.options : null;
+  }
   async function byChoices(items, done, marks, tpl) {
     const t0 = Date.now();
     const taken = new Set(marks);
@@ -518,8 +567,8 @@
       }
       for (const f of order) {
         if (f === near) continue;
-        if (Date.now() - t0 > 25000) break;
-        const o = await choicesOf(f);
+        if (Date.now() - t0 > 4000) break;
+        const o = knownChoices(f);
         if (!o || !o.length) continue;
         const has = v => o.some(x => same(x, v));
         if (has(it.value) || (want.length > 1 && want.every(has))) { hit = f; break; }
@@ -534,19 +583,39 @@
       if (ok) { done.add(it); marks.push(hit.el); taken.add(hit.el); }
     }
   }
-  async function fill(tpl, prod) {
+  // Sizes shown as buttons or tick boxes on the form itself (no drop-down): press each size.
+  async function sizeButtons(sizes) {
+    if (!sizes.length) return false;
+    const CL = 'label,button,[role=button],[role=checkbox],[role=option],[class*="chip" i],[class*="tag" i],[class*="pill" i],li,div,span';
+    const near = e => { for (let x = e, n = 0; x && n < 5; x = x.parentElement, n++) if (/\bsizes?\b/i.test(clean(x.textContent).slice(0, 200))) return true; return false; };
+    const on = e => e.getAttribute('aria-checked') === 'true' || e.getAttribute('aria-pressed') === 'true' || e.getAttribute('aria-selected') === 'true' || !!e.querySelector('input:checked') || /\b(selected|active|checked)\b/i.test(e.getAttribute('class') || '');
+    const picks = [];
+    for (const z of sizes) {
+      const c = [...document.querySelectorAll(CL)].filter(e => !mine(e) && visible(e) && !e.closest('td,[role=listbox],header,nav') && !e.querySelector('input:not([type=checkbox]):not([type=radio]),textarea,select') && (C.norm(clean(e.textContent)) === C.norm(z) || C.sameSize(clean(e.textContent), z)) && clean(e.textContent).length <= 30);
+      // the outermost box with just that size's name, near the word Size
+      const cand = c.filter(near);
+      if (!cand.length) return false;
+      picks.push(cand.find(x => !cand.some(o => o !== x && o.contains(x))));
+    }
+    for (const e of picks) if (!on(e)) { press(e); await sleep(60); }
+    return true;
+  }
+  async function fill(tpl, prod, again) {
     const items = C.plan(tpl, prod), done = new Set(), tries = new Map(), marks = [];
-    LOG = new Map();
+    const planSizes = C.sizesOf(tpl, prod).map(z => z.size), star = new Set();
+    if (!again) LOG = new Map();
+    else items.forEach(it => { if (it.size) done.add(it); }); // sizes pressed already
     const points = (tpl && tpl.points) || {};
     for (let round = 0; round < 5 && done.size < items.length; round++) {
-      const fields = scan(), used = {}, sig = fieldsSig(), work = [];
+      const fields = scan(planSizes), used = {}, sig = fieldsSig(), work = [];
       for (const it of items) {
         if (done.has(it) || (tries.get(it) || 0) >= 2) continue;
         let f = null;
         const p = points[keyOf(it)];
         if (p) { const el = byPath(p); if (el) f = fields.find(x => x.el === el || (x.radios && x.radios.includes(el))) || (kindOf(el) ? { el, kind: kindOf(el), label: it.label, row: it.row } : null); }
         if (!f) f = C.bestField(it, fields, used);
-        if (!f) { LOG.set(it, { field: '', why: 'No box with this label.' }); continue; }
+        if (!f) { LOG.set(it, { field: '', why: it.row ? 'No ' + it.label + ' box for size ' + it.row + '.' : 'No box with this label.' }); continue; }
+        if (f.row === '*' && star.has(f.el)) { LOG.set(it, { field: f.label, why: 'One box for all sizes, and the sizes have different values.' }); tries.set(it, 9); continue; }
         if (f.i != null) used[f.i] = true;
         work.push([it, f]);
       }
@@ -559,13 +628,25 @@
         let ok = false;
         try { ok = await fillOne(f, it); } catch (e) { ok = false; f.why = 'Error: ' + e.message; }
         LOG.set(it, { field: f.label + ' [' + f.kind + ']', ok, why: ok ? '' : f.why || 'The value did not stay.' });
-        if (ok) { done.add(it); marks.push(f.el); gained++; if (opens(f.kind) === 0) opened++; } else failed++;
+        if (ok) {
+          done.add(it); marks.push(f.el); gained++; if (opens(f.kind) === 0) opened++;
+          // one Price box for all sizes: every size with the same price is done
+          if (f.row === '*') { star.add(f.el); items.forEach(x => { if (x.col === it.col && x.value === it.value) { done.add(x); LOG.set(x, { field: f.label + ' (all sizes)', ok: true }); } }); }
+        } else if (/did not keep|did not stay|Error/.test(f.why || '') || !document.contains(f.el)) failed++;
+        else tries.set(it, 9); // not in the list, or the list does not open: trying again only costs time
       }
       if (done.size >= items.length) break;
       // only a drop-down makes new fields appear (the size table): wait for them only then
       const grew = opened ? await until(() => fieldsSig() !== sig, 1200) : fieldsSig() !== sig;
       if (!grew && !failed) break;
       if (grew) await sleep(100);
+    }
+    const sz = items.find(it => it.size);
+    const sig0 = fieldsSig();
+    if (sz && !again && !done.has(sz) && await sizeButtons(planSizes)) {
+      done.add(sz); LOG.set(sz, { field: 'size buttons', ok: true });
+      if (await until(() => fieldsSig() !== sig0, 2500)) await sleep(150); // the size boxes appear
+      return fill(tpl, prod, true);
     }
     if (done.size < items.length) await byChoices(items, done, marks, tpl);
     let photos = 0;
@@ -647,6 +728,7 @@
   // Reads every drop-down on the form with all its choices. They are saved on the template, so
   // PakkaBill's Auto listing offers Meesho's exact choices for each detail.
   let FORM = null; // [{ label, kind, multi, options }]
+  let SAVED = null; // the last "Read all drop-downs", kept in the extension
   async function readAll(tplId) {
     if (busy) return;
     busy = true; note = 'Reading every drop-down… keep this tab in front.'; draw();
@@ -662,6 +744,7 @@
       }
     } finally { busy = false; }
     FORM = out;
+    SAVED = { at: Date.now(), cat: category(), fields: out };
     const id = tplId || (last && last.tplId) || (Q && Q.items[cur] && tplOf(Q.items[cur]) && tplOf(Q.items[cur]).id);
     const k = T.findIndex(t => t.id === id);
     let added = 0;
@@ -710,10 +793,12 @@
   async function fillNow(tpl, prod, id) {
     if (busy) return;
     busy = true; note = 'Filling… keep this tab in front.'; draw();
+    const t0 = Date.now();
     const r = await fill(tpl, prod);
     busy = false;
+    const secs = ((Date.now() - t0) / 1000).toFixed(1);
     last = { missing: r.missing, tplId: tpl && tpl.id };
-    note = `Filled ${r.filled} of ${r.total}${r.photos ? ` and ${r.photos} photo${r.photos > 1 ? 's' : ''}` : ''}.` + (r.missing.length ? ' Point to the ones left, or fill them by hand.' : ' Check the form, then submit it in Meesho.');
+    note = `Filled ${r.filled} of ${r.total} in ${secs} s${r.photos ? ` and ${r.photos} photo${r.photos > 1 ? 's' : ''}` : ''}.` + (r.missing.length ? ' Point to the ones left, or fill them by hand.' : ' Check the form, then submit it in Meesho.');
     if (id) { S[id] = { state: 'filled', filled: r.filled, total: r.total, missing: r.missing.map(m => m.label + (m.row ? ' (' + m.row + ')' : '')), at: Date.now() }; await set({ liststat: S }); }
     draw();
   }
@@ -811,7 +896,8 @@
   }
 
   async function load() {
-    const x = await get(['listq', 'listtpl', 'liststat']);
+    const x = await get(['listq', 'listtpl', 'liststat', 'listform']);
+    SAVED = x.listform || null;
     T = Array.isArray(x.listtpl) ? x.listtpl : [];
     S = x.liststat || {};
     const q = x.listq;

@@ -10,7 +10,7 @@
   'use strict';
   const root = window;
   const C = root.PBListCore;
-  const KEY = 'pb-autolist', NEED = '3.2.0', FREE_TPL = 1, FREE_SEND = 5;
+  const KEY = 'pb-autolist', NEED = '3.3.0', FREE_TPL = 1, FREE_SEND = 5;
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const uid = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const pro = () => (typeof root.pbPro === 'function' ? root.pbPro() : true);

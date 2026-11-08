@@ -1,4 +1,4 @@
-PakkaBill Lens - Meesho insights, auto listing and shipping check (Chrome extension, version 3.2)
+PakkaBill Lens - Meesho insights, auto listing and shipping check (Chrome extension, version 3.3)
 
 Works in Chrome or Edge on a laptop or desktop. On a phone, use the Lens bookmark
 from PakkaBill's Meesho Lens page instead (phone Chrome can't run extensions).

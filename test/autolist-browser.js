@@ -46,6 +46,24 @@ const { chromium } = require('playwright');
     popups: document.querySelectorAll('.pop').length,
     submitted: !!window.SUBMITTED,
   }));
+
+  // Form 2: size buttons, XXL for 2XL, a card per size, one Returns Price box for all sizes
+  const page2 = await browser.newPage();
+  await page2.addInitScript(() => { window.chrome = { storage: { local: { get: (k, cb) => cb({}), set: (o, cb) => cb && cb() }, onChanged: { addListener() {} } } }; });
+  await page2.goto('file://' + path.join(__dirname, 'autolist-form2.html'));
+  await page2.addScriptTag({ path: path.join(__dirname, '../lens/listcore.js') });
+  await page2.addScriptTag({ path: path.join(__dirname, '../lens/list.js') });
+  const t2 = Date.now();
+  const r2 = await page2.evaluate(async () => {
+    const r = await window.PBListPage.fill({ id: 't2', fields: [], sizes: [{ size: '2XL', price: 350, rprice: 300, mrp: 1200, stock: 5 }, { size: 'M', price: 320, rprice: 300, mrp: 1100, stock: 7 }] }, { name: 'Top', sku: 'TP9' });
+    return { ...r, missing: r.missing.map(m => m.label + (m.row ? ' (' + m.row + ')' : '')) };
+  });
+  const ms2 = Date.now() - t2;
+  const got2 = await page2.evaluate(() => ({
+    chips: [...document.querySelectorAll('.chip.selected')].map(c => c.textContent),
+    rp: document.querySelector('[name=rp]').value,
+    cards: Object.fromEntries([...document.querySelectorAll('.card')].map(c => [c.querySelector('h4').textContent, [...c.querySelectorAll('input')].map(i => i.value)])),
+  }));
   await browser.close();
 
   let fails = 0;
@@ -69,6 +87,11 @@ const { chromium } = require('playwright');
   eq(got.submitted, false, 'never submits');
   eq(r.missing, [], 'nothing left');
   if (ms > 8000) { fails++; console.log(`FAIL  too slow: ${ms} ms`); }
-  console.log(`${fails ? 'FAILED' : 'OK'}: filled ${r.filled} of ${r.total} in ${ms} ms`);
+  eq(got2.chips, ['M', 'XXL'], 'form 2: size buttons pressed, XXL for 2XL');
+  eq(got2.rp, '300', 'form 2: one Returns Price box for all sizes');
+  eq(got2.cards, { 'Size: M': ['320', '1100', '7', 'TP9-M'], 'Size: XXL': ['350', '1200', '5', 'TP9-2XL'] }, 'form 2: each size\'s card gets its own price, MRP, stock and SKU');
+  eq(r2.missing, [], 'form 2: nothing left');
+  if (ms2 > 6000) { fails++; console.log(`FAIL  form 2 too slow: ${ms2} ms`); }
+  console.log(`${fails ? 'FAILED' : 'OK'}: filled ${r.filled} of ${r.total} in ${ms} ms; form 2 ${r2.filled} of ${r2.total} in ${ms2} ms`);
   process.exit(fails ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

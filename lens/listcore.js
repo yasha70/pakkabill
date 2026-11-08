@@ -88,6 +88,23 @@ var PBListCore = (function () {
 
   // Size order Meesho shows: free size, then XS to 6XL, then numbers.
   var ORDER = ['free size', 'xxs', 'xs', 's', 'm', 'l', 'xl', 'xxl', '2xl', '3xl', 'xxxl', '4xl', '5xl', '6xl'];
+  // One name per size: "XXL" and "2XL", "Free" and "Free Size", "Size M" and "M (Bust 38 in)".
+  // null when it is not a size.
+  var SIZE_ALIAS = { xxs: '2xs', xxl: '2xl', xxxl: '3xl', xxxxl: '4xl', xxxxxl: '5xl', free: 'free size', freesize: 'free size', 'one size': 'free size', onesize: 'free size', 'standard': 'free size', small: 's', medium: 'm', large: 'l', 'extra large': 'xl', 'extra small': 'xs' };
+  function sizeKey(z) {
+    var n = norm(z).replace(/^size\s+/, '').replace(/\s+size$/, function (m) { return /free/.test(n) ? m : ''; });
+    n = n.replace(/^size\s+/, '');
+    if (SIZE_ALIAS[n]) return SIZE_ALIAS[n];
+    if (/^free( size)?\b/.test(n)) return 'free size';
+    // children's sizes: "3-4 Years" -> "3-4y", "6 Months" -> "6m"
+    var kid = /^(\d{1,2})(?: (\d{1,2}))? ?(y|yr|yrs|year|years|m|mo|month|months)\b/.exec(n);
+    if (kid) return kid[1] + (kid[2] ? '-' + kid[2] : '') + (/^m/.test(kid[3]) ? 'm' : 'y');
+    var m = /^(\d?x{0,5}[sml]|\d{1,3}(\.\d)?)(\s|$)/.exec(n);
+    if (!m) return null;
+    var k = m[1];
+    return SIZE_ALIAS[k] || k.replace(/^(x+)(s|l)$/, function (a, x, e) { return x.length > 1 ? x.length + 'x' + e : a; });
+  }
+  function sameSize(a, b) { var x = sizeKey(a), y = sizeKey(b); return x != null && x === y; }
   function sizeRank(z) { var n = norm(z), i = ORDER.indexOf(n); if (i >= 0) return i; var d = parseFloat(n); return isNaN(d) ? 100 : 200 + d; }
   function sortSizes(list) { return list.slice().sort(function (a, b) { return sizeRank(a.size || a) - sizeRank(b.size || b); }); }
 
@@ -115,8 +132,8 @@ var PBListCore = (function () {
   // Sizes for a product: the template's, with the product's price, MRP and stock where given.
   function sizesOf(tpl, prod) {
     var base = (tpl && tpl.sizes) || [];
-    var only = prod && prod.sizes && prod.sizes.length ? prod.sizes.map(norm) : null;
-    return sortSizes(base.filter(function (s) { return s && s.size && (!only || only.indexOf(norm(s.size)) >= 0); }).map(function (s) {
+    var only = prod && prod.sizes && prod.sizes.length ? prod.sizes : null;
+    return sortSizes(base.filter(function (s) { return s && s.size && (!only || only.some(function (z) { return norm(z) === norm(s.size) || sameSize(z, s.size); })); }).map(function (s) {
       var o = { size: s.size, price: s.price, rprice: s.rprice, mrp: s.mrp, stock: s.stock };
       ['price', 'rprice', 'mrp', 'stock'].forEach(function (k) { if (prod && prod[k] !== '' && prod[k] != null) o[k] = prod[k]; });
       if (o.rprice === '' || o.rprice == null) o.rprice = o.price;
@@ -138,7 +155,7 @@ var PBListCore = (function () {
     var name = render(tpl.title || '{name}', tpl, prod) || prod.name;
     push('Product Name', name);
     var sizes = sizesOf(tpl, prod);
-    if (sizes.length) push('Size', sizes.map(function (s) { return s.size; }).join(', '), { multi: true });
+    if (sizes.length) push('Size', sizes.map(function (s) { return s.size; }).join(', '), { multi: true, size: true });
     if (prod.color) push('Color', prod.color);
     // the product's own fields first, then the template's
     (prod.fields || []).concat(tpl.fields || []).forEach(function (f) {
@@ -163,7 +180,7 @@ var PBListCore = (function () {
     fields.forEach(function (f) {
       if (used && used[f.i]) return;
       if (!!item.row !== !!f.row) return;
-      if (item.row && norm(item.row) !== norm(f.row)) return;
+      if (item.row && f.row !== '*' && norm(item.row) !== norm(f.row) && !sameSize(item.row, f.row)) return;
       var s = labelScore(f.label, item.label);
       if (item.col && rowKeyOf(f.label) === item.col) s = Math.max(s, 0.95);
       if (s > bs) { bs = s; best = f; }
@@ -211,7 +228,7 @@ var PBListCore = (function () {
     return p;
   }
 
-  var api = { norm: norm, canon: canon, labelScore: labelScore, looseScore: looseScore, matchOption: matchOption, splitMulti: splitMulti, sortSizes: sortSizes, rowKeyOf: rowKeyOf, render: render, sizesOf: sizesOf, plan: plan, bestField: bestField, learn: learn, problems: problems, fieldValue: fieldValue };
+  var api = { norm: norm, canon: canon, sizeKey: sizeKey, sameSize: sameSize, labelScore: labelScore, looseScore: looseScore, matchOption: matchOption, splitMulti: splitMulti, sortSizes: sortSizes, rowKeyOf: rowKeyOf, render: render, sizesOf: sizesOf, plan: plan, bestField: bestField, learn: learn, problems: problems, fieldValue: fieldValue };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   return api;
 })();
