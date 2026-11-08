@@ -14,11 +14,21 @@ bar so bills stay one tap away on a phone. The logo opens the P&L.
 - Billing: bills with Original / Duplicate / Triplicate copies, CGST+SGST or IGST by place of supply,
   the garment 5% / 18% slab, UPI QR, PDF, printing and WhatsApp sharing; GSTR-1 JSON built from
   Meesho's sales, sales return and tax invoice reports.
-- Bill designs and columns: 14 designs in a picture gallery (Shop, the bill form and the bill view).
+- Bill designs and columns: 20 designs in a picture gallery (Shop, the bill form and the bill view).
   Free: Carbon, Modern, Classic, Ledger, Plain, Trader (the full GST tax invoice format, every part in a
-  box), Compact (small type, 30+ items on one page) and Bill book (like a printed bill book, amounts in
-  Rs. and P. columns); Pro: Royal, Elegant, Boutique, Studio (bold type, big total), Utsav (festive toran
-  border) and Prism (slanted colour header). Columns are chips above the items, on the bill view and on
+  box), Compact (small type, 30+ items on one page), Bill book (like a printed bill book, amounts in
+  Rs. and P. columns), Minimal (black type, thin lines, saves ink), Corporate (colour band down the side,
+  boxed total) and Bold (solid colour table header, big total bar); Pro: Royal, Elegant, Boutique, Studio
+  (bold type, big total), Utsav (festive toran border), Prism (slanted colour header), Sapphire (full colour
+  header with a gold line), Rangoli (festive rangoli corners) and Zari (woven saree-border bands).
+- Bill PDF: each page is drawn at 5x (3970 x 5615, about 480 DPI); phones that cannot make an image that
+  big (iPhones) get 4x, 3x or 2x. Prices that include GST: GST is taken out of the price with CGST equal to
+  SGST, so the total is exactly the price typed (bills from calcV 2; older bills keep their numbers).
+- Fetch details (GST number): fills the buyer or shop name, address and state by itself once a valid GSTIN
+  is typed (not when an old bill is opened), shows status, taxpayer type (composition flagged), registered
+  and cancelled dates, legal name, nature of business, jurisdiction, e-invoicing and other places of
+  business. Answers are kept on the device for 30 days (`pb-gst-cache`). IFSC on the Shop page fills the
+  bank and branch from Razorpay's free IFSC directory (`/api/config?ifsc=`). Columns are chips above the items, on the bill view and on
   the Shop page for new bills: HSN code, Item code, Description, Size, Colour, MRP, Unit column, Rate
   with GST and Tax split per item (CGST and SGST, or IGST, rate and amount on each line). HSN can't be
   turned off on a bill to a GST-registered buyer. The discount shows its rupee amount (without GST when

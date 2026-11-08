@@ -1,5 +1,6 @@
 // GET /api/config  -> prices, free bill limit, the shop's UPI ID and whether paid features are on
 // GET /api/config?gstin=...  -> name and address of a GST number (see _lib/gst.js)
+// GET /api/config?ifsc=...   -> bank and branch of an IFSC code (Razorpay's free IFSC directory)
 const core = require('./_lib/core');
 const gst = require('./_lib/gst');
 const rzp = require('./_lib/razorpay');
@@ -8,6 +9,8 @@ const otp = require('./_lib/otp');
 module.exports = core.handler(async (req, res) => {
   const gstin = new URL(req.url, 'http://x').searchParams.get('gstin');
   if (gstin !== null) return gst.handle(req, res, gstin);
+  const ifsc = new URL(req.url, 'http://x').searchParams.get('ifsc');
+  if (ifsc !== null) return gst.ifsc(req, res, ifsc);
   // Browsers always check again; only Vercel's CDN keeps a copy (for a minute).
   res.setHeader('CDN-Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
   const s = await core.getSettings();

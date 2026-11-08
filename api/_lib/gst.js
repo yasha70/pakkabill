@@ -54,6 +54,12 @@ const ALIAS = {
   pin: ['pncd', 'pincode', 'pin_code', 'pinCode'],
   nba: ['nba', 'nature_of_business_activities', 'natureOfBusinessActivities', 'nature_of_business'],
   split: ['addr', 'principal_place_split_address', 'principalPlaceSplitAddress', 'split_address', 'address_split'],
+  cancel: ['cxdt', 'cancellation_date', 'date_of_cancellation', 'cancellationDate', 'dateOfCancellation'],
+  updated: ['lstupdt', 'last_updated', 'lastUpdated', 'last_update_date', 'lastUpdateDate'],
+  ctj: ['ctj', 'centre_jurisdiction', 'center_jurisdiction', 'centreJurisdiction', 'centerJurisdiction'],
+  stj: ['stj', 'state_jurisdiction', 'stateJurisdiction'],
+  einv: ['einvoiceStatus', 'einvoice_status', 'e_invoice_status', 'eInvoiceStatus', 'einvoice'],
+  more: ['adadr', 'additional_address', 'additional_addresses', 'additionalAddress', 'additional_places', 'additionalPlaces'],
 };
 Object.keys(ALIAS).forEach((k) => { ALIAS[k] = ALIAS[k].map(key); });
 // First value found under any of the names, searching the answer level by level (the record, then inside it).
@@ -105,10 +111,23 @@ function normalize(json, g) {
   const pin = String(find(json, ALIAS.pin) || (address.match(/\b\d{6}\b/) || [''])[0]);
   if (address && /^\d{6}$/.test(pin) && address.indexOf(pin) < 0) address += ', ' + pin; // some services keep the PIN apart
   const nba = find(json, ALIAS.nba, 'list').filter((x) => typeof x === 'string').slice(0, 6);
+  // other places of business the seller registered (godowns, branches), as plain addresses
+  const places = find(json, ALIAS.more, 'list').map((x) => {
+    if (typeof x === 'string') return tidy(x);
+    const o = x && typeof x === 'object' ? (x.addr && typeof x.addr === 'object' ? x.addr : x) : null;
+    return o ? tidy(joinAddress(o)) : '';
+  }).filter(Boolean).slice(0, 10);
+  // jurisdictions often come as long "State - X,Zone - Y,Division - Z,Range - R" text: keep the last two parts (division / range)
+  const office = (v) => { const t = tidy(v); const parts = t.split(/,\s*/).filter(Boolean); return parts.length > 1 ? parts.slice(-2).map((x) => x.replace(/^[^-]+-\s*/, '')).join(' / ') : t; };
+  const type = tidy(find(json, ALIAS.type));
+  const einv = find(json, ALIAS.einv);
   return Object.assign(fromNumber(g), {
     legalName: legal, tradeName: trade, name: trade || legal, address, pincode: pin,
-    status: tidy(find(json, ALIAS.status)), type: tidy(find(json, ALIAS.type)), constitution: tidy(find(json, ALIAS.ctb)),
-    regDate: tidy(find(json, ALIAS.reg)), business: nba, source: 'online',
+    status: tidy(find(json, ALIAS.status)), type, constitution: tidy(find(json, ALIAS.ctb)),
+    regDate: tidy(find(json, ALIAS.reg)), cancelDate: tidy(find(json, ALIAS.cancel)), updated: tidy(find(json, ALIAS.updated)),
+    composition: /composition/i.test(type), centreOffice: office(find(json, ALIAS.ctj)), stateOffice: office(find(json, ALIAS.stj)),
+    eInvoice: einv === '' ? '' : /^(yes|y|true|1|enabled|applicable)$/i.test(String(einv).trim()) ? 'Yes' : /^(no|n|false|0|disabled|not applicable)$/i.test(String(einv).trim()) ? 'No' : tidy(einv),
+    business: nba, places, source: 'online',
   });
 }
 
@@ -180,4 +199,30 @@ async function handle(req, res, raw) {
   core.send(res, 200, data);
 }
 
-module.exports = { clean, check, checkDigit, fromNumber, normalize, config, lookup, handle, STATES, ENTITY };
+// GET /api/config?ifsc=SBIN0030086 -> { ifsc, bank, branch, city, district, state, address, upi, neft, imps, rtgs }
+// From ifsc.razorpay.com (free, no key). Answers are kept for 90 days when the database is set up.
+const IFSC = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+async function ifsc(req, res, raw, fetchFn) {
+  const db = require('./db');
+  const code = String(raw || '').toUpperCase().replace(/\s/g, '');
+  if (!IFSC.test(code)) throw new core.HttpError(400, 'An IFSC has 11 characters, like SBIN0001234.');
+  const saved = db.configured() ? await db.getJSON(`ifsc:${code}`) : null;
+  if (saved) return core.send(res, 200, Object.assign(saved, { cached: true }), 'public, max-age=86400');
+  if (db.configured()) await core.rateLimit(`ifsc:${core.clientIp(req) || 'anon'}`, 60, 3600);
+  let r, j = null;
+  try {
+    r = await (fetchFn || fetch)(`https://ifsc.razorpay.com/${code}`, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
+    j = await r.json().catch(() => null);
+  } catch {
+    throw new core.HttpError(504, 'Could not reach the bank directory. Type the bank and branch.');
+  }
+  if (r.status === 404) throw new core.HttpError(404, 'No bank branch has this IFSC. Check it for a typo.');
+  if (!r.ok || !j || !j.BANK) throw new core.HttpError(502, 'The bank directory did not answer. Type the bank and branch.');
+  const t = (v) => tidy(v == null ? '' : String(v));
+  const out = { ifsc: code, bank: t(j.BANK), branch: t(j.BRANCH), city: t(j.CITY), district: t(j.DISTRICT), state: t(j.STATE), address: t(j.ADDRESS),
+    upi: !!j.UPI, neft: !!j.NEFT, imps: !!j.IMPS, rtgs: !!j.RTGS };
+  if (db.configured()) await db.setJSON(`ifsc:${code}`, out, 90 * 86400);
+  core.send(res, 200, out, 'public, max-age=86400');
+}
+
+module.exports = { clean, check, checkDigit, fromNumber, normalize, config, lookup, handle, ifsc, STATES, ENTITY };
