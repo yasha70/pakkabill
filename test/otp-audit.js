@@ -4,7 +4,7 @@ process.env.PB_DEV_MEMORY_DB = '1';
 const otp = require('../api/_lib/otp');
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } };
-const ENV = ['OTP_PROVIDER', 'FAST2SMS_API_KEY', 'MSG91_AUTH_KEY', 'MSG91_TEMPLATE_ID', 'TWOFACTOR_API_KEY', 'TWOFACTOR_TEMPLATE'];
+const ENV = ['OTP_PROVIDER', 'FAST2SMS_API_KEY', 'MSG91_AUTH_KEY', 'MSG91_TEMPLATE_ID', 'TWOFACTOR_API_KEY', 'TWOFACTOR_TEMPLATE', 'GUPSHUP_API_KEY', 'GUPSHUP_TEMPLATE_ID', 'GUPSHUP_SOURCE', 'GUPSHUP_APP_NAME'];
 const set = (o) => { ENV.forEach((k) => delete process.env[k]); Object.assign(process.env, o); };
 let sent = [];
 global.fetch = async (url, opts = {}) => { sent.push({ url: String(url), opts }); return { ok: true, status: 200, text: async () => '{"return":true,"type":"success","Status":"Success"}' }; };
@@ -126,6 +126,30 @@ const lastCode = () => { const u = sent[sent.length - 1].url; return (/variables
   sent = [];
   const tr = await otp.test('9000000004', { provider: 'fast2sms', apiKey: 'K2' });
   ok(tr.sent && sent[0].url.includes('variables_values=' + tr.code) && sent[0].opts.headers.authorization === 'K2', 'test SMS sent with the typed key');
+
+  // ---- Gupshup: OTP on WhatsApp ----
+  await setAdmin({ on: true, provider: 'gupshup', apiKey: 'GSK', templateId: 'tpl-uuid' }); ok(!(await otp.enabled()), 'gupshup: off without number and app name');
+  await setAdmin({ on: true, provider: 'gupshup', apiKey: 'GSK', templateId: 'tpl-uuid', source: '98765 43210', appName: 'PakkaBillApp' });
+  ok(await otp.enabled() && (await otp.channel()) === 'whatsapp', 'gupshup: on, sent on WhatsApp');
+  sent = [];
+  await require('../api/_lib/db').cmd(['DEL', 'rl:otp:ph:9000000005']);
+  await otp.send('9000000005', 'signup', '5.5.5.5');
+  const g = sent[0], gb = new URLSearchParams(g.opts.body), gt = JSON.parse(gb.get('template') || '{}');
+  ok(g.url === 'https://api.gupshup.io/wa/api/v1/template/msg' && g.opts.method === 'POST' && g.opts.headers.apikey === 'GSK' && /x-www-form-urlencoded/.test(g.opts.headers['Content-Type']), 'gupshup: endpoint and API key');
+  ok(gb.get('channel') === 'whatsapp' && gb.get('source') === '919876543210' && gb.get('destination') === '919000000005' && gb.get('src.name') === 'PakkaBillApp', 'gupshup: channel, numbers with 91, app name');
+  ok(gt.id === 'tpl-uuid' && Array.isArray(gt.params) && /^\d{6}$/.test(gt.params[0]), 'gupshup: template id and the code as {{1}}');
+  await otp.check('9000000005', 'signup', gt.params[0]).then(() => ok(true, ''), (e) => ok(false, 'gupshup code refused: ' + e.message));
+  global.fetch = async () => ({ ok: true, status: 200, text: async () => '{"status":"error","message":"Template Not Found"}' });
+  await require('../api/_lib/db').cmd(['DEL', 'rl:otp:ph:9000000006']);
+  await otp.send('9000000006', 'login', '5.5.5.6').then(() => ok(false, 'gupshup error reported as sent'), (e) => ok(e.status === 502 && /WhatsApp/.test(e.message), 'gupshup: an error reply is reported'));
+  global.fetch = async (url, opts = {}) => { sent.push({ url: String(url), opts }); return { ok: true, status: 202, text: async () => '{"status":"submitted","messageId":"x"}' }; };
+  await otp.test('9000000004', { provider: 'gupshup', apiKey: 'GSK' }).then(() => ok(false, 'gupshup test without fields'), (e) => ok(/four Gupshup boxes/.test(e.message), 'gupshup test asks for all fields'));
+  const gtr = await otp.test('9000000004', { provider: 'gupshup', apiKey: 'GSK', templateId: 't', source: '919876543210', appName: 'A' });
+  ok(gtr.sent && gtr.via === 'whatsapp', 'gupshup test OTP sent');
+  await setAdmin({});
+  set({ OTP_PROVIDER: 'gupshup', GUPSHUP_API_KEY: 'k', GUPSHUP_TEMPLATE_ID: 't', GUPSHUP_SOURCE: '919876543210', GUPSHUP_APP_NAME: 'A' });
+  ok(await otp.enabled(), 'gupshup from Vercel variables');
+  set({});
 
   // the admin's daily SMS count
   const days = await otp.smsSeries(14);

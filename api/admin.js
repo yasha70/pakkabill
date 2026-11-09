@@ -322,7 +322,7 @@ const actions = {
     const p = core.normPhone(phone);
     if (!p) throw new core.HttpError(400, 'Type a 10-digit mobile number to send the test SMS to.');
     const r = await otp.test(p, o || {});
-    return { sent: true, code: r.code };
+    return { sent: true, code: r.code, via: r.via };
   },
 
   // Checks Razorpay keys (typed in the form, or the saved ones) with a harmless read.
@@ -363,10 +363,12 @@ const actions = {
     if (s.razorpay.keyId && s.razorpay.keySecret.length < 8) throw new core.HttpError(400, 'Paste the Razorpay Key Secret too. Razorpay shows it once, when you make the key.');
     // OTP by SMS: the SMS company and its key; the switch turns sign-up OTP on or off for everyone
     const O = otpIn && typeof otpIn === 'object' ? otpIn : prev.otp || {};
-    s.otp = { on: !!O.on, provider: otp.PROVIDERS.includes(O.provider) ? O.provider : '', apiKey: String(O.apiKey || '').trim().slice(0, 200), templateId: String(O.templateId || '').trim().slice(0, 100) };
+    s.otp = { on: !!O.on, provider: otp.PROVIDERS.includes(O.provider) ? O.provider : '', apiKey: String(O.apiKey || '').trim().slice(0, 200), templateId: String(O.templateId || '').trim().slice(0, 100),
+      source: String(O.source || '').replace(/[^\d+]/g, '').slice(0, 16), appName: String(O.appName || '').trim().slice(0, 80) }; // source and appName: Gupshup WhatsApp only
     if (s.otp.on && !s.otp.provider) throw new core.HttpError(400, 'Choose the SMS company for OTP, or turn OTP off.');
     if (s.otp.on && !s.otp.apiKey) throw new core.HttpError(400, 'Paste the API key of your SMS company for OTP.');
     if (s.otp.on && s.otp.provider === 'msg91' && !s.otp.templateId) throw new core.HttpError(400, 'MSG91 needs the Template ID of your OTP template too.');
+    if (s.otp.on && s.otp.provider === 'gupshup' && !(s.otp.templateId && s.otp.source.replace(/\D/g, '').length >= 10 && s.otp.appName)) throw new core.HttpError(400, 'Gupshup needs the API key, your WhatsApp business number, the app name and the template ID.');
     if (!(s.trialDays >= 0 && s.trialDays <= 90)) throw new core.HttpError(400, 'Free trial days must be 0 to 90.');
     if (s.upiId && !core.UPI_ID.test(s.upiId)) throw new core.HttpError(400, 'That does not look like a UPI ID (name@bank).');
     if (!(s.monthly >= 1 && s.yearly >= 1)) throw new core.HttpError(400, 'Prices must be at least ₹1.');

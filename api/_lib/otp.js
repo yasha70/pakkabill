@@ -7,6 +7,9 @@
 //      fast2sms: FAST2SMS_API_KEY
 //      msg91:    MSG91_AUTH_KEY and MSG91_TEMPLATE_ID (an OTP template with the variable ##OTP##)
 //      2factor:  TWOFACTOR_API_KEY (and optionally TWOFACTOR_TEMPLATE, the name of an approved template)
+//      gupshup:  OTP on WhatsApp. GUPSHUP_API_KEY, GUPSHUP_SOURCE (the WhatsApp business number,
+//                with 91), GUPSHUP_APP_NAME and GUPSHUP_TEMPLATE_ID (an approved authentication
+//                template whose one variable {{1}} is the code)
 // PakkaBill makes the 6-digit code itself and keeps only a hash of it for 10 minutes; the provider
 // only delivers the SMS. Locally (npm run dev, in-memory database) OTP_PROVIDER=test shows the code
 // in the server log instead of sending it.
@@ -23,13 +26,23 @@ const PURPOSES = ['signup', 'login', 'reset', 'verify', 'delete'];
 const IST = 5.5 * 3600e3;
 const today = () => new Date(Date.now() + IST).toISOString().slice(0, 10);
 
-const PROVIDERS = ['fast2sms', 'msg91', '2factor'];
+const PROVIDERS = ['fast2sms', 'msg91', '2factor', 'gupshup'];
+// how the code reaches the customer: Gupshup sends it on WhatsApp, the others by SMS
+const via = (provider) => (provider === 'gupshup' ? 'whatsapp' : 'sms');
 
-// { provider, apiKey, templateId } when it has what that company needs, otherwise null
-function valid(provider, apiKey, templateId) {
+// The WhatsApp business number with the country code, digits only (a 10-digit number gets 91)
+const waNumber = (s) => { const d = String(s || '').replace(/\D/g, ''); return d.length === 10 ? '91' + d : d; };
+
+// { provider, apiKey, templateId, source, appName } when it has what that company needs, otherwise null
+function valid(provider, apiKey, templateId, extra = {}) {
   const p = String(provider || '').trim().toLowerCase(), key = String(apiKey || '').trim(), tpl = String(templateId || '').trim();
   if (p === 'test') return process.env.PB_DEV_MEMORY_DB === '1' ? { provider: p, apiKey: '', templateId: '' } : null; // never on the live site
   if (!PROVIDERS.includes(p) || !key || (p === 'msg91' && !tpl)) return null;
+  if (p === 'gupshup') {
+    const source = waNumber(extra.source), appName = String(extra.appName || '').trim();
+    if (!tpl || source.length < 11 || !appName) return null;
+    return { provider: p, apiKey: key, templateId: tpl, source, appName };
+  }
   return { provider: p, apiKey: key, templateId: tpl };
 }
 
@@ -39,6 +52,7 @@ function fromEnv() {
   if (p === 'fast2sms') return valid(p, e.FAST2SMS_API_KEY);
   if (p === 'msg91') return valid(p, e.MSG91_AUTH_KEY, e.MSG91_TEMPLATE_ID);
   if (p === '2factor') return valid(p, e.TWOFACTOR_API_KEY, e.TWOFACTOR_TEMPLATE);
+  if (p === 'gupshup') return valid(p, e.GUPSHUP_API_KEY, e.GUPSHUP_TEMPLATE_ID, { source: e.GUPSHUP_SOURCE, appName: e.GUPSHUP_APP_NAME });
   if (p === 'test') return valid(p);
   return null;
 }
@@ -46,7 +60,7 @@ function fromEnv() {
 // The SMS company to use now, or null when OTP is off
 async function config() {
   const o = (await core.getSettings()).otp || {};
-  if (o.provider) return o.on ? valid(o.provider, o.apiKey, o.templateId) : null; // the admin panel decides
+  if (o.provider) return o.on ? valid(o.provider, o.apiKey, o.templateId, o) : null; // the admin panel decides
   return fromEnv();
 }
 const enabled = async () => !!(await config());
@@ -63,12 +77,16 @@ async function deliver(cfg, phone, code) {
   } else if (p === '2factor') {
     const t = tpl ? '/' + encodeURIComponent(tpl) : '';
     res = await go(`https://2factor.in/API/V1/${encodeURIComponent(key)}/SMS/${phone}/${code}${t}`, {});
+  } else if (p === 'gupshup') {
+    // WhatsApp template message; the approved authentication template's {{1}} is the code
+    const body = new URLSearchParams({ channel: 'whatsapp', source: cfg.source, destination: '91' + phone, 'src.name': cfg.appName, template: JSON.stringify({ id: tpl, params: [code] }) });
+    res = await go('https://api.gupshup.io/wa/api/v1/template/msg', { method: 'POST', headers: { apikey: key, 'Content-Type': 'application/x-www-form-urlencoded', 'Cache-Control': 'no-cache' }, body: body.toString() });
   }
   const text = res ? await res.text().catch(() => '') : '';
   // each provider says "ok" differently; a failure status or an error word means the SMS did not go
   if (!res || !res.ok || /"(return|status)"\s*:\s*(false|"error"|"failed")|"type"\s*:\s*"error"/i.test(text)) {
     console.error('OTP send failed', p, res && res.status, text.slice(0, 300));
-    throw new core.HttpError(502, 'Could not send the OTP right now. Try again in a minute, or use your password.');
+    throw new core.HttpError(502, via(p) === 'whatsapp' ? 'Could not send the OTP on WhatsApp right now. Check that this number has WhatsApp, try again in a minute, or use your password.' : 'Could not send the OTP right now. Try again in a minute, or use your password.');
   }
 }
 
@@ -98,13 +116,22 @@ async function countSms() {
 
 // Admin panel "Send test SMS": sends a code with settings that may not be saved yet.
 async function test(phone, o) {
-  const cfg = valid(o && o.provider, o && o.apiKey, o && o.templateId);
-  if (!cfg) throw new core.HttpError(400, o && o.provider === 'msg91' ? 'Paste the MSG91 Auth Key and the Template ID.' : 'Choose the SMS company and paste its API key.');
+  const cfg = valid(o && o.provider, o && o.apiKey, o && o.templateId, o || {});
+  if (!cfg) {
+    const why = { msg91: 'Paste the MSG91 Auth Key and the Template ID.', gupshup: 'Fill all four Gupshup boxes: API key, WhatsApp number (with 91), app name and template ID.' };
+    throw new core.HttpError(400, why[o && o.provider] || 'Choose the OTP company and paste its API key.');
+  }
   await core.rateLimit('otp:admintest', 10, 3600);
   const code = String(crypto.randomInt(0, 1e6)).padStart(6, '0');
   await deliver(cfg, phone, code);
   await countSms();
-  return { sent: true, code };
+  return { sent: true, code, via: via(cfg.provider) };
+}
+
+// 'whatsapp' or 'sms' for the company in use now, or '' when OTP is off
+async function channel() {
+  const cfg = await config();
+  return cfg ? via(cfg.provider) : '';
 }
 
 // SMS sent on each of the last `days` days, oldest first: [{ day: '2026-11-09', sms: 12 }, ...]
@@ -130,4 +157,4 @@ async function check(phone, purpose, code) {
   await db.cmd(['DEL', key(phone)]);
 }
 
-module.exports = { enabled, send, check, smsSeries, test, fromEnv, PROVIDERS, PURPOSES };
+module.exports = { enabled, channel, send, check, smsSeries, test, fromEnv, PROVIDERS, PURPOSES };

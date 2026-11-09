@@ -424,21 +424,26 @@
         </div>
         <div class="row" style="margin-top:10px;gap:8px;align-items:flex-end"><label class="f" style="flex:1">Try a GST number <span class="muted">(after saving)</span><input type="text" id="gstTry" maxlength="15" placeholder="27AAPFU0939F1ZV" style="text-transform:uppercase"></label><button class="btn sec" type="button" id="gstTryBtn">Look up</button></div>
         <pre id="gstTryOut" class="muted" style="white-space:pre-wrap;margin:8px 0 0;font-size:.85rem" hidden></pre>
-        <h2 style="margin-top:20px">OTP by SMS</h2>
-        <p class="sub">When on, <b>Create account</b> asks for an OTP sent to the mobile number, so only real numbers sign up. <b>Log in</b> then offers "Set a new password with OTP" and "Log in with OTP", and customers can verify their number and delete their account with an OTP. Each SMS costs about 15 to 25 paise at the SMS company. <b>Website only for now:</b> sign-up in the Android app keeps working with mobile number and password.</p>
+        <h2 style="margin-top:20px">OTP by SMS or WhatsApp</h2>
+        <p class="sub">When on, <b>Create account</b> asks for an OTP sent to the mobile number (by SMS, or on WhatsApp with Gupshup), so only real numbers sign up. <b>Log in</b> then offers "Set a new password with OTP" and "Log in with OTP", and customers can verify their number and delete their account with an OTP. Each OTP costs about 12 to 25 paise at the company you choose. <b>Website only for now:</b> sign-up in the Android app keeps working with mobile number and password.</p>
         <p class="sub" id="otpEnvNote" hidden></p>
-        <label class="check"><input type="checkbox" name="otpOn"><span><b>Turn on OTP by SMS</b></span></label>
+        <label class="check"><input type="checkbox" name="otpOn"><span><b>Turn on OTP</b></span></label>
         <div class="grid2" style="margin-top:8px">
-          <label class="f">SMS company<select name="otpProvider"><option value="">Choose…</option><option value="fast2sms">Fast2SMS, fast2sms.com (easiest)</option><option value="msg91">MSG91, msg91.com</option><option value="2factor">2Factor, 2factor.in</option></select></label>
+          <label class="f">OTP company<select name="otpProvider"><option value="">Choose…</option><option value="gupshup">Gupshup, gupshup.io (on WhatsApp)</option><option value="fast2sms">Fast2SMS, fast2sms.com (easiest)</option><option value="msg91">MSG91, msg91.com</option><option value="2factor">2Factor, 2factor.in</option></select></label>
         </div>
         <p class="sub" data-otp="fast2sms" hidden style="margin:8px 0 0">Make an account at fast2sms.com and add some balance. Open <b>Dev API</b> and copy the <b>API Authorization Key</b>. Fast2SMS guides you through the Indian SMS rules (DLT) once.</p>
         <p class="sub" data-otp="msg91" hidden style="margin:8px 0 0">At msg91.com copy your <b>Auth Key</b>. Make an OTP template whose message has <code>##OTP##</code>, for example <i>Your PakkaBill OTP is ##OTP##. It is valid for 10 minutes.</i>, and copy its <b>Template ID</b>.</p>
         <p class="sub" data-otp="2factor" hidden style="margin:8px 0 0">At 2factor.in copy your <b>API Key</b>. If you made an approved OTP template, type its name too (optional).</p>
+        <p class="sub" data-otp="gupshup" hidden style="margin:8px 0 0">The OTP goes on <b>WhatsApp</b>, so the customer needs WhatsApp on that number. In Gupshup: make a WhatsApp app with your business number, add balance, and get an <b>Authentication</b> template approved whose one variable <code>{{1}}</code> is the code, for example <i>{{1}} is your PakkaBill verification code.</i> Copy the <b>API key</b> (top right, your profile), the <b>app name</b>, your <b>WhatsApp business number</b> (with 91) and the template's <b>ID</b> (Templates, the ID column).</p>
+        <div class="grid2" data-otp="gupshup" hidden style="margin-top:8px">
+          <label class="f">WhatsApp business number<input type="text" inputmode="numeric" name="otpSource" maxlength="16" placeholder="With 91, e.g. 919876543210" autocomplete="off"></label>
+          <label class="f">Gupshup app name<input type="text" name="otpAppName" maxlength="80" autocomplete="off" spellcheck="false" placeholder="PakkaBill"></label>
+        </div>
         <div class="grid2" data-otp-keys hidden style="margin-top:8px">
           <label class="f">API key<input type="password" name="otpKey" maxlength="200" autocomplete="new-password" spellcheck="false"></label>
           <label class="f" data-otp-tpl><span data-otp-tpl-label>Template ID</span><input type="text" name="otpTemplate" maxlength="100" autocomplete="off" spellcheck="false"></label>
         </div>
-        <div class="row" style="margin-top:10px;gap:8px;align-items:flex-end"><label class="f" style="flex:1">Send a test SMS to <span class="muted">(works before saving)</span><input type="text" inputmode="numeric" id="otpTry" maxlength="14" placeholder="Your 10-digit mobile number"></label><button class="btn sec" type="button" id="otpTryBtn">Send test SMS</button></div>
+        <div class="row" style="margin-top:10px;gap:8px;align-items:flex-end"><label class="f" style="flex:1">Send a test OTP to <span class="muted">(works before saving)</span><input type="text" inputmode="numeric" id="otpTry" maxlength="14" placeholder="Your 10-digit mobile number"></label><button class="btn sec" type="button" id="otpTryBtn">Send test OTP</button></div>
         <pre id="otpTryOut" class="muted" style="white-space:pre-wrap;margin:8px 0 0;font-size:.85rem" hidden></pre>
         <div class="row" style="margin-top:16px"><button class="btn" type="submit">Save settings</button></div>
       </form>
@@ -548,7 +553,7 @@
         ...(() => {
           // OTP SMS: today's count and the last 14 days (about 20 paise each with most SMS companies)
           const o = s.otp || {}, sms = o.sms || [], today = sms.length ? sms[sms.length - 1].sms : 0, two = sms.reduce((a, d) => a + d.sms, 0);
-          return [['OTP SMS today', o.on ? n(today) : 'Off', o.on ? `${n(two)} in 14 days · about ${money(two * 0.2)}` : 'Turn on in Settings → OTP by SMS']];
+          return [['OTPs sent today', o.on ? n(today) : 'Off', o.on ? `${n(two)} in 14 days · about ${money(two * 0.2)}` : 'Turn on in Settings → OTP']];
         })(),
       ].map(([l, v, sub]) => `<div class="stat"><div class="l">${l}</div><div class="v">${v}</div>${sub ? `<div class="muted" style="font-size:12px;font-weight:600">${esc(sub)}</div>` : ''}</div>`).join('');
       const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1085,6 +1090,7 @@
       gstShow();
       const o = settings.otp || {};
       form.otpOn.checked = !!o.on; form.otpProvider.value = o.provider || ''; form.otpKey.value = o.apiKey || ''; form.otpTemplate.value = o.templateId || '';
+      form.otpSource.value = o.source || ''; form.otpAppName.value = o.appName || '';
       // an SMS company in Vercel's environment variables works until one is chosen here
       const note = $('#otpEnvNote');
       note.hidden = !(otpEnv && !o.provider);
@@ -1106,17 +1112,19 @@
     const p = form.otpProvider.value;
     document.querySelectorAll('[data-otp]').forEach((el) => { el.hidden = el.dataset.otp !== p; });
     document.querySelector('[data-otp-keys]').hidden = !p;
-    document.querySelector('[data-otp-tpl]').hidden = p !== 'msg91' && p !== '2factor';
-    document.querySelector('[data-otp-tpl-label]').textContent = p === 'msg91' ? 'Template ID' : 'Template name (optional)';
+    document.querySelector('[data-otp-tpl]').hidden = !['msg91', '2factor', 'gupshup'].includes(p);
+    document.querySelector('[data-otp-tpl-label]').textContent = p === '2factor' ? 'Template name (optional)' : 'Template ID';
   }
   form.otpProvider.addEventListener('change', otpShow);
-  const otpForm = () => ({ on: form.otpOn.checked, provider: form.otpProvider.value, apiKey: form.otpKey.value, templateId: form.otpTemplate.value });
+  const otpForm = () => ({ on: form.otpOn.checked, provider: form.otpProvider.value, apiKey: form.otpKey.value, templateId: form.otpTemplate.value, source: form.otpSource.value, appName: form.otpAppName.value });
   $('#otpTryBtn').addEventListener('click', async () => {
     const out = $('#otpTryOut'), b = $('#otpTryBtn');
     out.hidden = false; out.textContent = 'Sending…'; b.disabled = true;
     try {
       const r = await api('otpTest', { phone: $('#otpTry').value, otp: otpForm() });
-      out.textContent = `✓ The SMS company accepted it. The SMS should say ${r.code}. If it does not come in a minute, check the balance and DLT approval in your SMS company's dashboard.${form.otpOn.checked ? '' : ' Tick "Turn on OTP by SMS" and save to switch it on for customers.'}`;
+      out.textContent = (r.via === 'whatsapp'
+        ? `✓ Gupshup accepted it. The WhatsApp message should say ${r.code}. If it does not come in a minute, check the balance, that the template is approved, and the message logs in Gupshup.`
+        : `✓ The SMS company accepted it. The SMS should say ${r.code}. If it does not come in a minute, check the balance and DLT approval in your SMS company's dashboard.`) + (form.otpOn.checked ? '' : ' Tick "Turn on OTP" and save to switch it on for customers.');
     } catch (e) { out.textContent = '✗ ' + e.message; }
     b.disabled = false;
   });

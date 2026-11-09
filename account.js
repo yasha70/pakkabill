@@ -10,6 +10,8 @@
   function acct() { var a = ls('pb-acct'); return a && a.token && a.user ? a : null; }
   // OTP by SMS is set up on the server (saved by pro.js from /api/config)
   function otpOn() { var c = ls('pb-cfg'); return !!(c && c.otp); }
+  // where the OTP goes: 'WhatsApp' (Gupshup) or 'SMS'
+  function otpBy() { var c = ls('pb-cfg'); return c && c.otpVia === 'whatsapp' ? 'WhatsApp' : 'SMS'; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function rupees(n) { return '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN'); }
   function num(n) { return Number(n || 0).toLocaleString('en-IN'); }
@@ -166,8 +168,8 @@
     var d = st.ver || {}, a = acct();
     if (!a || a.user.phone === 'owner' || a.user.verified || !otpOn()) return d.ok ? '<section class="pba-card"><p class="pba-ok" style="margin:0">\u2713 Your mobile number is verified.</p></section>' : '';
     return '<section class="pba-card"><h2>Verify your mobile number</h2>' +
-      '<p class="pba-muted" style="margin:0 0 8px">We send a 6-digit OTP to +91 ' + esc(a.user.phone) + '. A verified number lets you reset your password yourself with an OTP, any time.</p>' +
-      (d.sent ? '<label class="pba-lbl">OTP sent by SMS<input class="pba-in" data-pba-verotp inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit OTP" value="' + esc(d.otp || '') + '"></label>' : '') +
+      '<p class="pba-muted" style="margin:0 0 8px">We send a 6-digit OTP to +91 ' + esc(a.user.phone) + (otpBy() === 'WhatsApp' ? ' on WhatsApp' : ' by SMS') + '. A verified number lets you reset your password yourself with an OTP, any time.</p>' +
+      (d.sent ? '<label class="pba-lbl">OTP sent on ' + otpBy() + '<input class="pba-in" data-pba-verotp inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit OTP" value="' + esc(d.otp || '') + '"></label>' : '') +
       (d.err ? '<p class="pba-err">' + esc(d.err) + '</p>' : '') +
       '<div class="pba-btns">' + (d.sent ? '<button type="button" class="pba-btn pri" data-pba="verify"' + (d.busy ? ' disabled' : '') + '>' + (d.busy ? 'Checking\u2026' : 'Verify') + '</button>' : '') +
       '<button type="button" class="pba-btn' + (d.sent ? '' : ' pri') + '" data-pba="versend"' + (d.busy ? ' disabled' : '') + '>' + (d.sent ? 'Send again' : 'Send OTP') + '</button></div></section>';
@@ -286,7 +288,7 @@
   function verify(el) {
     var st = el._pba, code = ((el.querySelector('[data-pba-verotp]') || {}).value || '').replace(/\D/g, '');
     st.ver = Object.assign(st.ver || {}, { otp: code, err: '' });
-    if (code.length !== 6) { st.ver.err = 'Type the 6-digit OTP from the SMS.'; draw(el); return; }
+    if (code.length !== 6) { st.ver.err = 'Type the 6-digit OTP from the ' + otpBy() + ' message.'; draw(el); return; }
     st.ver.busy = true; draw(el);
     api('auth', { action: 'verify', otp: code }).then(function (j) { saveUser(j.user); st.ver = { ok: true }; draw(el); })
       .catch(function (e) { st.ver = Object.assign(st.ver, { busy: false, otp: '', err: e.message || 'Could not verify.' }); draw(el); });
@@ -295,7 +297,7 @@
     var st = el._pba, pw = (el.querySelector('[data-pba-delpw]') || {}).value || '', wipe = !!(el.querySelector('[data-pba-delwipe]') || {}).checked;
     var viaOtp = !!(st.del && st.del.viaOtp), code = ((el.querySelector('[data-pba-delotp]') || {}).value || '').replace(/\D/g, '');
     st.del = { open: true, pw: pw, wipe: wipe, viaOtp: viaOtp, otp: code };
-    if (viaOtp ? code.length !== 6 : !pw) { st.del.err = viaOtp ? 'Type the 6-digit OTP from the SMS.' : 'Type your password to confirm.'; draw(el); return; }
+    if (viaOtp ? code.length !== 6 : !pw) { st.del.err = viaOtp ? 'Type the 6-digit OTP from the ' + otpBy() + ' message.' : 'Type your password to confirm.'; draw(el); return; }
     if (!confirm('Delete your PakkaBill account and cloud backups for good? This cannot be undone.')) return;
     st.del.busy = true; draw(el);
     api('auth', viaOtp ? { action: 'delete', otp: code } : { action: 'delete', password: pw }).then(function () {
