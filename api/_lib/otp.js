@@ -1,9 +1,12 @@
-// OTP by SMS for sign-up and log in. Off until an SMS provider is set in Vercel's environment
-// variables (Project > Settings > Environment Variables), then on by itself:
-//   OTP_PROVIDER = fast2sms | msg91 | 2factor
-//   fast2sms: FAST2SMS_API_KEY
-//   msg91:    MSG91_AUTH_KEY and MSG91_TEMPLATE_ID (an OTP template with the variable ##OTP##)
-//   2factor:  TWOFACTOR_API_KEY (and optionally TWOFACTOR_TEMPLATE, the name of an approved template)
+// OTP by SMS for sign-up, log in, a new password, verifying a number and deleting an account.
+// Off until an SMS company is set up, in one of two places:
+//   1. Admin panel > Settings > OTP by SMS (settings.otp: { on, provider, apiKey, templateId }).
+//      Once a company is chosen there, the admin panel decides (its on/off switch included).
+//   2. Otherwise Vercel's environment variables (the older way):
+//      OTP_PROVIDER = fast2sms | msg91 | 2factor
+//      fast2sms: FAST2SMS_API_KEY
+//      msg91:    MSG91_AUTH_KEY and MSG91_TEMPLATE_ID (an OTP template with the variable ##OTP##)
+//      2factor:  TWOFACTOR_API_KEY (and optionally TWOFACTOR_TEMPLATE, the name of an approved template)
 // PakkaBill makes the 6-digit code itself and keeps only a hash of it for 10 minutes; the provider
 // only delivers the SMS. Locally (npm run dev, in-memory database) OTP_PROVIDER=test shows the code
 // in the server log instead of sending it.
@@ -13,30 +16,53 @@ const db = require('./db');
 
 const TTL = 600; // seconds a code is valid
 const TRIES = 5; // wrong codes before it is used up
+// What a code is for. A code sent for one purpose never works for another.
+//   signup: make an account   login: log in without the password   reset: set a new password
+//   verify: mark an older account's number as checked   delete: delete the account without the password
+const PURPOSES = ['signup', 'login', 'reset', 'verify', 'delete'];
+const IST = 5.5 * 3600e3;
+const today = () => new Date(Date.now() + IST).toISOString().slice(0, 10);
 
-function provider() {
-  const p = String(process.env.OTP_PROVIDER || '').trim().toLowerCase();
-  const e = process.env;
-  if (p === 'fast2sms' && e.FAST2SMS_API_KEY) return p;
-  if (p === 'msg91' && e.MSG91_AUTH_KEY && e.MSG91_TEMPLATE_ID) return p;
-  if (p === '2factor' && e.TWOFACTOR_API_KEY) return p;
-  if (p === 'test' && e.PB_DEV_MEMORY_DB === '1') return p; // never on the live site
-  return '';
+const PROVIDERS = ['fast2sms', 'msg91', '2factor'];
+
+// { provider, apiKey, templateId } when it has what that company needs, otherwise null
+function valid(provider, apiKey, templateId) {
+  const p = String(provider || '').trim().toLowerCase(), key = String(apiKey || '').trim(), tpl = String(templateId || '').trim();
+  if (p === 'test') return process.env.PB_DEV_MEMORY_DB === '1' ? { provider: p, apiKey: '', templateId: '' } : null; // never on the live site
+  if (!PROVIDERS.includes(p) || !key || (p === 'msg91' && !tpl)) return null;
+  return { provider: p, apiKey: key, templateId: tpl };
 }
-const enabled = () => !!provider();
 
-async function deliver(phone, code) {
-  const p = provider(), e = process.env;
+// The SMS company from Vercel's environment variables, or null
+function fromEnv() {
+  const e = process.env, p = String(e.OTP_PROVIDER || '').trim().toLowerCase();
+  if (p === 'fast2sms') return valid(p, e.FAST2SMS_API_KEY);
+  if (p === 'msg91') return valid(p, e.MSG91_AUTH_KEY, e.MSG91_TEMPLATE_ID);
+  if (p === '2factor') return valid(p, e.TWOFACTOR_API_KEY, e.TWOFACTOR_TEMPLATE);
+  if (p === 'test') return valid(p);
+  return null;
+}
+
+// The SMS company to use now, or null when OTP is off
+async function config() {
+  const o = (await core.getSettings()).otp || {};
+  if (o.provider) return o.on ? valid(o.provider, o.apiKey, o.templateId) : null; // the admin panel decides
+  return fromEnv();
+}
+const enabled = async () => !!(await config());
+
+async function deliver(cfg, phone, code) {
+  const p = cfg.provider, key = cfg.apiKey, tpl = cfg.templateId;
   const go = (url, opts) => fetch(url, { ...opts, signal: AbortSignal.timeout(10000) });
   let res;
   if (p === 'test') { console.log(`[OTP test] ${phone}: ${code}`); return; }
   if (p === 'fast2sms') {
-    res = await go(`https://www.fast2sms.com/dev/bulkV2?route=otp&variables_values=${code}&numbers=${phone}`, { headers: { authorization: e.FAST2SMS_API_KEY } });
+    res = await go(`https://www.fast2sms.com/dev/bulkV2?route=otp&variables_values=${code}&numbers=${phone}`, { headers: { authorization: key } });
   } else if (p === 'msg91') {
-    res = await go(`https://control.msg91.com/api/v5/otp?template_id=${encodeURIComponent(e.MSG91_TEMPLATE_ID)}&mobile=91${phone}&otp=${code}`, { method: 'POST', headers: { authkey: e.MSG91_AUTH_KEY, 'Content-Type': 'application/json' }, body: '{}' });
+    res = await go(`https://control.msg91.com/api/v5/otp?template_id=${encodeURIComponent(tpl)}&mobile=91${phone}&otp=${code}`, { method: 'POST', headers: { authkey: key, 'Content-Type': 'application/json' }, body: '{}' });
   } else if (p === '2factor') {
-    const tpl = e.TWOFACTOR_TEMPLATE ? '/' + encodeURIComponent(e.TWOFACTOR_TEMPLATE) : '';
-    res = await go(`https://2factor.in/API/V1/${encodeURIComponent(e.TWOFACTOR_API_KEY)}/SMS/${phone}/${code}${tpl}`, {});
+    const t = tpl ? '/' + encodeURIComponent(tpl) : '';
+    res = await go(`https://2factor.in/API/V1/${encodeURIComponent(key)}/SMS/${phone}/${code}${t}`, {});
   }
   const text = res ? await res.text().catch(() => '') : '';
   // each provider says "ok" differently; a failure status or an error word means the SMS did not go
@@ -49,16 +75,44 @@ async function deliver(phone, code) {
 const key = (phone) => `otp:${phone}`;
 const hash = (phone, code) => core.sha256(`otp|${phone}|${code}`);
 
-// Sends a new code to the number (purpose 'signup' or 'login', so a code is only good for that).
+// Sends a new code to the number for one of PURPOSES, so a code is only good for that.
 async function send(phone, purpose, ip) {
-  if (!enabled()) throw new core.HttpError(400, 'OTP is not set up yet. Use your password.');
+  const cfg = await config();
+  if (!cfg) throw new core.HttpError(400, 'OTP is not set up yet. Use your password.');
+  if (!PURPOSES.includes(purpose)) throw new core.HttpError(400, 'Unknown OTP purpose.');
   await core.rateLimit(`otp:ip:${ip}`, 20, 3600);
   await core.rateLimit(`otp:ph:${phone}`, 3, 600);
   await core.rateLimit(`otp:day:${phone}`, 10, 86400);
   const code = String(crypto.randomInt(0, 1e6)).padStart(6, '0');
   await db.cmd(['SET', key(phone), JSON.stringify({ h: hash(phone, code), p: purpose, n: 0 }), 'EX', TTL]);
-  await deliver(phone, code);
+  await deliver(cfg, phone, code);
+  await countSms();
   return { sent: true, seconds: TTL };
+}
+
+// SMS sent per day (Indian time), so the admin can see what OTP costs; kept 40 days
+async function countSms() {
+  const k = `otpsms:${today()}`;
+  await db.pipe([['INCR', k], ['EXPIRE', k, 40 * 86400]]).catch(() => {});
+}
+
+// Admin panel "Send test SMS": sends a code with settings that may not be saved yet.
+async function test(phone, o) {
+  const cfg = valid(o && o.provider, o && o.apiKey, o && o.templateId);
+  if (!cfg) throw new core.HttpError(400, o && o.provider === 'msg91' ? 'Paste the MSG91 Auth Key and the Template ID.' : 'Choose the SMS company and paste its API key.');
+  await core.rateLimit('otp:admintest', 10, 3600);
+  const code = String(crypto.randomInt(0, 1e6)).padStart(6, '0');
+  await deliver(cfg, phone, code);
+  await countSms();
+  return { sent: true, code };
+}
+
+// SMS sent on each of the last `days` days, oldest first: [{ day: '2026-11-09', sms: 12 }, ...]
+async function smsSeries(days = 14) {
+  const list = [];
+  for (let i = days - 1; i >= 0; i--) list.push(new Date(Date.now() + IST - i * 86400e3).toISOString().slice(0, 10));
+  const counts = await db.pipe(list.map((d) => ['GET', `otpsms:${d}`])).catch(() => []);
+  return list.map((day, i) => ({ day, sms: Number(counts[i]) || 0 }));
 }
 
 // Checks a code; it works once. Throws with a clear message when it is wrong or old.
@@ -76,4 +130,4 @@ async function check(phone, purpose, code) {
   await db.cmd(['DEL', key(phone)]);
 }
 
-module.exports = { enabled, send, check };
+module.exports = { enabled, send, check, smsSeries, test, fromEnv, PROVIDERS, PURPOSES };

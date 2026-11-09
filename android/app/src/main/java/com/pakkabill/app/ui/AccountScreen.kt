@@ -46,7 +46,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -66,6 +68,7 @@ import com.pakkabill.app.platform.SITE
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -82,17 +85,23 @@ fun AccountScreen(
     var changePw by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     var confirmLogout by remember { mutableStateOf(false) }
+    var verifying by remember { mutableStateOf(false) }
+    val otp = ui.config?.otp == true
     LazyColumn(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         val s = ui.session
         if (s == null) {
-            item { AuthCard(account, ui.config?.trialDays ?: 0, say) }
+            item { AuthCard(account, ui.config?.trialDays ?: 0, say, otp = otp) }
         } else {
             item { ProfileCard(ui, openPlan) }
             if (s.user.tempPw) item {
                 NoteCard("You are using a temporary password from PakkaBill support. Set your own password now.", Tone.WARN, "Change password") { changePw = true }
+            }
+            // accounts made before OTP was on can check their number once
+            if (otp && !s.user.verified && s.user.phone != "owner") item {
+                NoteCard("Verify your mobile number with an SMS OTP. Then you can set a new password yourself if you ever forget it.", Tone.INFO, "Verify number") { verifying = true }
             }
             item {
                 SectionCard("Account") {
@@ -124,8 +133,9 @@ fun AccountScreen(
             }
         }
     }
-    if (changePw) ChangePasswordDialog(account, onDone = { changePw = false; if (it) say("Password changed. Other phones and browsers were logged out.") })
-    if (deleting) DeleteAccountDialog(account, onDone = { deleting = false; if (it) say("Your account was deleted.") })
+    if (changePw) ChangePasswordDialog(account, otp, onDone = { changePw = false; if (it) say("Password changed. Other phones and browsers were logged out.") })
+    if (deleting) DeleteAccountDialog(account, otp, say, onDone = { deleting = false; if (it) say("Your account was deleted.") })
+    if (verifying) VerifyDialog(account, say, onDone = { verifying = false; if (it) say("Your mobile number is verified.") })
     if (confirmLogout) AlertDialog(
         onDismissRequest = { confirmLogout = false },
         title = { Text("Log out?") },
@@ -143,7 +153,7 @@ private fun ProfileCard(ui: AccountUi, openPlan: () -> Unit) {
     val pro = ui.isPro
     val enforced = ui.config?.let { it.enabled && it.enforce } ?: false
     val until = SimpleDateFormat("d MMM yyyy", Locale.ENGLISH).format(Date(u.paidUntil))
-    SectionCard(u.shopName.ifBlank { "My shop" }, subtitle = "+91 " + u.phone) {
+    SectionCard(u.shopName.ifBlank { "My shop" }, subtitle = "+91 " + u.phone + if (u.verified) "  ✓ verified" else "") {
         Surface(shape = MaterialTheme.shapes.medium, color = if (pro || !enforced) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer) {
             Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
@@ -199,20 +209,77 @@ fun PasswordField(value: String, onChange: (String) -> Unit, label: String, modi
     )
 }
 
-/** Log in or sign up (same account as the website). */
+/**
+ * A 6-digit OTP box with its own Send OTP button. [send] asks the server to send the SMS
+ * (null when sent, otherwise the message); [onSent] gets that result. Resend waits 30 seconds.
+ */
 @Composable
-fun AuthCard(account: AccountController, trialDays: Int, say: (String) -> Unit, title: String = "Log in or create a free account") {
+fun OtpField(value: String, onChange: (String) -> Unit, send: suspend () -> String?, onSent: (String?) -> Unit, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
-    var signup by remember { mutableStateOf(false) }
+    var wait by remember { mutableIntStateOf(0) }
+    var sending by remember { mutableStateOf(false) }
+    var sent by remember { mutableStateOf(false) }
+    LaunchedEffect(wait) {
+        if (wait > 0) {
+            delay(1000)
+            wait -= 1
+        }
+    }
+    OutlinedTextField(
+        value, { onChange(it.filter { c -> c.isDigit() }.take(6)) }, singleLine = true,
+        label = { Text("OTP sent by SMS") }, placeholder = { Text("6-digit OTP") },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+        trailingIcon = {
+            TextButton(enabled = !sending && wait == 0, onClick = {
+                sending = true
+                scope.launch {
+                    val e = send()
+                    sending = false
+                    if (e == null) {
+                        sent = true
+                        wait = 30
+                    }
+                    onSent(e)
+                }
+            }) { Text(when { sending -> "Sending…"; wait > 0 -> "Resend ${wait}s"; sent -> "Resend OTP"; else -> "Send OTP" }) }
+        },
+        modifier = modifier.fillMaxWidth(),
+    )
+}
+
+/**
+ * Log in or sign up (same account as the website). When OTP by SMS is set up on the server ([otp]):
+ * sign-up checks the number with an OTP, and "Forgot password?" offers a new password or log in by OTP.
+ */
+@Composable
+fun AuthCard(account: AccountController, trialDays: Int, say: (String) -> Unit, title: String = "Log in or create a free account", otp: Boolean = account.otpOn) {
+    val scope = rememberCoroutineScope()
+    // "login", "signup", "otp" (log in with an OTP) or "reset" (forgot password: a new one with an OTP)
+    var mode by remember { mutableStateOf("login") }
+    val m = if (!otp && (mode == "otp" || mode == "reset")) "login" else mode
+    val signup = m == "signup"
     var phone by remember { mutableStateOf("") }
     var pw by remember { mutableStateOf("") }
+    var code by remember { mutableStateOf("") }
     var shop by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    SectionCard(title, subtitle = "Use the same mobile number and password as on the PakkaBill website." + if (trialDays > 0) " New accounts get $trialDays days of Pro free." else "") {
+    fun go(to: String) {
+        mode = to
+        code = ""
+        pw = ""
+        error = null
+    }
+    val sent: (String?) -> Unit = { e -> error = e; if (e == null) say("OTP sent by SMS. It works for 10 minutes.") }
+    val subtitle = when (m) {
+        "reset" -> "We send a 6-digit OTP to your mobile number. Then choose a new password. Your other phones and browsers get logged out."
+        "otp" -> "We send a 6-digit OTP to your mobile number. No password needed."
+        else -> "Use the same mobile number and password as on the PakkaBill website." + (if (signup && otp) " We check your number with an SMS OTP." else "") + if (trialDays > 0) " New accounts get $trialDays days of Pro free." else ""
+    }
+    SectionCard(if (m == "reset") "Set a new password" else title, subtitle = subtitle) {
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            SegmentedButton(selected = !signup, onClick = { signup = false; error = null }, shape = SegmentedButtonDefaults.itemShape(0, 2), label = { Text("Log in") })
-            SegmentedButton(selected = signup, onClick = { signup = true; error = null }, shape = SegmentedButtonDefaults.itemShape(1, 2), label = { Text("Sign up") })
+            SegmentedButton(selected = !signup, onClick = { go("login") }, shape = SegmentedButtonDefaults.itemShape(0, 2), label = { Text("Log in") })
+            SegmentedButton(selected = signup, onClick = { go("signup") }, shape = SegmentedButtonDefaults.itemShape(1, 2), label = { Text("Sign up") })
         }
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
@@ -221,8 +288,16 @@ fun AuthCard(account: AccountController, trialDays: Int, say: (String) -> Unit, 
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             modifier = Modifier.fillMaxWidth(),
         )
+        if (signup && otp) OtpField(code, { code = it; error = null }, send = { account.sendOtp(phone, "signup") }, onSent = sent)
         if (signup) OutlinedTextField(shop, { shop = it.take(80) }, singleLine = true, label = { Text("Shop name") }, modifier = Modifier.fillMaxWidth())
-        PasswordField(pw, { pw = it; error = null }, if (signup) "Make a password (6 or more characters)" else "Password")
+        when (m) {
+            "otp" -> OtpField(code, { code = it; error = null }, send = { account.sendOtp(phone, "login") }, onSent = sent)
+            "reset" -> {
+                OtpField(code, { code = it; error = null }, send = { account.sendOtp(phone, "reset") }, onSent = sent)
+                PasswordField(pw, { pw = it; error = null }, "New password (6 or more characters)")
+            }
+            else -> PasswordField(pw, { pw = it; error = null }, if (signup) "Make a password (6 or more characters)" else "Password")
+        }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp)) }
         Spacer(Modifier.height(12.dp))
         Button(
@@ -230,26 +305,73 @@ fun AuthCard(account: AccountController, trialDays: Int, say: (String) -> Unit, 
             onClick = {
                 busy = true
                 scope.launch {
-                    val e = if (signup) account.signup(phone, pw, shop) else account.login(phone, pw)
+                    val e = when (m) {
+                        "signup" -> account.signup(phone, pw, shop, code)
+                        "otp" -> account.otpLogin(phone, code)
+                        "reset" -> account.resetPassword(phone, code, pw)
+                        else -> account.login(phone, pw)
+                    }
                     busy = false
                     error = e
-                    if (e == null) say(if (signup) "Welcome to PakkaBill!" else "Logged in.")
+                    if (e == null) say(when (m) { "signup" -> "Welcome to PakkaBill!"; "reset" -> "New password saved. You are logged in."; else -> "Logged in." })
                 }
             },
             modifier = Modifier.fillMaxWidth().height(50.dp),
         ) {
             if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-            else Text(if (signup) "Create account" else "Log in")
+            else Text(when (m) { "signup" -> "Create account"; "reset" -> "Save new password and log in"; else -> "Log in" })
         }
-        if (!signup) Text(
-            "Forgot your password? Ask PakkaBill support to reset it (Help and support below).",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp),
-        )
+        when {
+            m == "login" && otp -> {
+                Text("Forgot your password?", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+                Row {
+                    TextButton(onClick = { go("reset") }) { Text("Set a new one with OTP") }
+                    TextButton(onClick = { go("otp") }) { Text("Log in with OTP") }
+                }
+            }
+            m == "login" -> Text(
+                "Forgot your password? Ask PakkaBill support to reset it (Help and support below).",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp),
+            )
+            m == "otp" || m == "reset" -> TextButton(onClick = { go("login") }, modifier = Modifier.padding(top = 4.dp)) { Text("Use my password instead") }
+        }
     }
 }
 
+/** Checks the number of an account made before OTP was on. */
 @Composable
-private fun ChangePasswordDialog(account: AccountController, onDone: (Boolean) -> Unit) {
+private fun VerifyDialog(account: AccountController, say: (String) -> Unit, onDone: (Boolean) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var code by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = { if (!busy) onDone(false) },
+        title = { Text("Verify your mobile number") },
+        text = {
+            Column {
+                Text("We send a 6-digit OTP to your number by SMS.")
+                Spacer(Modifier.height(10.dp))
+                OtpField(code, { code = it; error = null }, send = { account.sendOtp("", "verify") }, onSent = { e -> error = e; if (e == null) say("OTP sent by SMS.") })
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp)) }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = !busy && code.length == 6, onClick = {
+                busy = true
+                scope.launch {
+                    val e = account.verify(code)
+                    busy = false
+                    if (e == null) onDone(true) else error = e
+                }
+            }) { Text(if (busy) "Checking…" else "Verify") }
+        },
+        dismissButton = { TextButton(onClick = { onDone(false) }, enabled = !busy) { Text("Cancel") } },
+    )
+}
+
+@Composable
+private fun ChangePasswordDialog(account: AccountController, otp: Boolean, onDone: (Boolean) -> Unit) {
     val scope = rememberCoroutineScope()
     var cur by remember { mutableStateOf("") }
     var next by remember { mutableStateOf("") }
@@ -263,6 +385,10 @@ private fun ChangePasswordDialog(account: AccountController, onDone: (Boolean) -
                 PasswordField(cur, { cur = it; error = null }, "Current password")
                 PasswordField(next, { next = it; error = null }, "New password (6 or more characters)")
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp)) }
+                if (otp) Text(
+                    "Forgot your current password? Log out, then tap \"Set a new one with OTP\".",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp),
+                )
             }
         },
         confirmButton = {
@@ -280,9 +406,12 @@ private fun ChangePasswordDialog(account: AccountController, onDone: (Boolean) -
 }
 
 @Composable
-private fun DeleteAccountDialog(account: AccountController, onDone: (Boolean) -> Unit) {
+private fun DeleteAccountDialog(account: AccountController, otp: Boolean, say: (String) -> Unit, onDone: (Boolean) -> Unit) {
     val scope = rememberCoroutineScope()
     var pw by remember { mutableStateOf("") }
+    // forgot the password: confirm with an OTP sent to the account's number instead
+    var viaOtp by remember { mutableStateOf(false) }
+    var code by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(
@@ -292,15 +421,17 @@ private fun DeleteAccountDialog(account: AccountController, onDone: (Boolean) ->
             Column {
                 Text("Your PakkaBill account, plan and cloud backups are deleted for good. This cannot be undone. Files on this phone stay until you remove them.")
                 Spacer(Modifier.height(10.dp))
-                PasswordField(pw, { pw = it; error = null }, "Password")
+                if (viaOtp) OtpField(code, { code = it; error = null }, send = { account.sendOtp("", "delete") }, onSent = { e -> error = e; if (e == null) say("OTP sent by SMS.") })
+                else PasswordField(pw, { pw = it; error = null }, "Password")
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                if (otp && !viaOtp) TextButton(onClick = { viaOtp = true; error = null }) { Text("Forgot your password? Use an OTP instead") }
             }
         },
         confirmButton = {
-            TextButton(enabled = !busy && pw.isNotEmpty(), onClick = {
+            TextButton(enabled = !busy && (if (viaOtp) code.length == 6 else pw.isNotEmpty()), onClick = {
                 busy = true
                 scope.launch {
-                    val e = account.deleteAccount(pw)
+                    val e = if (viaOtp) account.deleteAccount("", code) else account.deleteAccount(pw)
                     busy = false
                     if (e == null) onDone(true) else error = e
                 }

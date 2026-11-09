@@ -1,11 +1,16 @@
 // POST /api/auth  { action: 'signup' | 'login' | 'logout' | 'delete', phone, password, shopName }
 // POST /api/auth  { action: 'otpSend', phone, purpose: 'signup' | 'login' }  sends an OTP by SMS (when set up, see _lib/otp.js)
 // POST /api/auth  { action: 'otpLogin', phone, otp }  log in with the OTP instead of the password
+// POST /api/auth  { action: 'otpReset', phone, otp, newPassword }  forgot password: set a new one with an OTP
+//   (purpose 'reset'); other devices are logged out, this one is logged in
+// POST /api/auth  { action: 'otpSend', purpose: 'verify' | 'delete' } (logged in) sends an OTP to the account's own number
+// POST /api/auth  { action: 'verify', otp } (logged in) marks an older account's number as verified
 // When OTP is set up, 'signup' also needs { otp }: the number is checked before the account is made.
+// Every OTP that works (sign-up, log in, reset, verify) marks the number as verified (user.verifiedAt).
 // POST /api/auth  { action: 'password', password, newPassword } (logged in) -> new token; other devices are logged out
 // POST /api/auth  { action: 'profile', name, sells, where, orders, city } or { action: 'profile', skip: true } (logged in):
 // the optional "about your shop" step after sign-up. Every field may be left empty.
-// 'delete' (logged in, with the password) removes the account and its cloud backups for good,
+// 'delete' (logged in, with the password, or with { otp } from purpose 'delete') removes the account and its cloud backups for good,
 // as Google Play requires for apps with sign-up.
 const core = require('./_lib/core');
 const db = require('./_lib/db');
@@ -31,11 +36,33 @@ module.exports = core.handler(async (req, res) => {
     return core.send(res, 200, { ok: true });
   }
 
+  // OTPs for an account that is logged in always go to that account's own number
+  if (action === 'otpSend' && (core.body(req).purpose === 'verify' || core.body(req).purpose === 'delete')) {
+    const user = await core.requireUser(req);
+    if (user.phone === 'owner') throw new core.HttpError(400, 'The owner account has no mobile number.');
+    const purpose = core.body(req).purpose;
+    if (purpose === 'verify' && user.verifiedAt) throw new core.HttpError(400, 'Your mobile number is already verified.');
+    return core.send(res, 200, await otp.send(user.phone, purpose, core.clientIp(req)));
+  }
+
+  if (action === 'verify') {
+    const user = await core.requireUser(req);
+    if (user.phone === 'owner') throw new core.HttpError(400, 'The owner account has no mobile number.');
+    if (!(await otp.enabled())) throw new core.HttpError(400, 'OTP is not set up yet.');
+    await otp.check(user.phone, 'verify', core.body(req).otp);
+    user.verifiedAt = user.verifiedAt || Date.now();
+    await core.saveUser(user);
+    return core.send(res, 200, { user: core.publicUser(user) });
+  }
+
   if (action === 'delete') {
     const user = await core.requireUser(req);
     await core.rateLimit(`del:${user.phone}`, 5, 3600);
     if (user.phone === 'owner') throw new core.HttpError(400, 'The owner account cannot be deleted here.');
-    if (!(await core.checkPassword(String(password), user.pass))) throw new core.HttpError(401, 'The password is wrong.');
+    const code = String(core.body(req).otp || '');
+    // forgot the password: an OTP sent to the account's number proves it is theirs
+    if (code && (await otp.enabled())) await otp.check(user.phone, 'delete', code);
+    else if (!(await core.checkPassword(String(password), user.pass))) throw new core.HttpError(401, 'The password is wrong.');
     const ix = await sync.status(user).catch(() => ({ shops: [] }));
     for (const s of ix.shops || []) await sync.remove(user, s.id).catch(() => {});
     // a one-way hash, so a new account on this number gets no second free trial
@@ -90,27 +117,48 @@ module.exports = core.handler(async (req, res) => {
   await core.rateLimit(`auth:${core.clientIp(req)}`, 30, 900);
 
   if (action === 'otpSend') {
-    const purpose = core.body(req).purpose === 'login' ? 'login' : 'signup';
+    const want = core.body(req).purpose;
+    const purpose = want === 'login' || want === 'reset' ? want : 'signup';
     const user = await core.getUser(phone);
     if (purpose === 'signup' && user) throw new core.HttpError(409, 'This number already has an account. Log in instead.');
-    if (purpose === 'login' && !user) throw new core.HttpError(404, 'No account with this mobile number. Check the number, or create an account.');
+    if (purpose !== 'signup' && user && user.blocked) throw new core.HttpError(403, 'This account has been stopped. Please contact PakkaBill support.');
+    if (purpose !== 'signup' && !user) throw new core.HttpError(404, 'No account with this mobile number. Check the number, or create an account.');
     return core.send(res, 200, await otp.send(phone, purpose, core.clientIp(req)));
   }
 
   if (action === 'otpLogin') {
-    if (!otp.enabled()) throw new core.HttpError(400, 'OTP is not set up yet. Use your password.');
+    if (!(await otp.enabled())) throw new core.HttpError(400, 'OTP is not set up yet. Use your password.');
     const user = await core.getUser(phone);
     if (!user) throw new core.HttpError(404, 'No account with this mobile number. Check the number, or create an account.');
     await otp.check(phone, 'login', core.body(req).otp);
     if (user.blocked) throw new core.HttpError(403, 'This account has been stopped. Please contact PakkaBill support.');
     user.lastSeen = Date.now();
+    user.verifiedAt = user.verifiedAt || Date.now();
+    await core.saveUser(user);
+    return core.send(res, 200, { token: await core.createSession(phone), user: core.publicUser(user) });
+  }
+
+  if (action === 'otpReset') {
+    if (!(await otp.enabled())) throw new core.HttpError(400, 'OTP is not set up yet. Ask PakkaBill support to reset your password.');
+    const next = String(core.body(req).newPassword || '');
+    // checked before the OTP, so a short password does not use up the code
+    if (next.length < 6) throw new core.HttpError(400, 'Use a new password of at least 6 characters.');
+    const user = await core.getUser(phone);
+    if (!user) throw new core.HttpError(404, 'No account with this mobile number. Check the number, or create an account.');
+    await otp.check(phone, 'reset', core.body(req).otp);
+    if (user.blocked) throw new core.HttpError(403, 'This account has been stopped. Please contact PakkaBill support.');
+    user.pass = await core.hashPassword(next);
+    user.pwAt = Date.now(); // logs out every other device
+    user.lastSeen = Date.now();
+    user.verifiedAt = user.verifiedAt || Date.now();
+    delete user.tempPw;
     await core.saveUser(user);
     return core.send(res, 200, { token: await core.createSession(phone), user: core.publicUser(user) });
   }
 
   if (action === 'signup') {
     if (String(password).length < 6) throw new core.HttpError(400, 'Use a password of at least 6 characters.');
-    if (otp.enabled()) {
+    if (await otp.enabled()) {
       if (await core.getUser(phone)) throw new core.HttpError(409, 'This number already has an account. Log in instead.');
       await otp.check(phone, 'signup', core.body(req).otp);
     }
@@ -122,6 +170,7 @@ module.exports = core.handler(async (req, res) => {
       lastSeen: Date.now(),
       paidUntil: 0,
     };
+    if (await otp.enabled()) user.verifiedAt = user.createdAt;
     // which button or tool the account was made from (for the admin; never shown to the customer)
     const from = String(core.body(req).from || '').toLowerCase();
     if (/^[a-z0-9-]{1,20}$/.test(from)) user.from = from;

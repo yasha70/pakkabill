@@ -11,6 +11,7 @@ const chat = require('./_lib/chat');
 const push = require('./_lib/push');
 const users = require('./_lib/users');
 const visits = require('./_lib/visits');
+const otp = require('./_lib/otp');
 
 const OWNER = 'owner';
 const IST = 5.5 * 3600e3;
@@ -87,6 +88,8 @@ const actions = {
         amount: paid.filter((o) => MONTH(o.paidAt || o.createdAt) === key).reduce((s, o) => s + o.amount, 0) / 100,
       })),
       signups: await users.signupSeries(14),
+      // OTP by SMS: on or off, and SMS sent per day (each one costs money with the SMS company)
+      otp: { on: await otp.enabled(), sms: await otp.smsSeries(14) },
       // Pro ending in the next 7 days, and Pro that ended in the last 14 days.
       expiring: (await users.paidBetween(`(${now}`, now + 7 * core.DAY, 50)).map(core.publicUser),
       lapsed: (await users.paidBetween(now - 14 * core.DAY, now, 50)).sort((a, b) => b.paidUntil - a.paidUntil).map(core.publicUser),
@@ -309,7 +312,17 @@ const actions = {
   },
 
   async getSettings() {
-    return { settings: await core.getSettings(true) };
+    // otpEnv: an SMS company is set in Vercel's environment variables (used while none is chosen here)
+    const env = otp.fromEnv();
+    return { settings: await core.getSettings(true), otpEnv: env ? env.provider : '' };
+  },
+
+  // "Send test SMS" in Settings > OTP by SMS, with the company and key typed in the form
+  async otpTest({ phone, otp: o }) {
+    const p = core.normPhone(phone);
+    if (!p) throw new core.HttpError(400, 'Type a 10-digit mobile number to send the test SMS to.');
+    const r = await otp.test(p, o || {});
+    return { sent: true, code: r.code };
   },
 
   // Checks Razorpay keys (typed in the form, or the saved ones) with a harmless read.
@@ -320,7 +333,7 @@ const actions = {
     return rzp.test(cfg);
   },
 
-  async saveSettings({ monthly, yearly, freeBills, enforce, upiId, payeeName, trialDays, syncFree, biz, gst, razorpay }) {
+  async saveSettings({ monthly, yearly, freeBills, enforce, upiId, payeeName, trialDays, syncFree, biz, gst, razorpay, otp: otpIn }) {
     const prev = await core.getSettings(true);
     const s = {
       monthly: Math.round(Number(monthly)),
@@ -348,6 +361,12 @@ const actions = {
     s.razorpay = { keyId: String(R.keyId || '').trim().slice(0, 60), keySecret: String(R.keySecret || '').trim().slice(0, 120) };
     if (s.razorpay.keyId && !rzp.KEY_ID.test(s.razorpay.keyId)) throw new core.HttpError(400, 'The Razorpay Key ID starts with rzp_live_ or rzp_test_. Copy it from Razorpay > Account & Settings > API keys.');
     if (s.razorpay.keyId && s.razorpay.keySecret.length < 8) throw new core.HttpError(400, 'Paste the Razorpay Key Secret too. Razorpay shows it once, when you make the key.');
+    // OTP by SMS: the SMS company and its key; the switch turns sign-up OTP on or off for everyone
+    const O = otpIn && typeof otpIn === 'object' ? otpIn : prev.otp || {};
+    s.otp = { on: !!O.on, provider: otp.PROVIDERS.includes(O.provider) ? O.provider : '', apiKey: String(O.apiKey || '').trim().slice(0, 200), templateId: String(O.templateId || '').trim().slice(0, 100) };
+    if (s.otp.on && !s.otp.provider) throw new core.HttpError(400, 'Choose the SMS company for OTP, or turn OTP off.');
+    if (s.otp.on && !s.otp.apiKey) throw new core.HttpError(400, 'Paste the API key of your SMS company for OTP.');
+    if (s.otp.on && s.otp.provider === 'msg91' && !s.otp.templateId) throw new core.HttpError(400, 'MSG91 needs the Template ID of your OTP template too.');
     if (!(s.trialDays >= 0 && s.trialDays <= 90)) throw new core.HttpError(400, 'Free trial days must be 0 to 90.');
     if (s.upiId && !core.UPI_ID.test(s.upiId)) throw new core.HttpError(400, 'That does not look like a UPI ID (name@bank).');
     if (!(s.monthly >= 1 && s.yearly >= 1)) throw new core.HttpError(400, 'Prices must be at least ₹1.');
