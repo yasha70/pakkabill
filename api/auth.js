@@ -48,7 +48,7 @@ module.exports = core.handler(async (req, res) => {
   if (action === 'verify') {
     const user = await core.requireUser(req);
     if (user.phone === 'owner') throw new core.HttpError(400, 'The owner account has no mobile number.');
-    if (!otp.enabled()) throw new core.HttpError(400, 'OTP is not set up yet.');
+    if (!(await otp.enabled())) throw new core.HttpError(400, 'OTP is not set up yet.');
     await otp.check(user.phone, 'verify', core.body(req).otp);
     user.verifiedAt = user.verifiedAt || Date.now();
     await core.saveUser(user);
@@ -61,7 +61,7 @@ module.exports = core.handler(async (req, res) => {
     if (user.phone === 'owner') throw new core.HttpError(400, 'The owner account cannot be deleted here.');
     const code = String(core.body(req).otp || '');
     // forgot the password: an OTP sent to the account's number proves it is theirs
-    if (code && otp.enabled()) await otp.check(user.phone, 'delete', code);
+    if (code && (await otp.enabled())) await otp.check(user.phone, 'delete', code);
     else if (!(await core.checkPassword(String(password), user.pass))) throw new core.HttpError(401, 'The password is wrong.');
     const ix = await sync.status(user).catch(() => ({ shops: [] }));
     for (const s of ix.shops || []) await sync.remove(user, s.id).catch(() => {});
@@ -127,7 +127,7 @@ module.exports = core.handler(async (req, res) => {
   }
 
   if (action === 'otpLogin') {
-    if (!otp.enabled()) throw new core.HttpError(400, 'OTP is not set up yet. Use your password.');
+    if (!(await otp.enabled())) throw new core.HttpError(400, 'OTP is not set up yet. Use your password.');
     const user = await core.getUser(phone);
     if (!user) throw new core.HttpError(404, 'No account with this mobile number. Check the number, or create an account.');
     await otp.check(phone, 'login', core.body(req).otp);
@@ -139,7 +139,7 @@ module.exports = core.handler(async (req, res) => {
   }
 
   if (action === 'otpReset') {
-    if (!otp.enabled()) throw new core.HttpError(400, 'OTP is not set up yet. Ask PakkaBill support to reset your password.');
+    if (!(await otp.enabled())) throw new core.HttpError(400, 'OTP is not set up yet. Ask PakkaBill support to reset your password.');
     const next = String(core.body(req).newPassword || '');
     // checked before the OTP, so a short password does not use up the code
     if (next.length < 6) throw new core.HttpError(400, 'Use a new password of at least 6 characters.');
@@ -158,7 +158,7 @@ module.exports = core.handler(async (req, res) => {
 
   if (action === 'signup') {
     if (String(password).length < 6) throw new core.HttpError(400, 'Use a password of at least 6 characters.');
-    if (otp.enabled()) {
+    if (await otp.enabled()) {
       if (await core.getUser(phone)) throw new core.HttpError(409, 'This number already has an account. Log in instead.');
       await otp.check(phone, 'signup', core.body(req).otp);
     }
@@ -170,7 +170,7 @@ module.exports = core.handler(async (req, res) => {
       lastSeen: Date.now(),
       paidUntil: 0,
     };
-    if (otp.enabled()) user.verifiedAt = user.createdAt;
+    if (await otp.enabled()) user.verifiedAt = user.createdAt;
     // which button or tool the account was made from (for the admin; never shown to the customer)
     const from = String(core.body(req).from || '').toLowerCase();
     if (/^[a-z0-9-]{1,20}$/.test(from)) user.from = from;

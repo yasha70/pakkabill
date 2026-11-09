@@ -11,11 +11,11 @@ global.fetch = async (url, opts = {}) => { sent.push({ url: String(url), opts })
 const lastCode = () => { const u = sent[sent.length - 1].url; return (/variables_values=(\d{6})/.exec(u) || /otp=(\d{6})/.exec(u) || /\/SMS\/\d{10}\/(\d{6})/.exec(u) || [])[1]; };
 
 (async () => {
-  set({}); ok(!otp.enabled(), 'off with nothing set');
-  set({ OTP_PROVIDER: 'fast2sms' }); ok(!otp.enabled(), 'off when the key is missing');
-  set({ OTP_PROVIDER: 'msg91', MSG91_AUTH_KEY: 'k' }); ok(!otp.enabled(), 'msg91 needs the template id too');
+  set({}); ok(!(await otp.enabled()), 'off with nothing set');
+  set({ OTP_PROVIDER: 'fast2sms' }); ok(!(await otp.enabled()), 'off when the key is missing');
+  set({ OTP_PROVIDER: 'msg91', MSG91_AUTH_KEY: 'k' }); ok(!(await otp.enabled()), 'msg91 needs the template id too');
   const PD = process.env.PB_DEV_MEMORY_DB; delete process.env.PB_DEV_MEMORY_DB;
-  set({ OTP_PROVIDER: 'test' }); ok(!otp.enabled(), 'the test provider never works on the live site');
+  set({ OTP_PROVIDER: 'test' }); ok(!(await otp.enabled()), 'the test provider never works on the live site');
   process.env.PB_DEV_MEMORY_DB = PD;
 
   let n = 0;
@@ -26,7 +26,7 @@ const lastCode = () => { const u = sent[sent.length - 1].url; return (/variables
   ]) {
     set(cfg); sent = [];
     const phone = '98765432' + String(10 + n++);
-    ok(otp.enabled(), cfg.OTP_PROVIDER + ': on');
+    ok(await otp.enabled(), cfg.OTP_PROVIDER + ': on');
     await otp.send(phone, 'signup', '1.1.1.' + n);
     ok(sent.length === 1 && check(sent[0]), cfg.OTP_PROVIDER + ': request ' + (sent[0] && sent[0].url));
     const code = lastCode();
@@ -97,6 +97,27 @@ const lastCode = () => { const u = sent[sent.length - 1].url; return (/variables
   r = await call({ action: 'otpSend', purpose: 'delete' }, t2);
   r = await call({ action: 'delete', otp: lastCode() }, t2); ok(r.deleted, 'account deleted with OTP: ' + r.error);
   r = await call({ action: 'login', phone: P, password: 'newpass1' }); ok(r.status === 401, 'deleted account cannot log in');
+  // ---- the admin panel switch (Settings > OTP by SMS) ----
+  const db = require('../api/_lib/db');
+  const setAdmin = async (o) => { await db.setJSON('settings', { ...(await core.getSettings(true)), otp: o }); core.forgetSettings(); };
+  set({});
+  await setAdmin({ on: true, provider: 'msg91', apiKey: 'AK' }); ok(!(await otp.enabled()), 'admin: MSG91 without a template stays off');
+  await setAdmin({ on: true, provider: '2factor', apiKey: 'TFK', templateId: 'PB' }); ok(await otp.enabled(), 'admin: on with a company and key');
+  sent = [];
+  await require('../api/_lib/db').cmd(['DEL', 'rl:otp:ph:9000000003']);
+  await otp.send('9000000003', 'signup', '4.4.4.4');
+  ok(/^https:\/\/2factor\.in\/API\/V1\/TFK\/SMS\/9000000003\/\d{6}\/PB$/.test(sent[0] && sent[0].url), 'admin: SMS goes through the admin\'s company and key');
+  set({ OTP_PROVIDER: 'fast2sms', FAST2SMS_API_KEY: 'F2S' });
+  await setAdmin({ on: false, provider: '2factor', apiKey: 'TFK' }); ok(!(await otp.enabled()), 'admin: switched off wins over Vercel variables');
+  await setAdmin({}); ok(await otp.enabled(), 'no company in admin: Vercel variables still work');
+  set({});
+  ok(!(await otp.enabled()), 'nothing anywhere: off');
+  // the admin's test SMS checks the typed settings before saving
+  await otp.test('9000000004', { provider: 'msg91', apiKey: 'AK' }).then(() => ok(false, 'test SMS without template'), (e) => ok(/Template ID/.test(e.message), 'test SMS asks for the MSG91 template'));
+  sent = [];
+  const tr = await otp.test('9000000004', { provider: 'fast2sms', apiKey: 'K2' });
+  ok(tr.sent && sent[0].url.includes('variables_values=' + tr.code) && sent[0].opts.headers.authorization === 'K2', 'test SMS sent with the typed key');
+
   // the admin's daily SMS count
   const days = await otp.smsSeries(14);
   ok(days.length === 14 && days[13].sms >= 10, 'SMS counted per day: ' + days[13].sms);

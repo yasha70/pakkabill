@@ -424,6 +424,22 @@
         </div>
         <div class="row" style="margin-top:10px;gap:8px;align-items:flex-end"><label class="f" style="flex:1">Try a GST number <span class="muted">(after saving)</span><input type="text" id="gstTry" maxlength="15" placeholder="27AAPFU0939F1ZV" style="text-transform:uppercase"></label><button class="btn sec" type="button" id="gstTryBtn">Look up</button></div>
         <pre id="gstTryOut" class="muted" style="white-space:pre-wrap;margin:8px 0 0;font-size:.85rem" hidden></pre>
+        <h2 style="margin-top:20px">OTP by SMS</h2>
+        <p class="sub">When on, <b>Create account</b> asks for an OTP sent to the mobile number, so only real numbers sign up. <b>Log in</b> then offers "Set a new password with OTP" and "Log in with OTP", and customers can verify their number and delete their account with an OTP. Each SMS costs about 15 to 25 paise at the SMS company. Turn it on only after the Android app update with OTP sign-up is out: older app versions cannot create accounts while OTP is on.</p>
+        <p class="sub" id="otpEnvNote" hidden></p>
+        <label class="check"><input type="checkbox" name="otpOn"><span><b>Turn on OTP by SMS</b></span></label>
+        <div class="grid2" style="margin-top:8px">
+          <label class="f">SMS company<select name="otpProvider"><option value="">Choose…</option><option value="fast2sms">Fast2SMS, fast2sms.com (easiest)</option><option value="msg91">MSG91, msg91.com</option><option value="2factor">2Factor, 2factor.in</option></select></label>
+        </div>
+        <p class="sub" data-otp="fast2sms" hidden style="margin:8px 0 0">Make an account at fast2sms.com and add some balance. Open <b>Dev API</b> and copy the <b>API Authorization Key</b>. Fast2SMS guides you through the Indian SMS rules (DLT) once.</p>
+        <p class="sub" data-otp="msg91" hidden style="margin:8px 0 0">At msg91.com copy your <b>Auth Key</b>. Make an OTP template whose message has <code>##OTP##</code>, for example <i>Your PakkaBill OTP is ##OTP##. It is valid for 10 minutes.</i>, and copy its <b>Template ID</b>.</p>
+        <p class="sub" data-otp="2factor" hidden style="margin:8px 0 0">At 2factor.in copy your <b>API Key</b>. If you made an approved OTP template, type its name too (optional).</p>
+        <div class="grid2" data-otp-keys hidden style="margin-top:8px">
+          <label class="f">API key<input type="password" name="otpKey" maxlength="200" autocomplete="new-password" spellcheck="false"></label>
+          <label class="f" data-otp-tpl><span data-otp-tpl-label>Template ID</span><input type="text" name="otpTemplate" maxlength="100" autocomplete="off" spellcheck="false"></label>
+        </div>
+        <div class="row" style="margin-top:10px;gap:8px;align-items:flex-end"><label class="f" style="flex:1">Send a test SMS to <span class="muted">(works before saving)</span><input type="text" inputmode="numeric" id="otpTry" maxlength="14" placeholder="Your 10-digit mobile number"></label><button class="btn sec" type="button" id="otpTryBtn">Send test SMS</button></div>
+        <pre id="otpTryOut" class="muted" style="white-space:pre-wrap;margin:8px 0 0;font-size:.85rem" hidden></pre>
         <div class="row" style="margin-top:16px"><button class="btn" type="submit">Save settings</button></div>
       </form>
     </section>
@@ -532,7 +548,7 @@
         ...(() => {
           // OTP SMS: today's count and the last 14 days (about 20 paise each with most SMS companies)
           const o = s.otp || {}, sms = o.sms || [], today = sms.length ? sms[sms.length - 1].sms : 0, two = sms.reduce((a, d) => a + d.sms, 0);
-          return [['OTP SMS today', o.on ? n(today) : 'Off', o.on ? `${n(two)} in 14 days · about ${money(two * 0.2)}` : 'Add an SMS key in Vercel to turn on']];
+          return [['OTP SMS today', o.on ? n(today) : 'Off', o.on ? `${n(two)} in 14 days · about ${money(two * 0.2)}` : 'Turn on in Settings → OTP by SMS']];
         })(),
       ].map(([l, v, sub]) => `<div class="stat"><div class="l">${l}</div><div class="v">${v}</div>${sub ? `<div class="muted" style="font-size:12px;font-weight:600">${esc(sub)}</div>` : ''}</div>`).join('');
       const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1050,7 +1066,7 @@
   const BIZ = ['bizName', 'bizEmail', 'bizPhone', 'bizAddress', 'grievanceName'];
   async function loadSettings() {
     try {
-      const { settings } = await api('getSettings');
+      const { settings, otpEnv } = await api('getSettings');
       form.monthly.value = settings.monthly;
       form.yearly.value = settings.yearly;
       form.freeBills.value = settings.freeBills;
@@ -1067,6 +1083,13 @@
       form.gstApiKey.value = g.apiKey || ''; form.gstClientId.value = g.clientId || ''; form.gstClientSecret.value = g.clientSecret || ''; form.gstSandbox.checked = !!g.sandbox;
       form.gstUrl.value = g.url || ''; form.gstHeader.value = g.header || '';
       gstShow();
+      const o = settings.otp || {};
+      form.otpOn.checked = !!o.on; form.otpProvider.value = o.provider || ''; form.otpKey.value = o.apiKey || ''; form.otpTemplate.value = o.templateId || '';
+      // an SMS company in Vercel's environment variables works until one is chosen here
+      const note = $('#otpEnvNote');
+      note.hidden = !(otpEnv && !o.provider);
+      note.innerHTML = otpEnv && !o.provider ? `OTP is <b>on</b> now through Vercel's environment variables (${esc(otpEnv)}). Choose a company here to manage it from this panel instead.` : '';
+      otpShow();
     } catch (e) { toast(e.message, true); }
   }
   $('#rzpHook').value = location.origin + '/api/pay?razorpay=webhook';
@@ -1078,6 +1101,24 @@
       const r = await api('rzpTest', { keyId: form.rzpKeyId.value, keySecret: form.rzpKeySecret.value });
       out.textContent = r.live ? '✓ Keys work (live mode). Save settings to start taking payments.' : '✓ Keys work, but these are TEST keys: no real money is taken. Use rzp_live_ keys to sell.';
     } catch (e) { out.textContent = '✗ ' + e.message; }
+  });
+  function otpShow() {
+    const p = form.otpProvider.value;
+    document.querySelectorAll('[data-otp]').forEach((el) => { el.hidden = el.dataset.otp !== p; });
+    document.querySelector('[data-otp-keys]').hidden = !p;
+    document.querySelector('[data-otp-tpl]').hidden = p !== 'msg91' && p !== '2factor';
+    document.querySelector('[data-otp-tpl-label]').textContent = p === 'msg91' ? 'Template ID' : 'Template name (optional)';
+  }
+  form.otpProvider.addEventListener('change', otpShow);
+  const otpForm = () => ({ on: form.otpOn.checked, provider: form.otpProvider.value, apiKey: form.otpKey.value, templateId: form.otpTemplate.value });
+  $('#otpTryBtn').addEventListener('click', async () => {
+    const out = $('#otpTryOut'), b = $('#otpTryBtn');
+    out.hidden = false; out.textContent = 'Sending…'; b.disabled = true;
+    try {
+      const r = await api('otpTest', { phone: $('#otpTry').value, otp: otpForm() });
+      out.textContent = `✓ The SMS company accepted it. The SMS should say ${r.code}. If it does not come in a minute, check the balance and DLT approval in your SMS company's dashboard.${form.otpOn.checked ? '' : ' Tick "Turn on OTP by SMS" and save to switch it on for customers.'}`;
+    } catch (e) { out.textContent = '✗ ' + e.message; }
+    b.disabled = false;
   });
   function gstShow() { document.querySelectorAll('[data-gst]').forEach((el) => { el.hidden = el.dataset.gst !== form.gstProvider.value; }); }
   form.gstProvider.addEventListener('change', gstShow);
@@ -1096,7 +1137,8 @@
     try {
       await api('saveSettings', { monthly: form.monthly.value, yearly: form.yearly.value, freeBills: form.freeBills.value, enforce: form.enforce.checked, upiId: form.upiId.value, payeeName: form.payeeName.value, trialDays: form.trialDays.value, syncFree: form.syncFree.checked, biz: Object.fromEntries(BIZ.map((k) => [k, form[k].value])),
         razorpay: { keyId: form.rzpKeyId.value, keySecret: form.rzpKeySecret.value },
-        gst: { provider: form.gstProvider.value, apiKey: form.gstApiKey.value, clientId: form.gstClientId.value, clientSecret: form.gstClientSecret.value, sandbox: form.gstSandbox.checked, url: form.gstUrl.value, header: form.gstHeader.value } });
+        gst: { provider: form.gstProvider.value, apiKey: form.gstApiKey.value, clientId: form.gstClientId.value, clientSecret: form.gstClientSecret.value, sandbox: form.gstSandbox.checked, url: form.gstUrl.value, header: form.gstHeader.value },
+        otp: otpForm() });
       toast('Settings saved.');
     } catch (err) { toast(err.message, true); }
   });

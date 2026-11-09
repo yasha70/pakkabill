@@ -1,7 +1,7 @@
 # Turn on OTP sign-up (no coding needed)
 
-PakkaBill already has OTP by SMS built in. It stays **off** until you add an SMS company's key in
-Vercel. When it is on:
+PakkaBill already has OTP by SMS built in. It stays **off** until you turn it on in the admin panel
+(Settings → OTP by SMS) with an SMS company's key. When it is on:
 
 - **Create account** asks for an OTP sent to the mobile number, so only real numbers can sign up
   (website and Android app).
@@ -33,32 +33,25 @@ once. Follow their steps; PakkaBill does not need anything else.
 For MSG91, make an OTP template whose message has `##OTP##`, for example:
 `Your PakkaBill OTP is ##OTP##. It is valid for 10 minutes.`
 
-## Step 2: Put the key in Vercel
+## Step 2: Turn it on in the admin panel
 
-1. Open vercel.com → your project **pakkabill1** → **Settings** → **Environment Variables**.
-2. Add these (Environment: **Production**), only the lines for the company you picked:
+1. Open the admin panel → **Settings** → scroll to **OTP by SMS**.
+2. Choose the **SMS company** and paste its **API key** (and the Template ID for MSG91).
+3. Type your own mobile number and tap **Send test SMS**. The SMS should come in a minute with the
+   code shown on screen.
+4. Tick **Turn on OTP by SMS** and tap **Save settings**. It is on for everyone within a minute.
 
-| Name | Value |
-|---|---|
-| `OTP_PROVIDER` | `fast2sms` or `msg91` or `2factor` |
-| `FAST2SMS_API_KEY` | your Fast2SMS key (only for Fast2SMS) |
-| `MSG91_AUTH_KEY` | your MSG91 auth key (only for MSG91) |
-| `MSG91_TEMPLATE_ID` | your MSG91 OTP template ID (only for MSG91) |
-| `TWOFACTOR_API_KEY` | your 2Factor key (only for 2Factor) |
-| `TWOFACTOR_TEMPLATE` | optional: your approved 2Factor template name |
+To turn it off, untick it and save. Your key stays saved for next time.
 
-3. Do the same in the project **pakkabill** if you use that site too.
-4. Go to **Deployments**, open the top one, tap **⋯ → Redeploy**. Wait until it says Ready.
+(The older way still works: the Vercel environment variables `OTP_PROVIDER`, `FAST2SMS_API_KEY`,
+`MSG91_AUTH_KEY`, `MSG91_TEMPLATE_ID`, `TWOFACTOR_API_KEY`, `TWOFACTOR_TEMPLATE`. They are used only
+while no company is chosen in the admin panel.)
 
 ## Step 3: Check it
 
 Open the site in a private window → **Sign up** → you should see **Send OTP**. Try it with your own
 number. If the SMS does not come, check the SMS company's dashboard (balance, DLT approval) and
 Vercel → project → **Logs** (search "OTP send failed": it shows the company's reply).
-
-## To turn it off
-
-Delete `OTP_PROVIDER` in Vercel and redeploy. Everything goes back to password only.
 
 ## How it works (for a developer)
 
