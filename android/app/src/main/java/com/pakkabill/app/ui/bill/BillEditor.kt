@@ -1,6 +1,9 @@
 package com.pakkabill.app.ui.bill
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -161,10 +164,16 @@ fun BillEditor(start: Invoice, data: BillData, numberTaken: suspend (Invoice) ->
                             inv = inv.copy(buyer = inv.buyer.copy(name = it), partyId = ""); search = it
                         })
                     }
-                    hits.filter { it.name != inv.buyer.name }.forEach { p ->
-                        Suggest(p.name, listOfNotNull(p.gstin.ifBlank { null }, Gst.stateName(p.stateCode).ifBlank { null }).joinToString(" · ")) {
-                            inv = inv.copy(partyId = p.id, buyer = Buyer(p.name, p.gstin, p.stateCode, p.address, p.phone, p.email), pos = p.stateCode.ifBlank { inv.pos })
-                            search = ""
+                    val shown = hits.filter { it.name != inv.buyer.name }
+                    // the matches sit under the box: scroll them above the keyboard
+                    val bring = remember { BringIntoViewRequester() }
+                    LaunchedEffect(shown.size) { if (shown.isNotEmpty()) runCatching { bring.bringIntoView() } }
+                    Column(Modifier.bringIntoViewRequester(bring)) {
+                        shown.forEach { p ->
+                            Suggest(p.name, listOfNotNull(p.gstin.ifBlank { null }, Gst.stateName(p.stateCode).ifBlank { null }).joinToString(" · ")) {
+                                inv = inv.copy(partyId = p.id, buyer = Buyer(p.name, p.gstin, p.stateCode, p.address, p.phone, p.email), pos = p.stateCode.ifBlank { inv.pos })
+                                search = ""
+                            }
                         }
                     }
                     Spacer(Modifier.height(10.dp))
@@ -304,10 +313,15 @@ private fun ItemCard(i: Int, d: Draft, data: BillData, line: com.pakkabill.core.
         var typing by remember { mutableStateOf(false) }
         Inp(d.name, { d.name = it }, placeholder = "Item name", onChange = { d.name = it; typing = true })
         val q = d.name.trim().lowercase()
-        if (typing && q.isNotEmpty()) data.products.filter { it.name.lowercase().contains(q) && it.name != d.name }.take(4).forEach { p ->
-            Suggest(p.name, listOfNotNull(p.hsn.ifBlank { null }?.let { "HSN $it" }, inr(p.rate)).joinToString(" · ")) {
-                d.name = p.name; d.hsn = p.hsn; d.unit = p.unit; d.rate = if (p.rate == 0.0) "" else BillPdf.qtyText(p.rate); d.gstRate = p.gstRate; d.taxMode = p.taxMode
-                typing = false
+        val shown = if (typing && q.isNotEmpty()) data.products.filter { it.name.lowercase().contains(q) && it.name != d.name }.take(4) else emptyList()
+        val bring = remember { BringIntoViewRequester() }
+        LaunchedEffect(shown.size) { if (shown.isNotEmpty()) runCatching { bring.bringIntoView() } }
+        Column(Modifier.bringIntoViewRequester(bring)) {
+            shown.forEach { p ->
+                Suggest(p.name, listOfNotNull(p.hsn.ifBlank { null }?.let { "HSN $it" }, inr(p.rate)).joinToString(" · ")) {
+                    d.name = p.name; d.hsn = p.hsn; d.unit = p.unit; d.rate = if (p.rate == 0.0) "" else BillPdf.qtyText(p.rate); d.gstRate = p.gstRate; d.taxMode = p.taxMode
+                    typing = false
+                }
             }
         }
         Spacer(Modifier.height(8.dp))

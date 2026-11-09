@@ -23,7 +23,11 @@ class BillStore(private val dir: File, private val now: () -> Long = System::cur
         private set
 
     private fun load(): BillData = runCatching { if (file.exists()) JSON.decodeFromString(BillData.serializer(), file.readText()) else null }.getOrNull()
+        ?.let { d -> d.copy(invoices = d.invoices.map(::withTotalsIfMissing)) }
         ?: BillData(meta = BillMeta(created = now()))
+
+    /** Bills saved without totals (by hand or by an older tool) get them worked out. */
+    private fun withTotalsIfMissing(b: Invoice) = if (b.totals.total == 0.0 && b.items.isNotEmpty()) Gst.withTotals(b) else b
 
     private fun save(d: BillData) {
         dir.mkdirs()
@@ -131,7 +135,7 @@ class BillStore(private val dir: File, private val now: () -> Long = System::cur
         save(
             data.copy(
                 business = business,
-                invoices = merge(data.invoices, b.invoices.map { if (it.totals.total == 0.0 && it.items.isNotEmpty()) Gst.withTotals(it) else it }) { it.id }
+                invoices = merge(data.invoices, b.invoices.map(::withTotalsIfMissing)) { it.id }
                     .sortedWith(compareByDescending<Invoice> { it.date }.thenByDescending { it.createdAt }),
                 parties = merge(data.parties, b.parties) { it.id },
                 products = merge(data.products, b.products) { it.id },

@@ -113,9 +113,14 @@ adb shell input keyevent KEYCODE_BACK; sleep 2
 tap "+ New bill"; cap b07-editor 3
 tap "Cash sale"; adb shell input text "Ravi"; cap b08-buyer 2
 tap "Use"; cap b09-buyer-picked 2
+# keyboard away (back only hides it while it is open), then down to the first item
+adb shell dumpsys input_method | grep -q "mInputShown=true" && adb shell input keyevent KEYCODE_BACK; sleep 1
+up; sleep 1
 tap "Item name"; adb shell input text "kurti"; cap b10-item 2
-tap "Use"; sleep 1; adb shell input keyevent KEYCODE_BACK; cap b11-item-picked 2
-up; cap b12-editor 1
+tap "Use"; sleep 1
+adb shell dumpsys input_method | grep -q "mInputShown=true" && adb shell input keyevent KEYCODE_BACK
+cap b11-item-picked 2
+tap "Qty"; sleep 1; cap b12-editor 1
 tap "Save"; cap b13-saved 8
 adb shell input keyevent KEYCODE_BACK; sleep 2
 cap b14-bills-after 2

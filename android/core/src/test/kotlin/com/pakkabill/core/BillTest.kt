@@ -92,5 +92,10 @@ class BillTest {
         assertEquals(2100.0, w.totals.total)
         assertEquals(100.0, w.totals.igst)
         assertEquals(2, BillStore.gstSummary(s.data.invoices).size)
+
+        // a bills file written without totals gets them when it is opened
+        val dir2 = Files.createTempDirectory("bills2").toFile()
+        java.io.File(dir2, "bills.json").writeText(web)
+        assertEquals(2100.0, BillStore(dir2).data.invoices.single().totals.total)
     }
 }
