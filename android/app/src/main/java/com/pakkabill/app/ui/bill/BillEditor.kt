@@ -116,6 +116,7 @@ fun BillEditor(start: Invoice, data: BillData, numberTaken: suspend (Invoice) ->
     val c = Gst.calc(now)
     val changed = now != start.copy(items = start.items.map { Draft.of(it).item() })
     val seller = data.business
+    val isNew = data.invoices.none { it.id == start.id }
 
     fun close() { if (changed && !confirmClose) { confirmClose = true; error = "Tap back again to leave without saving." } else onClose() }
     SystemBack { close() }
@@ -128,7 +129,7 @@ fun BillEditor(start: Invoice, data: BillData, numberTaken: suspend (Invoice) ->
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(44.dp).clip(CircleShape).clickable { close() }, contentAlignment = Alignment.Center) { Icon(PbIcons.Back, "Back", tint = h.ink, modifier = Modifier.size(22.dp)) }
-            Txt(if (start.createdAt == start.updatedAt && start.totals.total == 0.0) (if (inv.isEstimate) "New estimate" else "New bill") else "Change bill", weight = FontWeight.SemiBold, head = true, size = 18.sp, modifier = Modifier.weight(1f))
+            Txt(if (isNew) (if (inv.isEstimate) "New estimate" else "New bill") else "Change bill", weight = FontWeight.SemiBold, head = true, size = 18.sp, modifier = Modifier.weight(1f))
         }
 
         LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = Gap, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(Gap)) {
@@ -251,7 +252,7 @@ fun BillEditor(start: Invoice, data: BillData, numberTaken: suspend (Invoice) ->
                         val d = java.time.Instant.ofEpochMilli(m).atZone(java.time.ZoneOffset.UTC).toLocalDate().toString()
                         inv = if (which == "date") {
                             // a new financial year starts a new series of numbers
-                            val renumber = Gst.fyShort(d) != Gst.fyShort(inv.date) && start.totals.total == 0.0
+                            val renumber = Gst.fyShort(d) != Gst.fyShort(inv.date) && isNew
                             inv.copy(date = d, number = if (renumber) Gst.nextNumber(data.invoices, inv.docType, d, seller, inv.id) else inv.number)
                         } else inv.copy(dueDate = d)
                     }

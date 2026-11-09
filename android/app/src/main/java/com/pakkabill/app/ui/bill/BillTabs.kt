@@ -159,7 +159,8 @@ fun LazyListScope.billsTab(d: BillData, rows: List<Invoice>, f: BillFilter, acts
     items(rows, key = { it.id }, contentType = { "bill" }) { b ->
         val first = b.id == rows.first().id
         val last = b.id == rows.last().id
-        SheetPart(if (first) Part.TOP else if (last) Part.BOTTOM else Part.MID, padding = 0.dp) {
+        if (first && last) Box(Modifier.padding(top = com.pakkabill.app.ui.Gap)) { Sheet(padding = 0.dp) { BillRow(b, true) { acts.open(b) } } }
+        else SheetPart(if (first) Part.TOP else if (last) Part.BOTTOM else Part.MID, padding = 0.dp) {
             BillRow(b, last) { acts.open(b) }
         }
     }
