@@ -213,54 +213,10 @@ class AccountController(private val api: Api, private val kv: KeyValue, private 
         return call { api.login(p, password) }.also { if (it == null) refresh() }
     }
 
-    /** OTP by SMS is set up on the server (sign-up then needs one). */
-    val otpOn get() = _ui.value.config?.otp == true
-
-    suspend fun signup(phone: String, password: String, shopName: String, otp: String = ""): String? {
+    suspend fun signup(phone: String, password: String, shopName: String): String? {
         val p = Api.normPhone(phone) ?: return "Enter a 10-digit mobile number."
-        if (otpOn && otp.length != 6) return "Enter the 6-digit OTP from the SMS. Tap Send OTP to get it."
         if (password.length < 6) return "Use a password of at least 6 characters."
-        return call { api.signup(p, password, shopName.trim(), otp) }.also { if (it == null) refresh() }
-    }
-
-    /**
-     * Sends an OTP by SMS. null when sent, otherwise the message to show. "signup", "login" and
-     * "reset" go to [phone]; "verify" and "delete" go to the logged-in account's own number.
-     */
-    suspend fun sendOtp(phone: String, purpose: String): String? = withContext(Dispatchers.IO) {
-        val own = purpose == "verify" || purpose == "delete"
-        val s = _ui.value.session
-        if (own && s == null) return@withContext "Log in first."
-        val p = if (own) s!!.user.phone else Api.normPhone(phone) ?: return@withContext "Enter your 10-digit mobile number first."
-        try {
-            api.sendOtp(p, purpose, if (own) s!!.token else null)
-            null
-        } catch (e: ApiException) {
-            e.message
-        } catch (e: Exception) {
-            "Something went wrong. Please try again."
-        }
-    }
-
-    suspend fun otpLogin(phone: String, otp: String): String? {
-        val p = Api.normPhone(phone) ?: return "Enter your 10-digit mobile number."
-        if (otp.length != 6) return "Enter the 6-digit OTP from the SMS."
-        return call { api.otpLogin(p, otp) }.also { if (it == null) refresh() }
-    }
-
-    /** Forgot password: a new one with an OTP. Logs in here; other devices are logged out. */
-    suspend fun resetPassword(phone: String, otp: String, next: String): String? {
-        val p = Api.normPhone(phone) ?: return "Enter your 10-digit mobile number."
-        if (otp.length != 6) return "Enter the 6-digit OTP from the SMS."
-        if (next.length < 6) return "Use a new password of at least 6 characters."
-        return call { api.otpReset(p, otp, next) }.also { if (it == null) refresh() }
-    }
-
-    /** Checks an older account's number with an OTP (sent with [sendOtp] "verify"). */
-    suspend fun verify(otp: String): String? {
-        val s = _ui.value.session ?: return "Log in first."
-        if (otp.length != 6) return "Enter the 6-digit OTP from the SMS."
-        return call { s.copy(user = api.verify(s.token, otp)) }
+        return call { api.signup(p, password, shopName.trim()) }.also { if (it == null) refresh() }
     }
 
     suspend fun changePassword(current: String, next: String): String? {
@@ -269,12 +225,11 @@ class AccountController(private val api: Api, private val kv: KeyValue, private 
         return call { api.changePassword(s.token, current, next) }
     }
 
-    /** Deletes the account with the password, or with an [otp] sent with [sendOtp] "delete". */
-    suspend fun deleteAccount(password: String, otp: String = ""): String? {
+    suspend fun deleteAccount(password: String): String? {
         val s = _ui.value.session ?: return "Log in first."
         return withContext(Dispatchers.IO) {
             try {
-                api.deleteAccount(s.token, password, otp)
+                api.deleteAccount(s.token, password)
                 setSession(null)
                 null
             } catch (e: ApiException) {

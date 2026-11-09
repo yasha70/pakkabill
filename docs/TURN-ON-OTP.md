@@ -3,8 +3,8 @@
 PakkaBill already has OTP by SMS built in. It stays **off** until you turn it on in the admin panel
 (Settings → OTP by SMS) with an SMS company's key. When it is on:
 
-- **Create account** asks for an OTP sent to the mobile number, so only real numbers can sign up
-  (website and Android app).
+- **Create account** on the website asks for an OTP sent to the mobile number, so only real
+  numbers can sign up.
 - **Log in** shows "Forgot your password? **Set a new one with OTP**, or **log in with OTP**", so
   nobody is locked out and support no longer has to reset passwords by hand.
 - **My account** shows "✓ verified" next to the number. Accounts made before OTP was on get a
@@ -13,8 +13,9 @@ PakkaBill already has OTP by SMS built in. It stays **off** until you turn it on
 - **Admin → Overview** shows **OTP SMS today** and the last 14 days, with a rough cost. Each
   customer shows whether the number is verified (also a column in the customer CSV).
 
-Before you turn it on, make sure people have the **Android app update** with OTP sign-up: an older
-app version cannot create accounts once OTP is on (logging in still works).
+**Website only for now.** The Android app is not changed: sign-up there keeps working with mobile
+number and password while OTP is on (the server knows the app by its `PakkaBillApp/` User-Agent).
+The website opened inside the app is the website, so it does ask for the OTP.
 
 When it is off (as now), sign-up and log in work with mobile number and password, as before.
 

@@ -23,8 +23,6 @@ import kotlinx.serialization.json.put
     val createdAt: Long = 0,
     val lastSeen: Long = 0,
     val tempPw: Boolean = false,
-    /** the mobile number was checked with an SMS OTP */
-    val verified: Boolean = false,
 )
 
 @Serializable data class Biz(val name: String? = null, val email: String? = null, val phone: String? = null, val address: String? = null, val grievance: String? = null)
@@ -42,8 +40,6 @@ import kotlinx.serialization.json.put
     /** Razorpay Key ID (public) when the admin has set up Razorpay; then Pro is paid in Razorpay's checkout */
     val razorpay: String = "",
     val payeeName: String = "",
-    /** OTP by SMS is set up: sign-up needs an OTP, and log in or a new password can use one */
-    val otp: Boolean = false,
     val biz: Biz = Biz(),
 )
 
@@ -168,31 +164,8 @@ class Api(private val base: String = "https://pakkabill1.vercel.app", private va
     fun login(phone: String, password: String): Session =
         session(request("POST", "/api/auth", null, buildJsonObject { put("action", "login"); put("phone", phone); put("password", password) }))
 
-    fun signup(phone: String, password: String, shopName: String, otp: String = ""): Session =
-        session(request("POST", "/api/auth", null, buildJsonObject {
-            put("action", "signup"); put("phone", phone); put("password", password); put("shopName", shopName)
-            if (otp.isNotBlank()) put("otp", otp)
-        }))
-
-    /**
-     * Sends a 6-digit OTP by SMS. [purpose]: "signup", "login" or "reset" go to [phone];
-     * "verify" and "delete" need [token] and always go to the logged-in account's own number.
-     */
-    fun sendOtp(phone: String, purpose: String, token: String? = null) {
-        request("POST", "/api/auth", token, buildJsonObject { put("action", "otpSend"); put("phone", phone); put("purpose", purpose) })
-    }
-
-    /** Log in with an OTP instead of the password. */
-    fun otpLogin(phone: String, otp: String): Session =
-        session(request("POST", "/api/auth", null, buildJsonObject { put("action", "otpLogin"); put("phone", phone); put("otp", otp) }))
-
-    /** Forgot password: sets a new one with an OTP (purpose "reset"); other devices are logged out. */
-    fun otpReset(phone: String, otp: String, newPassword: String): Session =
-        session(request("POST", "/api/auth", null, buildJsonObject { put("action", "otpReset"); put("phone", phone); put("otp", otp); put("newPassword", newPassword) }))
-
-    /** Marks the account's number as verified with an OTP (purpose "verify"). */
-    fun verify(token: String, otp: String): User =
-        json.decodeFromJsonElement(User.serializer(), request("POST", "/api/auth", token, buildJsonObject { put("action", "verify"); put("otp", otp) })["user"]!!)
+    fun signup(phone: String, password: String, shopName: String): Session =
+        session(request("POST", "/api/auth", null, buildJsonObject { put("action", "signup"); put("phone", phone); put("password", password); put("shopName", shopName) }))
 
     fun logout(token: String) { runCatching { request("POST", "/api/auth", token, buildJsonObject { put("action", "logout") }) } }
 
@@ -200,9 +173,8 @@ class Api(private val base: String = "https://pakkabill1.vercel.app", private va
     fun changePassword(token: String, current: String, next: String): Session =
         session(request("POST", "/api/auth", token, buildJsonObject { put("action", "password"); put("password", current); put("newPassword", next) }))
 
-    /** Deletes the account with the password, or with an [otp] sent for purpose "delete". */
-    fun deleteAccount(token: String, password: String, otp: String = "") {
-        request("POST", "/api/auth", token, buildJsonObject { put("action", "delete"); put("password", password); if (otp.isNotBlank()) put("otp", otp) })
+    fun deleteAccount(token: String, password: String) {
+        request("POST", "/api/auth", token, buildJsonObject { put("action", "delete"); put("password", password) })
     }
 
     fun me(token: String): User = json.decodeFromJsonElement(User.serializer(), request("GET", "/api/me", token)["user"]!!)

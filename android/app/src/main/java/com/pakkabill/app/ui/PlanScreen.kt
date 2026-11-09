@@ -81,7 +81,7 @@ fun PlanScreen(ui: AccountUi, account: AccountController, say: (String) -> Unit)
         block("status") { StatusCard(ui) }
         if (ui.orders.isNotEmpty()) block("orders") { OrdersCard(ui.orders) }
         if (ui.news.isNotEmpty()) block("news") { NewsCard(ui.news, ui.loggedIn, account, say) { plan = null } }
-        if (ui.session == null) block("auth") { AuthCard(account, cfg?.trialDays ?: 0, say, title = "Log in or create a free account", otp = cfg?.otp == true) }
+        if (ui.session == null) block("auth") { AuthCard(account, cfg?.trialDays ?: 0, say, title = "Log in or create a free account") }
         if (cfg != null && cfg.enabled) {
             val p = plan
             if (p != null && ui.session != null && platform.sellsPro) {

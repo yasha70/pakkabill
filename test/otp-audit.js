@@ -67,6 +67,15 @@ const lastCode = () => { const u = sent[sent.length - 1].url; return (/variables
   ok(r.token && r.user.verified, 'sign-up with OTP makes a verified account');
   const t1 = r.token;
   r = await call({ action: 'otpSend', phone: P, purpose: 'signup' }); ok(r.status === 409, 'no sign-up OTP for a number that has an account');
+  // website only for now: the Android app signs up with number and password, no OTP
+  const appSignup = (body) => new Promise((resolve) => {
+    const res = { statusCode: 0, setHeader() {}, end(t) { resolve({ status: this.statusCode, ...JSON.parse(t) }); } };
+    auth({ method: 'POST', body, headers: { 'x-forwarded-for': '10.9.9.9', 'user-agent': 'PakkaBillApp/3.4 (Android; store=play)' } }, res);
+  });
+  r = await appSignup({ action: 'signup', phone: '9000000077', password: 'apppass1' });
+  ok(r.token && !r.user.verified, 'Android app sign-up works without OTP: ' + r.error);
+  r = await call({ action: 'signup', phone: '9000000078', password: 'webpass1' });
+  ok(r.status === 400, 'a website sign-up still needs the OTP');
   // forgot password
   r = await call({ action: 'otpSend', phone: '9000000099', purpose: 'reset' }); ok(r.status === 404, 'no reset OTP for an unknown number');
   r = await call({ action: 'otpSend', phone: P, purpose: 'reset' }); ok(r.sent, 'reset OTP sent');

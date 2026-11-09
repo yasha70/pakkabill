@@ -5,7 +5,9 @@
 //   (purpose 'reset'); other devices are logged out, this one is logged in
 // POST /api/auth  { action: 'otpSend', purpose: 'verify' | 'delete' } (logged in) sends an OTP to the account's own number
 // POST /api/auth  { action: 'verify', otp } (logged in) marks an older account's number as verified
-// When OTP is set up, 'signup' also needs { otp }: the number is checked before the account is made.
+// When OTP is set up, 'signup' from the website also needs { otp }: the number is checked before the
+// account is made. OTP is for the website only for now: sign-ups from the Android app (its User-Agent
+// starts with PakkaBillApp/) work with mobile number and password, as before.
 // Every OTP that works (sign-up, log in, reset, verify) marks the number as verified (user.verifiedAt).
 // POST /api/auth  { action: 'password', password, newPassword } (logged in) -> new token; other devices are logged out
 // POST /api/auth  { action: 'profile', name, sells, where, orders, city } or { action: 'profile', skip: true } (logged in):
@@ -17,6 +19,9 @@ const db = require('./_lib/db');
 const sync = require('./_lib/sync');
 const push = require('./_lib/push');
 const otp = require('./_lib/otp');
+
+// The Android app (not the website inside it): OTP is not asked there yet
+const fromApp = (req) => /^PakkaBillApp\//.test(String(req.headers['user-agent'] || ''));
 
 // The choices offered in the app's "About your shop" step. Anything else is dropped.
 const PROFILE = {
@@ -158,7 +163,8 @@ module.exports = core.handler(async (req, res) => {
 
   if (action === 'signup') {
     if (String(password).length < 6) throw new core.HttpError(400, 'Use a password of at least 6 characters.');
-    if (await otp.enabled()) {
+    const needOtp = !fromApp(req) && (await otp.enabled());
+    if (needOtp) {
       if (await core.getUser(phone)) throw new core.HttpError(409, 'This number already has an account. Log in instead.');
       await otp.check(phone, 'signup', core.body(req).otp);
     }
@@ -170,7 +176,7 @@ module.exports = core.handler(async (req, res) => {
       lastSeen: Date.now(),
       paidUntil: 0,
     };
-    if (await otp.enabled()) user.verifiedAt = user.createdAt;
+    if (needOtp) user.verifiedAt = user.createdAt;
     // which button or tool the account was made from (for the admin; never shown to the customer)
     const from = String(core.body(req).from || '').toLowerCase();
     if (/^[a-z0-9-]{1,20}$/.test(from)) user.from = from;
