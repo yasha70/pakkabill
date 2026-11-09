@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PakkaBill Lens – Meesho insights, auto listing and shipping check",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "description": "Checks Meesho's real shipping for every photo version and category, fills Meesho's catalogue form from your PakkaBill templates, and shows a Meesho product's seller price and sales speed.",
   "permissions": [
     "storage",
@@ -48,7 +48,8 @@
     },
     {
       "matches": [
-        "https://pakkabill1.vercel.app/*"
+        "https://pakkabill1.vercel.app/*",
+        "https://pakkabill-one.vercel.app/*"
       ],
       "js": [
         "core.js",

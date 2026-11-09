@@ -188,6 +188,22 @@ photo check: size, file weight and how much of it the product fills (`photoCheck
 cheapest of each photo, or all as a ZIP. Runs in the browser; photos never leave the device. Code:
 `lowship.js` (engine `window.PBShip`); tests: `node test/lowship-audit.js`.
 
+**No extension: the shipping bookmark** (phone or laptop Chrome). The Image tab offers a bookmark
+(`shipmark.js`, built by `lens/build.py` from `lens/shipcore.js`, `shiphook.js` and `lens/shipbm.js`, with the
+site's own address put in when the bookmark is made). "Open Meesho" opens supplier.meesho.com from the
+Image tab; the seller taps the bookmark there (phone: types `pbship` in the address bar), and it starts
+watching the page's own requests, the same way the extension does. The seller uploads their own photo
+once; it learns Meesho's shipping request, checks it gets back the same number, then prices every
+version in each chosen category and sends each price straight back to the Image tab by window
+messages (`pbsb`, checked against the PakkaBill and Meesho addresses). Nothing is installed, nothing
+goes anywhere but Meesho, and it never submits a catalogue. Other "low shipping" websites that show a
+price under each image without an extension are estimating it; Meesho's real number can only come from
+the seller's own Meesho tab.
+
+Lens 3.5 also works on pakkabill-one.vercel.app, starts the check by itself once it has learned your
+photo's price, tries versions with no answer once more, stops with a clear message when Meesho says the
+seller is logged out, and lists the versions cheapest first with the saving against the seller's photo.
+
 **Real shipping from Meesho, live** (laptop, PakkaBill Lens 2.2+): "Check in Meesho" hands every
 version to the extension (`lens/bridge.js`). On supplier.meesho.com, `lens/ship.js` shows a panel:
 in Catalog Upload → Add Single Catalog it finds Meesho's photo box and the shipping charge (or the

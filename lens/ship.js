@@ -13,7 +13,9 @@
   const get = k => new Promise(r => chrome.storage.local.get(k, r));
   const set = o => new Promise(r => chrome.storage.local.set(o, r));
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const PB = 'https://pakkabill1.vercel.app/#/lowship';
+  // PakkaBill's Image tab: on the site that sent the versions
+  const HOMES = ['https://pakkabill1.vercel.app', 'https://pakkabill-one.vercel.app'];
+  const pbLink = () => ((Q && HOMES.includes(Q.from) ? Q.from : HOMES[0]) + '/#/lowship');
   const PICKED = 'picked';
 
   // "Shipping Charges ₹ 1,234" -> 1234; a cell holding just "72" -> 72; null when there is no amount.
@@ -32,7 +34,7 @@
   let hook = { learned: false }; // what the page hook learned
   let picks = {}; // { input, ship }: where the photo box and the shipping amount are, if pointed to
   let mode = 'idle'; // idle | pick-input | pick-ship | running
-  let current = -1, note = '', stop = false, open = true, shown = false, verified = null;
+  let current = -1, note = '', stop = false, open = true, shown = false, verified = null, autoAt = 0;
   const missed = new Set();
 
   /* ---------- talking to the hook in the page ---------- */
@@ -54,9 +56,10 @@
     if (m.type === 'status') {
       const was = hook.learned && hook.ship;
       hook = { learned: !!m.learned, confirmed: !!m.confirmed, ship: m.ship, key: m.key, steps: m.steps, cat: m.cat || null, why: m.why || '', report: m.report || null };
-      if (hook.learned && was !== hook.ship) verified = null;
+      if (hook.learned && was !== hook.ship) { verified = null; autoAt = 0; }
       saveState();
       draw();
+      autoStart();
     } else if (m.type === 'cats' && Array.isArray(m.list)) {
       const by = new Map(mcats.map(c => [c.id, c]));
       m.list.forEach(c => { if (c && /^\d{1,12}$/.test(String(c.id)) && c.name) by.set(String(c.id), { id: String(c.id), name: String(c.name).slice(0, 80), path: String(c.path || c.name).slice(0, 200), leaf: c.leaf !== false }); });
@@ -146,6 +149,31 @@
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  // Once Meesho's number for the seller's photo is learned and matches the page, a new set of versions
+  // is checked straight away (the same as tapping Check all).
+  function autoStart() {
+    if (Q && hook.learned && hook.confirmed && mode === 'idle' && verified !== false && autoAt !== Q.at && Q.items.some(it => !R[it.id] || !Object.keys(R[it.id]).length)) { autoAt = Q.at; checkExact(false); }
+  }
+  // One pass over items; false when Meesho says the seller is logged out.
+  async function pass(items, cp) {
+    for (let i = 0; i < items.length && !stop; i++) {
+      const it = items[i];
+      const have = R[it.id] || {};
+      const todo = cp.list.filter(c => have[c.key] == null);
+      if (!todo.length) continue;
+      current = Q.items.indexOf(it); draw();
+      await saveState({ current: it.id });
+      const r = await ask({ type: 'run', data: it.data, cats: todo.map(c => ({ key: c.key, id: c.id })) });
+      R[it.id] = { ...have, ...(r.values || {}) };
+      if (!Object.keys(r.values || {}).length) missed.add(it.id); else missed.delete(it.id);
+      const err = Object.values(r.errors || {}).join(' ');
+      if (/:(401|403)\b/.test(err)) { note = 'Meesho says you are logged out. Log in again, upload your photo once more, then tap Check all.'; await saveState(); return false; }
+      if (r.errors && r.errors.all && /upload:(4\d\d|0)/.test(r.errors.all) && !Object.keys(R).some(k => Object.keys(R[k]).length)) { note = 'Meesho refused the upload. Upload your photo in Meesho again (the session may have ended), then tap Check all.'; return false; }
+      await saveState();
+      draw();
+    }
+    return true;
+  }
   // The exact way: Meesho's own requests, for every version and category.
   async function checkExact(again) {
     if (!Q || !Q.items.length) return;
@@ -168,20 +196,9 @@
       verified = true;
     }
     note = '';
-    for (let i = 0; i < Q.items.length && !stop; i++) {
-      const it = Q.items[i];
-      const have = R[it.id] || {};
-      const todo = cp.list.filter(c => have[c.key] == null);
-      if (!todo.length) continue;
-      current = i; draw();
-      await saveState({ current: it.id });
-      const r = await ask({ type: 'run', data: it.data, cats: todo.map(c => ({ key: c.key, id: c.id })) });
-      R[it.id] = { ...have, ...(r.values || {}) };
-      if (!Object.keys(r.values || {}).length) missed.add(it.id); else missed.delete(it.id);
-      if (r.errors && r.errors.all && /upload:(4\d\d|0)/.test(r.errors.all) && !Object.keys(R).some(k => Object.keys(R[k]).length)) { note = 'Meesho refused the upload. Upload your photo in Meesho again (the session may have ended), then tap Check all.'; break; }
-      await saveState();
-      draw();
-    }
+    let ok = await pass(Q.items, cp);
+    // versions with no answer get one more try, after a short wait
+    if (ok && !stop && missed.size) { note = `Trying ${missed.size} again…`; draw(); await new Promise(r => setTimeout(r, 3000)); note = ''; ok = await pass(Q.items.filter(it => missed.has(it.id)), cp); }
     mode = 'idle'; current = -1;
     await saveState();
     if (!note) note = stop ? 'Stopped.' : missed.size ? `${missed.size} version${missed.size > 1 ? 's' : ''} got no answer from Meesho. Tap Check all to try them again.` : 'All checked. The shipping is in PakkaBill too.';
@@ -341,6 +358,9 @@
       return;
     }
     const running = mode === 'running', cp = catPlan(), onScreen = shownShip();
+    const own = Q && Q.items.find(it => /\|orig$/.test(it.id)), ownV = own ? Math.min(...Object.values(R[own.id] || {}), Infinity) : Infinity;
+    const lowOf = it => Math.min(...Object.values(R[it.id] || {}), Infinity);
+    const list = Q ? (running ? Q.items : [...Q.items].sort((a, b) => lowOf(a) - lowOf(b))) : [];
     const best = cheapest(), done = Q ? Q.items.filter(it => cp.list.every(c => R[it.id] && R[it.id][c.key] != null)).length : 0;
     const learned = hook.learned;
     const status = learned ? `<span class="ok">✓ Learned: Meesho priced your photo at ₹${esc(hook.ship)}</span>${hook.confirmed ? ' <span class="muted">· same as this page shows</span>' : ' <span class="muted">(read from Meesho\'s answer)</span>'}`
@@ -349,7 +369,7 @@
       : '<span class="wait">Waiting for you to upload a photo and for Meesho to show the shipping.</span>';
     root.innerHTML = `<style>${STYLE}</style><div class="card">
       <div class="hd"><b>PakkaBill · Shipping check</b><button title="Hide" data-min>–</button></div>
-      ${!Q ? `<div class="sec"><p style="margin:0 0 8px">On PakkaBill's <b>Low shipping image</b> page, choose categories, add your photo and tap <b>Check in Meesho</b>. The versions appear here.</p><a class="btn pri" href="${PB}" target="_blank" rel="noopener">Open PakkaBill</a></div>` : `
+      ${!Q ? `<div class="sec"><p style="margin:0 0 8px">On PakkaBill's <b>Low shipping image</b> page, choose categories, add your photo and tap <b>Check in Meesho</b>. The versions appear here.</p><a class="btn pri" href="${pbLink()}" target="_blank" rel="noopener">Open PakkaBill</a></div>` : `
       <div class="sec">
         <div class="muted">${Q.items.length} versions from PakkaBill</div>
         <div class="step${learned ? ' done' : ''}"><i>${learned ? '✓' : '1'}</i><div>Open <b>Catalog Upload → Add Single Catalog</b>, pick a category and upload <b>your photo</b>. Fill price and weight if Meesho asks, until it shows the shipping charge.<div style="margin-top:3px">${status}</div></div></div>
@@ -360,14 +380,14 @@
         <div class="acts">${running ? `<button class="btn" data-stop>Stop</button><span class="muted">${current >= 0 ? `${current + 1} of ${Q.items.length} · ` : ''}asking Meesho…</span>`
           : `<button class="btn pri" data-check${learned ? '' : ' disabled'}>${done ? (done < Q.items.length ? `Check the other ${Q.items.length - done}` : 'Check all again') : `Check all ${Q.items.length}`}</button>`}</div>
         ${note ? `<div class="note">${note}</div>` : ''}
-        ${best && !running ? `<div class="win">Cheapest: <b>${rs(best.v)}</b> · ${esc(best.it.label)}<div class="acts"><button class="btn pri sm" data-use>Put it in Meesho's photo box</button></div></div>` : ''}
+        ${best && !running ? `<div class="win">Cheapest: <b>${rs(best.v)}</b> · ${esc(best.it.label)}${ownV < Infinity && ownV > best.v ? ` <span class="ok">· saves ${rs(ownV - best.v)} on every order against your photo</span>` : ''}<div class="acts"><button class="btn pri sm" data-use>Put it in Meesho's photo box</button></div></div>` : ''}
         <details><summary>Not working? Other ways</summary>
           <div class="acts"><button class="btn sm" data-screen${running ? ' disabled' : ''}>Read from Meesho's screen (slower)</button><button class="btn sm" data-report>Copy a report for support</button></div>
           <div class="row"><span class="muted">Photo box ${findInput() ? '<span class="ok">✓</span>' : '<span class="no">✗</span>'} · Shipping on screen ${onScreen != null ? `<span class="ok">₹${esc(onScreen)}</span>` : '<span class="no">✗</span>'}</span><span><button class="link" data-point="input">Point to box</button> · <button class="link" data-point="ship">Point to ₹</button></span></div>
           <p class="muted" style="margin:6px 0 0">The report shows the shape of Meesho's requests (names only, no values, no login details).</p></details>
       </div>
-      <div class="sec"><ul>${Q.items.map((it, i) => { const r = R[it.id] || {}; const vals = cp.list.map(c => r[c.key]); const isBest = best && best.it.id === it.id; return `<li class="${isBest ? 'best' : ''}${running && i === current ? ' now' : ''}"><img src="${it.data}" alt=""><span title="${esc(it.label)}">${esc(it.label)}</span><b>${vals.some(v => v != null) ? vals.map(v => (v == null ? '–' : rs(v))).join(' · ') : running && i === current ? '…' : missed.has(it.id) ? '✗' : ''}</b></li>`; }).join('')}</ul></div>
-      <div class="sec acts"><a class="btn sm" href="${PB}" target="_blank" rel="noopener">Open PakkaBill</a><button class="btn sm" data-clear${running ? ' disabled' : ''}>Clear</button></div>`}
+      <div class="sec"><ul>${list.map((it) => { const i = Q.items.indexOf(it); const r = R[it.id] || {}; const vals = cp.list.map(c => r[c.key]); const isBest = best && best.it.id === it.id; return `<li class="${isBest ? 'best' : ''}${running && i === current ? ' now' : ''}"><img src="${it.data}" alt=""><span title="${esc(it.label)}">${esc(it.label)}</span><b>${vals.some(v => v != null) ? vals.map(v => (v == null ? '–' : rs(v))).join(' · ') : running && i === current ? '…' : missed.has(it.id) ? '✗' : ''}</b></li>`; }).join('')}</ul></div>
+      <div class="sec acts"><a class="btn sm" href="${pbLink()}" target="_blank" rel="noopener">Open PakkaBill</a><button class="btn sm" data-clear${running ? ' disabled' : ''}>Clear</button></div>`}
     </div><div class="hl"></div>`;
     const on = (sel, fn) => { const b = root.querySelector(sel); if (b) b.onclick = fn; };
     on('[data-min]', () => { open = false; draw(); });
@@ -400,6 +420,7 @@
     if (!Q && !shown) open = false; // nothing to check: a small button, not the whole panel
     shown = true;
     draw();
+    autoStart();
   }
   chrome.storage.onChanged.addListener((ch, area) => {
     if (area !== 'local' || mode === 'running') return;

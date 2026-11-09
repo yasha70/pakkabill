@@ -1,4 +1,4 @@
-PakkaBill Lens - Meesho insights, auto listing and shipping check (Chrome extension, version 3.4)
+PakkaBill Lens - Meesho insights, auto listing and shipping check (Chrome extension, version 3.5)
 
 Works in Chrome or Edge on a laptop or desktop. On a phone, use the Lens bookmark
 from PakkaBill's Meesho Lens page instead (phone Chrome can't run extensions).
@@ -38,7 +38,7 @@ SHIPPING CHECK (LOW SHIPPING IMAGE) - EXACT SHIPPING FROM MEESHO
    shows a shipping charge.
 3. The PakkaBill panel (bottom left) says "Learned: Meesho priced your photo at Rs X". It
    learnt how Meesho's own page asks for the shipping price (from your upload, in your tab).
-4. Tap "Check all". First your own photo is sent again; it must come back at the same Rs X,
+4. The check starts by itself (or tap "Check all"). First your own photo is sent again; it must come back at the same Rs X,
    or nothing else is checked. Then each version is sent to Meesho the same way, once per
    category, and the shipping is read from Meesho's own answer, so it is the exact number
    Meesho would show. Results appear in PakkaBill live: shipping rate per category on every
@@ -47,6 +47,10 @@ SHIPPING CHECK (LOW SHIPPING IMAGE) - EXACT SHIPPING FROM MEESHO
    Meesho's screen" puts each version in the photo box and reads the charge shown, and
    "Copy a report for support" copies only the shape of the requests (no photos, no tokens,
    no cookies) to send to PakkaBill support.
+Versions with no answer are tried once more. If Meesho says you are logged out, the check
+stops: log in, upload your photo again and tap Check all.
+No extension (phone): PakkaBill's Image tab also has a "PB Shipping" bookmark that does the same
+check inside your Meesho tab and sends the prices back to PakkaBill.
 It works only in the Meesho tab you have open, in your own account, with your own login.
 It never submits a catalogue and never saves or sends your login anywhere.
 

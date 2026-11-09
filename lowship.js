@@ -704,6 +704,11 @@
     'Makeup', 'Skin Care', 'Hair Care', 'Phone Cases', 'Mobile Accessories', 'Toys', 'Stationery', 'Fitness'];
   const MAX_CATS = 5;
   const NEED = '3.0.0'; // PakkaBill Lens with Meesho's exact shipping
+  const MEESHO = 'https://supplier.meesho.com';
+  // Meesho's real shipping can come in: the PakkaBill Lens extension (3+) or the shipping bookmark
+  // tapped in a Meesho tab that is talking to this one.
+  const extOn = () => !!(S.ext && !verLess(S.ext, NEED));
+  const lensOn = () => extOn() || !!S.bm;
   const verLess = (a, b) => { const x = String(a || '0').split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) < y[i]) return true; if ((x[i] || 0) > y[i]) return false; } return false; };
 
   /* ---------- page */
@@ -815,6 +820,7 @@
     shape: 'photo', level: lsGet('pb-lowship-level', 'normal'), strength: 'normal', look: lsGet('pb-lowship-look', 'smart'),
     cats: lsGet('pb-lowship-cats', []), mcats: lsGet('pb-ship-mcats', []), names: {}, sort: 'cheap', q: '',
     pending: [], photos: [], busy: 0, made: 0, total: 0, ext: null, sent: 0, live: null, lens: null, started: 0,
+    bm: null, bmWin: null, mark: null, bmHelp: false,
   };
 
   function addPending(files) {
@@ -846,7 +852,7 @@
       draw();
     }
     // with PakkaBill Lens 3, the versions go straight to the Meesho check
-    if (S.ext && !verLess(S.ext, NEED) && S.photos.length) sendToLens(true);
+    if (lensOn() && S.photos.length) sendToLens(true);
     setTimeout(() => el && el.querySelector('[data-results]') && el.querySelector('[data-results]').scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
   }
 
@@ -902,7 +908,7 @@
     S.busy = 0;
     draw();
     toast(`${list.length} new versions made around "${keyLabel(best.key)}".`);
-    if (S.ext && !verLess(S.ext, NEED)) sendToLens(true, (p, o) => p === ph && (!before.has(o.key) || o.key === 'orig'));
+    if (lensOn()) sendToLens(true, (p, o) => p === ph && (!before.has(o.key) || o.key === 'orig'));
   }
 
   const fileName = (ph, key) => `${ph.name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'photo'}-meesho-${key}.jpg`;
@@ -936,7 +942,7 @@
     const order = catOrder();
     const r = ph.ship[o.key] || {};
     const rows = order.map((k) => `<div class="pls-rate${all[k] && r[k] === all[k].low ? ' is-low' : ''}"><span title="${esc(catName(k))}">${esc(catName(k))}</span>${r[k] != null ? `<b>${rs(r[k])}</b>` : '<b class="pls-dash">–</b>'}</div>`).join('');
-    const typing = !S.ext || verLess(S.ext, NEED) || order.includes('typed');
+    const typing = !lensOn() || order.includes('typed');
     return `<div class="pls-ship"><span class="pls-ship__h">Shipping rate</span>${rows || (typing ? '' : '<div class="pls-rate"><span>Not checked yet</span><b class="pls-dash">–</b></div>')}
       ${typing ? `<label class="pls-v__ship"><span>₹</span><input type="number" inputmode="numeric" min="0" max="5000" step="1" placeholder="Type Meesho's shipping" value="${esc(r.typed || '')}" data-key="${esc(o.key)}" aria-label="Shipping Meesho shows for ${esc(o.label)}"></label>` : ''}</div>`;
   }
@@ -1005,7 +1011,7 @@
   /* ---------- progress, like a queue: made, checked in Meesho, ready */
   function progressHtml() {
     const versions = S.photos.reduce((a, ph) => a + ph.out.length, 0);
-    const lens = S.ext && !verLess(S.ext, NEED);
+    const lens = lensOn();
     if (!S.busy && !S.sent) return '';
     const done = S.photos.reduce((a, ph) => a + ph.out.filter((o) => Object.keys(ph.ship[o.key] || {}).some((k) => k !== 'typed')).length, 0);
     const making = S.busy > 0, checking = !making && S.sent && done < versions, ready = !making && (!S.sent || done >= versions);
@@ -1021,12 +1027,32 @@
     </section>`;
   }
 
-  // The live check in Meesho runs in the PakkaBill Lens extension (laptop Chrome or Edge).
+  // Without the extension: the shipping bookmark, tapped in a Meesho tab opened from here.
+  function bookmarkHtml(first) {
+    const n = S.photos.reduce((a, ph) => a + ph.out.length, 0);
+    const on = !!S.bm, learned = S.lens && S.lens.learned;
+    return `<section class="paper pls-card pls-auto"><h2>${on ? '✓ Meesho tab connected' : first ? 'Get Meesho\'s real shipping, no extension needed' : 'No extension? Use the shipping bookmark'}</h2>
+      <p class="pls-note" style="margin-top:0">Works on a phone or laptop, in Chrome. A bookmark runs PakkaBill's check inside your own Meesho tab: Meesho prices every version with your own login, and the shipping shows here under each image. Nothing is installed, and your Meesho login stays in Meesho.</p>
+      <ol class="pls-tips" style="list-style:decimal">
+        <li><b>Once:</b> save the bookmark. Laptop: drag <a class="pls-btn pls-btn--ghost pls-btn--sm" data-mark href="#" title="Drag me to your bookmarks bar">⤓ PB Shipping</a> to the bookmarks bar. Phone: <button type="button" class="pls-btn pls-btn--ghost pls-btn--sm" data-copymark>Copy the bookmark</button>, bookmark any page (⋮ then ☆), edit it, name it <b>pbship</b> and paste over the address. <button type="button" class="pls-link" data-markhelp>${S.bmHelp ? 'Hide help' : 'Help'}</button></li>
+        ${S.bmHelp ? '<li style="list-style:none"><textarea class="pls-search" rows="3" readonly data-marktext aria-label="Bookmark address" style="font-size:11px"></textarea><span class="pls-note">If copying does not work, select all of this and copy it.</span></li>' : ''}
+        <li><button type="button" class="pls-btn pls-btn--sm" data-openmeesho>Open Meesho</button> In that tab go to Catalog Upload → <b>Add Single Catalog</b> and tap the bookmark (phone: type <b>pbship</b> in the address bar and tap the bookmark). ${on ? '<span class="pls-ok">✓ Connected</span>' : ''}</li>
+        <li>Pick a category and upload <b>your own photo</b> once until Meesho shows the shipping. ${learned ? `<span class="pls-ok">✓ Meesho priced your photo at ₹${esc(S.lens.ship)}</span>` : ''} PakkaBill then checks it and prices all ${n} versions by itself.</li>
+      </ol></section>`;
+  }
+  async function loadMark() {
+    if (S.mark) return S.mark;
+    if (!window.PB_SHIPMARK) await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = '/shipmark.js'; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); });
+    S.mark = 'javascript:' + encodeURIComponent('(function(){' + window.PB_SHIPMARK.replace(/__PB_ORIGIN__/g, location.origin) + '})()');
+    return S.mark;
+  }
+
+  // The live check in Meesho runs in the PakkaBill Lens extension (laptop Chrome or Edge), or the bookmark.
   function checkHtml() {
     if (!S.photos.length) return '';
     const n = S.photos.reduce((a, ph) => a + ph.out.length, 0);
-    if (!S.ext) return `<section class="paper pls-card pls-auto"><h2>Get Meesho's real shipping for every version</h2>
-      <p class="pls-note" style="margin-top:0">On a laptop, the free <b>PakkaBill Lens</b> extension (Chrome or Edge) asks Meesho for the shipping of every version, in every category you chose, from your own Meesho supplier account. The numbers are Meesho's own, read from Meesho's answer. On a phone, upload a version in Meesho and type the shipping under it.</p>
+    if (!S.ext) return bookmarkHtml(true) + `<section class="paper pls-card"><h2>Laptop: PakkaBill Lens extension</h2>
+      <p class="pls-note" style="margin-top:0">On a laptop, the free <b>PakkaBill Lens</b> extension (Chrome or Edge) does the same check with a panel inside Meesho, and also fills Meesho's catalogue form. Or type the shipping Meesho shows under any version.</p>
       <p><a class="pls-btn pls-btn--ghost" href="/pakkabill-lens.zip" download>⬇ Get PakkaBill Lens</a> <a class="pls-link" href="#/lens">How to install</a></p></section>`;
     if (verLess(S.ext, NEED)) return `<section class="paper pls-card pls-auto"><h2>Update PakkaBill Lens for exact shipping</h2>
       <p class="pls-note" style="margin-top:0">Your PakkaBill Lens is version ${esc(S.ext)}. Version ${NEED} gets the shipping straight from Meesho's answer, for up to 5 categories at once, and checks it against your own photo first.</p>
@@ -1130,11 +1156,14 @@
   async function sendToLens(auto, only) {
     const items = [];
     for (const ph of S.photos) for (const o of ph.out) if (!only || only(ph, o)) items.push({ id: `${ph.id}|${o.key}`, label: `${ph.name} · ${o.label}`, name: fileName(ph, o.key), data: await asDataUrl(o.blob) });
-    window.postMessage({ type: 'pb-ship-queue', gen: S.photos[0] ? S.photos[0].id : '', cats: S.cats.map((c) => ({ name: c.name, id: c.id || null })), items }, location.origin);
+    const cats = S.cats.map((c) => ({ name: c.name, id: c.id || null }));
+    if (extOn()) window.postMessage({ type: 'pb-ship-queue', gen: S.photos[0] ? S.photos[0].id : '', cats, items }, location.origin);
+    if (S.bm && !S.bm.closed) S.bm.postMessage({ pbsb: 1, type: 'queue', cats, items }, MEESHO);
     S.sent = items.length;
     S.live = { current: null };
     if (!S.started) S.started = Date.now();
     draw();
+    if (!extOn()) return toast(`Sent ${items.length} versions to your Meesho tab. Upload your own photo once there; the shipping shows here under each image.`);
     toast(auto ? `Sent ${items.length} versions to PakkaBill Lens. In Meesho's Add Single Catalog, upload your photo once, then tap Check all in the PakkaBill panel.` : `Sent ${items.length} versions. Open Meesho's catalogue upload in this browser and tap Check all in the PakkaBill panel.`);
   }
 
@@ -1189,8 +1218,19 @@
       draw();
       for (const ph of S.photos) { ph.ship = {}; ph.live = {}; await build(ph); S.busy--; }
       draw();
-      if (S.ext && !verLess(S.ext, NEED)) sendToLens(true);
+      if (lensOn()) sendToLens(true);
     }));
+    const mark = el.querySelector('[data-mark]');
+    if (mark) {
+      loadMark().then((h) => { mark.href = h; const t = el.querySelector('[data-marktext]'); if (t) t.value = h; }).catch(() => {});
+      mark.addEventListener('click', (e) => { e.preventDefault(); toast('Drag "PB Shipping" to your bookmarks bar, then tap it on Meesho\'s Add Single Catalog page.'); });
+    }
+    el.querySelector('[data-copymark]')?.addEventListener('click', async (e) => {
+      const b = e.currentTarget;
+      try { await navigator.clipboard.writeText(await loadMark()); b.textContent = 'Copied ✓'; toast('Copied. Now bookmark any page, edit it, name it pbship and paste over the address.'); } catch { S.bmHelp = true; draw(); }
+    });
+    el.querySelector('[data-markhelp]')?.addEventListener('click', () => { S.bmHelp = !S.bmHelp; draw(); });
+    el.querySelector('[data-openmeesho]')?.addEventListener('click', () => { S.bmWin = window.open(MEESHO + '/', 'pb-meesho'); if (!S.bmWin) toast('Your browser blocked the new tab. Open supplier.meesho.com yourself.', true); });
     el.querySelector('[data-send]')?.addEventListener('click', (e) => { e.currentTarget.disabled = true; sendToLens(false); });
     el.querySelectorAll('[data-sort]').forEach((b) => b.addEventListener('click', () => { S.sort = b.dataset.sort; draw(); }));
     el.querySelector('[data-more]')?.addEventListener('click', () => { el.querySelector('.pls-gen').scrollIntoView({ behavior: 'smooth' }); el.querySelector('[data-files]').click(); });
@@ -1264,7 +1304,12 @@
       } else if (m.type === 'pb-ship-cats') {
         setCats(m.cats);
         if (el && !S.open) { const box = el.querySelector('[data-cats]'); if (box) { box.innerHTML = catsHtml(); wireCats(); } }
-      } else if (m.type === 'pb-ship-results' && m.results && typeof m.results === 'object') {
+      } else if (m.type === 'pb-ship-results') applyResults(m);
+    });
+    // Meesho's real shipping from the results of either way in: { results: { id: { category: rupees } }, cats, current, lens }
+    function applyResults(m) {
+      if (!m.results || typeof m.results !== 'object') return;
+      {
         if (m.cats && typeof m.cats === 'object') Object.entries(m.cats).forEach(([k, v]) => { if (/^[\w-]{1,20}$/.test(k) && typeof v === 'string') S.names[k] = v.slice(0, 80); });
         if (m.lens) S.lens = m.lens;
         for (const [id, val] of Object.entries(m.results)) {
@@ -1278,6 +1323,19 @@
         S.live = { current: typeof m.current === 'string' ? m.current : null };
         refresh();
       }
+    }
+    // The shipping bookmark, in a Meesho tab: it says hello, gets the versions, sends the shipping back.
+    window.addEventListener('message', (e) => {
+      const m = e.data;
+      if (e.origin !== MEESHO || !m || typeof m !== 'object' || m.pbsb !== 1 || !e.source) return;
+      const fresh = S.bm !== e.source;
+      S.bm = e.source;
+      if (m.type === 'hello') {
+        if (fresh && el) draw();
+        if (S.photos.length) sendToLens(true); else S.bm.postMessage({ pbsb: 1, type: 'ping' }, MEESHO);
+      } else if (m.type === 'state') { if (m.lens && typeof m.lens === 'object') S.lens = m.lens; refresh(); }
+      else if (m.type === 'cats') { setCats(m.cats); if (el && !S.open) { const box = el.querySelector('[data-cats]'); if (box) { box.innerHTML = catsHtml(); wireCats(); } } }
+      else if (m.type === 'results') applyResults(m);
     });
   }
 

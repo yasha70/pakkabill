@@ -19,6 +19,22 @@ process.stdin.on('data', d => src += d).on('end', () => {
     env={**os.environ, 'NODE_PATH': subprocess.run(['npm', 'root', '-g'], capture_output=True, text=True).stdout.strip()}).stdout
 assert 'PBLensCore' in bm and '\n' not in bm and 'module' not in bm
 
+# The shipping bookmark (no extension): shipcore.js, shiphook.js and shipbm.js in one, comments stripped,
+# kept in ../shipmark.js; PakkaBill's Image tab turns it into a bookmark address for its own site.
+def flat(src):
+    return subprocess.run(['node', '-e', '''
+const ts = require('typescript'); let src = '';
+process.stdin.on('data', d => src += d).on('end', () => {
+  const out = ts.transpileModule(src, { compilerOptions: { removeComments: true, target: ts.ScriptTarget.ES2018 } }).outputText;
+  process.stdout.write(out.split('\\n').map(s => s.trim()).filter(Boolean).join(' '));
+});'''], input=src, capture_output=True, text=True, check=True,
+        env={**os.environ, 'NODE_PATH': subprocess.run(['npm', 'root', '-g'], capture_output=True, text=True).stdout.strip()}).stdout
+ship = flat(read('shipcore.js') + '\nwindow.PBShipSync = PBShipSync;\n' + read('shiphook.js') + '\n' + read('shipbm.js'))
+assert '\n' not in ship and '__PB_ORIGIN__' in ship and 'PBShipSync' in ship
+open(os.path.join(ROOT, 'shipmark.js'), 'w', encoding='utf-8').write(
+    '// PakkaBill shipping bookmark code. Built by lens/build.py from lens/shipcore.js, shiphook.js and shipbm.js; edit those.\n'
+    'window.PB_SHIPMARK = ' + json.dumps(ship, ensure_ascii=False) + ';\n')
+
 js = ('// PakkaBill: Meesho Lens page. Built by lens/build.py from lens/core.js and lens/page.js; edit those.\n'
       '(function () {\n' + core + '\nvar PBL_BM_CORE = ' + json.dumps(bm, ensure_ascii=False) + ';\n' + page + '\n})();\n')
 open(os.path.join(ROOT, 'lens.js'), 'w', encoding='utf-8').write(js)
@@ -29,4 +45,4 @@ with zipfile.ZipFile(os.path.join(ROOT, 'pakkabill-lens.zip'), 'w', zipfile.ZIP_
         info = zipfile.ZipInfo('pakkabill-lens/' + f, date_time=(2026, 1, 1, 0, 0, 0))
         info.compress_type = zipfile.ZIP_DEFLATED
         z.writestr(info, read(f))
-print('lens.js', len(js), 'bytes; bookmark core', len(bm), 'bytes; zip', os.path.getsize(os.path.join(ROOT, 'pakkabill-lens.zip')), 'bytes')
+print('lens.js', len(js), 'bytes; bookmark core', len(bm), 'bytes; shipping bookmark', len(ship), 'bytes; zip', os.path.getsize(os.path.join(ROOT, 'pakkabill-lens.zip')), 'bytes')

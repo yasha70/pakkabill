@@ -23,7 +23,7 @@
       const cats = (Array.isArray(m.cats) ? m.cats : []).filter(c => c && typeof c.name === 'string' && c.name.trim()).slice(0, 5)
         .map(c => ({ name: c.name.trim().slice(0, 80), id: /^\d{1,12}$/.test(String(c.id || '')) ? String(c.id) : null }));
       const at = Date.now();
-      chrome.storage.local.set({ shipq: { at, gen: String(m.gen || '').slice(0, 40), cats, items }, shipres: { at, results: {}, cats: {} } });
+      chrome.storage.local.set({ shipq: { at, from: ORIGIN, gen: String(m.gen || '').slice(0, 40), cats, items }, shipres: { at, results: {}, cats: {} } });
     }
   });
   // auto listing: PakkaBill sends templates and products; list.js fills Meesho's form and reports back
