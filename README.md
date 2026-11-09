@@ -62,7 +62,10 @@ bar so bills stay one tap away on a phone. The logo opens the P&L.
   state by state; a cleaned copy fixes only safe things (zero lines, overlapping document ranges,
   document type names), never an amount. Tests: `node test/gstr1-audit.js`.
 - GSTR-1 steps (`gstr1view.js`, on the GSTR-1 page), laid out like the marketplace GST tools (GST Tool):
-  GST Profile, Import Data, Statement (each platform and month: sales, returns, net, IGST/SGST/CGST,
+  GST Profile, Import Data (a card for each platform: Meesho, Amazon, Amazon B2B, Flipkart and the GST
+  portal TCS file; each opens its own upload window that says which files and how many are needed for the
+  month or quarter, where to download them, which months each file covers, and shows Uploaded when done),
+  Statement (each platform and month: sales, returns, net, IGST/SGST/CGST,
   invoice value, B2B/B2C/CDNR/nil/HSN split, the rows behind them and a CSV), TCS Report (your reports
   against the operators' GSTR-8 by operator, month and state: gross, returns, net, difference, TCS and
   0.5% due; operators matched by PAN, B2B through the operator counted, ₹1 tolerance; switch to use the

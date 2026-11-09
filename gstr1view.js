@@ -275,7 +275,58 @@
     return X.xlsx ? X.xlsx(sheets) : null;
   }
 
-  root.PBG1V = { statement, tcsReport, b2clCandidates, summary, returnTotals, bridge, trimJson, offlineWorkbook, opName, monthName, tcsRate, r2 };
+  // The platforms on Import Data, with the files each one needs for every month of the return.
+  const PLATFORMS = [
+    { key: 'meesho', name: 'Meesho', type: 'B2C', color: '#e91e63', mono: 'm', perMonth: true,
+      where: 'Meesho Supplier Panel → Payments → GST Report. Pick the month and download. The .zip can be added as it is.',
+      files: [{ id: 'sales', label: 'TCS Sales', file: 'tcs_sales.xlsx', what: 'Every order shipped in the month' },
+        { id: 'returns', label: 'TCS Sales Return', file: 'tcs_sales_return.xlsx', what: 'Every return and RTO received in the month' },
+        { id: 'invoices', label: 'Tax Invoice Details', file: 'Tax_invoice_details.xlsx', what: 'Invoice and credit note numbers, for Table 13' }] },
+    { key: 'amazon', name: 'Amazon', type: 'B2C', color: '#ff9900', mono: 'a', perMonth: true,
+      where: 'Amazon Seller Central → Reports → Tax Document Library → Merchant Tax Report (MTR), B2C. Pick the month, generate and download.',
+      files: [{ id: 'main', label: 'MTR B2C report', file: 'MTR_B2C-MONTH-YEAR.csv (or the .zip)', what: 'Shipments, refunds and cancellations to buyers without a GSTIN' }] },
+    { key: 'amazonb2b', name: 'Amazon B2B', type: 'B2B', color: '#232f3e', mono: 'a', perMonth: true, optional: true,
+      where: 'Amazon Seller Central → Reports → Tax Document Library → Merchant Tax Report (MTR), B2B. Only if you sold to buyers with a GSTIN.',
+      files: [{ id: 'main', label: 'MTR B2B report', file: 'MTR_B2B-MONTH-YEAR.csv (or the .zip)', what: 'Invoices and credit notes to registered buyers (Tables 4 and 9B)' }] },
+    { key: 'flipkart', name: 'Flipkart', type: 'B2C Sales Report', color: '#2874f0', mono: 'f', perMonth: true,
+      where: 'Flipkart Seller Hub → Reports → Tax reports → Sales Report (GST). Pick the month and download. Its cash-back sheet is read too.',
+      files: [{ id: 'main', label: 'Sales Report', file: 'Sales Report .xlsx', what: 'Sales, returns and cash-back notes, with HSN and invoice numbers' }] },
+    { key: 'portal', name: 'GST Portal TCS', type: 'GSTR-8 TCS', color: '#1e3a8a', mono: 'GST', perMonth: true, optional: true,
+      where: 'gst.gov.in → Returns Dashboard → pick the month → TDS and TCS Credit Received → download. Used only for the TCS Report.',
+      files: [{ id: 'main', label: 'TCS credit received', file: 'the .zip or .xlsx from the portal', what: 'What Meesho, Amazon and Flipkart reported in GSTR-8' }] },
+  ];
+  const platformOf = (f) => {
+    if (!f) return '';
+    if (f.kind === 'portaltcs') return 'portal';
+    if (f.source === 'amazon') return (f.tcs || []).some((r) => r.buyerGstin) ? 'amazonb2b' : 'amazon';
+    return f.source || '';
+  };
+  const slotOf = (f) => (f.source === 'meesho' && f.kind !== 'portaltcs' ? f.kind : 'main');
+  const monthsOf = (f) => {
+    const m = new Set();
+    (f.tcs || []).forEach((r) => r.period && m.add(r.period));
+    (f.docs || []).forEach((d) => d.date && m.add(d.date.slice(0, 7)));
+    (f.portal || []).forEach((r) => r.period && m.add(r.period));
+    (f.cancelled || []).forEach((r) => r.period && m.add(r.period));
+    if (!m.size && f.period) m.add(f.period);
+    return [...m];
+  };
+  // For each platform: the files added, and for every required file which return months are covered.
+  function coverage(files, months) {
+    const M = months || [];
+    return PLATFORMS.map((p) => {
+      const mine = (files || []).filter((f) => platformOf(f) === p.key);
+      const slots = p.files.map((sl) => {
+        const fs = mine.filter((f) => slotOf(f) === sl.id), got = new Set(fs.flatMap(monthsOf));
+        return { ...sl, files: fs, months: M.map((m) => ({ m, ok: got.has(m) })), done: M.length > 0 && M.every((m) => got.has(m)) };
+      });
+      const need = p.files.length * Math.max(1, M.length), have = slots.reduce((a, sl) => a + sl.months.filter((x) => x.ok).length, 0);
+      const status = !mine.length ? 'empty' : slots.every((sl) => sl.done) ? 'done' : 'partial';
+      return { ...p, added: mine, slots, need, have, status };
+    });
+  }
+
+  root.PBG1V = { coverage, PLATFORMS, platformOf, statement, tcsReport, b2clCandidates, summary, returnTotals, bridge, trimJson, offlineWorkbook, opName, monthName, tcsRate, r2 };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.PBG1V;
   if (typeof document === 'undefined') return;
 
@@ -293,14 +344,60 @@
 
   const STEPS = [['profile', 'GST Profile'], ['import', 'Import Data'], ['statement', 'Statement'], ['tcs', 'TCS Report'], ['gstr1', 'GSTR1 Report']];
   const STYLE = `
+.g1v-search{display:flex;max-width:520px;margin:0 auto 18px;border:1px solid var(--rule);border-radius:10px;background:var(--paper);overflow:hidden}
+.g1v-search input{flex:1;min-width:0;border:0;padding:12px 14px;font:inherit;background:transparent;color:var(--ink)}
+.g1v-search span{display:grid;place-items:center;width:46px;background:#2563eb;color:#fff;font-weight:700}
+.g1v-plats{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px}
+.g1v-plat{border:1px solid var(--rule-soft);border-radius:12px;background:var(--paper);box-shadow:0 2px 6px rgba(15,23,42,.08);padding:18px 14px 16px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;font:inherit;color:var(--ink)}
+.g1v-plat:hover{box-shadow:0 6px 16px rgba(15,23,42,.14)}
+.g1v-logo{width:64px;height:64px;border-radius:14px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:30px;margin-bottom:6px;font-family:Georgia,serif}
+.g1v-logo.sm{font-size:17px;font-family:inherit}
+.g1v-plat b{font-size:17px}.g1v-plat>small{color:var(--ink-2);font-size:13px}
+.g1v-plat .need{font-size:12.5px;color:var(--ink-2);margin:4px 0 8px}
+.g1v-btn{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:9px 18px;font:600 13px/1 inherit;letter-spacing:.03em;text-transform:uppercase;border:0;background:var(--desk);color:var(--ink);margin-top:auto}
+.g1v-btn.done{background:#14b8a6;color:#fff}.g1v-btn.part{background:#f59e0b;color:#fff}
+.g1v-guide{border:1px solid var(--rule-soft);border-radius:10px;padding:12px 14px;margin:0 0 18px;font-size:14px;line-height:1.55;background:var(--desk)}
+.g1v-guide b{font-weight:700}
+.g1v-guide ul{margin:6px 0 0;padding-left:18px}
+.g1v-ov{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1000;display:grid;place-items:center;padding:16px}
+.g1v-dlg{background:var(--paper);color:var(--ink);border-radius:14px;width:min(640px,100%);max-height:calc(100vh - 32px);overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+.g1v-dlg>.hd{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--rule-soft);position:sticky;top:0;background:var(--paper)}
+.g1v-dlg>.hd .g1v-logo{width:44px;height:44px;font-size:22px;margin:0;border-radius:10px}
+.g1v-dlg>.hd .g1v-logo.sm{font-size:13px}
+.g1v-dlg>.hd b{font-size:18px;display:block}.g1v-dlg>.hd small{color:var(--ink-2)}
+.g1v-dlg>.hd button{margin-left:auto;border:0;background:none;font-size:26px;line-height:1;cursor:pointer;color:var(--ink-2);padding:4px 8px}
+.g1v-dlg .bd{padding:14px 18px 18px}
+.g1v-count{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;background:color-mix(in srgb,#2563eb 8%,var(--paper));border:1px solid color-mix(in srgb,#2563eb 30%,transparent);border-radius:10px;padding:10px 12px;font-size:14px;margin:0 0 12px}
+.g1v-count b{font-size:15px}
+.g1v-slot{border:1px solid var(--rule-soft);border-radius:10px;padding:10px 12px;margin:0 0 10px}
+.g1v-slot .t{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.g1v-slot .t b{font-size:15px}
+.g1v-slot .t code{font-size:12.5px;background:var(--desk);border-radius:6px;padding:2px 6px;color:var(--ink-2)}
+.g1v-slot>small{display:block;color:var(--ink-2);font-size:13px;margin-top:2px}
+.g1v-mchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.g1v-mchip{font-size:12.5px;font-weight:600;border-radius:999px;padding:3px 10px;border:1px solid var(--rule)}
+.g1v-mchip.ok{background:var(--green-soft);color:var(--green);border-color:transparent}
+.g1v-mchip.no{color:var(--red);border-color:color-mix(in srgb,var(--red) 40%,transparent)}
+.g1v-flist{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+.g1v-flist li{display:flex;align-items:center;gap:8px;font-size:13.5px;background:var(--desk);border-radius:8px;padding:6px 8px;min-width:0}
+.g1v-flist li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.g1v-flist li small{color:var(--ink-2);white-space:nowrap}
+.g1v-flist li button{border:0;background:none;color:var(--red);font-size:18px;cursor:pointer;line-height:1;padding:0 4px}
+.g1v-drop{display:flex;flex-direction:column;align-items:center;gap:4px;border:2px dashed var(--rule);border-radius:12px;padding:18px;text-align:center;cursor:pointer;margin:6px 0 12px;background:var(--desk)}
+.g1v-drop.over,.g1v-drop:hover{border-color:#2563eb}
+.g1v-drop b{font-size:15px;color:#1d4ed8}.g1v-drop small{color:var(--ink-2);font-size:13px}
+.g1v-drop input{position:absolute;width:1px;height:1px;opacity:0}
+.g1v-where{font-size:13.5px;color:var(--ink-2);line-height:1.5;margin:0 0 12px}
+.g1v-dlg .ft{display:flex;justify-content:flex-end;gap:10px;padding:0 18px 18px}
+.g1v-dlg .ft button{border-radius:8px;padding:11px 20px;font:600 15px/1 inherit;cursor:pointer;border:0;background:#2563eb;color:#fff}
 .g1v-top:empty,.g1v-foot:empty{display:none}
 .g1v-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;background:#22315c;color:#fff;border-radius:14px;padding:16px 18px;margin:0 0 14px}
 .g1v-bar h2{margin:0;font-size:20px;font-weight:700;color:#fff;letter-spacing:-.01em}
 .g1v-bar small{display:block;color:#c7d2fe;font-size:13px;margin-top:2px}
 .g1v-badge{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:10px;padding:8px 12px;font-size:13px;line-height:1.5;font-variant-numeric:tabular-nums}
 .g1v-badge b{font-weight:700}
-.g1v-steps{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;padding:2px}
-.g1v-steps button{flex:1 1 auto;display:flex;align-items:center;gap:8px;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink);border-radius:10px;padding:9px 12px;font:600 14px/1.1 inherit;cursor:pointer;white-space:nowrap}
+.g1v-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:6px;margin:0 0 14px;padding:2px}
+.g1v-steps button{min-width:0;display:flex;align-items:center;gap:8px;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink);border-radius:10px;padding:9px 12px;font:600 14px/1.1 inherit;cursor:pointer;white-space:nowrap}
 .g1v-steps button .n{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;background:var(--desk);border:1px solid var(--rule)}
 .g1v-steps button.is-on{border-color:#2563eb;color:#1d4ed8;background:color-mix(in srgb,#2563eb 8%,var(--paper))}
 .g1v-steps button.is-on .n{background:#2563eb;border-color:#2563eb;color:#fff}
@@ -350,8 +447,6 @@
 .g1v-bridge td{font-size:14.5px}
 .page[data-g1tab] .gstr__main>section,.page[data-g1tab]>.gstr-check{display:none}
 .page[data-g1tab=profile] .gstr__main>section[aria-labelledby=g-ret],
-.page[data-g1tab=import] .gstr__main>section[aria-labelledby=g-files],
-.page[data-g1tab=import] .gstr__main>section[aria-labelledby=g-portal],
 .page[data-g1tab=gstr1] .gstr__main>section[aria-labelledby=g-sum],
 .page[data-g1tab=gstr1] .gstr__main>section[aria-labelledby=g-notes],
 .page[data-g1tab=gstr1] .gstr__main>section[aria-labelledby=g-b2cs],
@@ -371,7 +466,7 @@
   }
 
   // one state per page: both mounts (top and foot) draw from it
-  const S = { tab: '', top: null, foot: null, data: null, key: '', open: new Set(), flip: {}, hsnB2c: true, docs: true };
+  const S = { tab: '', top: null, foot: null, data: null, key: '', open: new Set(), flip: {}, modal: '', q: '', hsnB2c: true, docs: true };
   try { const t = localStorage.getItem('pb-g1v-tab'); if (STEPS.some((x) => x[0] === t)) S.tab = t; } catch (e) { /* storage off */ }
 
   function setTab(t) {
@@ -390,7 +485,7 @@
     if (!S.tab) S.tab = (data.files || []).length ? 'statement' : 'import';
     let key;
     try {
-      key = [(data.files || []).map((f) => f.id).join(','), (data.months || []).join(','), data.gstin, data.usePortal, data.ready, data.carryOn, data.bills,
+      key = [(data.files || []).map((f) => f.id).join(','), (data.months || []).join(','), data.gstin, data.usePortal, data.ready, data.carryOn, data.bills, data.busy,
         JSON.stringify(data.etinBySource || {}), JSON.stringify(data.Z && data.Z.json || {}), (data.rows || []).length].join('§');
     } catch (e) { key = String(Math.random()); }
     if (key === S.key && el.__g1vDone) return;
@@ -445,8 +540,53 @@
     else if (S.tab === 'tcs') body = tcsHtml(C);
     else if (S.tab === 'gstr1') body = gstr1Html(C);
     else if (S.tab === 'profile') body = `<section class="paper g1v"><h3>GST Profile</h3><p class="sub" style="margin-bottom:0">Your GSTIN, the return period and filing type. The GSTIN fills in from the reports; check the month the return is for.</p></section>`;
-    else body = `<section class="paper g1v"><h3>Import Platform Data</h3><p class="sub" style="margin-bottom:6px">Upload the platform reports, then check the statement and the TCS report and generate GSTR-1.</p><p class="g1v-note g1v-err" style="text-align:center;margin:6px 0 0">Caution: avoid importing an edited file, to prevent errors. Use the reports exactly as downloaded.</p></section>`;
+    else body = importHtml();
+    if (S.modal) body += modalHtml();
     return bar + stepsHtml(C) + body;
+  }
+
+  const logo = (p, cls) => `<span class="g1v-logo${p.mono.length > 1 ? ' sm' : ''}${cls ? ' ' + cls : ''}" style="background:${p.color}" aria-hidden="true">${esc(p.mono)}</span>`;
+  const perLabel = (n) => { const m = (S.data.months || []).length; return m > 1 ? `${n} ${n === 1 ? 'file' : 'files'} a month · ${n * m} for this quarter` : `${n} ${n === 1 ? 'file' : 'files'} for ${esc(monthName(S.data.months[0]))}`; };
+
+  function importHtml() {
+    const D = S.data, cov = coverage(D.files, D.months), q = S.q.trim().toLowerCase();
+    const list = cov.filter((p) => !q || (p.name + ' ' + p.type).toLowerCase().includes(q));
+    const used = cov.filter((p) => p.added.length);
+    const m = (D.months || []).length;
+    let h = `<section class="paper g1v" aria-labelledby="g1v-imp"><h3 id="g1v-imp">Import Platform Data</h3><p class="sub">Search and upload platform data, then check the statement and generate GSTR-1.</p>
+      <p class="g1v-note g1v-err" style="text-align:center;margin:0 0 14px">Caution: avoid importing an edited file to prevent potential errors.</p>
+      <div class="g1v-guide"><b>How many files to upload for ${esc(periodLabel())}</b>${m > 1 ? ` (quarterly: every file for each of the 3 months)` : ''}:
+        <ul><li><b>Meesho:</b> 3 files a month: tcs_sales, tcs_sales_return and Tax_invoice_details (or the one GST Report .zip that holds them).</li>
+        <li><b>Amazon:</b> 1 file a month, the MTR B2C report. Add the MTR B2B report too if you sold to buyers with a GSTIN.</li>
+        <li><b>Flipkart:</b> 1 file a month, the Sales Report.</li>
+        <li><b>GST portal TCS file:</b> optional, 1 a month, for the TCS Report.</li></ul>
+        Upload only the platforms you sell on.${used.length ? ` Added so far: ${used.map((p) => `${esc(p.name)} ${p.have} of ${p.need}`).join(' · ')}.` : ''}</div>
+      <label class="g1v-search"><input type="search" placeholder="Search for portal" value="${esc(S.q)}" data-g1v-q aria-label="Search for portal"><span aria-hidden="true">→</span></label>
+      <div class="g1v-plats">${list.map((p) => {
+        const btn = p.status === 'done' ? '<span class="g1v-btn done">✓ Uploaded</span>' : p.status === 'partial' ? `<span class="g1v-btn part">${p.have} of ${p.need} uploaded</span>` : '<span class="g1v-btn">Import data</span>';
+        return `<button type="button" class="g1v-plat" data-g1v-plat="${p.key}" aria-label="${esc(p.name)}: ${p.status === 'done' ? 'uploaded' : 'import data'}">${logo(p)}<b>${esc(p.name)}</b><small>${esc(p.type)}</small><span class="need">${perLabel(p.files.length)}${p.optional ? ' · optional' : ''}</span>${btn}</button>`;
+      }).join('')}${list.length ? '' : `<p class="g1v-note">No platform called "${esc(S.q)}". PakkaBill reads Meesho, Amazon, Amazon B2B, Flipkart and the GST portal TCS file.</p>`}</div>
+      ${D.busy ? '<p class="g1v-note" style="text-align:center">Reading reports…</p>' : ''}</section>`;
+    return h;
+  }
+
+  function modalHtml() {
+    const D = S.data, p = coverage(D.files, D.months).find((x) => x.key === S.modal);
+    if (!p) return '';
+    const other = (D.files || []).filter((f) => !platformOf(f) || !PLATFORMS.some((x) => x.key === platformOf(f)));
+    return `<div class="g1v-ov" data-g1v-ov><div class="g1v-dlg" role="dialog" aria-modal="true" aria-labelledby="g1v-dlg-h" tabindex="-1">
+      <div class="hd">${logo(p)}<div><b id="g1v-dlg-h">${esc(p.name)} · Import data</b><small>${esc(p.type)} · ${esc(periodLabel())}</small></div><button type="button" data-g1v-close aria-label="Close">×</button></div>
+      <div class="bd">
+        <div class="g1v-count"><b>Upload ${p.need} ${p.need === 1 ? 'file' : 'files'}</b><span>${esc(perLabel(p.files.length))}${p.optional ? ' · optional' : ''}</span><span class="g1v-pill ${p.have >= p.need ? 'ok' : p.have ? 'mid' : 'off'}">${p.have} of ${p.need} uploaded</span></div>
+        <p class="g1v-where"><b>Where to download:</b> ${esc(p.where)}</p>
+        <label class="g1v-drop" data-g1v-drop><input type="file" multiple accept=".xlsx,.xls,.csv,.zip" data-g1v-file><b>${D.busy ? 'Reading reports…' : `Choose ${esc(p.name)} ${p.files.length > 1 ? 'files' : 'file'}`}</b><small>Drop them here or tap to choose. Several at once is fine; .xlsx, .csv or .zip exactly as downloaded.</small></label>
+        ${p.slots.map((sl, i) => `<div class="g1v-slot"><div class="t"><b>${p.slots.length > 1 ? (i + 1) + '. ' : ''}${esc(sl.label)}</b><code>${esc(sl.file)}</code>${sl.done ? '<span class="g1v-pill ok">✓ Uploaded</span>' : ''}</div><small>${esc(sl.what)}</small>
+          <div class="g1v-mchips">${sl.months.map((x) => `<span class="g1v-mchip ${x.ok ? 'ok' : 'no'}">${x.ok ? '✓' : '✗'} ${esc(monthName(x.m))}</span>`).join('')}</div>
+          ${sl.files.length ? `<ul class="g1v-flist">${sl.files.map((f) => `<li><span title="${esc(f.name)}">${esc(f.name)}</span><small>${f.kind === 'invoices' ? (f.docs || []).length + ' documents' : f.kind === 'portaltcs' ? (f.portal || []).length + ' entries' : (f.tcs || []).length + ' rows'}, ${esc(monthsOf(f).map(monthName).join(', ') || 'month unknown')}</small><button type="button" data-g1v-rm="${esc(f.id)}" aria-label="Remove ${esc(f.name)}">×</button></li>`).join('')}</ul>` : ''}
+        </div>`).join('')}
+        ${other.length ? `<p class="g1v-note g1v-warn" style="margin:0">Also added: ${other.map((f) => esc(f.name)).join(', ')}.</p>` : ''}
+      </div>
+      <div class="ft"><button type="button" data-g1v-close>${p.status === 'done' ? 'Done' : 'Close'}</button></div></div></div>`;
   }
 
   function footHtml() {
@@ -593,7 +733,41 @@
 
   const csvCell = (v) => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 
+  function addFiles(list) {
+    const D = S.data, files = [...(list || [])];
+    if (!files.length || !D.addFiles) return;
+    const want = S.modal, before = new Set((D.files || []).map((f) => f.id));
+    Promise.resolve(D.addFiles(files)).then(() => setTimeout(() => {
+      const added = (S.data.files || []).filter((f) => !before.has(f.id)), wrong = added.filter((f) => want && platformOf(f) !== want);
+      if (wrong.length && D.toast) {
+        const nm = (k) => (PLATFORMS.find((x) => x.key === k) || {}).name || 'another platform';
+        const n = nm(platformOf(wrong[0]));
+        D.toast(`${wrong.map((f) => f.name).join(', ')}: this is ${/^[AEIOU]/.test(n) ? 'an' : 'a'} ${n} report, so it was added there.`);
+      }
+    }, 50));
+  }
+
   function wire(el) {
+    el.querySelectorAll('[data-g1v-plat]').forEach((b) => b.addEventListener('click', () => { S.modal = b.dataset.g1vPlat; S.lastFocus = b.dataset.g1vPlat; drawAll(); }));
+    const q = el.querySelector('[data-g1v-q]');
+    if (q) q.addEventListener('input', () => { S.q = q.value; const pos = q.selectionStart; drawAll(); const n = S.top && S.top.querySelector('[data-g1v-q]'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { /* type search */ } } });
+    const ov = el.querySelector('[data-g1v-ov]');
+    if (ov) {
+      const close = () => { S.modal = ''; drawAll(); const b = S.top && S.top.querySelector(`[data-g1v-plat="${S.lastFocus}"]`); if (b) b.focus(); };
+      ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+      ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+      ov.querySelectorAll('[data-g1v-close]').forEach((b) => b.addEventListener('click', close));
+      const dlg = ov.querySelector('.g1v-dlg'); if (dlg && !dlg.contains(document.activeElement)) dlg.focus();
+      const inp = ov.querySelector('[data-g1v-file]');
+      if (inp) inp.addEventListener('change', () => { const f = [...inp.files]; inp.value = ''; addFiles(f); });
+      const dz = ov.querySelector('[data-g1v-drop]');
+      if (dz) {
+        dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('over'); });
+        dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+        dz.addEventListener('drop', (e) => { e.preventDefault(); dz.classList.remove('over'); addFiles(e.dataTransfer.files); });
+      }
+      ov.querySelectorAll('[data-g1v-rm]').forEach((b) => b.addEventListener('click', () => S.data.removeFile && S.data.removeFile(b.dataset.g1vRm)));
+    }
     el.querySelectorAll('[data-g1v-tab]').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.g1vTab)));
     el.querySelectorAll('[data-g1v-open]').forEach((b) => b.addEventListener('click', () => {
       const k = b.dataset.g1vOpen;

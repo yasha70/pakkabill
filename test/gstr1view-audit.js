@@ -96,5 +96,20 @@ ok(bytes && bytes[0] === 0x50 && bytes[1] === 0x4b, 'excel: a zip (xlsx)');
 const R = G.check(json, { marketplace: true });
 eq(R.errors, 0, 'checker: the sample return has no errors (CDNR accepted)');
 
+
+/* Import Data: platforms, file counts and month coverage */
+const f = (o) => ({ id: Math.random().toString(36), name: 'x', tcs: [], docs: [], ...o });
+const files = [f({ source: 'meesho', kind: 'sales', tcs: [row({ period: '2025-01' }), row({ period: '2025-02' })] }), f({ source: 'meesho', kind: 'returns', tcs: [row({ period: '2025-01' })] }),
+  f({ source: 'meesho', kind: 'invoices', docs: [{ date: '2025-01-05' }, { date: '2025-02-05' }, { date: '2025-03-05' }] }),
+  f({ source: 'amazon', kind: 'mixed', tcs: [row({ source: 'amazon', buyerGstin: BUYER, invNo: 'A1', period: '2025-01' })] }),
+  f({ source: 'amazon', kind: 'mixed', tcs: [row({ source: 'amazon', period: '2025-01' }), row({ source: 'amazon', period: '2025-02' }), row({ source: 'amazon', period: '2025-03' })] }),
+  f({ source: 'portal', kind: 'portaltcs', portal: [{ period: '2025-03' }] })];
+const cv = V.coverage(files, ['2025-01', '2025-02', '2025-03']), c = (k2) => cv.find((p) => p.key === k2);
+eq([c('meesho').need, c('meesho').have, c('meesho').status], [9, 6, 'partial'], 'import: Meesho needs 3 files a month, 9 for a quarter; 6 month-files covered');
+eq(c('meesho').slots.map((sl) => sl.months.filter((x) => x.ok).length), [2, 1, 3], 'import: months covered per Meesho file');
+eq([c('amazon').status, c('amazonb2b').status, c('amazonb2b').have], ['done', 'partial', 1], 'import: Amazon B2B report told apart from B2C by the buyer GSTIN');
+eq([c('flipkart').status, c('portal').have], ['empty', 1], 'import: platforms with nothing added, and the portal TCS file');
+eq(V.coverage([], ['2025-03']).map((p) => p.need), [3, 1, 1, 1, 1], 'import: files needed for one month');
+
 console.log(`${checks - fails}/${checks} checks passed`);
 process.exit(fails ? 1 : 0);
