@@ -83,6 +83,23 @@ import com.pakkabill.app.platform.LocalPlatform
 import com.pakkabill.app.platform.SITE
 import com.pakkabill.app.platform.SystemBack
 import com.pakkabill.app.pnl.PnlController
+import com.pakkabill.app.bill.BillController
+import com.pakkabill.app.bill.BillPdf
+import com.pakkabill.app.ui.bill.BillActs
+import com.pakkabill.app.ui.bill.BillEditor
+import com.pakkabill.app.ui.bill.BillFilter
+import com.pakkabill.app.ui.bill.BillView
+import com.pakkabill.app.ui.bill.BillViewActs
+import com.pakkabill.app.ui.bill.billRows
+import com.pakkabill.app.ui.bill.billsTab
+import com.pakkabill.app.ui.bill.gstTab
+import com.pakkabill.app.ui.bill.itemsTab
+import com.pakkabill.app.ui.bill.partiesTab
+import com.pakkabill.app.ui.bill.pdfName
+import com.pakkabill.app.ui.bill.shopTab
+import com.pakkabill.core.bill.BillStore
+import com.pakkabill.core.bill.Gst
+import com.pakkabill.core.bill.Invoice
 import com.pakkabill.core.Art
 import com.pakkabill.core.Report
 import com.pakkabill.core.Sel
@@ -91,7 +108,9 @@ import kotlinx.coroutines.launch
 
 /** The tabs of the website's Meesho P&L, in the same order. */
 val TABS = listOf("pl" to "P&L", "rc" to "Reconcile", "data" to "Upload", "costs" to "Costs", "exp" to "Expenses", "set" to "Settings", "guide" to "How to use")
-private val IN_MORE = setOf("data", "exp", "set", "guide")
+private val IN_MORE = setOf("data", "exp", "set", "guide", "costs")
+/** The billing pages; the Bills tab stays lit on all of them. */
+private val BILL_TABS = setOf("bills", "parties", "items", "gst", "shop")
 
 /**
  * The whole app, laid out like PakkaBill on a phone: the PakkaBill bar on top, the page, and the
@@ -100,7 +119,7 @@ private val IN_MORE = setOf("data", "exp", "set", "guide")
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackbar: SnackbarHostState, startTab: String = "pl") {
+fun Root(pnl: PnlController, account: AccountController, bills: BillController, lockOn: Boolean, snackbar: SnackbarHostState, startTab: String = "pl") {
     val platform = LocalPlatform.current
     val ui by pnl.ui.collectAsState()
     val acct by account.ui.collectAsState()
@@ -116,6 +135,13 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
     var accountOpen by rememberSaveable { mutableStateOf(false) }
     var moreOpen by rememberSaveable { mutableStateOf(false) }
     var planOpen by rememberSaveable { mutableStateOf(false) }
+    // billing: the list's filter, the add menu, the bill being made and the bill being looked at
+    val billData by bills.data.collectAsState()
+    var billKind by rememberSaveable { mutableStateOf("all") }
+    var billQ by rememberSaveable { mutableStateOf("") }
+    var addOpen by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<Invoice?>(null) }
+    var viewId by rememberSaveable { mutableStateOf<String?>(null) }
     val reminder by pnl.reminder.collectAsState()
     val goal by pnl.goal.collectAsState()
     var speaking by remember { mutableStateOf(false) }
@@ -129,8 +155,13 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
     var costMiss by rememberSaveable { mutableStateOf(false) }
     val panes = remember { Panes() }
     val lists = remember { HashMap<String, LazyListState>() }
+    fun newBill(docType: String) {
+        addOpen = false; moreOpen = false
+        scope.launch { editing = bills.draft(docType) }
+    }
     fun open(k: String, top: Boolean = true) {
         if (k == "plan") { planOpen = true; moreOpen = false; return }
+        if (k == "newbill") { tab = "bills"; newBill("invoice"); return }
         if (top) lists.remove(k)
         tab = k
         moreOpen = false
@@ -139,6 +170,7 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
 
     fun say(text: String) { scope.launch { snackbar.currentSnackbarData?.dismiss(); snackbar.showSnackbar(tr(text)) } }
     LaunchedEffect(Unit) { pnl.messages.collect { say(it) } }
+    LaunchedEffect(Unit) { bills.messages.collect { say(it) } }
 
     val cfg = acct.config
     val enforced = cfg != null && cfg.enabled && cfg.enforce
@@ -224,10 +256,24 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
     val imeOpen by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
     val issues = report?.reconcile?.get("issues")?.n ?: 0
 
+    val billRowsNow = remember(billData, billKind, billQ) { billRows(billData, BillFilter(billKind, billQ, {}, {})) }
+    val billActs = BillActs(
+        newBill = { newBill(it) },
+        open = { viewId = it.id },
+        tab = { open(it) },
+        saveBusiness = { bills.saveBusiness(it) },
+        saveParty = { bills.saveParty(it) }, deleteParty = { bills.deleteParty(it) },
+        saveProduct = { bills.saveProduct(it) }, deleteProduct = { bills.deleteProduct(it) },
+        exportCsv = { platform.saveFile("PakkaBill_bills_" + Gst.today() + ".csv", "text/csv", BillStore.csv(billData.invoices).toByteArray()) },
+        backup = { scope.launch { platform.saveFile("PakkaBill_bills_backup_" + Gst.today() + ".json", "application/json", bills.backup().toByteArray()) } },
+        restore = { platform.pickBackup() },
+        say = ::say,
+    )
+
     Box(Modifier.fillMaxSize().then(doodle)) {
         Column(Modifier.fillMaxSize().imePadding()) {
             TopBar(lang, { pnl.setLang(it) }, h.dark, { pnl.setTheme(if (h.dark) "light" else "dark") }, login) { accountOpen = true }
-            SystemBack(enabled = tab != "pl" && !accountOpen && !moreOpen) { open("pl", top = false) }
+            SystemBack(enabled = tab != "pl" && !accountOpen && !moreOpen && !addOpen) { open(if (tab in BILL_TABS && tab != "bills") "bills" else "pl", top = false) }
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 val list = lists.getOrPut(tab) { LazyListState() }
                 key(tab) {
@@ -268,6 +314,11 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
                                     ),
                                 )
                             }
+                            "bills" -> billsTab(billData, billRowsNow, BillFilter(billKind, billQ, { billKind = it }, { billQ = it }), billActs)
+                            "parties" -> partiesTab(billData, billActs)
+                            "items" -> itemsTab(billData, billActs)
+                            "gst" -> gstTab(billData, billActs)
+                            "shop" -> shopTab(billData, billActs)
                             else -> block("guide") { GuideTab(guide, ui, lang, { pnl.setLang(it) }, go) }
                         }
                     }
@@ -279,7 +330,7 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
                     // tapping the open tab again goes back to its top
                     if (k == tab && !moreOpen) lists[k]?.let { l -> scope.launch { l.animateScrollToItem(0) } } else open(k, top = false)
                 },
-                add = { open("data", top = false); platform.pickMeeshoFiles() },
+                add = { moreOpen = false; addOpen = !addOpen },
                 more = { moreOpen = !moreOpen },
             )
         }
@@ -294,6 +345,40 @@ fun Root(pnl: PnlController, account: AccountController, lockOn: Boolean, snackb
         }
 
         MoreSheet(moreOpen, tab, login, acct.isPro && enforced, close = { moreOpen = false }, pick = { open(it) }, account = { moreOpen = false; accountOpen = true })
+        AddSheet(addOpen, close = { addOpen = false }, bill = { newBill(it) }, meesho = { addOpen = false; open("data", top = false); platform.pickMeeshoFiles() })
+
+        // a saved bill: preview, WhatsApp, PDF, print, paid
+        val viewing = viewId?.let { id -> billData.invoices.firstOrNull { it.id == id } }
+        AnimatedVisibility(viewing != null && editing == null, enter = slideInHorizontally(tween(220)) { it } + fadeIn(tween(220)), exit = slideOutHorizontally(tween(200)) { it } + fadeOut(tween(200))) {
+            val b = viewing ?: return@AnimatedVisibility
+            BillView(
+                b,
+                BillViewActs(
+                    whatsapp = { inv, pdf -> platform.shareToWhatsApp(inv.buyer.phone, pdfName(inv), "application/pdf", pdf, BillPdf.message(inv)) },
+                    save = { inv, pdf -> platform.saveFile(pdfName(inv), "application/pdf", pdf) },
+                    print = { inv, pdf -> platform.printPdf(pdfName(inv), pdf) },
+                    setPaid = { inv, paid -> bills.setPaid(inv.id, paid) },
+                    edit = { inv -> editing = inv },
+                    copy = { inv, docType -> scope.launch { editing = bills.duplicate(inv, docType) } },
+                    delete = { inv -> viewId = null; bills.delete(inv.id) },
+                ),
+            ) { viewId = null }
+        }
+
+        // making or changing a bill
+        AnimatedVisibility(editing != null, enter = slideInVertically(tween(240)) { it } + fadeIn(tween(240)), exit = slideOutVertically(tween(200)) { it } + fadeOut(tween(200))) {
+            val e = editing ?: return@AnimatedVisibility
+            key(e.id) {
+                BillEditor(e, billData, { bills.numberTaken(it) }, onSave = { inv ->
+                    scope.launch {
+                        val saved = bills.save(inv) ?: return@launch
+                        editing = null
+                        if (tab !in BILL_TABS) open("bills", top = false)
+                        viewId = saved.id
+                    }
+                }) { editing = null }
+            }
+        }
 
         AnimatedVisibility(planOpen, enter = slideInHorizontally(tween(220)) { it } + fadeIn(tween(220)), exit = slideOutHorizontally(tween(200)) { it } + fadeOut(tween(200))) {
             SystemBack { planOpen = false }
@@ -363,9 +448,9 @@ private fun BarIcon(icon: ImageVector, label: String, tint: Color, bg: Color = C
 }
 
 // short Hindi names that fit under the icons
-private val HI_BAR = mapOf("P&L" to "मुनाफ़ा", "Reconcile" to "मिलान", "Costs" to "लागत", "More" to "और")
+private val HI_BAR = mapOf("P&L" to "मुनाफ़ा", "Reconcile" to "मिलान", "Costs" to "लागत", "Bills" to "बिल", "More" to "और")
 
-/** .tabbar: P&L, Reconcile, the + to add Meesho files, Costs, and More. */
+/** .tabbar: P&L, Bills, the + (new bill, estimate or Meesho files), Reconcile, and More. */
 @Composable
 private fun BottomBar(tab: String, moreOpen: Boolean, issues: Int, lang: String, pick: (String) -> Unit, add: () -> Unit, more: () -> Unit) {
     val h = LocalHues.current
@@ -378,15 +463,15 @@ private fun BottomBar(tab: String, moreOpen: Boolean, issues: Int, lang: String,
     ) {
         fun label(s: String) = if (lang == "hi") HI_BAR[s] ?: s else s
         BarTab(PbIcons.Rupee, label("P&L"), tab == "pl" && !moreOpen) { pick("pl") }
-        BarTab(PbIcons.Checks, label("Reconcile"), tab == "rc" && !moreOpen, issues) { pick("rc") }
+        BarTab(PbIcons.Receipt, label("Bills"), tab in BILL_TABS && !moreOpen) { pick("bills") }
         Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
             Box(
                 Modifier.offset(y = (-12).dp).size(54.dp).shadow(10.dp, RoundedCornerShape(16.dp), ambientColor = h.carbon, spotColor = h.carbon)
                     .clip(RoundedCornerShape(16.dp)).background(Brush.linearGradient(h.btn)).clickable(onClick = add),
                 contentAlignment = Alignment.Center,
-            ) { Icon(PbIcons.Plus, t("Upload files"), tint = h.btnFg, modifier = Modifier.size(26.dp)) }
+            ) { Icon(PbIcons.Plus, t("New bill or Meesho files"), tint = h.btnFg, modifier = Modifier.size(26.dp)) }
         }
-        BarTab(PbIcons.Box, label("Costs"), tab == "costs" && !moreOpen) { pick("costs") }
+        BarTab(PbIcons.Checks, label("Reconcile"), tab == "rc" && !moreOpen, issues) { pick("rc") }
         BarTab(PbIcons.Grid, label("More"), moreOpen || tab in IN_MORE) { more() }
     }
 }
@@ -429,9 +514,16 @@ private fun MoreSheet(open: Boolean, tab: String, login: Boolean, pro: Boolean, 
             ) {
                 Box(Modifier.align(Alignment.CenterHorizontally).size(width = 40.dp, height = 4.dp).clip(CircleShape).background(h.rule2))
                 Spacer(Modifier.height(10.dp))
+                Txt("Meesho P&L", size = 13.sp, weight = FontWeight.SemiBold, color = h.ink3, modifier = Modifier.padding(start = 12.dp, top = 2.dp, bottom = 2.dp))
                 listOf(
-                    Triple("data", "Upload", PbIcons.Upload), Triple("exp", "Expenses", PbIcons.Receipt),
+                    Triple("costs", "Product costs", PbIcons.Box), Triple("data", "Upload", PbIcons.Upload), Triple("exp", "Expenses", PbIcons.Receipt),
                     Triple("set", "Settings", PbIcons.Gear), Triple("guide", "How to use", PbIcons.Book),
+                ).forEach { (k, l, ic) -> MoreRow(ic, l, tab == k) { pick(k) } }
+                Box(Modifier.padding(vertical = 6.dp, horizontal = 8.dp).fillMaxWidth().height(1.dp).background(h.rule))
+                Txt("GST billing", size = 13.sp, weight = FontWeight.SemiBold, color = h.ink3, modifier = Modifier.padding(start = 12.dp, top = 2.dp, bottom = 2.dp))
+                listOf(
+                    Triple("parties", "Parties", PbIcons.User), Triple("items", "Items", PbIcons.Box),
+                    Triple("gst", "GST summary", PbIcons.Rupee), Triple("shop", "Shop details", PbIcons.Gear),
                 ).forEach { (k, l, ic) -> MoreRow(ic, l, tab == k) { pick(k) } }
                 Box(Modifier.padding(vertical = 6.dp, horizontal = 8.dp).fillMaxWidth().height(1.dp).background(h.rule))
                 MoreRow(PbIcons.Crown, if (pro) "PakkaBill Pro is active" else "PakkaBill Pro", false) { pick("plan") }
@@ -455,6 +547,30 @@ private fun MoreRow(icon: ImageVector, label: String, on: Boolean, onClick: () -
         Spacer(Modifier.width(14.dp))
         Txt(label, weight = FontWeight.SemiBold, color = if (on) h.carbon else h.ink, modifier = Modifier.weight(1f))
         Txt("›", size = 22.sp, color = h.ink3, raw = true)
+    }
+}
+
+/** The + button's menu: a new bill, a new estimate, or Meesho files for the P&L. */
+@Composable
+private fun AddSheet(open: Boolean, close: () -> Unit, bill: (String) -> Unit, meesho: () -> Unit) {
+    val h = LocalHues.current
+    if (open) SystemBack(onBack = close)
+    AnimatedVisibility(open, enter = fadeIn(tween(160)), exit = fadeOut(tween(160))) {
+        Box(Modifier.fillMaxSize().background(Color(0x66100C24)).clickable(remember { MutableInteractionSource() }, null, onClick = close))
+    }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+        AnimatedVisibility(open, enter = slideInVertically(tween(220)) { it }, exit = slideOutVertically(tween(180)) { it }) {
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)).background(h.sheet)
+                    .clickable(remember { MutableInteractionSource() }, null) {}.windowInsetsPadding(WindowInsets.navigationBars).padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 12.dp),
+            ) {
+                Box(Modifier.align(Alignment.CenterHorizontally).size(width = 40.dp, height = 4.dp).clip(CircleShape).background(h.rule2))
+                Spacer(Modifier.height(10.dp))
+                MoreRow(PbIcons.Receipt, "New GST bill", false) { bill("invoice") }
+                MoreRow(PbIcons.Book, "New estimate", false) { bill("estimate") }
+                MoreRow(PbIcons.Upload, "Add Meesho files (P&L)", false, meesho)
+            }
+        }
     }
 }
 

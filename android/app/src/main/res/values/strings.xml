@@ -11,4 +11,6 @@
     <string name="widget_title">PakkaBill real profit</string>
     <string name="widget_empty">Add a Meesho payment report</string>
     <string name="widget_desc">This month\'s real Meesho profit at a glance</string>
+    <string name="shortcut_bill">New bill</string>
+    <string name="shortcut_bill_long">Make a GST bill</string>
 </resources>

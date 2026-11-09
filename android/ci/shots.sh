@@ -50,7 +50,7 @@ frames "Reconcile scroll"
 tap "More"; cap 22-more 2
 tap "Upload" last; cap 23-data 3
 up; cap 24-data 1
-tap "Costs"; cap 25-costs 3
+more "Product costs"; cap 25-costs 3
 adb shell dumpsys gfxinfo $PKG reset > /dev/null
 up; cap 26-costs 1; up; cap 27-costs 1; up; up; up
 frames "Costs scroll"
@@ -97,6 +97,40 @@ sleep 3
 tap "Dark"; cap 62-dark-button 3
 tap "Light"; sleep 2
 
+echo "== GST bills" >> "$R"
+# a sample shop with three bills (paid IGST, unpaid with GST in the price, an estimate)
+adb shell am force-stop $PKG
+adb push android/ci/bills-sample.json /data/local/tmp/bills.json
+adb shell "run-as $PKG sh -c 'mkdir -p files/bills; cat /data/local/tmp/bills.json > files/bills/bills.json'"
+adb shell am start -W -n $PKG/.MainActivity; sleep 5
+tap "Bills"; cap b01-bills 3
+up; cap b02-bills 1; top
+tap "Ravi Traders"; cap b03-bill-view 8
+up; cap b04-bill-view 1; up; cap b05-bill-view 1
+adb shell input keyevent KEYCODE_BACK; sleep 2
+tap "Meena Boutique"; cap b06-bill-incl 8
+adb shell input keyevent KEYCODE_BACK; sleep 2
+tap "+ New bill"; cap b07-editor 3
+tap "Cash sale"; adb shell input text "Ravi"; cap b08-buyer 2
+tap "Use"; cap b09-buyer-picked 2
+tap "Item name"; adb shell input text "kurti"; cap b10-item 2
+tap "Use"; sleep 1; adb shell input keyevent KEYCODE_BACK; cap b11-item-picked 2
+up; cap b12-editor 1
+tap "Save"; cap b13-saved 8
+adb shell input keyevent KEYCODE_BACK; sleep 2
+cap b14-bills-after 2
+tap "Unpaid"; cap b15-unpaid 2
+more "GST summary"; cap b16-gst 3
+more "Shop details"; cap b17-shop 3
+up; cap b18-shop 1; up; cap b19-shop 1
+more "Parties"; cap b20-parties 3
+more "Items"; cap b21-items 3
+python3 android/ci/tap.py "New bill or Meesho files" | tee -a "$R"; cap b22-add-menu 2
+adb shell input keyevent KEYCODE_BACK; sleep 1
+adb shell cmd uimode night yes; tap "Bills"; cap b23-bills-dark 5
+adb shell cmd uimode night no; sleep 3
+alive bills
+
 echo "== restart" >> "$R"
 adb shell am force-stop $PKG
 adb shell am start -W -n $PKG/.MainActivity
@@ -116,10 +150,13 @@ cap 81-release-sample 25
 adb shell dumpsys gfxinfo $PKG reset > /dev/null
 for i in 1 2 3 4 5 6 7 8; do up; sleep 1; done
 frames "Release P&L scroll"
-tap "Costs"; sleep 3
+more "Product costs"; sleep 3
 adb shell dumpsys gfxinfo $PKG reset > /dev/null
 for i in 1 2 3 4 5 6; do up; sleep 1; done
 frames "Release Costs scroll"
+tap "Bills"; cap 84-release-bills 3
+tap "+ New bill"; cap 85-release-new-bill 3
+adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_BACK; sleep 1
 tap "P&L"; sleep 1; tap "P&L"; sleep 2
 tap "How to use"; cap 82-release-guide 4
 tap "हिंदी"; cap 83-release-hindi 5
@@ -135,7 +172,8 @@ adb push big/Meesho-big-payments.csv /sdcard/Download/Meesho-big-payments.csv > 
 adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Download/Meesho-big-payments.csv > /dev/null
 bigshop() {
   echo "== big shop: $1" >> "$R"
-  tap "Upload files"; sleep 2
+  # the app before GST billing had the upload + and Costs in the bottom bar
+  if [ "$1" = new ]; then more "Upload"; else tap "Upload files"; fi; sleep 2
   # the drop area can be below the screen: scroll until it shows
   for i in 1 2 3 4; do python3 android/ci/tap.py "Drop Meesho files here" >> "$R" && break; up; sleep 1; done
   sleep 5
@@ -149,7 +187,7 @@ bigshop() {
   for i in 1 2 3 4 5 6 7 8; do up; sleep 1; done
   frames "$1: P&L scroll"
   adb shell dumpsys gfxinfo $PKG reset > /dev/null
-  tap "Costs"; sleep 5
+  if [ "$1" = new ]; then more "Product costs"; else tap "Costs"; fi; sleep 5
   frames "$1: open Costs"
   cap "$1-3-costs" 1
   adb shell dumpsys gfxinfo $PKG reset > /dev/null

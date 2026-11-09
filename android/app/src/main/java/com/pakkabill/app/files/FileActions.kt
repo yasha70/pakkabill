@@ -101,4 +101,53 @@ object FileActions {
         }
         context.startActivity(Intent.createChooser(intent, title.ifBlank { null }).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
+
+    /**
+     * Sends one file to WhatsApp (or WhatsApp Business), opening [phone]'s chat when it is a valid
+     * Indian or full number. False when neither WhatsApp is installed.
+     */
+    fun shareWhatsApp(context: Context, phone: String, text: String, file: PageFile): Boolean {
+        val pm = context.packageManager
+        val pkg = listOf("com.whatsapp", "com.whatsapp.w4b").firstOrNull { p -> runCatching { pm.getPackageInfo(p, 0) }.isSuccess } ?: return false
+        val dir = File(context.cacheDir, "shared/${System.currentTimeMillis()}").apply { mkdirs() }
+        val out = File(dir, safeName(file.name)).apply { writeBytes(file.bytes) }
+        val uri = FileProvider.getUriForFile(context, authority(context), out)
+        val digits = phone.filter { it.isDigit() }.let { if (it.length == 10) "91$it" else it.trimStart('0') }
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = file.mime
+            setPackage(pkg)
+            putExtra(Intent.EXTRA_STREAM, uri)
+            if (text.isNotBlank()) putExtra(Intent.EXTRA_TEXT, text)
+            if (digits.length in 11..15) putExtra("jid", "$digits@s.whatsapp.net")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            clipData = ClipData.newUri(context.contentResolver, "PakkaBill", uri)
+        }
+        context.startActivity(intent)
+        return true
+    }
+
+    /** The phone's print screen for a PDF that is already made. */
+    fun print(context: Context, name: String, bytes: ByteArray) {
+        val pm = context.getSystemService(Context.PRINT_SERVICE) as android.print.PrintManager
+        val adapter = object : android.print.PrintDocumentAdapter() {
+            override fun onLayout(
+                old: android.print.PrintAttributes?, new: android.print.PrintAttributes?, cancel: android.os.CancellationSignal?,
+                cb: LayoutResultCallback, extras: android.os.Bundle?,
+            ) {
+                if (cancel?.isCanceled == true) { cb.onLayoutCancelled(); return }
+                cb.onLayoutFinished(
+                    android.print.PrintDocumentInfo.Builder(safeName(name)).setContentType(android.print.PrintDocumentInfo.CONTENT_TYPE_DOCUMENT).build(),
+                    old != new,
+                )
+            }
+            override fun onWrite(
+                pages: Array<out android.print.PageRange>?, dest: android.os.ParcelFileDescriptor, cancel: android.os.CancellationSignal?, cb: WriteResultCallback,
+            ) {
+                runCatching { java.io.FileOutputStream(dest.fileDescriptor).use { it.write(bytes) } }
+                    .onSuccess { cb.onWriteFinished(arrayOf(android.print.PageRange.ALL_PAGES)) }
+                    .onFailure { cb.onWriteFailed(it.message) }
+            }
+        }
+        pm.print(safeName(name).removeSuffix(".pdf"), adapter, android.print.PrintAttributes.Builder().setMediaSize(android.print.PrintAttributes.MediaSize.ISO_A4).build())
+    }
 }

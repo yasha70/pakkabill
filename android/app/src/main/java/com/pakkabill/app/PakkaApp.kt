@@ -2,6 +2,7 @@ package com.pakkabill.app
 
 import android.app.Application
 import com.pakkabill.app.account.AccountController
+import com.pakkabill.app.bill.BillController
 import com.pakkabill.app.data.PrefsKeyValue
 import com.pakkabill.app.platform.installSource
 import com.pakkabill.app.pnl.PnlController
@@ -23,9 +24,12 @@ class PakkaApp : Application() {
         private set
     lateinit var account: AccountController
         private set
+    lateinit var bills: BillController
+        private set
 
     override fun onCreate() {
         super.onCreate()
+        bills = BillController(File(filesDir, "bills"), scope)
         pnl = PnlController(File(filesDir, "pnl"), scope, PrefsKeyValue(this, "pnl_ui"))
         val store = installSource(this)
         account = AccountController(Api(userAgent = "PakkaBillApp/${BuildConfig.VERSION_NAME} (Android; store=$store)"), PrefsKeyValue(this, "account"), scope)

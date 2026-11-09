@@ -1,0 +1,41 @@
+{
+  "business": {
+    "name": "Shree Fashion", "gstin": "27AAPFU0939F1ZV", "stateCode": "27",
+    "address": "Shop 12, Kapad Bazaar, Bhiwandi, Thane 421302", "phone": "9876543210", "email": "shreefashion@example.com",
+    "bankName": "State Bank of India", "accountName": "Shree Fashion", "accountNo": "30212345678", "ifsc": "SBIN0001234",
+    "upi": "shreefashion@okaxis", "prefix": "SF", "estPrefix": "EST", "terms": "Goods once sold will not be taken back.\nPayment due within 15 days.",
+    "composition": false, "roundOff": true, "inclusive": false, "template": "carbon", "accent": "#252B6E", "showQr": true
+  },
+  "parties": [
+    {"id": "p1", "name": "Ravi Traders", "gstin": "09AAACR5055K1Z5", "stateCode": "09", "address": "45 Aminabad, Lucknow 226018", "phone": "9123456780"},
+    {"id": "p2", "name": "Meena Boutique", "gstin": "", "stateCode": "27", "address": "Shivaji Nagar, Pune 411005", "phone": "9988776655"}
+  ],
+  "products": [
+    {"id": "i1", "name": "Cotton kurti, printed", "hsn": "6204", "unit": "PCS", "rate": 349, "gstRate": 5, "taxMode": "apparel"},
+    {"id": "i2", "name": "Silk saree with blouse", "hsn": "5007", "unit": "PCS", "rate": 2999, "gstRate": 5, "taxMode": ""},
+    {"id": "i3", "name": "Packing charges", "hsn": "9985", "unit": "OTH", "rate": 150, "gstRate": 18, "taxMode": ""}
+  ],
+  "invoices": [
+    {"id": "b1", "docType": "invoice", "number": "SF/26-27/0001", "date": "2026-10-05", "partyId": "p1",
+     "buyer": {"name": "Ravi Traders", "gstin": "09AAACR5055K1Z5", "stateCode": "09", "address": "45 Aminabad, Lucknow 226018", "phone": "9123456780"},
+     "pos": "09", "calcV": 2, "inclusive": false, "roundOff": true, "composition": false, "status": "paid", "paidOn": "2026-10-12",
+     "items": [{"id": "l1", "name": "Cotton kurti, printed", "hsn": "6204", "qty": 40, "unit": "PCS", "rate": 349, "discount": 5, "gstRate": 5, "taxMode": "apparel"},
+               {"id": "l2", "name": "Silk saree with blouse", "hsn": "5007", "qty": 6, "unit": "PCS", "rate": 2999, "gstRate": 5}],
+     "notes": "Goods once sold will not be taken back.", "seller": {"name": "Shree Fashion", "gstin": "27AAPFU0939F1ZV", "stateCode": "27", "address": "Shop 12, Kapad Bazaar, Bhiwandi, Thane 421302", "phone": "9876543210", "upi": "shreefashion@okaxis", "bankName": "State Bank of India", "accountName": "Shree Fashion", "accountNo": "30212345678", "ifsc": "SBIN0001234"},
+     "createdAt": 1791000000000, "updatedAt": 1791000000000},
+    {"id": "b2", "docType": "invoice", "number": "SF/26-27/0002", "date": "2026-11-02", "partyId": "p2",
+     "buyer": {"name": "Meena Boutique", "stateCode": "27", "address": "Shivaji Nagar, Pune 411005", "phone": "9988776655"},
+     "pos": "27", "calcV": 2, "inclusive": true, "roundOff": true, "composition": false, "status": "unpaid",
+     "items": [{"id": "l3", "name": "Cotton kurti, printed", "hsn": "6204", "qty": 12, "unit": "PCS", "rate": 499, "gstRate": 5, "taxMode": "apparel"},
+               {"id": "l4", "name": "Packing charges", "hsn": "9985", "qty": 1, "unit": "OTH", "rate": 150, "gstRate": 18}],
+     "notes": "Payment due within 15 days.", "showQr": true, "seller": {"name": "Shree Fashion", "gstin": "27AAPFU0939F1ZV", "stateCode": "27", "address": "Shop 12, Kapad Bazaar, Bhiwandi, Thane 421302", "phone": "9876543210", "upi": "shreefashion@okaxis", "bankName": "State Bank of India", "accountName": "Shree Fashion", "accountNo": "30212345678", "ifsc": "SBIN0001234"},
+     "createdAt": 1793000000000, "updatedAt": 1793000000000},
+    {"id": "b3", "docType": "estimate", "number": "EST/26-27/0001", "date": "2026-11-06",
+     "buyer": {"name": "Anjali Collection", "stateCode": "24", "phone": "9012345678"},
+     "pos": "24", "calcV": 2, "inclusive": false, "roundOff": true, "composition": false, "status": "unpaid",
+     "items": [{"id": "l5", "name": "Silk saree with blouse", "hsn": "5007", "qty": 20, "unit": "PCS", "rate": 2850, "gstRate": 5}],
+     "seller": {"name": "Shree Fashion", "gstin": "27AAPFU0939F1ZV", "stateCode": "27", "upi": "shreefashion@okaxis"},
+     "createdAt": 1793400000000, "updatedAt": 1793400000000}
+  ],
+  "meta": {"lastBackup": "", "sample": true, "created": 1791000000000}
+}

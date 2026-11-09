@@ -106,17 +106,30 @@ move them with Shop > Download backup and Restore.
 
 ## Android app
 
-PakkaBill for Android (`android/`, package `com.pakkabill.app`) is a native Kotlin app built with
+PakkaBill for Android (`android/`, package `com.pakkabill.app`) is a fully native app: Kotlin,
 Jetpack Compose and Material 3 on the newest tools (Android Gradle Plugin 9.4, Kotlin 2.4, target
-Android 17 / API 37, minimum Android 7). It runs the PakkaBill web app in a WebView and adds native
-parts: splash screen, edge-to-edge screens whose status bar follows the page colour, adaptive and
-themed icons, launcher shortcuts (New bill, Bills, GST summary, Meesho P&L), fingerprint/face app
-lock, saving bills and reports into Downloads/PakkaBill, the Android share sheet (WhatsApp, Drive),
-printing, UPI/WhatsApp hand-off, file upload, Material dialogs, an offline screen, native settings,
-and Google Play in-app updates and reviews. `android/app/src/main/assets/pakkabill-android.js`
-connects the page to the app; the app is recognised by `PakkaBillApp/` in its user agent
-(`store=play` when installed from Google Play, where Pro is not sold because Play requires its own
-billing for that).
+Android 17 / API 37, minimum Android 8). No WebView: every screen is drawn natively.
+
+- GST billing (4.0): tax invoices, bills of supply and estimates; CGST+SGST or IGST by place of supply,
+  rates with or without GST (calcV 2), the garment 5% / 18% slab, discount, round off, HSN summary,
+  amount in words, bill numbers by financial year (`SF/26-27/0001`), GSTIN check (check digit and
+  state), saved parties and items offered while typing, paid/unpaid with money to collect, the GST
+  summary by month and rate, and a CSV for the CA. The bill is an A4 PDF drawn on the phone with the
+  shop's colour, bank details and a UPI QR code for the exact amount; it is previewed in the app, sent
+  straight to the buyer's WhatsApp chat, saved to Downloads/PakkaBill or printed. The GST math
+  (`android/core/.../bill/Gst.kt`) is the website's, line for line, and `BillTest` checks it against
+  numbers from the website's own code. Bills are kept on the phone (`files/bills/bills.json`); a
+  billing backup from the website restores into the app and the other way round.
+- Meesho P&L: worked out on the phone by the website's audited engine (`pnl.html`, run in Rhino),
+  with reconcile, product costs, expenses, Excel and PDF, the home-screen profit widget and a weekly
+  reminder.
+- Also: splash screen, edge-to-edge, adaptive and themed icons, launcher shortcuts (New bill, Meesho
+  P&L, Upload, Costs), fingerprint/face app lock, Hindi, dark mode, Google Play in-app updates and
+  reviews. The app is recognised by `PakkaBillApp/` in its user agent (`store=play` when installed
+  from Google Play, where Pro is not sold because Play requires its own billing for that).
+
+Bottom bar: P&L · Bills · + (new bill, estimate or Meesho files) · Reconcile · More (product costs,
+upload, expenses, settings, parties, items, GST summary, shop details).
 
 Building: pushing `android/` to `main` runs `.github/workflows/android.yml`. It builds the Play
 Store bundle (.aab) and the website APK unsigned (branch `apk-build`), and tests a debug build on an
