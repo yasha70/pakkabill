@@ -1,0 +1,3 @@
+identifier,sup_name,gstin,sub_order_num,order_date,cancel_return_date,hsn_code,quantity,gst_rate,total_taxable_sale_value,tax_amount,total_invoice_value,taxable_shipping,end_customer_state_new,enrollment_no,financial_year,month_number,supplier_id
+x,Shop,24ABCDE1234F1Z6,S2,2025-03-10,2025-03-20,6204,1,5,400,20,420,0,Maharashtra,,2025,3,1
+x,Shop,24ABCDE1234F1Z6,R9,2025-03-10,2025-03-20,6204,1,5,800,40,840,0,Karnataka,,2025,3,1

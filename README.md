@@ -61,6 +61,16 @@ bar so bills stay one tap away on a phone. The logo opens the P&L.
   Table 14 against Table 7, and a GSTR-3B 3.1/3.2 preview. Two files compare table by table and
   state by state; a cleaned copy fixes only safe things (zero lines, overlapping document ranges,
   document type names), never an amount. Tests: `node test/gstr1-audit.js`.
+- GSTR-1 steps (`gstr1view.js`, on the GSTR-1 page), laid out like the marketplace GST tools (GST Tool):
+  GST Profile, Import Data, Statement (each platform and month: sales, returns, net, IGST/SGST/CGST,
+  invoice value, B2B/B2C/CDNR/nil/HSN split, the rows behind them and a CSV), TCS Report (your reports
+  against the operators' GSTR-8 by operator, month and state: gross, returns, net, difference, TCS and
+  0.5% due; operators matched by PAN, B2B through the operator counted, ₹1 tolerance; switch to use the
+  GSTR-8 figures) and GSTR1 Report (each table as the portal shows it, a reconciliation from the reports to
+  the return that accounts for every rupee, B2C HSN and documents switches, GSTR-1 Excel in the offline-tool
+  format: b2b,sez,de, b2cl, b2cs, cdnr, exemp, hsn(b2b), hsn(b2c), docs, eco, and the JSON). Amazon B2B
+  returns with a credit note number go to Table 9B (CDNR). Tests: `node test/gstr1view-audit.js`;
+  sample reports in `test/fixtures/gstr1/`.
 - Everything stays in the browser on the device. No server, no accounts, no data leaves the phone or laptop.
 
 ## Home page

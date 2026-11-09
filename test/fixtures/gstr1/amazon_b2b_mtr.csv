@@ -1,0 +1,4 @@
+Seller Gstin,Invoice Number,Invoice Date,Transaction Type,Order Id,Shipment Id,Shipment Date,Order Date,Quantity,Item Description,Hsn/sac,Product Tax Code,Ship To State,Invoice Amount,Tax Exclusive Gross,Total Tax Amount,Cgst Rate,Sgst Rate,Utgst Rate,Igst Rate,Cgst Tax,Sgst Tax,Utgst Tax,Igst Tax,Customer Bill To Gstid,Buyer Name,Credit Note No,Credit Note Date
+24ABCDE1234F1Z6,AMZ-1,2025-03-05,Shipment,O1,SH1,2025-03-05,2025-03-04,2,Saree silk,5007,A_GEN_STANDARD,MAHARASHTRA,11800,10000,1800,0,0,0,0.18,0,0,0,1800,27AAACB2222C1ZH,Buyer Co,,
+24ABCDE1234F1Z6,AMZ-1,2025-03-05,Refund,O1,SH1,2025-03-05,2025-03-04,1,Saree silk,5007,A_GEN_STANDARD,MAHARASHTRA,-2360,-2000,-360,0,0,0,0.18,0,0,0,-360,27AAACB2222C1ZH,Buyer Co,CN-AMZ-1,2025-03-25
+24ABCDE1234F1Z6,AMZ-2,2025-03-06,Shipment,O2,SH2,2025-03-06,2025-03-06,1,Saree cotton,5208,A_GEN_STANDARD,GUJARAT,1050,1000,50,0.025,0.025,0,0,25,25,0,0,,,,

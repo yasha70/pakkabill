@@ -1,0 +1,5 @@
+identifier,sup_name,gstin,sub_order_num,order_date,hsn_code,quantity,gst_rate,total_taxable_sale_value,tax_amount,total_invoice_value,taxable_shipping,end_customer_state_new,enrollment_no,financial_year,month_number,supplier_id
+x,Shop,24ABCDE1234F1Z6,S1,2025-03-10,6204,1,5,1000,50,1050,0,GUJARAT,,2025,3,1
+x,Shop,24ABCDE1234F1Z6,S2,2025-03-10,6204,1,5,2000,100,2100,0,Maharashtra,,2025,3,1
+x,Shop,24ABCDE1234F1Z6,S3,2025-03-10,6109,1,12,500,60,560,0,Delhi,,2025,3,1
+x,Shop,24ABCDE1234F1Z6,S4,2025-03-10,6204,1,5,300,15,315,0,Karnataka,,2025,3,1
