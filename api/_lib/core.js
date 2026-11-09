@@ -124,6 +124,7 @@ function publicUser(u) {
     createdAt: u.createdAt,
     lastSeen: u.lastSeen || 0,
     tempPw: !!u.tempPw,
+    verified: !!u.verifiedAt, // the number was checked with an OTP
     profile: u.profile || null,
     profiled: !!u.profileAt,
   };

@@ -11,6 +11,7 @@ const chat = require('./_lib/chat');
 const push = require('./_lib/push');
 const users = require('./_lib/users');
 const visits = require('./_lib/visits');
+const otp = require('./_lib/otp');
 
 const OWNER = 'owner';
 const IST = 5.5 * 3600e3;
@@ -87,6 +88,8 @@ const actions = {
         amount: paid.filter((o) => MONTH(o.paidAt || o.createdAt) === key).reduce((s, o) => s + o.amount, 0) / 100,
       })),
       signups: await users.signupSeries(14),
+      // OTP by SMS: on or off, and SMS sent per day (each one costs money with the SMS company)
+      otp: { on: otp.enabled(), sms: await otp.smsSeries(14) },
       // Pro ending in the next 7 days, and Pro that ended in the last 14 days.
       expiring: (await users.paidBetween(`(${now}`, now + 7 * core.DAY, 50)).map(core.publicUser),
       lapsed: (await users.paidBetween(now - 14 * core.DAY, now, 50)).sort((a, b) => b.paidUntil - a.paidUntil).map(core.publicUser),

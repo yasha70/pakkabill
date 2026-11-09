@@ -49,6 +49,58 @@ const lastCode = () => { const u = sent[sent.length - 1].url; return (/variables
   // a provider that says no
   global.fetch = async () => ({ ok: true, status: 200, text: async () => '{"return":false,"message":"Invalid key"}' });
   await otp.send('9234567890', 'login', '3.3.3.3').then(() => ok(false, 'failed SMS reported as sent'), (e) => ok(e.status === 502, 'a failed SMS is reported'));
+
+  // ---- the whole flow through /api/auth: sign-up, forgot password, verify an older account, delete ----
+  global.fetch = async (url, opts = {}) => { sent.push({ url: String(url), opts }); return { ok: true, status: 200, text: async () => '{"return":true}' }; };
+  set({ OTP_PROVIDER: 'fast2sms', FAST2SMS_API_KEY: 'F2S' });
+  const auth = require('../api/auth');
+  let ipN = 0;
+  const call = (body, token) => new Promise((resolve) => {
+    const res = { statusCode: 0, headers: {}, setHeader(k, v) { this.headers[k] = v; }, end(t) { resolve({ status: this.statusCode, ...JSON.parse(t) }); } };
+    auth({ method: 'POST', body, headers: { 'x-forwarded-for': '10.0.' + (ipN++ % 250) + '.1', ...(token ? { authorization: 'Bearer ' + token } : {}) } }, res);
+  });
+  const P = '9000000001';
+  let r = await call({ action: 'signup', phone: P, password: 'secret1' });
+  ok(r.status === 400 && /OTP/.test(r.error), 'sign-up without an OTP is refused: ' + r.error);
+  r = await call({ action: 'otpSend', phone: P, purpose: 'signup' }); ok(r.sent, 'sign-up OTP sent');
+  r = await call({ action: 'signup', phone: P, password: 'secret1', otp: lastCode(), shopName: 'Test' });
+  ok(r.token && r.user.verified, 'sign-up with OTP makes a verified account');
+  const t1 = r.token;
+  r = await call({ action: 'otpSend', phone: P, purpose: 'signup' }); ok(r.status === 409, 'no sign-up OTP for a number that has an account');
+  // forgot password
+  r = await call({ action: 'otpSend', phone: '9000000099', purpose: 'reset' }); ok(r.status === 404, 'no reset OTP for an unknown number');
+  r = await call({ action: 'otpSend', phone: P, purpose: 'reset' }); ok(r.sent, 'reset OTP sent');
+  const rc = lastCode();
+  r = await call({ action: 'otpReset', phone: P, otp: rc, newPassword: '123' }); ok(r.status === 400 && /6 characters/.test(r.error), 'short new password refused');
+  r = await call({ action: 'otpLogin', phone: P, otp: rc }); ok(r.status === 400, 'a reset code does not log in');
+  r = await call({ action: 'otpSend', phone: P, purpose: 'reset' }); const rc2 = lastCode();
+  r = await call({ action: 'otpReset', phone: P, otp: rc2, newPassword: 'newpass1' }); ok(r.token && r.user.verified, 'password reset with OTP logs in: ' + r.error);
+  const t2 = r.token;
+  r = await call({ action: 'login', phone: P, password: 'newpass1' }); ok(!!r.token, 'the new password works');
+  r = await call({ action: 'login', phone: P, password: 'secret1' }); ok(r.status === 401, 'the old password does not');
+  r = await call({ action: 'profile', skip: true }, t1); ok(r.status === 401, 'other devices are logged out after a reset');
+  // an older account (made with OTP off) verifies its number from My account
+  const core = require('../api/_lib/core');
+  const Q = '9000000002';
+  await core.saveUser({ phone: Q, pass: await core.hashPassword('oldpass1'), createdAt: Date.now(), paidUntil: 0 });
+  r = await call({ action: 'login', phone: Q, password: 'oldpass1' }); ok(r.token && !r.user.verified, 'older account is not verified');
+  const tq = r.token;
+  r = await call({ action: 'otpSend', purpose: 'verify' }); ok(r.status === 401, 'verify OTP needs a login');
+  r = await call({ action: 'otpSend', phone: P, purpose: 'verify' }, tq); ok(r.sent && sent[sent.length - 1].url.includes(Q), 'verify OTP goes to the account\'s own number, not the one sent');
+  r = await call({ action: 'verify', otp: '00000' + (lastCode() === '000000' ? '1' : '0') }, tq); ok(r.status === 401, 'wrong verify OTP refused');
+  r = await call({ action: 'otpSend', purpose: 'verify' }, tq);
+  r = await call({ action: 'verify', otp: lastCode() }, tq); ok(r.user && r.user.verified, 'older account verified: ' + r.error);
+  r = await call({ action: 'otpSend', purpose: 'verify' }, tq); ok(r.status === 400, 'no second verify for a verified number');
+  // delete the account with an OTP instead of the password
+  await require('../api/_lib/db').cmd(['DEL', `rl:otp:ph:${P}`]); // 3 SMS per number in 10 minutes were used above
+  r = await call({ action: 'delete', otp: '123456' }, t2); ok(r.status >= 400, 'delete with an OTP that was never sent is refused');
+  r = await call({ action: 'otpSend', purpose: 'delete' }, t2);
+  r = await call({ action: 'delete', otp: lastCode() }, t2); ok(r.deleted, 'account deleted with OTP: ' + r.error);
+  r = await call({ action: 'login', phone: P, password: 'newpass1' }); ok(r.status === 401, 'deleted account cannot log in');
+  // the admin's daily SMS count
+  const days = await otp.smsSeries(14);
+  ok(days.length === 14 && days[13].sms >= 10, 'SMS counted per day: ' + days[13].sms);
+
   console.log(`${pass}/${pass + fail} OTP checks passed`);
   if (fail) process.exit(1);
 })();

@@ -8,6 +8,8 @@
   var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function ls(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
   function acct() { var a = ls('pb-acct'); return a && a.token && a.user ? a : null; }
+  // OTP by SMS is set up on the server (saved by pro.js from /api/config)
+  function otpOn() { var c = ls('pb-cfg'); return !!(c && c.otp); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function rupees(n) { return '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN'); }
   function num(n) { return Number(n || 0).toLocaleString('en-IN'); }
@@ -87,7 +89,7 @@
     }
     var u = a.user, name = u.shopName || b.name || 'My account';
     var ini = name.replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/).slice(0, 2).map(function (w) { return w[0] || ''; }).join('').toUpperCase() || 'PB';
-    var rows = [['Mobile number', u.phone === 'owner' ? 'Owner' : '+91 ' + u.phone]];
+    var rows = [['Mobile number', u.phone === 'owner' ? 'Owner' : '+91 ' + u.phone + (u.verified ? ' \u2713 verified' : '')]];
     if (u.createdAt) rows.push(['Member since', day(u.createdAt)]);
     if (b.gstin) rows.push(['GSTIN', b.gstin]);
     if (b.phone && b.phone !== u.phone) rows.push(['Shop phone', b.phone]);
@@ -159,6 +161,18 @@
       '<p class="pba-muted" style="margin-top:8px">One file with every shop’s bills, parties, items and settings. Keep it as your own backup.</p></section>';
   }
 
+  // Older accounts (made before OTP was on) can check their number once
+  function verifyHtml(st) {
+    var d = st.ver || {}, a = acct();
+    if (!a || a.user.phone === 'owner' || a.user.verified || !otpOn()) return d.ok ? '<section class="pba-card"><p class="pba-ok" style="margin:0">\u2713 Your mobile number is verified.</p></section>' : '';
+    return '<section class="pba-card"><h2>Verify your mobile number</h2>' +
+      '<p class="pba-muted" style="margin:0 0 8px">We send a 6-digit OTP to +91 ' + esc(a.user.phone) + '. A verified number lets you reset your password yourself with an OTP, any time.</p>' +
+      (d.sent ? '<label class="pba-lbl">OTP sent by SMS<input class="pba-in" data-pba-verotp inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit OTP" value="' + esc(d.otp || '') + '"></label>' : '') +
+      (d.err ? '<p class="pba-err">' + esc(d.err) + '</p>' : '') +
+      '<div class="pba-btns">' + (d.sent ? '<button type="button" class="pba-btn pri" data-pba="verify"' + (d.busy ? ' disabled' : '') + '>' + (d.busy ? 'Checking\u2026' : 'Verify') + '</button>' : '') +
+      '<button type="button" class="pba-btn' + (d.sent ? '' : ' pri') + '" data-pba="versend"' + (d.busy ? ' disabled' : '') + '>' + (d.sent ? 'Send again' : 'Send OTP') + '</button></div></section>';
+  }
+
   function securityHtml(st) {
     var d = st.pw || {};
     return '<section class="pba-card"><details' + (d.open ? ' open' : '') + ' data-pba-pwdetails><summary><b>Change password</b></summary>' +
@@ -167,7 +181,8 @@
       '<label class="pba-lbl">Current password<input type="password" class="pba-in" data-pba-pwold autocomplete="current-password" value="' + esc(d.old || '') + '"></label>' +
       '<label class="pba-lbl">New password (6 or more characters)<input type="password" class="pba-in" data-pba-pwnew autocomplete="new-password" value="' + esc(d.nw || '') + '"></label>' +
       (d.err ? '<p class="pba-err">' + esc(d.err) + '</p>' : '') + (d.ok ? '<p class="pba-ok">\u2713 Password changed.</p>' : '') +
-      '<div class="pba-btns"><button type="button" class="pba-btn pri" data-pba="password"' + (d.busy ? ' disabled' : '') + '>' + (d.busy ? 'Saving\u2026' : 'Change password') + '</button></div></details></section>';
+      '<div class="pba-btns"><button type="button" class="pba-btn pri" data-pba="password"' + (d.busy ? ' disabled' : '') + '>' + (d.busy ? 'Saving\u2026' : 'Change password') + '</button></div>' +
+      (otpOn() ? '<p class="pba-muted" style="margin-top:8px">Forgot your current password? Log out, then on the log in screen tap <b>Set a new one with OTP</b>.</p>' : '') + '</details></section>';
   }
 
   function legalHtml() {
@@ -181,11 +196,14 @@
     return '<section class="pba-card pba-danger" id="pba-delete"><details' + (d.open ? ' open' : '') + ' data-pba-deldetails><summary>Delete my account</summary>' +
       '<p class="pba-muted" style="margin:10px 0">This removes your PakkaBill login, your plan and every shop saved in the cloud backup, for good. It cannot be undone. ' +
       'Payment records are kept for as long as tax law needs them. If you have Pro time left, it is lost.</p>' +
-      '<label class="pba-lbl">Your password<input type="password" class="pba-in" data-pba-delpw autocomplete="current-password" value="' + esc(d.pw || '') + '"></label>' +
+      (d.viaOtp ? '<label class="pba-lbl">OTP sent to +91 ' + esc(acct().user.phone) + '<input class="pba-in" data-pba-delotp inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit OTP" value="' + esc(d.otp || '') + '"></label>'
+        : '<label class="pba-lbl">Your password<input type="password" class="pba-in" data-pba-delpw autocomplete="current-password" value="' + esc(d.pw || '') + '"></label>') +
       '<label class="pba-chk"><input type="checkbox" data-pba-delwipe' + (d.wipe ? ' checked' : '') + '> Also delete the bills saved on this device</label>' +
       (d.err ? '<p class="pba-err">' + esc(d.err) + '</p>' : '') +
       '<div class="pba-btns"><button type="button" class="pba-btn pba-btn-danger" data-pba="delete"' + (d.busy ? ' disabled' : '') + '>' + (d.busy ? 'Deleting\u2026' : 'Delete my account permanently') + '</button></div>' +
-      '<p class="pba-muted" style="margin-top:8px">Forgot your password? <a href="#/support?new=1">Ask us</a> and we will delete it for you.</p></details></section>';
+      (d.viaOtp ? '<p class="pba-muted" style="margin-top:8px"><button type="button" class="pba-btn" data-pba="delotpsend"' + (d.busy ? ' disabled' : '') + '>Send OTP again</button></p>'
+        : otpOn() ? '<p class="pba-muted" style="margin-top:8px">Forgot your password? <button type="button" class="pba-btn" data-pba="delotpsend"' + (d.busy ? ' disabled' : '') + '>Use an OTP instead</button></p>'
+        : '<p class="pba-muted" style="margin-top:8px">Forgot your password? <a href="#/support?new=1">Ask us</a> and we will delete it for you.</p>') + '</details></section>';
   }
 
   /* ---------------- the page ---------------- */
@@ -220,7 +238,9 @@
     var pwIn = el.querySelector('[data-pba-delpw]'), wipeIn = el.querySelector('[data-pba-delwipe]'), det = el.querySelector('[data-pba-deldetails]');
     var po = el.querySelector('[data-pba-pwold]'), pn = el.querySelector('[data-pba-pwnew]'), pd = el.querySelector('[data-pba-pwdetails]');
     if (po) st.pw = Object.assign(st.pw || {}, { old: po.value, nw: pn.value, open: pd.open });
-    if (pwIn || det) st.del = Object.assign(st.del || {}, { pw: pwIn ? pwIn.value : '', wipe: wipeIn ? wipeIn.checked : false, open: det ? det.open : false });
+    var delOtp = el.querySelector('[data-pba-delotp]'), verOtp = el.querySelector('[data-pba-verotp]');
+    if (pwIn || det) st.del = Object.assign(st.del || {}, { pw: pwIn ? pwIn.value : '', otp: delOtp ? delOtp.value : (st.del || {}).otp, wipe: wipeIn ? wipeIn.checked : false, open: det ? det.open : false });
+    if (verOtp) st.ver = Object.assign(st.ver || {}, { otp: verOtp.value });
     if (!st.pwAsked && /[?&]pw=1/.test(location.hash) && a) { st.pwAsked = true; st.pw = Object.assign(st.pw || {}, { open: true }); st.scrollPw = true; }
     if (!st.delAsked && /[?&]delete=1/.test(location.hash) && a) { st.delAsked = true; st.del = Object.assign(st.del || {}, { open: true }); st.scrollDel = true; }
     var main = st.shops && st.shops.filter(function (s) { return s.id === st.active; })[0];
@@ -234,7 +254,7 @@
       h += ticketsHtml(st.tickets);
     }
     h += deviceHtml(st.dev);
-    if (a && a.user.phone !== 'owner') h += securityHtml(st);
+    if (a && a.user.phone !== 'owner') h += verifyHtml(st) + securityHtml(st);
     h += legalHtml();
     if (a && a.user.phone !== 'owner') h += deleteHtml(st);
     h += '</div>';
@@ -249,13 +269,36 @@
     if (st.scrollPw) { st.scrollPw = false; var pbx = el.querySelector('[data-pba-pwdetails]'); if (pbx) setTimeout(function () { pbx.scrollIntoView({ behavior: 'smooth', block: 'center' }); var i = pbx.querySelector('[data-pba-pwold]'); if (i) i.focus(); }, 200); }
     if (st.scrollDel) { st.scrollDel = false; var box = el.querySelector('#pba-delete'); if (box) setTimeout(function () { box.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 200); }
   }
+  // keeps the logged-in token and account fresh after the server sends a changed account
+  function saveUser(u) {
+    var a = acct();
+    if (a && u) { a.user = u; try { localStorage.setItem('pb-acct', JSON.stringify(a)); } catch (e) { /* ignore */ } }
+  }
+  function sendOtp(el, purpose, slot) {
+    var st = el._pba;
+    st[slot] = Object.assign(st[slot] || {}, { busy: true, err: '' }); draw(el);
+    api('auth', { action: 'otpSend', purpose: purpose }).then(function () {
+      st[slot] = Object.assign(st[slot], { busy: false, sent: true, viaOtp: slot === 'del' ? true : st[slot].viaOtp, open: true });
+      draw(el);
+      var i = el.querySelector(slot === 'del' ? '[data-pba-delotp]' : '[data-pba-verotp]'); if (i) i.focus();
+    }).catch(function (e) { st[slot] = Object.assign(st[slot], { busy: false, err: e.message || 'Could not send the OTP.' }); draw(el); });
+  }
+  function verify(el) {
+    var st = el._pba, code = ((el.querySelector('[data-pba-verotp]') || {}).value || '').replace(/\D/g, '');
+    st.ver = Object.assign(st.ver || {}, { otp: code, err: '' });
+    if (code.length !== 6) { st.ver.err = 'Type the 6-digit OTP from the SMS.'; draw(el); return; }
+    st.ver.busy = true; draw(el);
+    api('auth', { action: 'verify', otp: code }).then(function (j) { saveUser(j.user); st.ver = { ok: true }; draw(el); })
+      .catch(function (e) { st.ver = Object.assign(st.ver, { busy: false, otp: '', err: e.message || 'Could not verify.' }); draw(el); });
+  }
   function deleteAccount(el) {
     var st = el._pba, pw = (el.querySelector('[data-pba-delpw]') || {}).value || '', wipe = !!(el.querySelector('[data-pba-delwipe]') || {}).checked;
-    st.del = { open: true, pw: pw, wipe: wipe };
-    if (!pw) { st.del.err = 'Type your password to confirm.'; draw(el); return; }
+    var viaOtp = !!(st.del && st.del.viaOtp), code = ((el.querySelector('[data-pba-delotp]') || {}).value || '').replace(/\D/g, '');
+    st.del = { open: true, pw: pw, wipe: wipe, viaOtp: viaOtp, otp: code };
+    if (viaOtp ? code.length !== 6 : !pw) { st.del.err = viaOtp ? 'Type the 6-digit OTP from the SMS.' : 'Type your password to confirm.'; draw(el); return; }
     if (!confirm('Delete your PakkaBill account and cloud backups for good? This cannot be undone.')) return;
     st.del.busy = true; draw(el);
-    api('auth', { action: 'delete', password: pw }).then(function () {
+    api('auth', viaOtp ? { action: 'delete', otp: code } : { action: 'delete', password: pw }).then(function () {
       ['pb-acct', 'pb-sync'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } });
       var P = window.pbShops, wipeAll = wipe && P ? Promise.all(P.list().map(function (s) { return P.drop(s.id); })).then(function () {
         ['pb-shops', 'pb-shop'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } });
@@ -265,7 +308,7 @@
         alert('Your PakkaBill account has been deleted.' + (wipe ? ' The bills on this device were removed too.' : ' Bills saved on this device are still here.'));
         location.hash = '#/bills'; location.reload();
       });
-    }).catch(function (e) { st.del = { open: true, pw: '', wipe: wipe, err: e.message || 'Could not delete the account. Try again.' }; draw(el); });
+    }).catch(function (e) { st.del = { open: true, pw: '', otp: '', viaOtp: viaOtp, wipe: wipe, err: e.message || 'Could not delete the account. Try again.' }; draw(el); });
   }
   function changePassword(el) {
     var st = el._pba, old = (el.querySelector('[data-pba-pwold]') || {}).value || '', nw = (el.querySelector('[data-pba-pwnew]') || {}).value || '';
@@ -297,6 +340,9 @@
       if (act === 'download') download(el);
       else if (act === 'delete') deleteAccount(el);
       else if (act === 'password') changePassword(el);
+      else if (act === 'versend') sendOtp(el, 'verify', 'ver');
+      else if (act === 'verify') verify(el);
+      else if (act === 'delotpsend') sendOtp(el, 'delete', 'del');
       else if (act === 'appsettings' && window.PakkaBillApp) window.PakkaBillApp.settings();
       else if (act === 'signup' || act === 'login') { if (window.pbAuth) window.pbAuth({ mode: act, from: 'account' }); else location.hash = '#/plan'; }
       else if (act === 'profile' && window.pbAuthProfile) window.pbAuthProfile();

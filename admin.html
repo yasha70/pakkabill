@@ -529,6 +529,11 @@
         ['Earned in total', money(s.revenue), `${n(s.payers)} paying customers`],
         ['Active this week', n(s.activeWeek), `${n(s.activeToday)} today`],
         ['Open tickets', n(s.tickets ? s.tickets.active : 0), ''],
+        ...(() => {
+          // OTP SMS: today's count and the last 14 days (about 20 paise each with most SMS companies)
+          const o = s.otp || {}, sms = o.sms || [], today = sms.length ? sms[sms.length - 1].sms : 0, two = sms.reduce((a, d) => a + d.sms, 0);
+          return [['OTP SMS today', o.on ? n(today) : 'Off', o.on ? `${n(two)} in 14 days · about ${money(two * 0.2)}` : 'Add an SMS key in Vercel to turn on']];
+        })(),
       ].map(([l, v, sub]) => `<div class="stat"><div class="l">${l}</div><div class="v">${v}</div>${sub ? `<div class="muted" style="font-size:12px;font-weight:600">${esc(sub)}</div>` : ''}</div>`).join('');
       const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const topS = Math.max(1, ...s.signups.map((d) => d.signups));
@@ -843,7 +848,7 @@
       const r = await api('users', { filter: uf, q: $('#q').value, page: upage, size: 50 });
       $('#users').innerHTML = r.users.length
         ? `<table><thead><tr><th>Mobile</th><th>Shop</th><th>Plan</th><th>Pro until</th><th>Cloud</th><th>Last seen</th><th>Joined</th></tr></thead><tbody>${r.users
-            .map((u) => `<tr class="click" data-open="${esc(u.phone)}"><td><b>${esc(u.phone)}</b></td><td>${esc(u.shopName) || '<span class="muted">—</span>'}${u.note ? ' <span title="Has a note">📝</span>' : ''}</td><td>${planPill(u)}</td><td>${u.paidUntil ? day(u.paidUntil) : '—'}</td><td>${u.cloud ? `${u.cloud.shops} shop${u.cloud.shops > 1 ? 's' : ''} · ${(u.cloud.bytes / 1048576).toFixed(1)} MB` : '<span class="muted">—</span>'}</td><td>${u.lastSeen ? ago(u.lastSeen) : '—'}</td><td>${day(u.createdAt)}</td></tr>`)
+            .map((u) => `<tr class="click" data-open="${esc(u.phone)}"><td><b>${esc(u.phone)}</b>${u.verified ? ' <span title="Number verified by OTP" style="color:#12714b">✓</span>' : ''}</td><td>${esc(u.shopName) || '<span class="muted">—</span>'}${u.note ? ' <span title="Has a note">📝</span>' : ''}</td><td>${planPill(u)}</td><td>${u.paidUntil ? day(u.paidUntil) : '—'}</td><td>${u.cloud ? `${u.cloud.shops} shop${u.cloud.shops > 1 ? 's' : ''} · ${(u.cloud.bytes / 1048576).toFixed(1)} MB` : '<span class="muted">—</span>'}</td><td>${u.lastSeen ? ago(u.lastSeen) : '—'}</td><td>${day(u.createdAt)}</td></tr>`)
             .join('')}</tbody></table>${r.capped ? '<p class="muted">Showing the first 200 matches. Type more to narrow the search.</p>' : ''}`
         : '<p class="empty">No customers here.</p>';
       pager($('#upager'), r, (p) => { upage = p; loadUsers(); });
@@ -862,8 +867,8 @@
         if (p + 1 >= r.pages) break;
       }
       const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-      const rows = [['Mobile', 'Shop', 'Name', 'Sells', 'Sells on', 'Orders a day', 'City', 'Signed up from', 'Plan', 'Pro until', 'Last plan', 'Last seen', 'Joined', 'Blocked', 'Note']].concat(
-        all.map((u) => { const p = u.profile || {}; return [u.phone, u.shopName, p.name, (p.sells || []).join(', '), (p.where || []).join(', '), p.orders, p.city, fromLabel(u.from), u.pro ? 'Pro' : 'Free', u.paidUntil ? day(u.paidUntil) : '', u.lastPlan, u.lastSeen ? day(u.lastSeen) : '', day(u.createdAt), u.blocked ? 'Yes' : '', u.note]; }),
+      const rows = [['Mobile', 'Shop', 'Name', 'Sells', 'Sells on', 'Orders a day', 'City', 'Signed up from', 'Plan', 'Pro until', 'Last plan', 'Last seen', 'Joined', 'Number verified', 'Blocked', 'Note']].concat(
+        all.map((u) => { const p = u.profile || {}; return [u.phone, u.shopName, p.name, (p.sells || []).join(', '), (p.where || []).join(', '), p.orders, p.city, fromLabel(u.from), u.pro ? 'Pro' : 'Free', u.paidUntil ? day(u.paidUntil) : '', u.lastPlan, u.lastSeen ? day(u.lastSeen) : '', day(u.createdAt), u.verified ? 'Yes' : '', u.blocked ? 'Yes' : '', u.note]; }),
       );
       const blob = new Blob(['﻿' + rows.map((r) => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv' });
       const a = document.createElement('a');
@@ -902,6 +907,7 @@
           <dt>Plan</dt><dd>${u.pro ? `${u.trial ? 'Free trial' : 'Pro'} till ${day(u.paidUntil)}` : u.paidUntil ? `Free (Pro ended ${day(u.paidUntil)})` : 'Free, never paid'}</dd>
           <dt>Joined</dt><dd>${when(u.createdAt)}</dd>
           <dt>Last seen</dt><dd>${u.lastSeen ? when(u.lastSeen) : '—'}</dd>
+          <dt>Mobile number</dt><dd>${u.phone === 'owner' ? '—' : u.verified ? '✓ Verified by OTP' : 'Not verified (made before OTP was on)'}</dd>
           <dt>Cloud backup</dt><dd>${u.cloud ? `${u.cloud.shops} shop${u.cloud.shops > 1 ? 's' : ''}, ${(u.cloud.bytes / 1048576).toFixed(1)} MB` : 'Off'}</dd>
           <dt>Notifications</dt><dd>${c.devices ? `On, ${c.devices} device${c.devices > 1 ? 's' : ''}` : 'Off'}</dd>
         </dl></div>

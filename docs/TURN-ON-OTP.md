@@ -3,8 +3,18 @@
 PakkaBill already has OTP by SMS built in. It stays **off** until you add an SMS company's key in
 Vercel. When it is on:
 
-- **Create account** asks for an OTP sent to the mobile number, so only real numbers can sign up.
-- **Log in** shows "Forgot your password? **Log in with OTP**", so nobody is locked out.
+- **Create account** asks for an OTP sent to the mobile number, so only real numbers can sign up
+  (website and Android app).
+- **Log in** shows "Forgot your password? **Set a new one with OTP**, or **log in with OTP**", so
+  nobody is locked out and support no longer has to reset passwords by hand.
+- **My account** shows "✓ verified" next to the number. Accounts made before OTP was on get a
+  **Verify your mobile number** card.
+- **Delete my account** can be confirmed with an OTP when the password is forgotten.
+- **Admin → Overview** shows **OTP SMS today** and the last 14 days, with a rough cost. Each
+  customer shows whether the number is verified (also a column in the customer CSV).
+
+Before you turn it on, make sure people have the **Android app update** with OTP sign-up: an older
+app version cannot create accounts once OTP is on (logging in still works).
 
 When it is off (as now), sign-up and log in work with mobile number and password, as before.
 
@@ -53,8 +63,11 @@ Delete `OTP_PROVIDER` in Vercel and redeploy. Everything goes back to password o
 ## How it works (for a developer)
 
 `api/_lib/otp.js` makes a 6-digit code, keeps only its hash in Redis for 10 minutes (5 wrong tries,
-used once, separate for sign-up and log in), and asks the provider to deliver it. Limits: 3 SMS per
+used once, separate for each purpose: signup, login, reset, verify, delete), and asks the provider
+to deliver it. SMS sent per day are counted in `otpsms:YYYY-MM-DD` for the admin. Limits: 3 SMS per
 number in 10 minutes, 10 a day, 20 an hour per IP. `/api/config` reports `otp: true` when a provider
 is set, and the app (`pro.js`) then shows the OTP fields. API: `/api/auth` actions `otpSend`
-`{ phone, purpose }`, `otpLogin` `{ phone, otp }`, and `signup` takes `{ otp }`. Tests:
+`{ phone, purpose }`, `otpLogin` `{ phone, otp }`, `otpReset` `{ phone, otp, newPassword }`,
+`verify` `{ otp }` (logged in), `delete` takes `{ otp }` instead of the password, and `signup`
+takes `{ otp }`. A user who used any OTP gets `verifiedAt`; `publicUser` sends `verified`. Tests:
 `node test/otp-audit.js`. Locally: `OTP_PROVIDER=test npm run dev` prints the code in the terminal.

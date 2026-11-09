@@ -165,22 +165,24 @@
   }
 
   function authHtml(mode, from = '') {
-    const otpOn = !!(cfg && cfg.otp), viaOtp = mode === 'otp' && otpOn;
-    if (mode === 'otp' && !otpOn) mode = 'login';
+    const otpOn = !!(cfg && cfg.otp), viaOtp = mode === 'otp' && otpOn, reset = mode === 'reset' && otpOn;
+    if ((mode === 'otp' || mode === 'reset') && !otpOn) mode = 'login';
     const last = mode !== 'signup' ? read(LAST_PHONE) || '' : '';
     // OTP by SMS (only when set up on the server): sign-up checks the number, log in can skip the password
     const otpRow = (purpose) => `<label>OTP sent by SMS<span class="pbp-pw"><input name="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit OTP" required><button type="button" class="pbp-show pbp-otpb" data-purpose="${purpose}">Send OTP</button></span></label>`;
     const pwRow = `<label>Password<span class="pbp-pw"><input name="password" type="password" autocomplete="${mode === 'signup' ? 'new-password' : 'current-password'}" autocapitalize="none" autocorrect="off" spellcheck="false" minlength="6" required><button type="button" class="pbp-show" aria-label="Show password">Show</button></span></label>`;
-    const forgot = otpOn ? 'Forgot your password? <button type="button" class="pbp-link pbp-inl" data-to="otp">Log in with OTP</button>, then change it in My account.' : 'Forgot your password? <a href="#/support?new=1&amp;topic=account&amp;p=login">Ask support to reset it</a>.';
+    // forgot password: a new one with an OTP (form mode 'reset'), or just log in with an OTP this time
+    const newPwRow = `<label>New password (6 or more characters)<span class="pbp-pw"><input name="newPassword" type="password" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" minlength="6" required><button type="button" class="pbp-show" aria-label="Show password">Show</button></span></label>`;
+    const forgot = otpOn ? 'Forgot your password? <button type="button" class="pbp-link pbp-inl" data-to="reset">Set a new one with OTP</button>, or <button type="button" class="pbp-link pbp-inl" data-to="otp">log in with OTP</button>.' : 'Forgot your password? <a href="#/support?new=1&amp;topic=account&amp;p=login">Ask support to reset it</a>.';
     return `<form class="pbp-auth" data-mode="${mode}" data-from="${esc(from)}">
       <div class="pbp-tabs"><button type="button" data-mode="login" class="${mode !== 'signup' ? 'is-on' : ''}">Log in</button><button type="button" data-mode="signup" class="${mode === 'signup' ? 'is-on' : ''}">Create account</button></div>
       <label>Mobile number<input name="phone" inputmode="numeric" autocomplete="tel" placeholder="10-digit mobile" maxlength="14" value="${esc(last)}" required></label>
       ${mode === 'signup' && otpOn ? otpRow('signup') : ''}
       ${mode === 'signup' ? '<label>Shop name<input name="shopName" autocomplete="organization" placeholder="As on your bills"></label>' : ''}
-      ${viaOtp ? otpRow('login') : pwRow}
+      ${reset ? otpRow('reset') + newPwRow : viaOtp ? otpRow('login') : pwRow}
       <p class="pbp-err" role="alert"></p>
-      <button class="pbp-btn" type="submit">${mode === 'signup' ? (cfg && cfg.trialDays ? `Create account: ${cfg.trialDays} days of Pro free` : 'Create account') : 'Log in'}</button>
-      ${viaOtp ? '<p class="pbp-fine"><button type="button" class="pbp-link pbp-inl" data-to="login">Use my password instead</button></p>' : `<p class="pbp-fine">${mode === 'login' ? `Log in and your shops and bills from your other devices download here. ${forgot}` : `${cfg && cfg.trialDays ? `Every new account gets ${cfg.trialDays} days of Pro free, no payment needed. ` : ''}Your account keeps your Pro plan and cloud backup on every phone and laptop you log in on. By creating an account you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.`}</p>`}
+      <button class="pbp-btn" type="submit">${mode === 'signup' ? (cfg && cfg.trialDays ? `Create account: ${cfg.trialDays} days of Pro free` : 'Create account') : reset ? 'Save new password and log in' : 'Log in'}</button>
+      ${reset ? '<p class="pbp-fine">We send a 6-digit OTP to your number. After the new password is saved, PakkaBill logs out on your other phones and computers. <button type="button" class="pbp-link pbp-inl" data-to="login">Back to log in</button></p>' : viaOtp ? '<p class="pbp-fine"><button type="button" class="pbp-link pbp-inl" data-to="login">Use my password instead</button></p>' : `<p class="pbp-fine">${mode === 'login' ? `Log in and your shops and bills from your other devices download here. ${forgot}` : `${cfg && cfg.trialDays ? `Every new account gets ${cfg.trialDays} days of Pro free, no payment needed. ` : ''}Your account keeps your Pro plan and cloud backup on every phone and laptop you log in on. By creating an account you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.`}</p>`}
     </form>`;
   }
 
@@ -239,7 +241,7 @@
         btn.disabled = true;
         try {
           const r = await api('auth', {
-            body: { action: form.dataset.mode === 'otp' ? 'otpLogin' : form.dataset.mode, phone: f.get('phone'), password: f.get('password') || '', otp: f.get('otp') || '', shopName: f.get('shopName') || '', from: form.dataset.from || '' },
+            body: { action: { otp: 'otpLogin', reset: 'otpReset' }[form.dataset.mode] || form.dataset.mode, phone: f.get('phone'), password: f.get('password') || '', newPassword: f.get('newPassword') || '', otp: f.get('otp') || '', shopName: f.get('shopName') || '', from: form.dataset.from || '' },
           });
           if (/^\d{10}$/.test(r.user.phone)) write(LAST_PHONE, r.user.phone);
           // a new account: ask about the shop once (optional), now or when the app opens next
@@ -255,7 +257,7 @@
             if (done) closeUpgrade();
             return claimOffer(claimId);
           }
-          toast(form.dataset.mode === 'signup' ? (r.user.trial ? 'Account created. Your free Pro trial is on.' : 'Account created. You are logged in.') : r.user.pro ? 'Logged in. Pro is active.' : 'Logged in.');
+          toast(form.dataset.mode === 'signup' ? (r.user.trial ? 'Account created. Your free Pro trial is on.' : 'Account created. You are logged in.') : form.dataset.mode === 'reset' ? 'New password saved. You are logged in.' : r.user.pro ? 'Logged in. Pro is active.' : 'Logged in.');
           loadNews();
           if (done) done(r.user, reloading, fresh);
           else if (fresh && !reloading && !dialog) setTimeout(askProfile, 900);
@@ -304,8 +306,8 @@
       if (m) mode = m;
       const signup = mode === 'signup';
       box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button>
-        <h2 id="pbp-title">${signup ? 'Create your free account' : 'Log in to PakkaBill'}</h2>
-        <p class="pbp-why">${esc(o.why || (signup ? 'Only your mobile number and a password. Takes 20 seconds.' : 'Your shops, bills and plan come to this device.'))}</p>
+        <h2 id="pbp-title">${signup ? 'Create your free account' : mode === 'reset' && cfg && cfg.otp ? 'Set a new password' : 'Log in to PakkaBill'}</h2>
+        <p class="pbp-why">${esc(o.why || (signup ? (cfg && cfg.otp ? 'Only your mobile number (we check it with an SMS OTP) and a password. Takes a minute.' : 'Only your mobile number and a password. Takes 20 seconds.') : mode === 'reset' && cfg && cfg.otp ? 'We send a 6-digit OTP to your mobile number. Then choose a new password.' : 'Your shops, bills and plan come to this device.'))}</p>
         ${signup ? `<ul class="pbp-gets">${accountGets().map((g) => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}
         ${authHtml(mode, o.from || '')}
         <p class="pbp-keep">Bills already on this device stay as they are.</p>
