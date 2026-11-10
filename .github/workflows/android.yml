@@ -1,6 +1,8 @@
-# Builds PakkaBill for Android (android/): runs the P&L engine tests, then the Play Store bundle (.aab) and the website APK, both
+# Builds PakkaBill for Android (android/): runs the engine tests (the P&L, billing and the website's
+# tool engines the app is built with), then the Play Store bundle (.aab) and the website APK, both
 # unsigned (the signing key stays outside this public repo), plus a debug APK that is tested on an
-# Android emulator with screenshots. Outputs go to the apk-build and apk-shots branches.
+# Android emulator with screenshots. On main, outputs go to the apk-build and apk-shots branches;
+# a run started by hand on another branch keeps them as the run's artifacts only.
 name: Android app
 
 on:
@@ -11,6 +13,17 @@ on:
       - 'android/**'
       - 'pnl.html'
       - '.github/workflows/android.yml'
+      # the website files the app's tool engines are built from (android/engines/build.mjs)
+      - 'labels.html'
+      - 'index.html'
+      - 'gstr1check.js'
+      - 'gstr1view.js'
+      - 'lowship.js'
+      - 'listing.js'
+      - 'autolist.js'
+      - 'lens/**'
+      - 'test/*-audit.js'
+      - 'test/autolist-form.html'
 
 permissions:
   contents: write
@@ -34,9 +47,22 @@ jobs:
         with:
           gradle-version: '9.8.0'
 
+      # the website's tool engines are built for the app with Node (android/engines)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Build bundle, release APK and debug APK
         working-directory: android
+        env:
+          AUTOLIST_WEB_OUT: ${{ runner.temp }}/autolist-web.js
         run: gradle :core:test :app:bundleRelease :app:assembleRelease :app:assembleDebug --stacktrace
+
+      - name: Auto listing script for Meesho's page, in Chromium (the engine of Android's WebView)
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw" && cd "$RUNNER_TEMP/pw"
+          npm init -y > /dev/null && npm i playwright@1.63.0 > /dev/null && npx playwright install --with-deps chromium > /dev/null
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node "$GITHUB_WORKSPACE/android/ci/autolist-web-check.cjs" "$RUNNER_TEMP/autolist-web.js"
 
       - name: Collect outputs
         run: |
@@ -55,6 +81,7 @@ jobs:
           path: out/
 
       - name: Push outputs to the apk-build branch
+        if: github.ref == 'refs/heads/main'
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -103,8 +130,14 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: bash android/ci/shots.sh
 
-      - name: Push screenshots to the apk-shots branch
+      - uses: actions/upload-artifact@v4
         if: always()
+        with:
+          name: PakkaBill-shots
+          path: shots/
+
+      - name: Push screenshots to the apk-shots branch
+        if: always() && github.ref == 'refs/heads/main'
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
