@@ -10,6 +10,8 @@
 //   lowship.js   PBShip      lowship.js    low shipping image versions
 //   lenscore.js  PBLensCore  lens/core.js  Meesho Lens estimates
 //   listcore.js  PBListCore  lens/listcore.js  Auto listing templates
+//   listing.js   PBListing   listing.js    Meesho listing: the category template, rows and the Excel writer
+//   xmldom.js    DOMParser   @xmldom/xmldom (npm), the XML the listing engine reads and writes
 //
 // The GSTR-1 builder lives inside the website's bundle (index.html). It is found by name, and every
 // helper it uses is collected from the bundle with Babel's scope analysis, so nothing is copied by hand.
@@ -19,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { parse } from '@babel/parser';
 import babelTraverse from '@babel/traverse';
 import { transformSync } from '@babel/core';
+import { buildSync } from 'esbuild';
 
 const traverse = babelTraverse.default || babelTraverse;
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -166,6 +169,77 @@ for (const [name, file, pick] of plain) {
   const src = pick(read(file));
   fs.writeFileSync(path.join(outDir, name), `// ${file}, made ES5 by android/engines/build.mjs. Do not edit here.\n` + es5(src, name));
 }
+/* ---------------- the Meesho listing engine (listing.js "Core engine (no UI)") ---------------- */
+
+// the page's own parts the app uses as they are, with no page around them: ready-made sets, the
+// suggested product name and colour swatches. They read and change the page's `state`, which the app
+// fills in before each call.
+const LISTING_PAGE = ['VIEW_LABEL', 'MULTI', 'SWATCH', 'defaultSettings', 'newCatalogue', 'defaultWork', 'state', 'plural', 'fmt',
+  'remapColours', 'defaultMeeshoColour', 'catOf', 'catName', 'swatchOf', 'PRESET_KEY', 'BUILT_IN_PRESETS', 'CHART_PARTS', 'presetKey',
+  'userPresets', 'allPresets', 'saveUserPresets', 'matchOption', 'chartOf', 'applyPreset', 'usePreset', 'saveCurrentAsPreset',
+  'deletePreset', 'presetFacts', 'suggestName'];
+// what those parts call on the page, done without one: messages are kept for the app to show, and
+// saved sets live in memory (the app keeps them on the phone)
+const PAGE_STUBS = `var __page = { toasts: [], store: {} };
+function toast(msg, level) { __page.toasts.push({ msg: String(msg), level: level || '' }); }
+function saveNow() {}
+function saveSoon() {}
+function changed() {}
+function commit() {}
+function rerender() {}
+function renderSteps() {}
+var localStorage = {
+  getItem: function (k) { return Object.prototype.hasOwnProperty.call(__page.store, k) ? __page.store[k] : null; },
+  setItem: function (k, v) { __page.store[k] = String(v); }
+};
+`;
+
+function topNames(code) {
+  const names = [];
+  for (const n of parse(code, { sourceType: 'script' }).program.body) {
+    if (n.type === 'FunctionDeclaration') names.push(n.id.name);
+    else if (n.type === 'VariableDeclaration') n.declarations.forEach((d) => d.id.type === 'Identifier' && names.push(d.id.name));
+  }
+  return names;
+}
+
+function listingEngine() {
+  const src = read('listing.js');
+  const a = src.indexOf('const NS_MAIN = ');
+  const b = src.indexOf('/* ======================================================= interface */');
+  const c = src.indexOf('/* ---------------------------------------------------------------- mount */');
+  if (a < 0 || b < a || c < b) throw new Error('listing.js: core engine not found');
+  const body = src.slice(a, b);
+  // every top-level function and constant of the engine, so the app can call them
+  const names = topNames(body);
+  // the page's parts named above, in the page's order
+  const ui = src.slice(b, c);
+  const picked = [];
+  for (const n of parse(ui, { sourceType: 'script' }).program.body) {
+    const own = n.type === 'FunctionDeclaration' ? [n.id.name] : n.type === 'VariableDeclaration' ? n.declarations.map((d) => d.id.name) : [];
+    if (own.some((x) => LISTING_PAGE.includes(x))) picked.push({ own, code: ui.slice(n.start, n.end) });
+  }
+  const found = picked.flatMap((p) => p.own);
+  const missing = LISTING_PAGE.filter((x) => !found.includes(x));
+  if (missing.length) throw new Error('listing.js: page parts not found: ' + missing.join(', '));
+  const clash = topNames(PAGE_STUBS).concat(found).filter((x) => names.includes(x));
+  if (clash.length) throw new Error('listing.js: names used twice: ' + clash.join(', '));
+  return '// listing.js core engine and page parts, made ES5 by android/engines/build.mjs. Do not edit here.\n' +
+    'var PBListing = (function () {\n\'use strict\';\nvar JSZip = PBZip;\n' + body + '\n' + PAGE_STUBS + picked.map((p) => p.code).join('\n') + '\n' +
+    'return { ' + names.concat(found, ['__page']).map((n) => n + ': ' + n).join(', ') + ' };\n})();\n';
+}
+
+// @xmldom/xmldom for Rhino: DOMParser and XMLSerializer, as the browser gives them
+function xmldom() {
+  const r = buildSync({
+    stdin: { contents: "var x = require('@xmldom/xmldom'); globalThis.DOMParser = x.DOMParser; globalThis.XMLSerializer = x.XMLSerializer; globalThis.DOMImplementation = x.DOMImplementation;", resolveDir: here, loader: 'js' },
+    bundle: true, format: 'iife', write: false, platform: 'neutral', mainFields: ['main'], target: 'es2015', logLevel: 'silent',
+  });
+  return '// @xmldom/xmldom 0.8.10 (MIT), bundled by android/engines/build.mjs\n' + r.outputFiles[0].text;
+}
+
+fs.writeFileSync(path.join(outDir, 'listing.js'), es5(listingEngine(), 'listing.js'));
+fs.writeFileSync(path.join(outDir, 'xmldom.js'), es5(xmldom(), 'xmldom.js'));
 const g = gstr1Builder();
 fs.writeFileSync(path.join(outDir, 'g1build.js'), es5(g.code, 'g1build.js'));
 // The website's own tests of these engines, made ES5 the same way, so the app's tests run them in Rhino.
@@ -177,4 +251,4 @@ if (testsDir) {
   }
 }
 if (process.env.ENGINES_VERBOSE) console.log('GSTR-1 helpers:', g.helpers.join(' '), '\nglobals:', g.globals.join(' '));
-console.log(`engines: ${plain.length + 1} files in ${path.relative(process.cwd(), outDir)}`);
+console.log(`engines: ${plain.length + 3} files in ${path.relative(process.cwd(), outDir)}`);

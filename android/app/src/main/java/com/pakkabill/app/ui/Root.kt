@@ -90,6 +90,7 @@ import com.pakkabill.app.ui.tools.gstr1Tab
 import com.pakkabill.app.ui.tools.LensPanel
 import com.pakkabill.app.ui.tools.MeeshoWeb
 import com.pakkabill.app.ui.tools.lensTab
+import com.pakkabill.app.ui.tools.listingTab
 import com.pakkabill.app.ui.tools.lowshipTab
 import com.pakkabill.app.ui.tools.labelsTab
 import com.pakkabill.app.ui.tools.toolGroups
@@ -198,6 +199,10 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
     LaunchedEffect(Unit) { tools.gstr1.messages.collect { say(it) } }
     LaunchedEffect(Unit) { tools.lowship.messages.collect { say(it) } }
     LaunchedEffect(Unit) { tools.lens.messages.collect { say(it) } }
+    // Meesho listing is made the first time its page opens (it reads the saved template then, not at every start)
+    var listingSeen by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(tab) { if (tab == "listing") listingSeen = true }
+    if (listingSeen) LaunchedEffect(Unit) { tools.listing.messages.collect { say(it) } }
     // Meesho's website inside a tool (Lens), opened from the Lens page or a link shared from the Meesho app
     var meesho by rememberSaveable { mutableStateOf<String?>(null) }
     val lensOpen by tools.lens.open.collectAsState()
@@ -367,6 +372,7 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
                             "gstr1" -> gstr1Tab(tools.gstr1)
                             "lowship" -> lowshipTab(tools.lowship)
                             "lens" -> lensTab(tools.lens) { meesho = it }
+                            "listing" -> listingTab(tools.listing) { scope.launch { list.scrollToItem(0) } }
                             "tools" -> toolsTab(toolGroups(login, acct.isPro && enforced, issues)) { open(it) }
                             else -> block("guide") { GuideTab(guide, ui, lang, { pnl.setLang(it) }, go) }
                         }

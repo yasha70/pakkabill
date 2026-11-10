@@ -105,6 +105,15 @@ var console = { log: function () {}, warn: function () {}, error: function () {}
     var r = f.fn.apply(f.self, args);
     return r === undefined ? 'null' : JSON.stringify(r);
   };
+  // the same for functions that give a Promise (the Meesho listing engine reads and writes files that way):
+  // the result is kept, and the app takes it once the promise has settled
+  G.__pbAsync = function (path, argsJson) {
+    var f = resolve(path), args = JSON.parse(argsJson || '[]');
+    G.__pbOut = null;
+    Promise.resolve().then(function () { return f.fn.apply(f.self, args); })
+      .then(function (v) { G.__pbOut = { ok: true, v: v === undefined ? null : v }; }, function (e) { G.__pbOut = { ok: false, e: String((e && e.message) || e) }; });
+  };
+  G.__pbTake = function () { var o = G.__pbOut; G.__pbOut = null; return o == null ? 'null' : JSON.stringify(o); };
   // the same for functions that give file bytes (an Excel workbook, a zip)
   G.__pbBytes = function (path, argsJson) {
     var f = resolve(path), args = JSON.parse(argsJson || '[]');

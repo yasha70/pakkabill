@@ -75,7 +75,7 @@ val buildEngines = tasks.register<Exec>("buildEngines") {
     workingDir = engines
     inputs.file(engines.resolve("build.mjs"))
     inputs.files(
-        listOf("labels.html", "gstr1check.js", "gstr1view.js", "index.html", "lowship.js", "lens/core.js", "lens/listcore.js",
+        listOf("labels.html", "gstr1check.js", "gstr1view.js", "index.html", "lowship.js", "lens/core.js", "lens/listcore.js", "listing.js",
             "test/labels-audit.js", "test/gstr1-audit.js", "test/gstr1view-audit.js", "test/autolist-audit.js").map { site.resolve(it) },
     )
     outputs.dir(enginesOut)
@@ -90,4 +90,5 @@ sourceSets["test"].resources.srcDir(files(auditsOut).builtBy(buildEngines))
 tasks.test {
     useJUnitPlatform()
     systemProperty("pakkabill.root", rootProject.file("..").absolutePath)
+    System.getenv("LISTING_OUT")?.let { systemProperty("listing.out", it) }
 }

@@ -36,8 +36,8 @@ class ToolsJs(private val source: (String) -> String = ::resource) {
     }
 
     /**
-     * Loads engines ("labels", "g1check", "g1view", "g1build", "lowship", "lenscore", "listcore") and the
-     * app's glue for them ("labels-facade" ...) once each.
+     * Loads engines ("labels", "g1check", "g1view", "g1build", "lowship", "lenscore", "listcore", "listing",
+     * "xmldom") and the app's glue for them ("labels-facade" ...) once each.
      */
     fun use(vararg engines: String): ToolsJs {
         val cx = enter()
@@ -62,6 +62,25 @@ class ToolsJs(private val source: (String) -> String = ::resource) {
         try {
             val f = scope.get("__pbCall", scope) as Function
             return Context.toString(f.call(cx, scope, scope, arrayOf(fn, "[" + jsonArgs.joinToString(",") + "]")))
+        } finally {
+            Context.exit()
+        }
+    }
+
+    /**
+     * Calls an engine function that gives a Promise, and waits for it (the promise's work runs here,
+     * on this thread). Gives its value as JSON text; a rejected promise throws with its message.
+     */
+    fun callAsync(fn: String, vararg jsonArgs: String): String {
+        val cx = enter()
+        try {
+            (scope.get("__pbAsync", scope) as Function).call(cx, scope, scope, arrayOf(fn, "[" + jsonArgs.joinToString(",") + "]"))
+            cx.processMicrotasks()
+            val out = Context.toString((scope.get("__pbTake", scope) as Function).call(cx, scope, scope, emptyArray()))
+            val o = kotlinx.serialization.json.Json.parseToJsonElement(out)
+            if (o !is kotlinx.serialization.json.JsonObject) error("$fn did not finish")
+            if ((o["ok"] as? kotlinx.serialization.json.JsonPrimitive)?.content != "true") throw IllegalStateException((o["e"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "$fn failed")
+            return o["v"].toString()
         } finally {
             Context.exit()
         }
