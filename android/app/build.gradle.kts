@@ -1,4 +1,5 @@
 // PakkaBill for Android: a fully native Kotlin + Jetpack Compose (Material 3) app. No WebView:
+// GST billing (bills, parties, items, GST summary, bill PDFs) is native too (see bill/ and :core bill/);
 // the Meesho P&L is worked out on the phone by the same engine as the website (see :core), and
 // every screen is drawn natively. Release builds are unsigned here; they are signed with the
 // PakkaBill key outside this public repo (see README "Android app").
@@ -15,8 +16,8 @@ android {
         applicationId = "com.pakkabill.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 9
-        versionName = "3.6"
+        versionCode = 10
+        versionName = "4.0"
     }
 
     buildTypes {

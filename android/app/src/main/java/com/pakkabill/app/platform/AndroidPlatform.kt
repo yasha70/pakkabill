@@ -40,6 +40,17 @@ class AndroidPlatform(private val a: MainActivity) : Platform {
         runCatching { FileActions.share(a, name, text, listOf(PageFile(name, mime, bytes))) }.onFailure { a.say("Could not open the share menu.") }
     }
 
+    override fun shareToWhatsApp(phone: String, name: String, mime: String, bytes: ByteArray, text: String) {
+        a.leavingForOwnIntent()
+        val ok = runCatching { FileActions.shareWhatsApp(a, phone, text, PageFile(name, mime, bytes)) }.getOrDefault(false)
+        if (!ok) runCatching { FileActions.share(a, name, text, listOf(PageFile(name, mime, bytes))) }.onFailure { a.say("Could not open the share menu.") }
+    }
+
+    override fun printPdf(name: String, bytes: ByteArray) {
+        a.leavingForOwnIntent()
+        runCatching { FileActions.print(a, name, bytes) }.onFailure { a.say("Printing is not available on this phone. Save the PDF and print it from there.") }
+    }
+
     override fun shareText(text: String) {
         a.leavingForOwnIntent()
         runCatching { FileActions.share(a, "Meesho P&L", text, emptyList()) }.onFailure { a.say("Could not open the share menu.") }

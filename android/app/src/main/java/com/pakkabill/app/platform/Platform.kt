@@ -21,6 +21,10 @@ interface Platform {
     fun saveFile(name: String, mime: String, bytes: ByteArray)
     /** Android share sheet with a file. */
     fun shareFile(name: String, mime: String, bytes: ByteArray, text: String = "")
+    /** Sends a file straight to WhatsApp (to [phone]'s chat when given), or the share sheet without WhatsApp. */
+    fun shareToWhatsApp(phone: String, name: String, mime: String, bytes: ByteArray, text: String)
+    /** The phone's print screen for a PDF (printers, or Save as PDF). */
+    fun printPdf(name: String, bytes: ByteArray)
     /** Android share sheet with text (WhatsApp first if installed). */
     fun shareText(text: String)
     /** The P&L as a PDF for printing or sending. */

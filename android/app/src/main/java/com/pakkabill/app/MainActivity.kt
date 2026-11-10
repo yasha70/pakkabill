@@ -84,7 +84,12 @@ class MainActivity : FragmentActivity(), PaymentResultWithDataListener {
         if (uri == null) return@registerForActivityResult
         lifecycleScope.launch {
             val text = withContext(Dispatchers.IO) { runCatching { contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull() }
-            if (text.isNullOrBlank()) say("Could not read this backup file.") else app.pnl.restore(text)
+            when {
+                text.isNullOrBlank() -> say("Could not read this backup file.")
+                // a billing backup (from the app or the website) has bills; anything else is a P&L backup
+                Regex("\"invoices\"\\s*:").containsMatchIn(text) -> app.bills.restore(text)
+                else -> app.pnl.restore(text)
+            }
         }
     }
 
@@ -155,7 +160,7 @@ class MainActivity : FragmentActivity(), PaymentResultWithDataListener {
             PakkaBillTheme(theme = theme, fonts = fonts, lang = lang, tr = tr) {
                 CompositionLocalProvider(LocalPlatform provides platform) {
                     if (locked) LockScreen(onUnlock = ::unlock, onExit = ::finish)
-                    else Root(app.pnl, app.account, lockOn, snackbar, startTab)
+                    else Root(app.pnl, app.account, app.bills, lockOn, snackbar, startTab)
                 }
             }
         }
@@ -178,6 +183,7 @@ class MainActivity : FragmentActivity(), PaymentResultWithDataListener {
         when (intent.action) {
             ACTION_UPLOAD -> { startTab = "data"; window.decorView.post { pickMeesho() } }
             ACTION_COSTS -> startTab = "costs"
+            ACTION_NEW_BILL -> startTab = "newbill"
             ACTION_PLAN -> startTab = "plan"
             Intent.ACTION_SEND -> {
                 @Suppress("DEPRECATION")
@@ -452,6 +458,7 @@ class MainActivity : FragmentActivity(), PaymentResultWithDataListener {
     companion object {
         const val ACTION_UPLOAD = "com.pakkabill.app.UPLOAD"
         const val ACTION_COSTS = "com.pakkabill.app.COSTS"
+        const val ACTION_NEW_BILL = "com.pakkabill.app.NEW_BILL"
         const val ACTION_PLAN = "com.pakkabill.app.PLAN"
         /** Meesho payment files are a few MB; this keeps a wrong pick (a video) from filling memory. */
         private const val MAX_FILE = 60L * 1024 * 1024
