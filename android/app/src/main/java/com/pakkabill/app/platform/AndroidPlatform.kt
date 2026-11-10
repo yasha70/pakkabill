@@ -42,6 +42,11 @@ class AndroidPlatform(private val a: MainActivity) : Platform {
         runCatching { FileActions.share(a, name, text, listOf(PageFile(name, mime, bytes))) }.onFailure { a.say("Could not open the share menu.") }
     }
 
+    override fun saveImages(files: List<Pair<String, ByteArray>>) {
+        val n = runCatching { FileActions.saveImages(a, files.map { (name, b) -> PageFile(name, "image/jpeg", b) }) }.getOrDefault(0)
+        a.say(if (n == files.size) (if (n == 1) "Saved to Pictures/PakkaBill" else "Saved $n photos to Pictures/PakkaBill") else "Saved $n of ${files.size} photos. Check free space on the phone.")
+    }
+
     override fun shareToWhatsApp(phone: String, name: String, mime: String, bytes: ByteArray, text: String) {
         a.leavingForOwnIntent()
         val ok = runCatching { FileActions.shareWhatsApp(a, phone, text, PageFile(name, mime, bytes)) }.getOrDefault(false)

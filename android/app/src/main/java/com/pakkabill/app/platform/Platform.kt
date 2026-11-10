@@ -26,6 +26,8 @@ interface Platform {
     fun pickBackup()
     /** Saves into Downloads/PakkaBill and offers to open it. */
     fun saveFile(name: String, mime: String, bytes: ByteArray)
+    /** Saves photos to the gallery (Pictures/PakkaBill). */
+    fun saveImages(files: List<Pair<String, ByteArray>>)
     /** Android share sheet with a file. */
     fun shareFile(name: String, mime: String, bytes: ByteArray, text: String = "")
     /** Sends a file straight to WhatsApp (to [phone]'s chat when given), or the share sheet without WhatsApp. */

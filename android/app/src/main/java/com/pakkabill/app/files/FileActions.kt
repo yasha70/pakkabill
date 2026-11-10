@@ -150,4 +150,33 @@ object FileActions {
         }
         pm.print(safeName(name).removeSuffix(".pdf"), adapter, android.print.PrintAttributes.Builder().setMediaSize(android.print.PrintAttributes.MediaSize.ISO_A4).build())
     }
+
+    /** Saves photos into Pictures/PakkaBill (the phone's gallery), so they can be picked in other apps. */
+    fun saveImages(context: Context, files: List<PageFile>): Int {
+        var n = 0
+        for (f in files) {
+            val name = safeName(f.name)
+            val ok = runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val r = context.contentResolver
+                    val v = ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                        put(MediaStore.MediaColumns.MIME_TYPE, f.mime)
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/PakkaBill")
+                        put(MediaStore.MediaColumns.IS_PENDING, 1)
+                    }
+                    val uri = r.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v) ?: return@runCatching false
+                    r.openOutputStream(uri)?.use { it.write(f.bytes) }
+                    v.clear(); v.put(MediaStore.MediaColumns.IS_PENDING, 0); r.update(uri, v, null, null)
+                    true
+                } else {
+                    val dir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: return@runCatching false
+                    File(dir.apply { mkdirs() }, name).writeBytes(f.bytes)
+                    true
+                }
+            }.getOrDefault(false)
+            if (ok) n++
+        }
+        return n
+    }
 }

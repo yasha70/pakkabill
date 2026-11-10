@@ -87,6 +87,7 @@ import com.pakkabill.app.bill.BillController
 import com.pakkabill.app.tools.AppTools
 import com.pakkabill.app.ui.tools.LabelActs
 import com.pakkabill.app.ui.tools.gstr1Tab
+import com.pakkabill.app.ui.tools.lowshipTab
 import com.pakkabill.app.ui.tools.labelsTab
 import com.pakkabill.app.ui.tools.toolGroups
 import com.pakkabill.app.ui.tools.toolsTab
@@ -192,6 +193,7 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
     val labOut by labelsCtl.out.collectAsState()
     LaunchedEffect(Unit) { labelsCtl.messages.collect { say(it) } }
     LaunchedEffect(Unit) { tools.gstr1.messages.collect { say(it) } }
+    LaunchedEffect(Unit) { tools.lowship.messages.collect { say(it) } }
     val labActs = LabelActs(
         pick = { platform.pickPdfs() },
         remove = { labelsCtl.remove(it) },
@@ -355,6 +357,7 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
                             "shop" -> shopTab(billData, billActs)
                             "labels" -> labelsTab(labView, labOpts, labBusy, labOut, labActs)
                             "gstr1" -> gstr1Tab(tools.gstr1)
+                            "lowship" -> lowshipTab(tools.lowship)
                             "tools" -> toolsTab(toolGroups(login, acct.isPro && enforced, issues)) { open(it) }
                             else -> block("guide") { GuideTab(guide, ui, lang, { pnl.setLang(it) }, go) }
                         }
