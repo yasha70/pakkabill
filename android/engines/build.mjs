@@ -266,10 +266,13 @@ function autolistPage() {
 fs.writeFileSync(path.join(outDir, 'autolist.js'), es5(autolistPage(), 'autolist.js'));
 
 // The PakkaBill Lens extension's form filler for Meesho's supplier panel, as it is (the in-app Meesho
-// view runs it, as Chrome runs the extension on a laptop), and the extension's version.
+// view runs it, as Chrome runs the extension on a laptop), the shipping check, and the extension's version.
 const webDir = path.join(outDir, '..', 'web');
 fs.mkdirSync(webDir, { recursive: true });
 for (const f of ['listcore.js', 'list.js']) fs.writeFileSync(path.join(webDir, f), read('lens/' + f));
+// the shipping check without an extension (the website's PB Shipping bookmark, as lens/build.py puts
+// it together): Meesho's real shipping for every photo version, in Meesho's own page
+for (const f of ['shipcore.js', 'shiphook.js', 'shipbm.js']) fs.writeFileSync(path.join(webDir, f), read('lens/' + f));
 fs.writeFileSync(path.join(webDir, 'lens-version.txt'), JSON.parse(read('lens/manifest.json')).version);
 
 fs.writeFileSync(path.join(outDir, 'listing.js'), es5(listingEngine(), 'listing.js'));

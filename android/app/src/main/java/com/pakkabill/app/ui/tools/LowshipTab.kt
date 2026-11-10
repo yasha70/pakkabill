@@ -76,13 +76,16 @@ private val CATEGORIES = listOf(
 )
 private val LOOKS = listOf("smart" to "Smart (product size, backgrounds, frames)", "natural" to "Natural", "mix" to "Natural and coloured frames", "stickers" to "Frames and stickers")
 
-/** Low shipping image: versions of the main photo, to find the one Meesho charges least shipping for. */
-fun LazyListScope.lowshipTab(c: LowshipController) {
-    block("lowship") { LowshipPage(c) }
+/**
+ * Low shipping image: versions of the main photo, to find the one Meesho charges least shipping for.
+ * [openMeesho] opens Meesho's supplier panel in the app, where Meesho prices every version.
+ */
+fun LazyListScope.lowshipTab(c: LowshipController, openMeesho: () -> Unit) {
+    block("lowship") { LowshipPage(c, openMeesho) }
 }
 
 @Composable
-private fun LowshipPage(c: LowshipController) {
+private fun LowshipPage(c: LowshipController, openMeesho: () -> Unit) {
     val p = LocalPlatform.current
     val h = LocalHues.current
     val o by c.opts.collectAsState()
@@ -93,7 +96,7 @@ private fun LowshipPage(c: LowshipController) {
         Sheet {
             H2("Low shipping image")
             Spacer(Modifier.height(4.dp))
-            Txt("Meesho can charge a different shipping for photos that look almost the same. PakkaBill makes versions of your photo; check each in Meesho's catalogue upload, type its shipping, and keep the cheapest. Photos never leave your phone.", size = 15.sp)
+            Txt("Meesho can charge a different shipping for photos that look almost the same. PakkaBill makes versions of your photo, Meesho prices each of them for you, and you keep the cheapest. Photos go only to Meesho, from your own login.", size = 15.sp)
         }
         Sheet {
             SheetH("Your photo", h3 = true)
@@ -152,7 +155,8 @@ private fun LowshipPage(c: LowshipController) {
                 Bar(if (n > 0) d.toFloat() / n else 0f, h.pos)
             }
         }
-        Details("How to check the shipping on your phone", "ls-how", open = photos.isEmpty()) {
+        if (photos.isNotEmpty()) MeeshoShippingCard(c, openMeesho)
+        Details("Check the shipping by hand instead", "ls-how", open = false) {
             listOf(
                 "Make the versions here, then tap \"Save all to gallery\".",
                 "In the Meesho Supplier app or supplier.meesho.com, open Catalog Upload → Add Single Catalog and pick your category.",
@@ -231,12 +235,39 @@ private fun VersionCard(ph: PhotoView, v: VersionView, c: LowshipController, mod
         Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Txt("₹", modifier = Modifier.padding(end = 4.dp), raw = true)
-            Inp(ph.ship[v.key]?.let { fmt(it) } ?: "", { t -> c.setShip(ph.id, v.key, t.trim().toDoubleOrNull()) }, placeholder = "Shipping", keyboard = KeyboardType.Number, small = true, money = true)
+            Box(Modifier.weight(1f)) {
+                Inp(ph.ship[v.key]?.let { fmt(it) } ?: "", { t -> c.setShip(ph.id, v.key, t.trim().toDoubleOrNull()) }, placeholder = "Shipping", keyboard = KeyboardType.Number, small = true, money = true)
+            }
         }
+        if (v.key in ph.live) Small("✓ Meesho's own price", color = h.pos)
         Spacer(Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Btn("Save", { c.file(ph.id, v.key)?.let { p.saveImages(listOf(it)) } }, Modifier.weight(1f), small = true)
             Btn("Share", { c.file(ph.id, v.key)?.let { (n, b) -> p.shareFile(n, "image/jpeg", b) } }, Modifier.weight(1f), small = true)
         }
+    }
+}
+
+// Meesho prices every version itself: the website's shipping check, in Meesho's page in the app
+@Composable
+private fun MeeshoShippingCard(c: LowshipController, openMeesho: () -> Unit) {
+    val h = LocalHues.current
+    val live by c.live.collectAsState()
+    val o by c.opts.collectAsState()
+    Sheet {
+        SheetH("Meesho's real shipping", h3 = true)
+        Txt("Meesho prices every version for you: PakkaBill opens Meesho's catalogue upload here, with your own login. Pick ${if (o.category.isBlank()) "your category" else "\"" + o.category + "\""} in Add Single Catalog and upload your own photo once; Meesho's shipping for every version then fills in below by itself.", size = 15.sp, color = h.ink2)
+        Spacer(Modifier.height(10.dp))
+        Btn("Get Meesho's real shipping", openMeesho, Modifier.fillMaxWidth(), kind = BtnKind.PRI)
+        live?.let { l ->
+            Spacer(Modifier.height(8.dp))
+            val lens = l.lens
+            Small(
+                (if (lens?.learned == true) "Learned: Meesho priced your photo at ₹" + (lens.ship?.let { fmt(it) } ?: "") + ". " else "") +
+                    "Meesho priced ${l.priced} of ${l.sent} versions.",
+                raw = true, color = if (l.sent > 0 && l.priced >= l.sent) h.pos else h.ink3,
+            )
+        }
+        Small("Like the website's shipping bookmark, it watches Meesho's own requests in that page to learn how Meesho prices your photo, then asks Meesho the same way for each version. It never submits a catalogue.", Modifier.padding(top = 6.dp))
     }
 }

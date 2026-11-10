@@ -89,6 +89,7 @@ import com.pakkabill.app.ui.tools.LabelActs
 import com.pakkabill.app.ui.tools.gstr1Tab
 import com.pakkabill.app.ui.tools.LensPanel
 import com.pakkabill.app.ui.tools.MeeshoWeb
+import com.pakkabill.app.ui.tools.MeeshoShipping
 import com.pakkabill.app.ui.tools.MeeshoSupplier
 import com.pakkabill.app.ui.tools.autolistTab
 import com.pakkabill.app.ui.tools.lensTab
@@ -210,6 +211,8 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
     LaunchedEffect(tab) { if (tab == "autolist") autolistSeen = true }
     if (autolistSeen) LaunchedEffect(Unit) { tools.autolist.messages.collect { say(it) } }
     var supplier by rememberSaveable { mutableStateOf(false) }
+    // and for Low shipping image: Meesho's supplier panel, where Meesho prices every version
+    var shipping by rememberSaveable { mutableStateOf(false) }
     // Meesho's website inside a tool (Lens), opened from the Lens page or a link shared from the Meesho app
     var meesho by rememberSaveable { mutableStateOf<String?>(null) }
     val lensOpen by tools.lens.open.collectAsState()
@@ -377,7 +380,7 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
                             "shop" -> shopTab(billData, billActs)
                             "labels" -> labelsTab(labView, labOpts, labBusy, labOut, labActs)
                             "gstr1" -> gstr1Tab(tools.gstr1)
-                            "lowship" -> lowshipTab(tools.lowship)
+                            "lowship" -> lowshipTab(tools.lowship) { shipping = true }
                             "lens" -> lensTab(tools.lens) { meesho = it }
                             "listing" -> listingTab(tools.listing) { scope.launch { list.scrollToItem(0) } }
                             "autolist" -> autolistTab(tools.autolist, pro, upgrade = { planOpen = true }, openMeesho = { supplier = true })
@@ -446,6 +449,12 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
         AnimatedVisibility(supplier, enter = slideInVertically(tween(240)) { it } + fadeIn(tween(240)), exit = slideOutVertically(tween(200)) { it } + fadeOut(tween(200))) {
             val desktop by tools.autolist.desktop.collectAsState()
             MeeshoSupplier(tools.autolist, desktop, { tools.autolist.setDesktop(it) }) { supplier = false; tools.autolist.refresh() }
+        }
+
+        // Meesho's supplier panel for Low shipping image, with the website's shipping check in the page
+        AnimatedVisibility(shipping, enter = slideInVertically(tween(240)) { it } + fadeIn(tween(240)), exit = slideOutVertically(tween(200)) { it } + fadeOut(tween(200))) {
+            val desktop by tools.lowship.desktop.collectAsState()
+            MeeshoShipping(tools.lowship, desktop, { tools.lowship.setDesktop(it) }) { shipping = false }
         }
 
         // making or changing a bill

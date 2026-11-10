@@ -28,7 +28,8 @@ inpicker() { TAP_TRIES=2 python3 android/ci/tap.py "$@" >> "$R" && return 0; tap
 pick1() { sleep 4; inpicker "$1"; sleep 3; }
 pickn() { sleep 4; inpicker "$1" long; sleep 1; shift; for f in "$@"; do tap "$f"; sleep 1; done; tap "Select"; sleep 3; }
 # types in the box under a label (a price, a stock) and presses Done
-typein() { python3 android/ci/tap.py "$1" last below=${3:-88} >> "$R"; sleep 1; adb shell input text "$2"; adb shell input keyevent 66; sleep 1; }
+# (the keyboard is then put away; the box saves when the next button or box is tapped)
+typein() { python3 android/ci/tap.py "$1" last below=${3:-88} >> "$R"; sleep 1; adb shell input text "$2"; sleep 1; adb shell dumpsys input_method | grep -q "mInputShown=true" && adb shell input keyevent KEYCODE_BACK; sleep 1; }
 # frames drawn, janky frames and where the time went (app thread or drawing), since the last reset
 frames() { echo "$1: $(adb shell dumpsys gfxinfo ${2:-$PKG} | grep -E 'Total frames rendered|Janky frames:|50th percentile|90th percentile|Number Slow UI thread|Number Slow issue draw|Number Frame deadline missed|50th gpu|90th gpu' | tr -d '\r' | tr -s ' ' | tr '\n' ';')" >> "$R"; }
 up() { adb shell input swipe 540 1900 540 500 350; }
@@ -173,8 +174,14 @@ up; cap t21-gstr1 1
 echo "== low shipping image" >> "$R"
 more "Low shipping image"; cap t30-lowship 3
 tap "Add your product photo"; pick1 "maroon_front.jpg"
-cap t31-lowship 15
+down "Make versions"; python3 android/ci/wait.py "Save all to gallery" 150 >> "$R"
+cap t31-lowship 3
 up; cap t32-lowship 1; up; cap t33-lowship 1
+# Meesho's real shipping: Meesho's supplier panel in the app, with the shipping check and the versions in it
+down "Get Meesho's real shipping"; cap t34-lowship-meesho 25
+cap t35-lowship-meesho 10
+adb logcat -d | grep -iE "CONSOLE|chromium" | grep -iE "pakkabill|ship|error" | tail -10 >> "$R"
+tap "Done"; sleep 2
 alive lowship
 
 echo "== Meesho listing" >> "$R"
@@ -187,7 +194,7 @@ down "Next: Sizes"; cap t44-listing-sizes 3
 tap "32"; tap "34"; sleep 1
 down "Fill empty cells"; cap t45-listing-sizes 3
 down "Next: Photos"; cap t46-listing-photos 3
-tap "Add photos"; pickn "maroon_front.jpg" "maroon_back.jpg"
+tap "Pick many at once"; pickn "maroon_front.jpg" "maroon_back.jpg"
 cap t47-listing-photos 6
 up; cap t48-listing-photos 1
 down "Next: Image links"; cap t49-listing-links 3
@@ -208,11 +215,12 @@ more "Auto listing"; cap t60-autolist 3
 up; cap t61-autolist 1
 tap "New template from"; sleep 1; tap "Readymade blouse"; sleep 2
 top; down "Sizes, prices and stock"; cap t62-template 2
-typein "Meesho price" 349 92; typein "Stock" 10 92
-down "Same price and stock for all"; sleep 1; cap t63-template 1
+up; cap t63-template 1
 down "Save template"; cap t64-template-saved 3
 down "Add product photos"; pick1 "maroon_front.jpg"
 cap t65-product 5
+# this product's price and stock (the starter template has none yet)
+down "Price (all sizes)"; typein "Price (all sizes)" 349; typein "Stock per size" 10
 up; sleep 1; cap t66-product 1
 down "Fill in Meesho"; sleep 3
 # not ready to fill (a price did not take): Meesho's supplier panel from the top of the page instead

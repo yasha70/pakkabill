@@ -56,13 +56,15 @@ jobs:
         working-directory: android
         env:
           AUTOLIST_WEB_OUT: ${{ runner.temp }}/autolist-web.js
+          SHIP_WEB_OUT: ${{ runner.temp }}/ship-web.js
         run: gradle :core:test :app:bundleRelease :app:assembleRelease :app:assembleDebug --stacktrace
 
-      - name: Auto listing script for Meesho's page, in Chromium (the engine of Android's WebView)
+      - name: The app's scripts for Meesho's pages (Auto listing, shipping check), in Chromium (the engine of Android's WebView)
         run: |
           mkdir -p "$RUNNER_TEMP/pw" && cd "$RUNNER_TEMP/pw"
           npm init -y > /dev/null && npm i playwright@1.63.0 > /dev/null && npx playwright install --with-deps chromium > /dev/null
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node "$GITHUB_WORKSPACE/android/ci/autolist-web-check.cjs" "$RUNNER_TEMP/autolist-web.js"
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node "$GITHUB_WORKSPACE/android/ci/ship-web-check.cjs" "$RUNNER_TEMP/ship-web.js"
 
       - name: Collect outputs
         run: |
