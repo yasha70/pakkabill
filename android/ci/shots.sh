@@ -175,6 +175,11 @@ more "Low shipping image"; cap t30-lowship 3
 tap "Add your product photo"; pick1 "maroon_front.jpg"
 cap t31-lowship 15
 up; cap t32-lowship 1; up; cap t33-lowship 1
+# Meesho's real shipping: Meesho's supplier panel in the app, with the shipping check and the versions in it
+down "Get Meesho's real shipping"; cap t34-lowship-meesho 25
+cap t35-lowship-meesho 10
+adb logcat -d | grep -iE "CONSOLE|chromium" | grep -iE "pakkabill|ship|error" | tail -10 >> "$R"
+tap "Done"; sleep 2
 alive lowship
 
 echo "== Meesho listing" >> "$R"

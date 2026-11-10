@@ -133,8 +133,12 @@ inside the app, for Meesho Lens and Auto listing, which work on Meesho's pages.
   - GSTR-1 JSON: Meesho, Amazon and Flipkart reports (CSV/Excel) to the GST portal file, the
     statement, TCS report and Excel for the CA, plus the checker for a GSTR-1 JSON; the same JSON as
     the website, byte for byte.
-  - Low shipping image: versions of the main photo, saved to the gallery, with each one's shipping
-    typed in from Meesho to find the cheapest.
+  - Low shipping image: versions of the main photo, saved to the gallery, and Meesho's real shipping
+    for each (4.2): "Get Meesho's real shipping" opens Meesho's supplier panel in the app with the
+    website's shipping bookmark code in it (`lens/shipcore.js`, `shiphook.js`, `shipbm.js`) and the app
+    as the PakkaBill tab it talks to. The seller uploads their own photo once in Add Single Catalog;
+    Meesho then prices every version itself, with the seller's login, and the prices fill in with
+    the cheapest marked. Prices can still be typed by hand.
   - Meesho listing: the bulk-upload Excel from the seller's own category template and photos, in the
     website's six steps, with its ready-made detail sets and size charts.
   - Meesho Lens: meesho.com inside the app, read by the website's Lens code, with seller price, sales
@@ -155,8 +159,9 @@ grouped as on the website's menu).
 
 Building: pushing `android/` (or a website file the engines come from) to `main` runs
 `.github/workflows/android.yml`. It builds the Play Store bundle (.aab) and the website APK unsigned
-(branch `apk-build`), runs the in-app Auto listing script on the website's stand-in for Meesho's form
-in Chromium (`android/ci/autolist-web-check.cjs`), and tests a debug build on an Android emulator: it
+(branch `apk-build`), runs the app's scripts for Meesho's pages in Chromium (Auto listing on the
+website's stand-in for Meesho's form, `android/ci/autolist-web-check.cjs`; the shipping check on a
+stand-in for Meesho's photo upload and shipping, `android/ci/ship-web-check.cjs`), and tests a debug build on an Android emulator: it
 drives the app through every tool with sample files and saves screenshots and results (branch
 `apk-shots`). Started by hand on another branch, it keeps these as the run's artifacts. Building
 needs Node 22 besides the JDK (the engines are built with it). Check the newest library versions
