@@ -1,6 +1,7 @@
 package com.pakkabill.app.tools
 
 import android.content.Context
+import com.pakkabill.app.autolist.AutoListController
 import com.pakkabill.app.data.PrefsKeyValue
 import com.pakkabill.app.gstr1.Gstr1Controller
 import com.pakkabill.app.labels.LabelsController
@@ -22,6 +23,7 @@ class AppTools(context: Context, scope: CoroutineScope, bills: () -> BillData) {
     val gstr1 by lazy { Gstr1Controller(scope, PrefsKeyValue(app, "gstr1"), bills) }
     val lowship by lazy { LowshipController(scope, PrefsKeyValue(app, "lowship")) }
     val lens by lazy { LensController(scope, PrefsKeyValue(app, "lens")) }
+    val autolist by lazy { AutoListController(File(app.filesDir, "autolist"), scope, PrefsKeyValue(app, "autolist")) }
     val listing by lazy { ListingController(File(app.filesDir, "listing"), scope, PrefsKeyValue(app, "listing")) { shopLine(bills()) } }
 
     /** Files picked for a tool ([com.pakkabill.app.platform.Platform.pickFor]). */
@@ -34,6 +36,8 @@ class AppTools(context: Context, scope: CoroutineScope, bills: () -> BillData) {
             "listing-template" -> files.firstOrNull()?.let { (n, b) -> listing.setTemplate(n, b) }
             "listing-photos" -> listing.addPhotos(files)
             "listing-links" -> files.firstOrNull()?.let { (n, b) -> listing.linksFile(n, b) }
+            "autolist-photos" -> autolist.addPhotos(files)
+            else -> if (tool.startsWith("autolist-photos:")) autolist.addPhotos(files, toProduct = tool.substringAfter(':'))
         }
     }
 

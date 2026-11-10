@@ -91,4 +91,6 @@ tasks.test {
     useJUnitPlatform()
     systemProperty("pakkabill.root", rootProject.file("..").absolutePath)
     System.getenv("LISTING_OUT")?.let { systemProperty("listing.out", it) }
+    // the script for Meesho's supplier panel, for the browser check (android/ci/autolist-web-check.mjs)
+    System.getenv("AUTOLIST_WEB_OUT")?.let { systemProperty("autolist.web.out", it) }
 }

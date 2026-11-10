@@ -89,6 +89,8 @@ import com.pakkabill.app.ui.tools.LabelActs
 import com.pakkabill.app.ui.tools.gstr1Tab
 import com.pakkabill.app.ui.tools.LensPanel
 import com.pakkabill.app.ui.tools.MeeshoWeb
+import com.pakkabill.app.ui.tools.MeeshoSupplier
+import com.pakkabill.app.ui.tools.autolistTab
 import com.pakkabill.app.ui.tools.lensTab
 import com.pakkabill.app.ui.tools.listingTab
 import com.pakkabill.app.ui.tools.lowshipTab
@@ -203,6 +205,11 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
     var listingSeen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(tab) { if (tab == "listing") listingSeen = true }
     if (listingSeen) LaunchedEffect(Unit) { tools.listing.messages.collect { say(it) } }
+    // Auto listing, the same way; and Meesho's supplier panel with the PakkaBill form filler
+    var autolistSeen by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(tab) { if (tab == "autolist") autolistSeen = true }
+    if (autolistSeen) LaunchedEffect(Unit) { tools.autolist.messages.collect { say(it) } }
+    var supplier by rememberSaveable { mutableStateOf(false) }
     // Meesho's website inside a tool (Lens), opened from the Lens page or a link shared from the Meesho app
     var meesho by rememberSaveable { mutableStateOf<String?>(null) }
     val lensOpen by tools.lens.open.collectAsState()
@@ -373,6 +380,7 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
                             "lowship" -> lowshipTab(tools.lowship)
                             "lens" -> lensTab(tools.lens) { meesho = it }
                             "listing" -> listingTab(tools.listing) { scope.launch { list.scrollToItem(0) } }
+                            "autolist" -> autolistTab(tools.autolist, pro, upgrade = { planOpen = true }, openMeesho = { supplier = true })
                             "tools" -> toolsTab(toolGroups(login, acct.isPro && enforced, issues)) { open(it) }
                             else -> block("guide") { GuideTab(guide, ui, lang, { pnl.setLang(it) }, go) }
                         }
@@ -432,6 +440,12 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
                 else tools.lens.leftProduct()
             }
             MeeshoWeb(u, "Meesho · PakkaBill Lens", onClose = { meesho = null; tools.lens.leftProduct() }, every = 2500, onTick = ::read, onPage = { w, _ -> read(w) }) { LensPanel(pn) }
+        }
+
+        // Meesho's supplier panel for Auto listing, with the PakkaBill Lens form filler in the page
+        AnimatedVisibility(supplier, enter = slideInVertically(tween(240)) { it } + fadeIn(tween(240)), exit = slideOutVertically(tween(200)) { it } + fadeOut(tween(200))) {
+            val desktop by tools.autolist.desktop.collectAsState()
+            MeeshoSupplier(tools.autolist, desktop, { tools.autolist.setDesktop(it) }) { supplier = false; tools.autolist.refresh() }
         }
 
         // making or changing a bill

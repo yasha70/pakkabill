@@ -11,6 +11,7 @@
 //   lenscore.js  PBLensCore  lens/core.js  Meesho Lens estimates
 //   listcore.js  PBListCore  lens/listcore.js  Auto listing templates
 //   listing.js   PBListing   listing.js    Meesho listing: the category template, rows and the Excel writer
+//   autolist.js  PBAutoListPage  autolist.js  Auto listing starter templates
 //   xmldom.js    DOMParser   @xmldom/xmldom (npm), the XML the listing engine reads and writes
 //
 // The GSTR-1 builder lives inside the website's bundle (index.html). It is found by name, and every
@@ -238,6 +239,39 @@ function xmldom() {
   return '// @xmldom/xmldom 0.8.10 (MIT), bundled by android/engines/build.mjs\n' + r.outputFiles[0].text;
 }
 
+/* ---------------- Auto listing ---------------- */
+
+// The page's starter templates and helpers (autolist.js), for the app's Auto listing page.
+const AUTOLIST_PAGE = ['uid', 'nameFromFile', 'COMMON', 'sz', 'STARTERS', 'starter'];
+function autolistPage() {
+  const src = read('autolist.js');
+  const top = parse(src, { sourceType: 'script' }).program.body.find((n) => n.type === 'ExpressionStatement' && n.expression.type === 'CallExpression' && n.expression.callee.type === 'FunctionExpression');
+  if (!top) throw new Error('autolist.js: page function not found');
+  const picked = [], found = [];
+  for (const n of top.expression.callee.body.body) {
+    const own = n.type === 'FunctionDeclaration' ? [n.id.name] : n.type === 'VariableDeclaration' ? n.declarations.map((d) => d.id.name) : [];
+    const want = own.filter((x) => AUTOLIST_PAGE.includes(x));
+    if (!want.length) continue;
+    if (n.type === 'VariableDeclaration' && want.length < own.length) {
+      // only the declarations asked for, out of a "const a = 1, b = 2"
+      n.declarations.filter((d) => want.includes(d.id.name)).forEach((d) => picked.push(`const ${src.slice(d.start, d.end)};`));
+    } else picked.push(src.slice(n.start, n.end));
+    found.push(...want);
+  }
+  const missing = AUTOLIST_PAGE.filter((x) => !found.includes(x));
+  if (missing.length) throw new Error('autolist.js: not found: ' + missing.join(', '));
+  return '// autolist.js starter templates, made ES5 by android/engines/build.mjs. Do not edit here.\n' +
+    "var PBAutoListPage = (function () {\n'use strict';\n" + picked.join('\n') + '\nreturn { ' + AUTOLIST_PAGE.map((n) => n + ': ' + n).join(', ') + ' };\n})();\n';
+}
+fs.writeFileSync(path.join(outDir, 'autolist.js'), es5(autolistPage(), 'autolist.js'));
+
+// The PakkaBill Lens extension's form filler for Meesho's supplier panel, as it is (the in-app Meesho
+// view runs it, as Chrome runs the extension on a laptop), and the extension's version.
+const webDir = path.join(outDir, '..', 'web');
+fs.mkdirSync(webDir, { recursive: true });
+for (const f of ['listcore.js', 'list.js']) fs.writeFileSync(path.join(webDir, f), read('lens/' + f));
+fs.writeFileSync(path.join(webDir, 'lens-version.txt'), JSON.parse(read('lens/manifest.json')).version);
+
 fs.writeFileSync(path.join(outDir, 'listing.js'), es5(listingEngine(), 'listing.js'));
 fs.writeFileSync(path.join(outDir, 'xmldom.js'), es5(xmldom(), 'xmldom.js'));
 const g = gstr1Builder();
@@ -251,4 +285,4 @@ if (testsDir) {
   }
 }
 if (process.env.ENGINES_VERBOSE) console.log('GSTR-1 helpers:', g.helpers.join(' '), '\nglobals:', g.globals.join(' '));
-console.log(`engines: ${plain.length + 3} files in ${path.relative(process.cwd(), outDir)}`);
+console.log(`engines: ${plain.length + 4} files in ${path.relative(process.cwd(), outDir)}, Lens form filler in ${path.relative(process.cwd(), webDir)}`);

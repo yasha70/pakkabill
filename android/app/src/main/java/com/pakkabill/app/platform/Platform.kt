@@ -20,6 +20,8 @@ interface Platform {
      * to that tool. [mimes] are the kinds of file offered.
      */
     fun pickFor(tool: String, mimes: Array<String>, multiple: Boolean = true)
+    /** Another app's screen opens from a page (a web page's file picker): the app lock waits for the way back. */
+    fun leavingForOwnIntent()
     /** Opens the file picker for a cost sheet (Excel or CSV). */
     fun pickCostSheet()
     /** Opens the file picker for a P&L backup (.json). */
