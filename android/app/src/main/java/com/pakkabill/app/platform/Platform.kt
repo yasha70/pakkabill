@@ -15,6 +15,11 @@ interface Platform {
     fun pickMeeshoFiles()
     /** Opens the file picker for Meesho label and manifest PDFs (several at once). */
     fun pickPdfs()
+    /**
+     * Opens the file picker for a tool ("gstr1", "g1check", "lowship", "listing" ...): the files picked go
+     * to that tool. [mimes] are the kinds of file offered.
+     */
+    fun pickFor(tool: String, mimes: Array<String>, multiple: Boolean = true)
     /** Opens the file picker for a cost sheet (Excel or CSV). */
     fun pickCostSheet()
     /** Opens the file picker for a P&L backup (.json). */

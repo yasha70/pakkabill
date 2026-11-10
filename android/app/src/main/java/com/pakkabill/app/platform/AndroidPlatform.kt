@@ -33,6 +33,7 @@ class AndroidPlatform(private val a: MainActivity) : Platform {
     override fun pickBackup() = a.pickBackup()
     override fun pickCostSheet() = a.pickCostSheet()
     override fun pickPdfs() = a.pickPdfs()
+    override fun pickFor(tool: String, mimes: Array<String>, multiple: Boolean) = a.pickFor(tool, mimes, multiple)
 
     override fun saveFile(name: String, mime: String, bytes: ByteArray) = a.saveFile(PageFile(name, mime, bytes))
 

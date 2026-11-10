@@ -240,6 +240,26 @@ class MainActivity : FragmentActivity(), PaymentResultWithDataListener {
 
     private val pdfPicker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> readPdfs(uris) }
 
+    // files for a tool (GSTR-1 reports, a JSON to check, photos, a Meesho template): sent to that tool
+    private var pickTool = ""
+    private val toolPicker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> readFor(pickTool, uris) }
+    private val toolPickerOne = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) readFor(pickTool, listOf(uri)) }
+
+    fun pickFor(tool: String, mimes: Array<String>, multiple: Boolean) {
+        leavingForOwnIntent()
+        pickTool = tool
+        runCatching { if (multiple) toolPicker.launch(mimes) else toolPickerOne.launch(mimes) }.onFailure { say("No file picker found on this phone.") }
+    }
+
+    private fun readFor(tool: String, uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        lifecycleScope.launch {
+            val picked = withContext(Dispatchers.IO) { uris.mapNotNull { readSmall(it) } }
+            if (picked.size < uris.size) say("Some files could not be read (too big or not allowed).")
+            app.tools.onFiles(tool, picked)
+        }
+    }
+
     /** Meesho label and manifest PDFs for Labels & packing chart (several at once). */
     fun pickPdfs() {
         leavingForOwnIntent()

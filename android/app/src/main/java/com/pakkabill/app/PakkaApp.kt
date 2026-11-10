@@ -28,7 +28,7 @@ class PakkaApp : Application() {
     lateinit var bills: BillController
         private set
     /** Labels, GSTR-1, Low shipping image, Meesho listing, Lens and Auto listing: each made when first opened. */
-    val tools by lazy { AppTools(this, scope) }
+    val tools by lazy { AppTools(this, scope) { bills.data.value } }
 
     override fun onCreate() {
         super.onCreate()
