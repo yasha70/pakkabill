@@ -1,0 +1,110 @@
+# Puts the newest Android build live on the website: takes the APK and Play bundle that the
+# "Android app" workflow built from main (branch apk-build), signs them with the owner's release
+# key, checks that phones can update to it (the same key as the APK on the website, and a higher
+# versionCode), and commits it to download/ with app.json, so the website serves it. The signed
+# Play bundle (.aab) is kept as this run's artifact, for Google Play.
+#
+# The key never goes into this public repo. It comes from repository secrets (Settings -> Secrets
+# and variables -> Actions): ANDROID_KEYSTORE_BASE64 (the .p12 file in base64), ANDROID_KEYSTORE_PASSWORD,
+# ANDROID_KEY_ALIAS (pakkabill) and ANDROID_KEY_PASSWORD (for a .p12, usually the same password).
+name: Publish Android app
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: android-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: The newest build from main, tested on the emulator
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch --depth=1 origin apk-build
+          mkdir -p build-out
+          git archive --format=tar origin/apk-build | tar -x -C build-out
+          cat build-out/README.txt
+          SHA=$(grep -o '[0-9a-f]\{40\}' build-out/README.txt | head -1)
+          # only a build whose whole "Android app" run passed (tests, APKs and the emulator run)
+          OK=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/android.yml/runs?branch=main&head_sha=${SHA}&status=completed" --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')
+          if [ "${OK:-0}" -lt 1 ]; then
+            echo "::error::The build on apk-build (from ${SHA}) has no passing \"Android app\" run on main yet. Wait for it to finish, or look at why it failed."
+            exit 1
+          fi
+          echo "SHA=$SHA" >> "$GITHUB_ENV"
+
+      - name: Sign with the release key
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KS_B64" ] || [ -z "$KS_PASS" ] || [ -z "$KEY_ALIAS" ]; then
+            echo "::error::Add the release key as repository secrets first: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD (README, Android app)."
+            exit 1
+          fi
+          export KEY_PASS="${KEY_PASS:-$KS_PASS}"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          KS="$RUNNER_TEMP/release.p12"
+          printf '%s' "$KS_B64" | base64 -d > "$KS"
+          "$BT/zipalign" -p -f 4 build-out/PakkaBill-unsigned.apk "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" sign --ks "$KS" --ks-type PKCS12 --ks-pass env:KS_PASS --key-pass env:KEY_PASS --ks-key-alias "$KEY_ALIAS" --out PakkaBill.apk "$RUNNER_TEMP/aligned.apk"
+          jarsigner -keystore "$KS" -storetype PKCS12 -storepass:env KS_PASS -keypass:env KEY_PASS -sigalg SHA256withRSA -digestalg SHA-256 \
+            -signedjar PakkaBill.aab build-out/PakkaBill-unsigned.aab "$KEY_ALIAS" > /dev/null
+          rm -f "$KS"
+          "$BT/apksigner" verify PakkaBill.apk
+          jarsigner -verify PakkaBill.aab | tail -1
+
+      - name: Check that phones can update to it
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          cert() { "$BT/apksigner" verify --print-certs "$1" | grep -m1 'certificate SHA-256 digest' | awk '{print $NF}'; }
+          if [ -f download/PakkaBill.apk ] && [ "$(cert PakkaBill.apk)" != "$(cert download/PakkaBill.apk)" ]; then
+            echo "::error::This key is not the one the APK on the website is signed with, so phones could not update to it. Use the same release key."
+            exit 1
+          fi
+          CODE=$("$BT/aapt2" dump badging PakkaBill.apk | grep -o "versionCode='[0-9]*'" | grep -o '[0-9]*')
+          NAME=$("$BT/aapt2" dump badging PakkaBill.apk | grep -o "versionName='[^']*'" | cut -d"'" -f2)
+          LIVE=$(python3 -c "import json; print(json.load(open('download/app.json')).get('versionCode', 0))")
+          if [ "$CODE" -le "$LIVE" ]; then
+            echo "::error::versionCode $CODE is not higher than the website's $LIVE."
+            exit 1
+          fi
+          echo "CODE=$CODE" >> "$GITHUB_ENV"
+          echo "NAME=$NAME" >> "$GITHUB_ENV"
+
+      - name: Put it on the website (download/)
+        run: |
+          cp PakkaBill.apk download/PakkaBill.apk
+          python3 - <<'EOF'
+          import datetime, json, os
+          p = 'download/app.json'
+          j = json.load(open(p))
+          j.update(version=os.environ['NAME'], versionCode=int(os.environ['CODE']), size=os.path.getsize('download/PakkaBill.apk'), updated=datetime.date.today().isoformat())
+          open(p, 'w').write(json.dumps(j, indent=2, ensure_ascii=False) + '\n')
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add download/PakkaBill.apk download/app.json
+          git commit -q -m "PakkaBill for Android ${NAME} (${CODE}) on the website" -m "Built from ${SHA}."
+          git push origin HEAD:main
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PakkaBill-${{ env.NAME }}-signed
+          path: |
+            PakkaBill.aab
+            PakkaBill.apk

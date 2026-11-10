@@ -165,7 +165,15 @@ with the "Android versions" workflow.
 Signing: the upload key `pakkabill-release.p12` (alias `pakkabill`) is kept by the owner and never
 committed, because this repo is public. Sign the bundle with `jarsigner` and the APK with `apksigner`,
 then put the APK at `download/PakkaBill.apk` and update `download/app.json`. Every update needs a
-higher `versionCode` and the same key. `.well-known/assetlinks.json` lists the key fingerprints
+higher `versionCode` and the same key.
+
+Publishing in one tap: add the key once as repository secrets (Settings → Secrets and variables →
+Actions): `ANDROID_KEYSTORE_BASE64` (the .p12 file in base64: `base64 -w0 pakkabill-release.p12`),
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`pakkabill`) and `ANDROID_KEY_PASSWORD`. Then
+Actions → "Publish Android app" → Run workflow. It takes the newest build from `main` whose "Android
+app" run passed, signs it, refuses a different key (phones could not update) or a versionCode that
+is not higher, commits `download/PakkaBill.apk` and `download/app.json` (the website serves them),
+and keeps the signed bundle (.aab) as the run's artifact for Google Play. `.well-known/assetlinks.json` lists the key fingerprints
 (add Google Play's app signing key after the first Play upload) so PakkaBill links open in the app.
 
 Publishing on Google Play: see `play-store/README.md` (listing text, data safety answers, images).
