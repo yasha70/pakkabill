@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -73,8 +76,8 @@ fun LazyListScope.toolsTab(groups: List<Pair<String, List<Tool>>>, open: (String
             Txt(title, size = 13.sp, weight = FontWeight.SemiBold, color = LocalHues.current.ink3, upper = true)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 tools.chunked(2).forEach { pair ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        pair.forEach { t -> ToolCard(t, Modifier.weight(1f)) { open(t.key) } }
+                    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        pair.forEach { t -> ToolCard(t, Modifier.weight(1f).fillMaxHeight()) { open(t.key) } }
                         if (pair.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
@@ -87,7 +90,7 @@ fun LazyListScope.toolsTab(groups: List<Pair<String, List<Tool>>>, open: (String
 private fun ToolCard(t: Tool, modifier: Modifier, onClick: () -> Unit) {
     val h = LocalHues.current
     Column(
-        modifier.height(128.dp).clip(RoundedCornerShape(12.dp)).background(h.sheet).border(1.dp, h.rule, RoundedCornerShape(12.dp))
+        modifier.heightIn(min = 128.dp).clip(RoundedCornerShape(12.dp)).background(h.sheet).border(1.dp, h.rule, RoundedCornerShape(12.dp))
             .clickable(onClick = onClick).padding(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

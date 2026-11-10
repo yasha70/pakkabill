@@ -139,6 +139,11 @@ inside the app, for Meesho Lens and Auto listing, which work on Meesho's pages.
     as the PakkaBill tab it talks to. The seller uploads their own photo once in Add Single Catalog;
     Meesho then prices every version itself, with the seller's login, and the prices fill in with
     the cheapest marked. Prices can still be typed by hand.
+  - Meesho's supplier panel decides who it lets in. In the emulator on GitHub's servers it answered
+    "Access Denied" (meesho.com itself opened fine for Lens), most likely because of the servers'
+    address; the app does not disguise itself to get past that. If a seller's phone is turned away
+    too, Auto listing and the shipping check still work the website's way: the PakkaBill Lens
+    extension on a laptop, or the PB Shipping bookmark in the phone's Chrome.
   - Meesho listing: the bulk-upload Excel from the seller's own category template and photos, in the
     website's six steps, with its ready-made detail sets and size charts.
   - Meesho Lens: meesho.com inside the app, read by the website's Lens code, with seller price, sales
