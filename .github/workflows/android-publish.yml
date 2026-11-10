@@ -59,7 +59,11 @@ jobs:
           export KEY_PASS="${KEY_PASS:-$KS_PASS}"
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           KS="$RUNNER_TEMP/release.p12"
-          printf '%s' "$KS_B64" | base64 -d > "$KS"
+          # the key's text as pasted: line breaks, spaces and a Windows byte-order mark are left out
+          printf '%s' "$KS_B64" | sed 's/^\xEF\xBB\xBF//' | tr -d ' \r\n\t' | base64 -d > "$KS" || {
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not the key file in base64. Make key.txt again (README, Android app) and paste all of it."
+            exit 1
+          }
           "$BT/zipalign" -p -f 4 build-out/PakkaBill-unsigned.apk "$RUNNER_TEMP/aligned.apk"
           "$BT/apksigner" sign --ks "$KS" --ks-type PKCS12 --ks-pass env:KS_PASS --key-pass env:KEY_PASS --ks-key-alias "$KEY_ALIAS" --out PakkaBill.apk "$RUNNER_TEMP/aligned.apk"
           jarsigner -keystore "$KS" -storetype PKCS12 -storepass:env KS_PASS -keypass:env KEY_PASS -sigalg SHA256withRSA -digestalg SHA-256 \
