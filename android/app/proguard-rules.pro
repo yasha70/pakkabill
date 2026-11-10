@@ -21,3 +21,10 @@
 -keepclasseswithmembers class * {
     public void onPayment*(...);
 }
+
+# PdfBox-Android (Labels & packing chart) loads fonts and filters by name; certificate encryption is left out
+-keep class com.tom_roush.pdfbox.** { *; }
+-keep class com.tom_roush.fontbox.** { *; }
+-dontwarn com.tom_roush.pdfbox.**
+-dontwarn org.bouncycastle.**
+-dontwarn com.gemalto.jp2.**

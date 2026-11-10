@@ -1,0 +1,838 @@
+{
+  "gstin": "24ABCDE1234F1Z6",
+  "fp": "032025",
+  "version": "GST3.2.4",
+  "hash": "hash",
+  "b2b": [
+    {
+      "ctin": "27AAACB2222C1ZH",
+      "inv": [
+        {
+          "inum": "AMZB-001",
+          "idt": "14-03-2025",
+          "val": 9591.93,
+          "pos": "27",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "rt": 5,
+                "txval": 9135.17,
+                "iamt": 456.76,
+                "csamt": 0
+              }
+            }
+          ]
+        },
+        {
+          "inum": "AMZB-002",
+          "idt": "04-03-2025",
+          "val": 38755.12,
+          "pos": "27",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "rt": 5,
+                "txval": 36909.64,
+                "iamt": 1845.48,
+                "csamt": 0
+              }
+            }
+          ]
+        },
+        {
+          "inum": "AMZB-003",
+          "idt": "13-03-2025",
+          "val": 24295.32,
+          "pos": "27",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "rt": 12,
+                "txval": 21692.25,
+                "iamt": 2603.07,
+                "csamt": 0
+              }
+            }
+          ]
+        },
+        {
+          "inum": "AMZB-005",
+          "idt": "06-03-2025",
+          "val": 35891.36,
+          "pos": "27",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "rt": 18,
+                "txval": 30416.41,
+                "iamt": 5474.95,
+                "csamt": 0
+              }
+            }
+          ]
+        },
+        {
+          "inum": "AMZB-006",
+          "idt": "03-03-2025",
+          "val": 62852.2,
+          "pos": "27",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "rt": 12,
+                "txval": 56118.04,
+                "iamt": 6734.16,
+                "csamt": 0
+              }
+            }
+          ]
+        },
+        {
+          "inum": "AMZB-007",
+          "idt": "18-03-2025",
+          "val": 34500.17,
+          "pos": "27",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "rt": 12,
+                "txval": 30803.72,
+                "iamt": 3696.45,
+                "csamt": 0
+              }
+            }
+          ]
+        },
+        {
+          "inum": "AMZB-009",
+          "idt": "27-03-2025",
+          "val": 43713.68,
+          "pos": "27",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "rt": 5,
+                "txval": 41632.08,
+                "iamt": 2081.6,
+                "csamt": 0
+              }
+            }
+          ]
+        },
+        {
+          "inum": "AMZB-010",
+          "idt": "10-03-2025",
+          "val": 36279.75,
+          "pos": "27",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "rt": 18,
+                "txval": 30745.55,
+                "iamt": 5534.2,
+                "csamt": 0
+              }
+            }
+          ]
+        },
+        {
+          "inum": "AMZB-011",
+          "idt": "25-03-2025",
+          "val": 45615.82,
+          "pos": "27",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "rt": 12,
+                "txval": 40728.41,
+                "iamt": 4887.41,
+                "csamt": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "cdnr": [
+    {
+      "ctin": "27AAACB2222C1ZH",
+      "nt": [
+        {
+          "ntty": "C",
+          "nt_num": "CNB-0",
+          "nt_dt": "02-03-2025",
+          "pos": "27",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "val": 27301.07,
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "rt": 5,
+                "txval": 26001.02,
+                "iamt": 1300.05,
+                "csamt": 0
+              }
+            }
+          ]
+        },
+        {
+          "ntty": "C",
+          "nt_num": "CNB-4",
+          "nt_dt": "26-03-2025",
+          "pos": "27",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "val": 65444.47,
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "rt": 12,
+                "txval": 58432.56,
+                "iamt": 7011.91,
+                "csamt": 0
+              }
+            }
+          ]
+        },
+        {
+          "ntty": "C",
+          "nt_num": "CNB-8",
+          "nt_dt": "05-03-2025",
+          "pos": "27",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "val": 55781.78,
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "rt": 12,
+                "txval": 49805.16,
+                "iamt": 5976.62,
+                "csamt": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "b2cs": [
+    {
+      "sply_ty": "INTER",
+      "rt": 5,
+      "typ": "OE",
+      "pos": "03",
+      "txval": 4996.13,
+      "iamt": 249.8,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 12,
+      "typ": "OE",
+      "pos": "03",
+      "txval": 332.07,
+      "iamt": 39.85,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 18,
+      "typ": "OE",
+      "pos": "03",
+      "txval": 8575.18,
+      "iamt": 1543.53,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 5,
+      "typ": "OE",
+      "pos": "07",
+      "txval": 30032.68,
+      "iamt": 1501.63,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 12,
+      "typ": "OE",
+      "pos": "07",
+      "txval": 34279.64,
+      "iamt": 4113.56,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 18,
+      "typ": "OE",
+      "pos": "07",
+      "txval": 438.18,
+      "iamt": 78.88,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 5,
+      "typ": "OE",
+      "pos": "08",
+      "txval": 8588.68,
+      "iamt": 429.43,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 12,
+      "typ": "OE",
+      "pos": "08",
+      "txval": 7386.42,
+      "iamt": 886.37,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 18,
+      "typ": "OE",
+      "pos": "08",
+      "txval": 3142.23,
+      "iamt": 565.6,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 5,
+      "typ": "OE",
+      "pos": "09",
+      "txval": 24746.4,
+      "iamt": 1237.32,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 12,
+      "typ": "OE",
+      "pos": "09",
+      "txval": 14287.16,
+      "iamt": 1714.47,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 18,
+      "typ": "OE",
+      "pos": "09",
+      "txval": 1033.43,
+      "iamt": 186.02,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 5,
+      "typ": "OE",
+      "pos": "10",
+      "txval": 5374.35,
+      "iamt": 268.73,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 18,
+      "typ": "OE",
+      "pos": "10",
+      "txval": 4780.56,
+      "iamt": 860.5,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 5,
+      "typ": "OE",
+      "pos": "18",
+      "txval": 19155.17,
+      "iamt": 957.77,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 12,
+      "typ": "OE",
+      "pos": "18",
+      "txval": 12210.63,
+      "iamt": 1465.27,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 18,
+      "typ": "OE",
+      "pos": "18",
+      "txval": 4799.56,
+      "iamt": 863.92,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 5,
+      "typ": "OE",
+      "pos": "19",
+      "txval": 4732.7,
+      "iamt": 236.63,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 12,
+      "typ": "OE",
+      "pos": "19",
+      "txval": 9919.48,
+      "iamt": 1190.33,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 18,
+      "typ": "OE",
+      "pos": "19",
+      "txval": 7251.36,
+      "iamt": 1305.25,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 5,
+      "typ": "OE",
+      "pos": "21",
+      "txval": 9408.5,
+      "iamt": 470.43,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 12,
+      "typ": "OE",
+      "pos": "21",
+      "txval": 18741.88,
+      "iamt": 2249.03,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 18,
+      "typ": "OE",
+      "pos": "21",
+      "txval": 4339.22,
+      "iamt": 781.06,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTRA",
+      "rt": 5,
+      "typ": "OE",
+      "pos": "24",
+      "txval": 11907.23,
+      "camt": 297.69,
+      "samt": 297.69,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTRA",
+      "rt": 12,
+      "typ": "OE",
+      "pos": "24",
+      "txval": 637.92,
+      "camt": 38.28,
+      "samt": 38.28,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTRA",
+      "rt": 18,
+      "typ": "OE",
+      "pos": "24",
+      "txval": 9517.01,
+      "camt": 856.53,
+      "samt": 856.53,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 5,
+      "typ": "OE",
+      "pos": "27",
+      "txval": 16654.87,
+      "iamt": 832.75,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 12,
+      "typ": "OE",
+      "pos": "27",
+      "txval": 35283.12,
+      "iamt": 4233.97,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 18,
+      "typ": "OE",
+      "pos": "27",
+      "txval": 8456.32,
+      "iamt": 1522.14,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 5,
+      "typ": "OE",
+      "pos": "29",
+      "txval": 7056.8,
+      "iamt": 352.85,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 12,
+      "typ": "OE",
+      "pos": "29",
+      "txval": 28713.87,
+      "iamt": 3445.66,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 18,
+      "typ": "OE",
+      "pos": "29",
+      "txval": 1561.85,
+      "iamt": 281.14,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 5,
+      "typ": "OE",
+      "pos": "32",
+      "txval": 18101.39,
+      "iamt": 905.07,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 18,
+      "typ": "OE",
+      "pos": "32",
+      "txval": 6577.04,
+      "iamt": 1183.86,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 5,
+      "typ": "OE",
+      "pos": "33",
+      "txval": 22922.15,
+      "iamt": 1146.1,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 12,
+      "typ": "OE",
+      "pos": "33",
+      "txval": 7918.18,
+      "iamt": 950.19,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 18,
+      "typ": "OE",
+      "pos": "33",
+      "txval": 7811.92,
+      "iamt": 1406.14,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 5,
+      "typ": "OE",
+      "pos": "36",
+      "txval": 21606.12,
+      "iamt": 1080.3,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 12,
+      "typ": "OE",
+      "pos": "36",
+      "txval": 12344,
+      "iamt": 1481.29,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTER",
+      "rt": 18,
+      "typ": "OE",
+      "pos": "36",
+      "txval": 3625.77,
+      "iamt": 652.64,
+      "csamt": 0
+    }
+  ],
+  "hsn": {
+    "hsn_b2b": [
+      {
+        "hsn_sc": "5007",
+        "desc": "Saree silk",
+        "uqc": "PCS",
+        "qty": 1,
+        "rt": 5,
+        "txval": 52540.7,
+        "iamt": 2627.03,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0,
+        "num": 1
+      },
+      {
+        "hsn_sc": "6109",
+        "desc": "T-shirt",
+        "uqc": "PCS",
+        "qty": 2,
+        "rt": 12,
+        "txval": 58808.85,
+        "iamt": 7057.06,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0,
+        "num": 2
+      },
+      {
+        "hsn_sc": "6204",
+        "desc": "Kurti cotton",
+        "uqc": "PCS",
+        "qty": 1,
+        "rt": 5,
+        "txval": 9135.17,
+        "iamt": 456.76,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0,
+        "num": 3
+      },
+      {
+        "hsn_sc": "6211",
+        "desc": "Track pant",
+        "uqc": "PCS",
+        "qty": 2,
+        "rt": 18,
+        "txval": 61161.96,
+        "iamt": 11009.15,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0,
+        "num": 4
+      },
+      {
+        "hsn_sc": "6302",
+        "desc": "Bedsheet",
+        "uqc": "PCS",
+        "qty": 0,
+        "rt": 12,
+        "txval": -17704.15,
+        "iamt": -2124.5,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0,
+        "num": 5
+      }
+    ],
+    "hsn_b2c": [
+      {
+        "hsn_sc": "5007",
+        "desc": "Saree silk",
+        "uqc": "PCS",
+        "qty": 98,
+        "rt": 5,
+        "txval": 89268.45,
+        "iamt": 4394.87,
+        "camt": 34.28,
+        "samt": 34.28,
+        "csamt": 0,
+        "num": 1
+      },
+      {
+        "hsn_sc": "6109",
+        "desc": "T-shirt",
+        "uqc": "PCS",
+        "qty": 104,
+        "rt": 12,
+        "txval": 110418.08,
+        "iamt": 13298.06,
+        "camt": -23.94,
+        "samt": -23.94,
+        "csamt": 0,
+        "num": 2
+      },
+      {
+        "hsn_sc": "6204",
+        "desc": "Kurti cotton",
+        "uqc": "PCS",
+        "qty": 110,
+        "rt": 5,
+        "txval": 116014.72,
+        "iamt": 5273.94,
+        "camt": 263.4,
+        "samt": 263.4,
+        "csamt": 0,
+        "num": 3
+      },
+      {
+        "hsn_sc": "6211",
+        "desc": "Track pant",
+        "uqc": "PCS",
+        "qty": 75,
+        "rt": 18,
+        "txval": 71909.63,
+        "iamt": 11230.68,
+        "camt": 856.53,
+        "samt": 856.53,
+        "csamt": 0,
+        "num": 4
+      },
+      {
+        "hsn_sc": "6302",
+        "desc": "Bedsheet",
+        "uqc": "PCS",
+        "qty": 74,
+        "rt": 12,
+        "txval": 71636.29,
+        "iamt": 8471.93,
+        "camt": 62.21,
+        "samt": 62.21,
+        "csamt": 0,
+        "num": 5
+      }
+    ]
+  },
+  "doc_issue": {
+    "doc_det": [
+      {
+        "doc_num": 1,
+        "doc_typ": "Invoices for outward supply",
+        "docs": [
+          {
+            "num": 1,
+            "from": "MSH25-0001",
+            "to": "MSH25-0224",
+            "totnum": 221,
+            "cancel": 0,
+            "net_issue": 221
+          },
+          {
+            "num": 2,
+            "from": "AMZ-0000",
+            "to": "AMZ-0089",
+            "totnum": 86,
+            "cancel": 5,
+            "net_issue": 81
+          },
+          {
+            "num": 3,
+            "from": "AMZB-001",
+            "to": "AMZB-011",
+            "totnum": 9,
+            "cancel": 0,
+            "net_issue": 9
+          }
+        ]
+      },
+      {
+        "doc_num": 5,
+        "doc_typ": "Credit Note",
+        "docs": [
+          {
+            "num": 1,
+            "from": "MSHCN25-0000",
+            "to": "MSHCN25-0069",
+            "totnum": 70,
+            "cancel": 0,
+            "net_issue": 70
+          },
+          {
+            "num": 2,
+            "from": "CN-11",
+            "to": "CN-77",
+            "totnum": 4,
+            "cancel": 0,
+            "net_issue": 4
+          },
+          {
+            "num": 3,
+            "from": "CNB-0",
+            "to": "CNB-8",
+            "totnum": 3,
+            "cancel": 0,
+            "net_issue": 3
+          }
+        ]
+      }
+    ]
+  },
+  "supeco": {
+    "clttx": [
+      {
+        "etin": "24AARCM9332R1CU",
+        "suppval": 317881.44,
+        "igst": 30208.63,
+        "cgst": 485.21,
+        "sgst": 485.21,
+        "cess": 0,
+        "flag": "N"
+      },
+      {
+        "etin": "24AAICA3918J1CZ",
+        "suppval": 305308.26,
+        "igst": 31486.35,
+        "cgst": 707.28,
+        "sgst": 707.28,
+        "cess": 0,
+        "flag": "N"
+      }
+    ]
+  }
+}

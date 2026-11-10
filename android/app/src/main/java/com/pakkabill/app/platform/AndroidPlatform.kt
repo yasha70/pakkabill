@@ -32,12 +32,20 @@ class AndroidPlatform(private val a: MainActivity) : Platform {
     override fun pickMeeshoFiles() = a.pickMeesho()
     override fun pickBackup() = a.pickBackup()
     override fun pickCostSheet() = a.pickCostSheet()
+    override fun pickPdfs() = a.pickPdfs()
+    override fun pickFor(tool: String, mimes: Array<String>, multiple: Boolean) = a.pickFor(tool, mimes, multiple)
+    override fun leavingForOwnIntent() = a.leavingForOwnIntent()
 
     override fun saveFile(name: String, mime: String, bytes: ByteArray) = a.saveFile(PageFile(name, mime, bytes))
 
     override fun shareFile(name: String, mime: String, bytes: ByteArray, text: String) {
         a.leavingForOwnIntent()
         runCatching { FileActions.share(a, name, text, listOf(PageFile(name, mime, bytes))) }.onFailure { a.say("Could not open the share menu.") }
+    }
+
+    override fun saveImages(files: List<Pair<String, ByteArray>>) {
+        val n = runCatching { FileActions.saveImages(a, files.map { (name, b) -> PageFile(name, "image/jpeg", b) }) }.getOrDefault(0)
+        a.say(if (n == files.size) (if (n == 1) "Saved to Pictures/PakkaBill" else "Saved $n photos to Pictures/PakkaBill") else "Saved $n of ${files.size} photos. Check free space on the phone.")
     }
 
     override fun shareToWhatsApp(phone: String, name: String, mime: String, bytes: ByteArray, text: String) {

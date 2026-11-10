@@ -13,12 +13,23 @@ interface Platform {
 
     /** Opens the file picker for Meesho files (Excel, CSV, ZIP; several at once). */
     fun pickMeeshoFiles()
+    /** Opens the file picker for Meesho label and manifest PDFs (several at once). */
+    fun pickPdfs()
+    /**
+     * Opens the file picker for a tool ("gstr1", "g1check", "lowship", "listing" ...): the files picked go
+     * to that tool. [mimes] are the kinds of file offered.
+     */
+    fun pickFor(tool: String, mimes: Array<String>, multiple: Boolean = true)
+    /** Another app's screen opens from a page (a web page's file picker): the app lock waits for the way back. */
+    fun leavingForOwnIntent()
     /** Opens the file picker for a cost sheet (Excel or CSV). */
     fun pickCostSheet()
     /** Opens the file picker for a P&L backup (.json). */
     fun pickBackup()
     /** Saves into Downloads/PakkaBill and offers to open it. */
     fun saveFile(name: String, mime: String, bytes: ByteArray)
+    /** Saves photos to the gallery (Pictures/PakkaBill). */
+    fun saveImages(files: List<Pair<String, ByteArray>>)
     /** Android share sheet with a file. */
     fun shareFile(name: String, mime: String, bytes: ByteArray, text: String = "")
     /** Sends a file straight to WhatsApp (to [phone]'s chat when given), or the share sheet without WhatsApp. */

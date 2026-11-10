@@ -1,0 +1,18 @@
+{
+  "name": "pakkabill-app-engines",
+  "private": true,
+  "description": "Builds the website's tool engines for the Android app (see build.mjs).",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs ../core/build/generated/engines"
+  },
+  "devDependencies": {
+    "@babel/core": "7.26.0",
+    "@babel/generator": "7.26.2",
+    "@babel/parser": "7.26.2",
+    "@babel/preset-env": "7.26.0",
+    "@babel/traverse": "7.25.9",
+    "@xmldom/xmldom": "0.8.10",
+    "esbuild": "0.24.0"
+  }
+}

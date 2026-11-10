@@ -6,6 +6,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -16,8 +17,8 @@ android {
         applicationId = "com.pakkabill.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 10
-        versionName = "4.0"
+        versionCode = 11
+        versionName = "4.1"
     }
 
     buildTypes {
@@ -56,6 +57,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidsvg)
+    // Labels & packing chart: PDF text and pages. Its certificate encryption (BouncyCastle) is not needed.
+    implementation(libs.pdfbox.android) { exclude(group = "org.bouncycastle") }
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.activity.compose)
@@ -68,6 +71,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.browser)
+    implementation(libs.androidx.webkit)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.play.app.update)
     implementation(libs.play.review)

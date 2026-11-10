@@ -106,9 +106,10 @@ move them with Shop > Download backup and Restore.
 
 ## Android app
 
-PakkaBill for Android (`android/`, package `com.pakkabill.app`) is a fully native app: Kotlin,
-Jetpack Compose and Material 3 on the newest tools (Android Gradle Plugin 9.4, Kotlin 2.4, target
-Android 17 / API 37, minimum Android 8). No WebView: every screen is drawn natively.
+PakkaBill for Android (`android/`, package `com.pakkabill.app`) is a native app: Kotlin, Jetpack
+Compose and Material 3 on the newest tools (Android Gradle Plugin 9.4, Kotlin 2.4, target Android 17 /
+API 37, minimum Android 8). Every PakkaBill screen is drawn natively; only Meesho's own website opens
+inside the app, for Meesho Lens and Auto listing, which work on Meesho's pages.
 
 - GST billing (4.0): tax invoices, bills of supply and estimates; CGST+SGST or IGST by place of supply,
   rates with or without GST (calcV 2), the garment 5% / 18% slab, discount, round off, HSN summary,
@@ -123,23 +124,56 @@ Android 17 / API 37, minimum Android 8). No WebView: every screen is drawn nativ
 - Meesho P&L: worked out on the phone by the website's audited engine (`pnl.html`, run in Rhino),
   with reconcile, product costs, expenses, Excel and PDF, the home-screen profit widget and a weekly
   reminder.
+- Every website tool (4.1), each run by the website's own engine so both always give the same
+  answer: `android/engines/build.mjs` takes the engines from the website's files when the app is built
+  (made ES5 with Babel, run in Rhino), and the core tests run the website's own audits on them.
+  - Labels & packing chart: Meesho label and manifest PDFs (picked, or shared from any app with "Sort
+    labels in PakkaBill") to the packing chart and the labels sorted by SKU and size, as PDF, CSV or
+    WhatsApp text, saved, shared or printed.
+  - GSTR-1 JSON: Meesho, Amazon and Flipkart reports (CSV/Excel) to the GST portal file, the
+    statement, TCS report and Excel for the CA, plus the checker for a GSTR-1 JSON; the same JSON as
+    the website, byte for byte.
+  - Low shipping image: versions of the main photo, saved to the gallery, with each one's shipping
+    typed in from Meesho to find the cheapest.
+  - Meesho listing: the bulk-upload Excel from the seller's own category template and photos, in the
+    website's six steps, with its ready-made detail sets and size charts.
+  - Meesho Lens: meesho.com inside the app, read by the website's Lens code, with seller price, sales
+    speed and return risk in a panel; Meesho links shared from the Meesho app open in it ("Check in
+    PakkaBill Lens").
+  - Auto listing: templates, the seller's details and products with photos; "Fill in Meesho" opens
+    Meesho's supplier panel in the app with the PakkaBill Lens extension's own form filler in it, as
+    Chrome runs it on a laptop, so the catalogue form fills on the phone too. Its storage is the
+    app's, reachable only from supplier.meesho.com; Meesho's page is left as it is, and the seller
+    checks and submits each form in Meesho.
 - Also: splash screen, edge-to-edge, adaptive and themed icons, launcher shortcuts (New bill, Meesho
   P&L, Upload, Costs), fingerprint/face app lock, Hindi, dark mode, Google Play in-app updates and
   reviews. The app is recognised by `PakkaBillApp/` in its user agent (`store=play` when installed
   from Google Play, where Pro is not sold because Play requires its own billing for that).
 
-Bottom bar: P&L · Bills · + (new bill, estimate or Meesho files) · Reconcile · More (product costs,
-upload, expenses, settings, parties, items, GST summary, shop details).
+Bottom bar: P&L · Labels · + (new bill, estimate or Meesho files) · Bills · Tools (every tool,
+grouped as on the website's menu).
 
-Building: pushing `android/` to `main` runs `.github/workflows/android.yml`. It builds the Play
-Store bundle (.aab) and the website APK unsigned (branch `apk-build`), and tests a debug build on an
-Android emulator: it drives the app and saves screenshots and results (branch `apk-shots`). Check the
-newest library versions with the "Android versions" workflow.
+Building: pushing `android/` (or a website file the engines come from) to `main` runs
+`.github/workflows/android.yml`. It builds the Play Store bundle (.aab) and the website APK unsigned
+(branch `apk-build`), runs the in-app Auto listing script on the website's stand-in for Meesho's form
+in Chromium (`android/ci/autolist-web-check.cjs`), and tests a debug build on an Android emulator: it
+drives the app through every tool with sample files and saves screenshots and results (branch
+`apk-shots`). Started by hand on another branch, it keeps these as the run's artifacts. Building
+needs Node 22 besides the JDK (the engines are built with it). Check the newest library versions
+with the "Android versions" workflow.
 
 Signing: the upload key `pakkabill-release.p12` (alias `pakkabill`) is kept by the owner and never
 committed, because this repo is public. Sign the bundle with `jarsigner` and the APK with `apksigner`,
 then put the APK at `download/PakkaBill.apk` and update `download/app.json`. Every update needs a
-higher `versionCode` and the same key. `.well-known/assetlinks.json` lists the key fingerprints
+higher `versionCode` and the same key.
+
+Publishing in one tap: add the key once as repository secrets (Settings → Secrets and variables →
+Actions): `ANDROID_KEYSTORE_BASE64` (the .p12 file in base64: `base64 -w0 pakkabill-release.p12`),
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`pakkabill`) and `ANDROID_KEY_PASSWORD`. Then
+Actions → "Publish Android app" → Run workflow. It takes the newest build from `main` whose "Android
+app" run passed, signs it, refuses a different key (phones could not update) or a versionCode that
+is not higher, commits `download/PakkaBill.apk` and `download/app.json` (the website serves them),
+and keeps the signed bundle (.aab) as the run's artifact for Google Play. `.well-known/assetlinks.json` lists the key fingerprints
 (add Google Play's app signing key after the first Play upload) so PakkaBill links open in the app.
 
 Publishing on Google Play: see `play-store/README.md` (listing text, data safety answers, images).

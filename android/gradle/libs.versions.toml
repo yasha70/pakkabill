@@ -21,6 +21,7 @@ desugar = "2.1.5"
 androidsvg = "1.4"
 zxing = "3.5.3"
 razorpay = "1.6.41"
+pdfbox = "2.0.27.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -53,6 +54,9 @@ razorpay-checkout = { group = "com.razorpay", name = "checkout", version.ref = "
 desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar" }
 
 androidsvg = { group = "com.caverock", name = "androidsvg-aar", version.ref = "androidsvg" }
+
+# reads the text of Meesho label PDFs and puts pages together (Labels & packing chart)
+pdfbox-android = { group = "com.tom-roush", name = "pdfbox-android", version.ref = "pdfbox" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

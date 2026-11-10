@@ -160,7 +160,7 @@ class MainActivity : FragmentActivity(), PaymentResultWithDataListener {
             PakkaBillTheme(theme = theme, fonts = fonts, lang = lang, tr = tr) {
                 CompositionLocalProvider(LocalPlatform provides platform) {
                     if (locked) LockScreen(onUnlock = ::unlock, onExit = ::finish)
-                    else Root(app.pnl, app.account, app.bills, lockOn, snackbar, startTab)
+                    else Root(app.pnl, app.account, app.bills, app.tools, lockOn, snackbar, startTab)
                 }
             }
         }
@@ -177,6 +177,13 @@ class MainActivity : FragmentActivity(), PaymentResultWithDataListener {
         handle(intent)
     }
 
+    /** Files shared to PakkaBill: PDFs are Meesho labels and manifests, the rest Meesho reports for the P&L. */
+    private fun route(uris: List<Uri>) {
+        val (pdfs, rest) = uris.partition { u -> (contentResolver.getType(u) ?: "").contains("pdf") || displayName(u).endsWith(".pdf", true) }
+        if (pdfs.isNotEmpty()) { startTab = "labels"; readPdfs(pdfs) }
+        if (rest.isNotEmpty()) { if (pdfs.isEmpty()) startTab = "pl"; readAndAdd(rest) }
+    }
+
     /** Shortcuts, and Meesho files shared to PakkaBill from another app (Files, WhatsApp, Gmail). */
     private fun handle(intent: Intent?) {
         intent ?: return
@@ -185,17 +192,22 @@ class MainActivity : FragmentActivity(), PaymentResultWithDataListener {
             ACTION_COSTS -> startTab = "costs"
             ACTION_NEW_BILL -> startTab = "newbill"
             ACTION_PLAN -> startTab = "plan"
+            // a Meesho product link shared from the Meesho app: look at it in Meesho Lens
+            Intent.ACTION_SEND if intent.type?.startsWith("text/") == true && intent.getStringExtra(Intent.EXTRA_TEXT) != null -> {
+                startTab = "lens"
+                app.tools.lens.openLink(intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty())
+            }
             Intent.ACTION_SEND -> {
                 @Suppress("DEPRECATION")
                 val uri = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java) else intent.getParcelableExtra(Intent.EXTRA_STREAM)
-                if (uri != null) { startTab = "pl"; readAndAdd(listOf(uri)) }
+                if (uri != null) route(listOf(uri))
             }
             Intent.ACTION_SEND_MULTIPLE -> {
                 @Suppress("DEPRECATION")
                 val uris = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java) else intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
-                if (!uris.isNullOrEmpty()) { startTab = "pl"; readAndAdd(uris) }
+                if (!uris.isNullOrEmpty()) route(uris)
             }
-            Intent.ACTION_VIEW -> intent.data?.let { if (it.scheme == "content" || it.scheme == "file") { startTab = "pl"; readAndAdd(listOf(it)) } }
+            Intent.ACTION_VIEW -> intent.data?.let { if (it.scheme == "content" || it.scheme == "file") route(listOf(it)) }
         }
     }
 
@@ -230,6 +242,50 @@ class MainActivity : FragmentActivity(), PaymentResultWithDataListener {
         leavingForOwnIntent()
         runCatching { meeshoPicker.launch(arrayOf("*/*")) }.onFailure { say("No file picker found on this phone.") }
     }
+
+    private val pdfPicker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> readPdfs(uris) }
+
+    // files for a tool (GSTR-1 reports, a JSON to check, photos, a Meesho template): sent to that tool
+    private var pickTool = ""
+    private val toolPicker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> readFor(pickTool, uris) }
+    private val toolPickerOne = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) readFor(pickTool, listOf(uri)) }
+
+    fun pickFor(tool: String, mimes: Array<String>, multiple: Boolean) {
+        leavingForOwnIntent()
+        pickTool = tool
+        runCatching { if (multiple) toolPicker.launch(mimes) else toolPickerOne.launch(mimes) }.onFailure { say("No file picker found on this phone.") }
+    }
+
+    private fun readFor(tool: String, uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        lifecycleScope.launch {
+            val picked = withContext(Dispatchers.IO) { uris.mapNotNull { readSmall(it) } }
+            if (picked.size < uris.size) say("Some files could not be read (too big or not allowed).")
+            app.tools.onFiles(tool, picked)
+        }
+    }
+
+    /** Meesho label and manifest PDFs for Labels & packing chart (several at once). */
+    fun pickPdfs() {
+        leavingForOwnIntent()
+        runCatching { pdfPicker.launch(arrayOf("application/pdf")) }.onFailure { say("No file picker found on this phone.") }
+    }
+
+    private fun readPdfs(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        lifecycleScope.launch {
+            val picked = withContext(Dispatchers.IO) { uris.mapNotNull { readSmall(it) } }
+            if (picked.size < uris.size) say("Some files could not be read (too big or not allowed).")
+            app.tools.labels.add(picked)
+        }
+    }
+
+    /** A picked or shared file's name and bytes, unless it is too big to be a Meesho file. */
+    private fun readSmall(uri: Uri): Pair<String, ByteArray>? = runCatching {
+        if (displaySize(uri) > MAX_FILE) return@runCatching null
+        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@runCatching null
+        displayName(uri) to bytes
+    }.getOrNull()
 
     fun pickCostSheet() {
         leavingForOwnIntent()
