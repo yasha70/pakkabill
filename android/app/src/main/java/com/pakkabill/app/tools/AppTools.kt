@@ -4,6 +4,7 @@ import android.content.Context
 import com.pakkabill.app.data.PrefsKeyValue
 import com.pakkabill.app.gstr1.Gstr1Controller
 import com.pakkabill.app.labels.LabelsController
+import com.pakkabill.app.lens.LensController
 import com.pakkabill.app.lowship.LowshipController
 import com.pakkabill.core.bill.BillData
 import kotlinx.coroutines.CoroutineScope
@@ -18,6 +19,7 @@ class AppTools(context: Context, scope: CoroutineScope, bills: () -> BillData) {
     val labels by lazy { LabelsController(app, scope, PrefsKeyValue(app, "labels")) }
     val gstr1 by lazy { Gstr1Controller(scope, PrefsKeyValue(app, "gstr1"), bills) }
     val lowship by lazy { LowshipController(scope, PrefsKeyValue(app, "lowship")) }
+    val lens by lazy { LensController(scope, PrefsKeyValue(app, "lens")) }
 
     /** Files picked for a tool ([com.pakkabill.app.platform.Platform.pickFor]). */
     fun onFiles(tool: String, files: List<Pair<String, ByteArray>>) {

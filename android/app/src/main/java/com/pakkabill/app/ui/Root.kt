@@ -87,6 +87,9 @@ import com.pakkabill.app.bill.BillController
 import com.pakkabill.app.tools.AppTools
 import com.pakkabill.app.ui.tools.LabelActs
 import com.pakkabill.app.ui.tools.gstr1Tab
+import com.pakkabill.app.ui.tools.LensPanel
+import com.pakkabill.app.ui.tools.MeeshoWeb
+import com.pakkabill.app.ui.tools.lensTab
 import com.pakkabill.app.ui.tools.lowshipTab
 import com.pakkabill.app.ui.tools.labelsTab
 import com.pakkabill.app.ui.tools.toolGroups
@@ -194,6 +197,11 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
     LaunchedEffect(Unit) { labelsCtl.messages.collect { say(it) } }
     LaunchedEffect(Unit) { tools.gstr1.messages.collect { say(it) } }
     LaunchedEffect(Unit) { tools.lowship.messages.collect { say(it) } }
+    LaunchedEffect(Unit) { tools.lens.messages.collect { say(it) } }
+    // Meesho's website inside a tool (Lens), opened from the Lens page or a link shared from the Meesho app
+    var meesho by rememberSaveable { mutableStateOf<String?>(null) }
+    val lensOpen by tools.lens.open.collectAsState()
+    LaunchedEffect(lensOpen) { lensOpen?.let { meesho = it; tab = "lens"; tools.lens.opened() } }
     val labActs = LabelActs(
         pick = { platform.pickPdfs() },
         remove = { labelsCtl.remove(it) },
@@ -358,6 +366,7 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
                             "labels" -> labelsTab(labView, labOpts, labBusy, labOut, labActs)
                             "gstr1" -> gstr1Tab(tools.gstr1)
                             "lowship" -> lowshipTab(tools.lowship)
+                            "lens" -> lensTab(tools.lens) { meesho = it }
                             "tools" -> toolsTab(toolGroups(login, acct.isPro && enforced, issues)) { open(it) }
                             else -> block("guide") { GuideTab(guide, ui, lang, { pnl.setLang(it) }, go) }
                         }
@@ -405,6 +414,18 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
                     delete = { inv -> viewId = null; bills.delete(inv.id) },
                 ),
             ) { viewId = null }
+        }
+
+        // Meesho's own pages, read by the website's Lens code, with the Lens panel under them
+        AnimatedVisibility(meesho != null, enter = slideInVertically(tween(240)) { it } + fadeIn(tween(240)), exit = slideOutVertically(tween(200)) { it } + fadeOut(tween(200))) {
+            val u = meesho ?: return@AnimatedVisibility
+            val pn by tools.lens.panel.collectAsState()
+            fun read(w: android.webkit.WebView) {
+                if (Regex("/p/[a-z0-9]+", RegexOption.IGNORE_CASE).containsMatchIn(w.url.orEmpty()))
+                    w.evaluateJavascript(tools.lens.readScript) { v -> (runCatching { org.json.JSONTokener(v).nextValue() }.getOrNull() as? String)?.let { tools.lens.read(it) } }
+                else tools.lens.leftProduct()
+            }
+            MeeshoWeb(u, "Meesho · PakkaBill Lens", onClose = { meesho = null; tools.lens.leftProduct() }, every = 2500, onTick = ::read, onPage = { w, _ -> read(w) }) { LensPanel(pn) }
         }
 
         // making or changing a bill

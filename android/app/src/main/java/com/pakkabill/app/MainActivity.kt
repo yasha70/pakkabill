@@ -192,6 +192,11 @@ class MainActivity : FragmentActivity(), PaymentResultWithDataListener {
             ACTION_COSTS -> startTab = "costs"
             ACTION_NEW_BILL -> startTab = "newbill"
             ACTION_PLAN -> startTab = "plan"
+            // a Meesho product link shared from the Meesho app: look at it in Meesho Lens
+            Intent.ACTION_SEND if intent.type?.startsWith("text/") == true && intent.getStringExtra(Intent.EXTRA_TEXT) != null -> {
+                startTab = "lens"
+                app.tools.lens.openLink(intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty())
+            }
             Intent.ACTION_SEND -> {
                 @Suppress("DEPRECATION")
                 val uri = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java) else intent.getParcelableExtra(Intent.EXTRA_STREAM)

@@ -14,4 +14,5 @@
     <string name="shortcut_bill">New bill</string>
     <string name="shortcut_bill_long">Make a GST bill</string>
     <string name="open_in_labels">Sort labels in PakkaBill</string>
+    <string name="open_in_lens">Check in PakkaBill Lens</string>
 </resources>
