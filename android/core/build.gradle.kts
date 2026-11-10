@@ -18,6 +18,8 @@ dependencies {
     implementation(libs.zxing.core) // QR code for paying Pro by UPI from another phone
     api(libs.kotlinx.serialization.json)
     testImplementation(kotlin("test"))
+    // reads the sample label PDFs in tests the way the app reads them on the phone (PdfBox-Android)
+    testImplementation("org.apache.pdfbox:pdfbox:2.0.32")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.1") // needed by Gradle 9
 }
 
@@ -54,6 +56,36 @@ val extractEngine = tasks.register("extractEngine") {
     }
 }
 sourceSets["main"].resources.srcDir(extractEngine)
+
+// The other tools' engines (labels, GSTR-1, low shipping image, Lens, auto listing), taken from the
+// website's files and made ES5 for Rhino by android/engines/build.mjs (needs Node.js). The website's
+// own tests of those engines are made the same way, and the app's tests run them in Rhino.
+val engines = rootProject.file("engines")
+val site = rootProject.file("..")
+val npmEngines = tasks.register<Exec>("npmEngines") {
+    workingDir = engines
+    inputs.files(engines.resolve("package.json"), engines.resolve("package-lock.json"))
+    outputs.dir(engines.resolve("node_modules"))
+    commandLine("npm", "ci", "--no-audit", "--no-fund", "--loglevel=error")
+}
+val enginesOut = layout.buildDirectory.dir("generated/engines")
+val auditsOut = layout.buildDirectory.dir("generated/audits")
+val buildEngines = tasks.register<Exec>("buildEngines") {
+    dependsOn(npmEngines)
+    workingDir = engines
+    inputs.file(engines.resolve("build.mjs"))
+    inputs.files(
+        listOf("labels.html", "gstr1check.js", "gstr1view.js", "index.html", "lowship.js", "lens/core.js", "lens/listcore.js",
+            "test/labels-audit.js", "test/gstr1-audit.js", "test/gstr1view-audit.js", "test/autolist-audit.js").map { site.resolve(it) },
+    )
+    outputs.dir(enginesOut)
+    outputs.dir(auditsOut)
+    val e = enginesOut.get().asFile.absolutePath
+    val a = auditsOut.get().asFile.absolutePath
+    commandLine("node", "build.mjs", e, "--tests", a)
+}
+sourceSets["main"].resources.srcDir(files(enginesOut).builtBy(buildEngines))
+sourceSets["test"].resources.srcDir(files(auditsOut).builtBy(buildEngines))
 
 tasks.test {
     useJUnitPlatform()

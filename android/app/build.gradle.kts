@@ -56,6 +56,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidsvg)
+    // Labels & packing chart: PDF text and pages. Its certificate encryption (BouncyCastle) is not needed.
+    implementation(libs.pdfbox.android) { exclude(group = "org.bouncycastle") }
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.activity.compose)

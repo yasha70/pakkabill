@@ -3,6 +3,7 @@ package com.pakkabill.app
 import android.app.Application
 import com.pakkabill.app.account.AccountController
 import com.pakkabill.app.bill.BillController
+import com.pakkabill.app.tools.AppTools
 import com.pakkabill.app.data.PrefsKeyValue
 import com.pakkabill.app.platform.installSource
 import com.pakkabill.app.pnl.PnlController
@@ -26,6 +27,8 @@ class PakkaApp : Application() {
         private set
     lateinit var bills: BillController
         private set
+    /** Labels, GSTR-1, Low shipping image, Meesho listing, Lens and Auto listing: each made when first opened. */
+    val tools by lazy { AppTools(this, scope) }
 
     override fun onCreate() {
         super.onCreate()

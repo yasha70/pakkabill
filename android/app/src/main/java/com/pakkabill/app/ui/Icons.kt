@@ -76,6 +76,14 @@ object PbIcons {
     }
     val Close by lazy { lineIcon("close", "M18 6L6 18", "M6 6l12 12") }
     val Back by lazy { lineIcon("back", "M19 12H5", "M12 19l-7-7 7-7") }
+    // the tools (lucide shapes, as on the website's menu)
+    val Tag by lazy { lineIcon("tag", "M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z", "M7 7.5a.5.5 0 1 0 1 0a.5.5 0 1 0 -1 0") }
+    val Image by lazy { lineIcon("image", "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z", "M7 9a2 2 0 1 0 4 0a2 2 0 1 0 -4 0", "M21 15l-3.086-3.086a2 2 0 0 0-2.828 0L6 21") }
+    val Wand by lazy { lineIcon("wand", "M21.64 3.64l-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72", "M14 7l3 3", "M5 6v4", "M19 14v4", "M10 2v2", "M7 8H3", "M21 16h-4", "M11 3H9") }
+    val Sheet by lazy { lineIcon("sheet", "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z", "M3 9h18", "M3 15h18", "M9 9v12", "M15 9v12") }
+    val Scan by lazy { lineIcon("scan", "M3 7V5a2 2 0 0 1 2-2h2", "M17 3h2a2 2 0 0 1 2 2v2", "M21 17v2a2 2 0 0 1-2 2h-2", "M7 21H5a2 2 0 0 1-2-2v-2", "M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "M16 16l-1.9-1.9") }
+    val FileJson by lazy { lineIcon("filejson", "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z", "M14 2v4a2 2 0 0 0 2 2h4", "M10 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1a1 1 0 0 1 1 1v1a1 1 0 0 0 1 1", "M14 18a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1a1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1") }
+    val Truck by lazy { lineIcon("truck", "M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2", "M15 18H9", "M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14", "M5 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0", "M15 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0") }
 }
 
 /** PakkaBill's mark: three bills, stacked (the website's mark without the green tile). */

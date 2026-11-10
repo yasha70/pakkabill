@@ -13,6 +13,8 @@ interface Platform {
 
     /** Opens the file picker for Meesho files (Excel, CSV, ZIP; several at once). */
     fun pickMeeshoFiles()
+    /** Opens the file picker for Meesho label and manifest PDFs (several at once). */
+    fun pickPdfs()
     /** Opens the file picker for a cost sheet (Excel or CSV). */
     fun pickCostSheet()
     /** Opens the file picker for a P&L backup (.json). */
