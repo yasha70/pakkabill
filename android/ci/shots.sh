@@ -16,6 +16,8 @@ tap() { python3 android/ci/tap.py "$1" $2 | tee -a "$R"; }
 # opens a page from the Tools tab of the bottom bar, scrolling the Tools page until its card shows
 more() {
   tap "Tools"; sleep 1
+  # the Tools page keeps its place; tapping its tab again goes back to its top
+  tap "Tools"; sleep 1
   for i in 1 2 3 4 5; do TAP_TRIES=1 python3 android/ci/tap.py "$1" last >> "$R" && return 0; up; sleep 1; done
   echo "NOT FOUND on the Tools page: $1" >> "$R"; return 1
 }
@@ -207,7 +209,7 @@ up; cap t61-autolist 1
 tap "New template from"; sleep 1; tap "Readymade blouse"; sleep 2
 top; down "Sizes, prices and stock"; cap t62-template 2
 typein "Meesho price" 349 92; typein "Stock" 10 92
-tap "Same price and stock for all"; sleep 1; cap t63-template 1
+down "Same price and stock for all"; sleep 1; cap t63-template 1
 down "Save template"; cap t64-template-saved 3
 down "Add product photos"; pick1 "maroon_front.jpg"
 cap t65-product 5
