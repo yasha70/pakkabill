@@ -4,7 +4,6 @@ import android.webkit.WebResourceResponse
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -71,6 +70,7 @@ import com.pakkabill.app.ui.Tag
 import com.pakkabill.app.ui.TagKind
 import com.pakkabill.app.ui.Txt
 import com.pakkabill.app.ui.block
+import com.pakkabill.app.ui.press
 import com.pakkabill.core.autolist.ALField
 import com.pakkabill.core.autolist.ALProduct
 import com.pakkabill.core.autolist.ALSize
@@ -166,7 +166,7 @@ private fun Editor(c: AutoListController, t: ALTemplate) {
     Sheet(Modifier.border(1.5.dp, h.carbon, RoundedCornerShape(3.dp))) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             H2(if (isNew) "New template" else "Edit template", Modifier.weight(1f))
-            Box(Modifier.size(36.dp).clip(CircleShape).clickable { c.cancelEdit() }, contentAlignment = Alignment.Center) { Icon(PbIcons.Close, "Close", tint = h.ink2, modifier = Modifier.size(20.dp)) }
+            Box(Modifier.size(36.dp).clip(CircleShape).press { c.cancelEdit() }, contentAlignment = Alignment.Center) { Icon(PbIcons.Close, "Close", tint = h.ink2, modifier = Modifier.size(20.dp)) }
         }
         Spacer(Modifier.height(10.dp))
         Field("Template name") { Inp(t.name, { v -> edit { it.copy(name = v) } }) }
@@ -187,7 +187,7 @@ private fun Editor(c: AutoListController, t: ALTemplate) {
                     Box(Modifier.width(92.dp).padding(end = 6.dp)) { Inp(s.rprice, { v -> setSize { it.copy(rprice = v.trim()) } }, keyboard = KeyboardType.Decimal, money = true, small = true) }
                     Box(Modifier.width(84.dp).padding(end = 6.dp)) { Inp(s.mrp, { v -> setSize { it.copy(mrp = v.trim()) } }, keyboard = KeyboardType.Decimal, money = true, small = true) }
                     Box(Modifier.width(74.dp).padding(end = 6.dp)) { Inp(s.stock, { v -> setSize { it.copy(stock = v.trim()) } }, keyboard = KeyboardType.Number, money = true, small = true) }
-                    Box(Modifier.size(30.dp).clip(CircleShape).clickable { edit { x -> x.copy(sizes = x.sizes.filterIndexed { j, _ -> j != i }) } }, contentAlignment = Alignment.Center) { Txt("×", size = 18.sp, color = h.ink3, raw = true) }
+                    Box(Modifier.size(30.dp).clip(CircleShape).press { edit { x -> x.copy(sizes = x.sizes.filterIndexed { j, _ -> j != i }) } }, contentAlignment = Alignment.Center) { Txt("×", size = 18.sp, color = h.ink3, raw = true) }
                 }
             }
         }
@@ -246,7 +246,7 @@ private fun FieldRow(c: AutoListController, i: Int, f: ALField) {
                 Select(listOf("" to "Pick one of Meesho's ${opts.size} choices") + list.map { it to it }, f.value, { v -> set { it.copy(value = v) } }, raw = true, small = true)
             } else Inp(f.value, { v -> set { it.copy(value = v) } }, placeholder = if (f.multi == true) "Values, separated by commas" else "Value", small = true)
         }
-        Box(Modifier.size(32.dp).clip(CircleShape).clickable { c.updateEdit { x -> x.copy(fields = x.fields.filterIndexed { j, _ -> j != i }) } }, contentAlignment = Alignment.Center) {
+        Box(Modifier.size(32.dp).clip(CircleShape).press { c.updateEdit { x -> x.copy(fields = x.fields.filterIndexed { j, _ -> j != i }) } }, contentAlignment = Alignment.Center) {
             Txt("×", size = 18.sp, color = h.ink3, raw = true)
         }
     }
@@ -336,7 +336,7 @@ private fun Products(c: AutoListController, pro: Boolean, openMeesho: () -> Unit
             Spacer(Modifier.height(8.dp))
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).border(1.5.dp, h.rule2, RoundedCornerShape(10.dp)).background(h.carbonTint)
-                    .clickable { p.pickFor("autolist-photos", arrayOf("image/*")) }.padding(18.dp),
+                    .press { p.pickFor("autolist-photos", arrayOf("image/*")) }.padding(18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Icon(PbIcons.Image, null, tint = h.carbon, modifier = Modifier.size(28.dp))
@@ -393,7 +393,7 @@ private fun ProductCard(c: AutoListController, pr: ALProduct, templates: List<AL
                     Box(Modifier.padding(top = 4.dp, end = 4.dp).size(66.dp).clip(RoundedCornerShape(8.dp)).background(Color.White).border(1.dp, h.rule, RoundedCornerShape(8.dp))) {
                         if (bmp != null) Image(bmp.asImageBitmap(), "Photo ${i + 1}", Modifier.size(66.dp), contentScale = ContentScale.Crop)
                     }
-                    Box(Modifier.align(Alignment.TopEnd).size(22.dp).clip(CircleShape).background(h.sheet).border(1.dp, h.rule2, CircleShape).clickable { c.removePhoto(pr.id, id) }, contentAlignment = Alignment.Center) {
+                    Box(Modifier.align(Alignment.TopEnd).size(22.dp).clip(CircleShape).background(h.sheet).border(1.dp, h.rule2, CircleShape).press { c.removePhoto(pr.id, id) }, contentAlignment = Alignment.Center) {
                         Txt("×", size = 14.sp, color = h.ink2, raw = true)
                     }
                 }
@@ -401,7 +401,7 @@ private fun ProductCard(c: AutoListController, pr: ALProduct, templates: List<AL
             if (pr.photos.size < 10) {
                 Box(
                     Modifier.padding(top = 4.dp).size(66.dp).clip(RoundedCornerShape(8.dp)).border(1.5.dp, h.rule2, RoundedCornerShape(8.dp))
-                        .clickable { p.pickFor("autolist-photos:" + pr.id, arrayOf("image/*")) },
+                        .press { p.pickFor("autolist-photos:" + pr.id, arrayOf("image/*")) },
                     contentAlignment = Alignment.Center,
                 ) { Txt("+", size = 26.sp, color = h.carbon, raw = true) }
             }

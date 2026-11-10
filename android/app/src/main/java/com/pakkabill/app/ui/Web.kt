@@ -47,6 +47,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
@@ -102,6 +104,12 @@ fun fd(d: String?): String {
 }
 /** "2026-09" -> "Sep 2026" */
 fun fmtMonth(m: String): String { val p = m.split('-'); return if (p.size >= 2) "${MON.getOrElse((p[1].toIntOrNull() ?: 1) - 1) { p[1] }} ${p[0]}" else m }
+
+/** clickable, once a box still being typed in has saved (boxes save when the seller is done) */
+fun Modifier.press(onClick: () -> Unit): Modifier = composed {
+    val focus = LocalFocusManager.current
+    clickable { focus.clearFocus(); onClick() }
+}
 
 /* ---------------- text ---------------- */
 
@@ -211,8 +219,11 @@ enum class BtnKind { NORMAL, PRI, DANGER, LINK, WA }
 
 /** .btn (.pri .sm .link .danger .wa) */
 @Composable
-fun Btn(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, kind: BtnKind = BtnKind.NORMAL, small: Boolean = false, enabled: Boolean = true, raw: Boolean = false) {
+fun Btn(text: String, onClick0: () -> Unit, modifier: Modifier = Modifier, kind: BtnKind = BtnKind.NORMAL, small: Boolean = false, enabled: Boolean = true, raw: Boolean = false) {
     val h = LocalHues.current
+    // a box still being typed in saves first (boxes save when the seller is done), then the button acts
+    val focus = LocalFocusManager.current
+    val onClick = { focus.clearFocus(); onClick0() }
     if (kind == BtnKind.LINK) {
         Txt(
             text, modifier.clickable(enabled = enabled, onClick = onClick).padding(vertical = 4.dp, horizontal = 2.dp),
@@ -473,8 +484,10 @@ fun TableRow(cols: List<Col>, r: List<Cell>, scroll: ScrollState, total: Boolean
 
 /** .chip: rounded filter with a count; .alert is red until chosen */
 @Composable
-fun Chip(text: String, count: Int?, on: Boolean, alert: Boolean = false, onClick: () -> Unit) {
+fun Chip(text: String, count: Int?, on: Boolean, alert: Boolean = false, onClick0: () -> Unit) {
     val h = LocalHues.current
+    val focus = LocalFocusManager.current
+    val onClick = { focus.clearFocus(); onClick0() }
     val border = if (on) h.carbon else if (alert) h.margin else h.rule2
     Row(
         Modifier.clip(CircleShape).background(if (on) h.carbon else h.sheet).border(1.dp, border, CircleShape).clickable(onClick = onClick)

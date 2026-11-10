@@ -3,7 +3,6 @@ package com.pakkabill.app.ui.tools
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,6 +67,7 @@ import com.pakkabill.app.ui.Tag
 import com.pakkabill.app.ui.TagKind
 import com.pakkabill.app.ui.Txt
 import com.pakkabill.app.ui.block
+import com.pakkabill.app.ui.press
 import com.pakkabill.core.listing.LCatalogue
 import com.pakkabill.core.listing.LColour
 import com.pakkabill.core.listing.LColumn
@@ -256,7 +256,7 @@ private fun StepBar(st: Map<String, StepSt>, cur: String, go: (String) -> Unit) 
             Row(
                 Modifier.alpha(if (locked) 0.45f else 1f).clip(RoundedCornerShape(10.dp)).background(if (on) h.carbonTint else h.sheet)
                     .border(if (on) 1.5.dp else 1.dp, if (on) h.carbon else h.rule, RoundedCornerShape(10.dp))
-                    .let { if (locked) it else it.clickable { go(id) } }.padding(horizontal = 10.dp, vertical = 7.dp),
+                    .let { if (locked) it else it.press { go(id) } }.padding(horizontal = 10.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(22.dp).clip(CircleShape).background(if (on) h.carbon else if (done) h.pos else h.rule), contentAlignment = Alignment.Center) {
@@ -303,7 +303,7 @@ private fun PickBox(title: String, sub: String?, compact: Boolean, icon: ImageVe
     val h = LocalHues.current
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).border(1.5.dp, h.rule2, RoundedCornerShape(10.dp)).background(h.carbonTint)
-            .clickable(onClick = pick).padding(if (compact) 12.dp else 20.dp),
+            .press(onClick = pick).padding(if (compact) 12.dp else 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(icon, null, tint = h.carbon, modifier = Modifier.size(if (compact) 22.dp else 28.dp))
@@ -624,7 +624,7 @@ private fun Slot(c: ListingController, w: ListingW, key: String, label: String, 
             Modifier.padding(top = 4.dp, end = 4.dp).size(84.dp).clip(RoundedCornerShape(8.dp))
                 .background(if (im == null) (if (target) h.carbonTint else h.paper) else Color.White)
                 .border(if (isSel) 3.dp else if (target) 1.5.dp else 1.dp, if (isSel || target) h.carbon else h.rule2, RoundedCornerShape(8.dp))
-                .clickable(onClick = onTap),
+                .press(onClick = onTap),
             contentAlignment = Alignment.Center,
         ) {
             if (im != null) {
@@ -637,7 +637,7 @@ private fun Slot(c: ListingController, w: ListingW, key: String, label: String, 
         }
         if (im != null) {
             Box(
-                Modifier.align(Alignment.TopEnd).size(22.dp).clip(CircleShape).background(h.sheet).border(1.dp, h.rule2, CircleShape).clickable(onClick = takeOut),
+                Modifier.align(Alignment.TopEnd).size(22.dp).clip(CircleShape).background(h.sheet).border(1.dp, h.rule2, CircleShape).press(onClick = takeOut),
                 contentAlignment = Alignment.Center,
             ) { Txt("×", size = 14.sp, color = h.ink2, raw = true) }
         }
@@ -701,7 +701,7 @@ private fun PhotosStep(c: ListingController, t: LTemplate, selected: String?, se
                         }
                     }
                     Spacer(Modifier.width(4.dp))
-                    Box(Modifier.size(30.dp).clip(CircleShape).clickable { c.removeColour(col.id) }, contentAlignment = Alignment.Center) { Txt("×", size = 18.sp, color = h.ink3, raw = true) }
+                    Box(Modifier.size(30.dp).clip(CircleShape).press { c.removeColour(col.id) }, contentAlignment = Alignment.Center) { Txt("×", size = 18.sp, color = h.ink3, raw = true) }
                 }
                 if (w.catalogues.size > 1) {
                     Spacer(Modifier.height(8.dp))
@@ -738,7 +738,7 @@ private fun PhotosStep(c: ListingController, t: LTemplate, selected: String?, se
                         Column(Modifier.width(76.dp)) {
                             Box(
                                 Modifier.size(76.dp).clip(RoundedCornerShape(8.dp)).border(if (isSel) 3.dp else 1.dp, if (isSel) h.carbon else h.rule2, RoundedCornerShape(8.dp))
-                                    .clickable { select(if (isSel) null else k) },
+                                    .press { select(if (isSel) null else k) },
                             ) {
                                 Thumb(c, im, 76)
                                 Box(Modifier.align(Alignment.TopStart).padding(3.dp)) { Badge(im) }
@@ -786,7 +786,7 @@ private fun Catalogues(c: ListingController, w: ListingW, s: ListingS, selected:
                     }
                 }
                 if (many) {
-                    Box(Modifier.size(30.dp).clip(CircleShape).clickable { c.removeCatalogue(cat.id) }, contentAlignment = Alignment.Center) { Txt("×", size = 18.sp, color = h.ink3, raw = true) }
+                    Box(Modifier.size(30.dp).clip(CircleShape).press { c.removeCatalogue(cat.id) }, contentAlignment = Alignment.Center) { Txt("×", size = 18.sp, color = h.ink3, raw = true) }
                 }
             }
             if (many) {

@@ -198,6 +198,10 @@ tap "Open Meesho and look at competitors"; cap t51-lens-meesho 20
 tap "Close"; sleep 2
 
 echo "== Auto listing" >> "$R"
+# one product already waiting for Meesho's form, so the PakkaBill panel shows in Meesho's page even
+# if typing a price below does not take on the emulator
+adb push android/ci/autolist-ext-sample.json /data/local/tmp/ext.json > /dev/null
+adb shell "run-as $PKG sh -c 'mkdir -p files/autolist; cat /data/local/tmp/ext.json > files/autolist/ext.json'"
 more "Auto listing"; cap t60-autolist 3
 up; cap t61-autolist 1
 tap "New template from"; sleep 1; tap "Readymade blouse"; sleep 2
@@ -208,7 +212,10 @@ down "Save template"; cap t64-template-saved 3
 down "Add product photos"; pick1 "maroon_front.jpg"
 cap t65-product 5
 up; sleep 1; cap t66-product 1
-down "Fill in Meesho"; cap t67-meesho 25
+down "Fill in Meesho"; sleep 3
+# not ready to fill (a price did not take): Meesho's supplier panel from the top of the page instead
+if ! TAP_TRIES=1 python3 android/ci/tap.py "Meesho · PakkaBill Auto listing" >> "$R"; then top; tap "Open Meesho supplier panel"; fi
+cap t67-meesho 25
 cap t68-meesho 10
 adb logcat -d | grep -iE "CONSOLE|chromium" | grep -iE "pakkabill|meesho|error" | tail -20 >> "$R"
 tap "Done"; cap t69-autolist-back 3
