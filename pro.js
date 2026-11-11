@@ -50,7 +50,11 @@
     });
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 && acct && path !== 'auth') setAcct(null);
-    if (!res.ok) throw new Error(data.error || 'Could not reach PakkaBill. Check your internet.');
+    if (!res.ok) {
+      const e = new Error(data.error || 'Could not reach PakkaBill. Check your internet.');
+      e.status = res.status; // lets the log in form offer the right next step (409, 404, 401)
+      throw e;
+    }
     return data;
   }
 
@@ -164,27 +168,289 @@
     </div>`;
   }
 
+  // ---------- Log in, create account, forgot password ----------
+  // The form has 4 modes: login (number + password), signup, otp (log in with a code instead of the
+  // password) and reset (forgot password). When OTP is set up on the server, signup / otp / reset go
+  // in two steps: the number first ("phone" step, sends the code), then the 6 code boxes ("code" step).
+  // Without OTP, signup is one step and "Forgot password?" points to support.
+  let authPhone = ''; // the number typed, kept when moving between modes
+  const otpOn = () => !!(cfg && cfg.otp);
+  const otpBy = () => (cfg && cfg.otpVia === 'whatsapp' ? 'WhatsApp' : 'SMS');
+  const phoneOk = (v) => /^[6-9]\d{9}$/.test(v);
+  const spaced = (p) => p.slice(0, 5) + ' ' + p.slice(5);
+
   function authHtml(mode, from = '') {
-    const otpOn = !!(cfg && cfg.otp), viaOtp = mode === 'otp' && otpOn, reset = mode === 'reset' && otpOn;
-    if ((mode === 'otp' || mode === 'reset') && !otpOn) mode = 'login';
-    const last = mode !== 'signup' ? read(LAST_PHONE) || '' : '';
-    // OTP by SMS (only when set up on the server): sign-up checks the number, log in can skip the password
-    const wa = cfg && cfg.otpVia === 'whatsapp'; // Gupshup sends the OTP on WhatsApp
-    const otpRow = (purpose) => `<label>${wa ? 'OTP sent on WhatsApp' : 'OTP sent by SMS'}<span class="pbp-pw"><input name="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit OTP" required><button type="button" class="pbp-show pbp-otpb" data-purpose="${purpose}">Send OTP</button></span></label>`;
-    const pwRow = `<label>Password<span class="pbp-pw"><input name="password" type="password" autocomplete="${mode === 'signup' ? 'new-password' : 'current-password'}" autocapitalize="none" autocorrect="off" spellcheck="false" minlength="6" required><button type="button" class="pbp-show" aria-label="Show password">Show</button></span></label>`;
-    // forgot password: a new one with an OTP (form mode 'reset'), or just log in with an OTP this time
-    const newPwRow = `<label>New password (6 or more characters)<span class="pbp-pw"><input name="newPassword" type="password" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" minlength="6" required><button type="button" class="pbp-show" aria-label="Show password">Show</button></span></label>`;
-    const forgot = otpOn ? 'Forgot your password? <button type="button" class="pbp-link pbp-inl" data-to="reset">Set a new one with OTP</button>, or <button type="button" class="pbp-link pbp-inl" data-to="otp">log in with OTP</button>.' : 'Forgot your password? <a href="#/support?new=1&amp;topic=account&amp;p=login">Ask support to reset it</a>.';
-    return `<form class="pbp-auth" data-mode="${mode}" data-from="${esc(from)}">
-      <div class="pbp-tabs"><button type="button" data-mode="login" class="${mode !== 'signup' ? 'is-on' : ''}">Log in</button><button type="button" data-mode="signup" class="${mode === 'signup' ? 'is-on' : ''}">Create account</button></div>
-      <label>Mobile number<input name="phone" inputmode="numeric" autocomplete="tel" placeholder="10-digit mobile" maxlength="14" value="${esc(last)}" required></label>
-      ${mode === 'signup' && otpOn ? otpRow('signup') : ''}
-      ${mode === 'signup' ? '<label>Shop name<input name="shopName" autocomplete="organization" placeholder="As on your bills"></label>' : ''}
-      ${reset ? otpRow('reset') + newPwRow : viaOtp ? otpRow('login') : pwRow}
-      <p class="pbp-err" role="alert"></p>
-      <button class="pbp-btn" type="submit">${mode === 'signup' ? (cfg && cfg.trialDays ? `Create account: ${cfg.trialDays} days of Pro free` : 'Create account') : reset ? 'Save new password and log in' : 'Log in'}</button>
-      ${reset ? '<p class="pbp-fine">We send a 6-digit OTP to your number' + (wa ? ' on WhatsApp' : '') + '. After the new password is saved, PakkaBill logs out on your other phones and computers. <button type="button" class="pbp-link pbp-inl" data-to="login">Back to log in</button></p>' : viaOtp ? '<p class="pbp-fine"><button type="button" class="pbp-link pbp-inl" data-to="login">Use my password instead</button></p>' : `<p class="pbp-fine">${mode === 'login' ? `Log in and your shops and bills from your other devices download here. ${forgot}` : `${cfg && cfg.trialDays ? `Every new account gets ${cfg.trialDays} days of Pro free, no payment needed. ` : ''}Your account keeps your Pro plan and cloud backup on every phone and laptop you log in on. By creating an account you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.`}</p>`}
-    </form>`;
+    const otp = otpOn();
+    if (mode === 'otp' && !otp) mode = 'login';
+    if (!['login', 'signup', 'otp', 'reset'].includes(mode)) mode = 'login';
+    const signup = mode === 'signup', login = mode === 'login';
+    const twoStep = otp && !login; // number first, then the code
+    const phone = authPhone || read(LAST_PHONE) || '';
+    const by = otpBy();
+    const trial = cfg && cfg.trialDays;
+    const pwField = (name, label, isNew) => `<div class="pbp-f">
+        <div class="pbp-lrow"><span>${label}</span>${login ? '<button type="button" class="pbp-link pbp-forgot" data-to="reset">Forgot password?</button>' : ''}</div>
+        <span class="pbp-pw"><input name="${name}" type="password" aria-label="${label}" autocomplete="${isNew ? 'new-password' : 'current-password'}" autocapitalize="none" autocorrect="off" spellcheck="false" minlength="6" required${isNew ? ' data-strength' : ''}><button type="button" class="pbp-show" aria-label="Show password">Show</button></span>
+        ${isNew ? '<span class="pbp-meter" aria-hidden="true"><i></i></span><span class="pbp-hint" data-hint>At least 6 characters. Letters and numbers together are stronger.</span>' : ''}
+        <span class="pbp-caps" hidden>Caps Lock is on</span>
+      </div>`;
+    const phoneField = `<label class="pbp-f"><span class="pbp-lrow"><span>Mobile number</span></span>
+        <span class="pbp-phone${phoneOk(phone) ? ' is-ok' : ''}"><span class="pbp-cc" aria-hidden="true">+91</span><input name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="10-digit mobile number" value="${esc(phone)}" required></span></label>`;
+    const shopField = '<label class="pbp-f"><span class="pbp-lrow"><span>Shop name <i class="pbp-opt">optional</i></span></span><input name="shopName" autocomplete="organization" placeholder="As on your bills" maxlength="80"></label>';
+    const codeField = `<div class="pbp-f">
+        <p class="pbp-sent"><span class="pbp-sent__ic" aria-hidden="true">${by === 'WhatsApp' ? '💬' : '✉️'}</span><span><span data-sent-to>We sent a 6-digit code.</span> <button type="button" class="pbp-link pbp-inl" data-change>Change number</button></span></p>
+        <div class="pbp-otp" role="group" aria-label="6-digit code">${[0, 1, 2, 3, 4, 5].map((i) => `<input class="pbp-d" type="text" inputmode="numeric" pattern="[0-9]*" ${i ? 'autocomplete="off"' : 'autocomplete="one-time-code"'} aria-label="Code digit ${i + 1}">`).join('')}</div>
+        <input type="hidden" name="otp">
+        <p class="pbp-resend"><span data-wait></span><button type="button" class="pbp-link pbp-inl" data-resend hidden>Resend code</button></p>
+      </div>`;
+    const btn = (text) => `<button class="pbp-btn" type="submit"><span>${text}</span></button>`;
+    const errBox = '<p class="pbp-err" role="alert"></p><div class="pbp-erract"></div>';
+    const terms = 'By creating an account you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.';
+    const top = signup || login
+      ? `<div class="pbp-tabs" role="tablist"><button type="button" role="tab" aria-selected="${login}" data-mode="login" class="${login ? 'is-on' : ''}">Log in</button><button type="button" role="tab" aria-selected="${signup}" data-mode="signup" class="${signup ? 'is-on' : ''}">Create account</button></div>`
+      : `<button type="button" class="pbp-back" data-to="login">‹ Back to log in</button>
+         <div class="pbp-mode"><b>${mode === 'otp' ? 'Log in with a code' : 'Forgot your password?'}</b><span>${mode === 'otp' ? `We send a 6-digit code on ${by}. No password needed.` : otp ? `No problem. We send a 6-digit code on ${by}, then you choose a new password. You stay logged in on this device.` : 'PakkaBill support can reset it for you.'}</span></div>`;
+    let body;
+    if (mode === 'reset' && !otp) {
+      // no OTP service yet: support resets the password by hand
+      body = `<div class="pbp-help"><p>Send us a help request with your mobile number. We reply with a temporary password, usually within a few hours. Then set your own in <b>My account</b>.</p>
+        <a class="pbp-btn pbp-btn--link" href="#/support?new=1&amp;topic=account&amp;p=login">Ask support to reset it</a></div>`;
+    } else if (!twoStep) {
+      body = `${phoneField}${signup ? shopField : ''}${pwField('password', signup ? 'Make a password' : 'Password', signup)}${errBox}
+        ${btn(signup ? (trial ? `Create account · ${trial} days of Pro free` : 'Create account') : 'Log in')}
+        ${login && otp ? `<div class="pbp-or"><span>or</span></div><button type="button" class="pbp-btn pbp-btn--ghost pbp-btn--alt" data-to="otp">Log in with a code on ${by}</button>` : ''}
+        <p class="pbp-fine">${signup ? `${trial ? `Every new account gets ${trial} days of Pro free, no payment needed. ` : ''}${terms}` : 'Your shops, bills and plan from your other devices come to this one.'}</p>`;
+    } else {
+      body = `<div data-s="phone">${phoneField}${signup ? shopField : ''}${errBox}${btn(signup ? 'Continue' : 'Send code')}
+          <p class="pbp-fine">${signup ? `We check your number with a 6-digit code on ${by}, so only you can use it. ${terms}` : `The code works for 10 minutes.${by === 'WhatsApp' ? ' It comes on WhatsApp, so use a number that has WhatsApp.' : ''}`}</p></div>
+        <div data-s="code" hidden>${codeField}${signup ? pwField('password', 'Make a password', true) : mode === 'reset' ? pwField('newPassword', 'New password', true) : ''}${errBox}
+          ${btn(signup ? (trial ? `Create account · ${trial} days of Pro free` : 'Create account') : mode === 'reset' ? 'Save new password and log in' : 'Log in')}
+          ${mode === 'reset' ? '<p class="pbp-fine">For your safety, PakkaBill logs out on your other phones and computers after the new password is saved.</p>' : ''}</div>`;
+    }
+    return `<form class="pbp-auth" novalidate data-mode="${mode}" data-step="${twoStep ? 'phone' : 'one'}" data-from="${esc(from)}">${top}${body}</form>`;
+  }
+
+  // Wires the log in / sign up form made by authHtml.
+  function wireAuth(form, root, redraw) {
+    const mode = form.dataset.mode;
+    const $f = (s) => form.querySelector(`[data-s="${form.dataset.step}"] ${s}`) || form.querySelector(s);
+    const phoneIn = form.querySelector('input[name=phone]');
+    const boxes = [...form.querySelectorAll('.pbp-d')];
+    const by = otpBy();
+    let ticker = 0, lastDone = '', otpAbort = null;
+
+    const showErr = (msg, action) => {
+      form.querySelectorAll('.pbp-err').forEach((e) => { e.textContent = ''; });
+      form.querySelectorAll('.pbp-erract').forEach((e) => { e.innerHTML = ''; });
+      const e = $f('.pbp-err'), a = $f('.pbp-erract');
+      if (!e) return;
+      e.textContent = msg || '';
+      if (msg && action) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'pbp-btn pbp-btn--ghost'; b.textContent = action[0];
+        b.addEventListener('click', action[1]);
+        a.appendChild(b);
+      }
+    };
+    // the server's answer, with a button to the right place when the number is in the wrong tab
+    const smartErr = (e) => {
+      const m = e.message || 'Something went wrong. Please try again.';
+      if (e.status === 409) return showErr(m, ['Log in with this number', () => redraw('login')]);
+      if (e.status === 404 && /No account/.test(m)) return showErr(m, ['Create an account with this number', () => redraw('signup')]);
+      if (mode === 'login' && e.status === 401 && otpOn()) return showErr('The password is wrong. Check capital letters, or tap Show to see what you typed.', ['Forgot password? Reset it with a code', () => redraw('reset')]);
+      if (/OTP|code/i.test(m) && boxes.length) { clearCode(); form.querySelector('.pbp-otp')?.classList.add('is-bad'); }
+      showErr(m);
+    };
+    const busy = (on) => {
+      const b = $f('.pbp-btn[type=submit]');
+      if (b) { b.disabled = on; b.classList.toggle('is-busy', on); }
+    };
+    const goStep = (s) => {
+      form.dataset.step = s;
+      form.querySelectorAll('[data-s]').forEach((x) => { x.hidden = x.dataset.s !== s; });
+      showErr('');
+    };
+
+    // mobile number: digits only; +91, a leading 0 and spaces are dropped (also when pasted)
+    phoneIn?.addEventListener('input', () => {
+      let d = phoneIn.value.replace(/\D/g, '');
+      if (d.length > 10 && d.startsWith('91')) d = d.slice(2);
+      if (d.length > 10 && d.startsWith('0')) d = d.slice(1);
+      phoneIn.value = d.slice(0, 10);
+      authPhone = phoneIn.value;
+      phoneIn.closest('.pbp-phone').classList.toggle('is-ok', phoneOk(phoneIn.value));
+      showErr('');
+    });
+    const checkPhone = () => {
+      if (phoneOk(phoneIn.value)) return true;
+      showErr(phoneIn.value ? 'That number does not look right. Use your 10-digit mobile number.' : 'Enter your mobile number.');
+      phoneIn.focus();
+      return false;
+    };
+
+    // ----- the 6 code boxes: type, paste or SMS autofill; Backspace and arrows move between boxes -----
+    const code = () => boxes.map((b) => b.value).join('');
+    function clearCode() { boxes.forEach((b) => { b.value = ''; b.classList.remove('is-on'); }); lastDone = ''; syncCode(); boxes[0]?.focus(); }
+    function syncCode() {
+      const c = code(), hid = form.querySelector('input[name=otp]');
+      if (hid) hid.value = c;
+      boxes.forEach((b) => b.classList.toggle('is-on', !!b.value));
+      form.querySelector('.pbp-otp')?.classList.toggle('is-full', c.length === 6);
+      if (c.length === 6 && c !== lastDone) {
+        lastDone = c;
+        form.querySelector('.pbp-otp')?.classList.remove('is-bad');
+        // log in with a code: done; otherwise go on to the password
+        if (mode === 'otp') form.requestSubmit();
+        else form.querySelector('[data-s=code] input[type=password]')?.focus();
+      }
+    }
+    const fill = (text, from) => {
+      let i = from;
+      for (const ch of String(text).replace(/\D/g, '')) { if (i > 5) break; boxes[i++].value = ch; }
+      boxes[Math.min(i, 5)].focus();
+      syncCode();
+    };
+    boxes.forEach((b, i) => {
+      b.addEventListener('input', () => {
+        const v = b.value.replace(/\D/g, '');
+        if (v.length > 1) { b.value = ''; return fill(v, i); }
+        b.value = v;
+        if (v && i < 5) boxes[i + 1].focus();
+        syncCode();
+      });
+      b.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !b.value && i > 0) { e.preventDefault(); boxes[i - 1].value = ''; boxes[i - 1].focus(); syncCode(); }
+        else if (e.key === 'ArrowLeft' && i > 0) { e.preventDefault(); boxes[i - 1].focus(); }
+        else if (e.key === 'ArrowRight' && i < 5) { e.preventDefault(); boxes[i + 1].focus(); }
+      });
+      b.addEventListener('paste', (e) => {
+        const t = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+        if (/\d/.test(t)) { e.preventDefault(); fill(t, 0); }
+      });
+      b.addEventListener('focus', () => b.select());
+    });
+
+    // ----- send the code, then a 30 second wait before "Resend code" -----
+    const wait = () => {
+      clearInterval(ticker);
+      const w = form.querySelector('[data-wait]'), r = form.querySelector('[data-resend]');
+      let left = 30;
+      r.hidden = true;
+      w.textContent = `You can ask for a new code in ${left}s`;
+      ticker = setInterval(() => {
+        if (!form.isConnected) return clearInterval(ticker);
+        left--;
+        if (left > 0) w.textContent = `You can ask for a new code in ${left}s`;
+        else { clearInterval(ticker); w.textContent = 'Did not get it? '; r.hidden = false; }
+      }, 1000);
+    };
+    // SMS autofill in Chrome on Android (WebOTP): fills the boxes when the SMS has the site's line
+    const listenSms = () => {
+      if (by !== 'SMS' || !('OTPCredential' in window)) return;
+      otpAbort?.abort();
+      otpAbort = new AbortController();
+      navigator.credentials.get({ otp: { transport: ['sms'] }, signal: otpAbort.signal })
+        .then((c) => { if (c && c.code && form.isConnected) fill(c.code, 0); }).catch(() => {});
+    };
+    async function sendCode() {
+      if (!checkPhone()) return;
+      const purpose = mode === 'otp' ? 'login' : mode;
+      await api('auth', { body: { action: 'otpSend', phone: phoneIn.value, purpose } });
+      goStep('code');
+      form.querySelector('[data-sent-to]').textContent = `We sent a 6-digit code on ${by} to +91 ${spaced(phoneIn.value)}.`;
+      clearCode();
+      wait();
+      listenSms();
+    }
+    form.querySelector('[data-change]')?.addEventListener('click', () => {
+      clearInterval(ticker); otpAbort?.abort();
+      goStep('phone');
+      phoneIn.focus(); phoneIn.select();
+    });
+    form.querySelector('[data-resend]')?.addEventListener('click', async (ev) => {
+      ev.target.disabled = true;
+      try { await sendCode(); } catch (e) { smartErr(e); }
+      ev.target.disabled = false;
+    });
+
+    // ----- passwords: Show/Hide, Caps Lock warning, strength for a new password -----
+    form.querySelectorAll('.pbp-show').forEach((b) => b.addEventListener('click', () => {
+      const inp = b.previousElementSibling, show = inp.type === 'password';
+      inp.type = show ? 'text' : 'password';
+      b.textContent = show ? 'Hide' : 'Show';
+      b.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      inp.focus();
+    }));
+    form.querySelectorAll('.pbp-pw input').forEach((inp) => {
+      const caps = inp.closest('.pbp-f').querySelector('.pbp-caps');
+      const check = (e) => { if (e.getModifierState) caps.hidden = !e.getModifierState('CapsLock'); };
+      inp.addEventListener('keydown', check);
+      inp.addEventListener('keyup', check);
+      inp.addEventListener('blur', () => { caps.hidden = true; });
+      inp.addEventListener('input', () => showErr(''));
+    });
+    form.querySelectorAll('input[data-strength]').forEach((inp) => inp.addEventListener('input', () => {
+      const v = inp.value, f = inp.closest('.pbp-f');
+      let s = 0;
+      if (v.length >= 6) s = 1;
+      if (v.length >= 8 && /[a-zA-Z]/.test(v) && /\d/.test(v)) s = 2;
+      if (v.length >= 10 && /[a-zA-Z]/.test(v) && /\d/.test(v) && (/[^a-zA-Z0-9]/.test(v) || (/[a-z]/.test(v) && /[A-Z]/.test(v)))) s = 3;
+      if (/^(.)\1+$/.test(v) || /^(123456|1234567|12345678|123456789|password|qwerty)/i.test(v)) s = Math.min(s, 1);
+      f.dataset.pw = v ? String(s) : '';
+      f.querySelector('[data-hint]').textContent = !v ? 'At least 6 characters. Letters and numbers together are stronger.'
+        : v.length < 6 ? `${6 - v.length} more character${6 - v.length === 1 ? '' : 's'}`
+        : ['', 'Okay. Add letters and numbers to make it stronger.', 'Good password', 'Strong password'][s];
+    }));
+
+    // ----- submit: the phone step sends the code; the last step logs in or makes the account -----
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      showErr('');
+      if (form.dataset.step === 'phone') {
+        busy(true);
+        try { await sendCode(); } catch (e) { smartErr(e); }
+        busy(false);
+        return;
+      }
+      if (!checkPhone()) return;
+      const f = new FormData(form);
+      const pwName = mode === 'reset' ? 'newPassword' : 'password';
+      if (form.dataset.step === 'code' && code().length !== 6) { showErr(`Enter the 6-digit code from ${by}.`); return boxes[code().length]?.focus(); }
+      if (mode !== 'otp') {
+        const pw = String(f.get(pwName) || '');
+        if (!pw) { showErr(mode === 'login' ? 'Enter your password.' : 'Make a password.'); return form.querySelector(`input[name=${pwName}]`).focus(); }
+        if (mode !== 'login' && pw.length < 6) { showErr('Use a password of at least 6 characters.'); return form.querySelector(`input[name=${pwName}]`).focus(); }
+      }
+      busy(true);
+      try {
+        const r = await api('auth', {
+          body: { action: { otp: 'otpLogin', reset: 'otpReset' }[mode] || mode, phone: phoneIn.value, password: f.get('password') || '', newPassword: f.get('newPassword') || '', otp: code(), shopName: f.get('shopName') || '', from: form.dataset.from || '' },
+        });
+        clearInterval(ticker); otpAbort?.abort();
+        authPhone = '';
+        if (/^\d{10}$/.test(r.user.phone)) write(LAST_PHONE, r.user.phone);
+        // a new account: ask about the shop once (optional), now or when the app opens next
+        const fresh = mode === 'signup' && !r.user.profiled && r.user.phone !== 'owner';
+        if (fresh) write(ASK_PROFILE, 1);
+        // logged in with a password PakkaBill support made: ask them to set their own
+        if (r.user && r.user.tempPw) setTimeout(() => { if (confirm('You logged in with a temporary password from PakkaBill support. Set your own password now?')) location.hash = '#/account?pw=1'; }, 900);
+        const claimId = pendingClaim;
+        pendingClaim = '';
+        const done = root._pbDone;
+        const reloading = setAcct({ token: r.token, user: r.user }, !claimId);
+        if (claimId) {
+          if (done) closeUpgrade();
+          return claimOffer(claimId);
+        }
+        toast(mode === 'signup' ? (r.user.trial ? 'Account created. Your free Pro trial is on.' : 'Account created. You are logged in.') : mode === 'reset' ? 'New password saved. You are logged in.' : r.user.pro ? 'Logged in. Pro is active.' : 'Logged in.');
+        loadNews();
+        if (done) done(r.user, reloading, fresh);
+        else if (fresh && !reloading && !dialog) setTimeout(askProfile, 900);
+      } catch (e) {
+        smartErr(e);
+        busy(false);
+      }
+    });
   }
 
   // Wires plan buttons and the login/sign-up form inside `root`; `redraw` re-renders it.
@@ -204,69 +470,7 @@
     // a link inside a dialog (Terms, Ask support) leaves the dialog
     if (dialog && dialog.contains(root)) root.querySelectorAll('a[href^="#/"]').forEach((a) => a.addEventListener('click', closeUpgrade));
     const form = root.querySelector('.pbp-auth');
-    if (form)
-      form.querySelectorAll('.pbp-otpb').forEach((b) => b.addEventListener('click', async () => {
-        const err = form.querySelector('.pbp-err'), phone = form.querySelector('input[name=phone]').value;
-        err.textContent = '';
-        b.disabled = true;
-        try {
-          await api('auth', { body: { action: 'otpSend', phone, purpose: b.dataset.purpose } });
-          toast(cfg && cfg.otpVia === 'whatsapp' ? 'OTP sent on WhatsApp. It works for 10 minutes.' : 'OTP sent by SMS. It works for 10 minutes.');
-          form.querySelector('input[name=otp]').focus();
-          let left = 30;
-          b.textContent = `Resend ${left}s`;
-          const t = setInterval(() => {
-            left--;
-            if (left > 0 && b.isConnected) b.textContent = `Resend ${left}s`;
-            else { clearInterval(t); b.disabled = false; b.textContent = 'Resend OTP'; }
-          }, 1000);
-        } catch (e) {
-          err.textContent = e.message;
-          b.disabled = false;
-        }
-      }));
-    if (form)
-      form.querySelectorAll('.pbp-show:not(.pbp-otpb)').forEach((b) => b.addEventListener('click', () => {
-        const inp = b.previousElementSibling, show = inp.type === 'password';
-        inp.type = show ? 'text' : 'password';
-        b.textContent = show ? 'Hide' : 'Show';
-        b.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-      }));
-    if (form)
-      form.addEventListener('submit', async (ev) => {
-        ev.preventDefault();
-        const f = new FormData(form);
-        const err = form.querySelector('.pbp-err');
-        const btn = form.querySelector('.pbp-btn');
-        err.textContent = '';
-        btn.disabled = true;
-        try {
-          const r = await api('auth', {
-            body: { action: { otp: 'otpLogin', reset: 'otpReset' }[form.dataset.mode] || form.dataset.mode, phone: f.get('phone'), password: f.get('password') || '', newPassword: f.get('newPassword') || '', otp: f.get('otp') || '', shopName: f.get('shopName') || '', from: form.dataset.from || '' },
-          });
-          if (/^\d{10}$/.test(r.user.phone)) write(LAST_PHONE, r.user.phone);
-          // a new account: ask about the shop once (optional), now or when the app opens next
-          const fresh = form.dataset.mode === 'signup' && !r.user.profiled && r.user.phone !== 'owner';
-          if (fresh) write(ASK_PROFILE, 1);
-          // logged in with a password PakkaBill support made: ask them to set their own
-          if (r.user && r.user.tempPw) setTimeout(() => { if (confirm('You logged in with a temporary password from PakkaBill support. Set your own password now?')) location.hash = '#/account?pw=1'; }, 900);
-          const claimId = pendingClaim;
-          pendingClaim = '';
-          const done = root._pbDone;
-          const reloading = setAcct({ token: r.token, user: r.user }, !claimId);
-          if (claimId) {
-            if (done) closeUpgrade();
-            return claimOffer(claimId);
-          }
-          toast(form.dataset.mode === 'signup' ? (r.user.trial ? 'Account created. Your free Pro trial is on.' : 'Account created. You are logged in.') : form.dataset.mode === 'reset' ? 'New password saved. You are logged in.' : r.user.pro ? 'Logged in. Pro is active.' : 'Logged in.');
-          loadNews();
-          if (done) done(r.user, reloading, fresh);
-          else if (fresh && !reloading && !dialog) setTimeout(askProfile, 900);
-        } catch (e) {
-          err.textContent = e.message;
-          btn.disabled = false;
-        }
-      });
+    if (form) wireAuth(form, root, redraw);
     root.querySelector('[data-logout]')?.addEventListener('click', async () => {
       try {
         await api('auth', { body: { action: 'logout' } });
@@ -307,8 +511,8 @@
       if (m) mode = m;
       const signup = mode === 'signup';
       box.innerHTML = `<button type="button" class="pbp-x" aria-label="Close">×</button>
-        <h2 id="pbp-title">${signup ? 'Create your free account' : mode === 'reset' && cfg && cfg.otp ? 'Set a new password' : 'Log in to PakkaBill'}</h2>
-        <p class="pbp-why">${esc(o.why || (signup ? (cfg && cfg.otp ? `Only your mobile number (we check it with an OTP on ${cfg.otpVia === 'whatsapp' ? 'WhatsApp' : 'SMS'}) and a password. Takes a minute.` : 'Only your mobile number and a password. Takes 20 seconds.') : mode === 'reset' && cfg && cfg.otp ? `We send a 6-digit OTP to your mobile number${cfg.otpVia === 'whatsapp' ? ' on WhatsApp' : ''}. Then choose a new password.` : 'Your shops, bills and plan come to this device.'))}</p>
+        <h2 id="pbp-title">${{ signup: 'Create your free account', reset: 'Reset your password', otp: 'Log in with a code' }[mode] || 'Welcome back'}</h2>
+        ${mode === 'reset' || mode === 'otp' ? '' : `<p class="pbp-why">${esc(o.why || (signup ? `Just your mobile number and a password${otpOn() ? ', checked with a code on ' + otpBy() : ''}. Takes a minute.` : 'Log in to bring your shops, bills and plan to this device.'))}</p>`}
         ${signup ? `<ul class="pbp-gets">${accountGets().map((g) => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}
         ${authHtml(mode, o.from || '')}
         <p class="pbp-keep">Bills already on this device stay as they are.</p>
@@ -324,7 +528,7 @@
       };
       wire(box, draw);
       const ph = box.querySelector('input[name=phone]');
-      (ph && ph.value ? box.querySelector('input[name=password], input[name=otp]') : ph)?.focus({ preventScroll: true });
+      (ph && ph.value && mode === 'login' ? box.querySelector('input[name=password]') : ph)?.focus({ preventScroll: true });
     };
     draw();
   }
@@ -1057,6 +1261,45 @@
 .pbp-auth input{font:inherit;font-size:16px;padding:10px 12px;border-radius:var(--r-ctl,9px);border:1.5px solid var(--rule,#ddd);background:var(--paper,#fff);color:var(--ink,#222)}
 .pbp-auth input:focus{outline:2px solid var(--focus,#ff7a59);outline-offset:1px}
 .pbp-tabs{display:flex;gap:4px;padding:4px;background:var(--carbon-tint,#f6f2ff);border-radius:999px}
+.pbp-auth [hidden]{display:none!important}
+.pbp-auth [data-s]{display:grid;gap:10px}
+.pbp-f{display:grid;gap:6px}
+.pbp-lrow{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px;font-weight:600;color:var(--ink-2,#555)}
+.pbp-opt{font-style:normal;font-weight:500;color:var(--ink-3,#777)}
+.pbp-forgot{font-size:13px;padding:0;text-decoration:none}
+.pbp-phone{display:flex;align-items:stretch;border:1.5px solid var(--rule,#ddd);border-radius:var(--r-ctl,9px);background:var(--paper,#fff);overflow:hidden;transition:border-color .15s}
+.pbp-phone:focus-within{outline:2px solid var(--focus,#ff7a59);outline-offset:1px}
+.pbp-phone.is-ok{border-color:var(--green,#12714b)}
+.pbp-cc{display:grid;place-items:center;padding:0 10px 0 12px;font-weight:700;color:var(--ink-2,#555);background:var(--carbon-tint,#f6f2ff);border-right:1.5px solid var(--rule,#ddd)}
+.pbp-auth .pbp-phone input{border:0;outline:0;flex:1;min-width:0;border-radius:0;letter-spacing:.04em}
+.pbp-otp{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.pbp-auth .pbp-d{width:100%;min-width:0;box-sizing:border-box;text-align:center;font-size:22px;font-weight:700;padding:12px 0;transition:border-color .15s,background .15s}
+.pbp-auth .pbp-d.is-on{border-color:var(--carbon,#5b3fe6);background:var(--carbon-tint,#f6f2ff)}
+.pbp-otp.is-full .pbp-d{border-color:var(--green,#12714b)}
+.pbp-otp.is-bad .pbp-d{border-color:var(--red,#c8202a);animation:pbp-shake .3s}
+@keyframes pbp-shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.pbp-sent{display:flex;gap:10px;align-items:flex-start;margin:0;padding:10px 12px;border-radius:12px;background:var(--carbon-tint,#f6f2ff);font-size:14px;color:var(--ink-2,#555)}
+.pbp-sent__ic{font-size:18px;line-height:1.2}
+.pbp-resend{margin:0;font-size:13px;color:var(--ink-3,#777);text-align:center;min-height:1.4em}
+.pbp-meter{height:5px;border-radius:99px;background:var(--rule,#e5e0f0);overflow:hidden}
+.pbp-meter i{display:block;height:100%;width:0;border-radius:inherit;transition:width .2s,background .2s}
+.pbp-f[data-pw="0"] .pbp-meter i{width:15%;background:var(--red,#c8202a)}
+.pbp-f[data-pw="1"] .pbp-meter i{width:40%;background:#f59e0b}
+.pbp-f[data-pw="2"] .pbp-meter i{width:72%;background:#22a35a}
+.pbp-f[data-pw="3"] .pbp-meter i{width:100%;background:var(--green,#12714b)}
+.pbp-hint{font-size:12.5px;color:var(--ink-3,#777)}
+.pbp-caps{font-size:12.5px;color:#9a5a00;font-weight:600}
+.pbp-back{justify-self:start;border:0;background:none;font:inherit;font-weight:600;color:var(--carbon,#5b3fe6);cursor:pointer;padding:2px 0}
+.pbp-mode{display:grid;gap:2px}.pbp-mode b{font-size:17px}.pbp-mode span{font-size:14px;color:var(--ink-2,#555)}
+.pbp-sheet .pbp-mode b{display:none}
+.pbp-or{display:flex;align-items:center;gap:10px;color:var(--ink-3,#777);font-size:12.5px}.pbp-or:before,.pbp-or:after{content:"";flex:1;height:1px;background:var(--rule,#ddd)}
+.pbp-auth .pbp-btn--alt{margin:0}
+.pbp-btn.is-busy:after{content:"";display:inline-block;width:14px;height:14px;margin-left:8px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-2px;animation:pbp-spin .7s linear infinite}
+@keyframes pbp-spin{to{transform:rotate(360deg)}}
+.pbp-help{display:grid;gap:10px}.pbp-help p{margin:0;font-size:14px;color:var(--ink-2,#555)}
+.pbp-btn--link{display:block;text-align:center;text-decoration:none}
+.pbp-erract:empty{display:none}.pbp-erract .pbp-btn--ghost{margin:0}
+@media (prefers-reduced-motion:reduce){.pbp-otp.is-bad .pbp-d,.pbp-btn.is-busy:after{animation:none}}
 .pbp-tabs button{flex:1;border:0;background:none;font:inherit;font-weight:600;padding:7px;border-radius:999px;color:var(--ink-2,#555);cursor:pointer}
 .pbp-tabs button.is-on{background:var(--paper,#fff);color:var(--carbon,#5b3fe6);box-shadow:0 2px 6px -2px #0003}
 .pbp-btn{font:inherit;font-weight:700;font-size:15.5px;border:0;border-radius:10px;padding:12px 18px;cursor:pointer;color:var(--btn-fg,#fff);background:var(--btn-bg,#6c4dff);background-image:var(--btn-grad,none)}

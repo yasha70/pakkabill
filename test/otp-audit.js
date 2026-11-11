@@ -61,7 +61,7 @@ const lastCode = () => { const u = sent[sent.length - 1].url; return (/variables
   });
   const P = '9000000001';
   let r = await call({ action: 'signup', phone: P, password: 'secret1' });
-  ok(r.status === 400 && /OTP/.test(r.error), 'sign-up without an OTP is refused: ' + r.error);
+  ok(r.status === 400 && /code/.test(r.error), 'sign-up without an OTP is refused: ' + r.error);
   r = await call({ action: 'otpSend', phone: P, purpose: 'signup' }); ok(r.sent, 'sign-up OTP sent');
   r = await call({ action: 'signup', phone: P, password: 'secret1', otp: lastCode(), shopName: 'Test' });
   ok(r.token && r.user.verified, 'sign-up with OTP makes a verified account');

@@ -147,12 +147,12 @@ async function check(phone, purpose, code) {
   const raw = await db.cmd(['GET', key(phone)]);
   let o = null;
   try { o = raw ? JSON.parse(raw) : null; } catch { o = null; }
-  if (!o || o.p !== purpose) throw new core.HttpError(400, 'This OTP is old. Tap Send OTP to get a new one.');
-  if (o.n >= TRIES) { await db.cmd(['DEL', key(phone)]); throw new core.HttpError(400, 'Too many wrong tries. Tap Send OTP to get a new one.'); }
+  if (!o || o.p !== purpose) throw new core.HttpError(400, 'This code is old or was not sent to this number. Ask for a new code.');
+  if (o.n >= TRIES) { await db.cmd(['DEL', key(phone)]); throw new core.HttpError(400, 'Too many wrong tries. Ask for a new code.'); }
   if (!core.safeEqual(hash(phone, String(code || '').replace(/\D/g, '')), o.h)) {
     o.n++;
     await db.cmd(['SET', key(phone), JSON.stringify(o), 'EX', TTL]);
-    throw new core.HttpError(401, `The OTP is wrong. ${TRIES - o.n} tries left.`);
+    throw new core.HttpError(401, `The code is wrong. ${TRIES - o.n} ${TRIES - o.n === 1 ? 'try' : 'tries'} left.`);
   }
   await db.cmd(['DEL', key(phone)]);
 }
