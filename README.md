@@ -76,11 +76,48 @@ bar so bills stay one tap away on a phone. The logo opens the P&L.
   sample reports in `test/fixtures/gstr1/`.
 - Everything stays in the browser on the device. No server, no accounts, no data leaves the phone or laptop.
 
+## Look and design
+
+One look everywhere: the app icon's navy (`#2B3494`) as the only brand colour, white cards on a light
+grey page, plain bold headings in Hind, boxed form fields, and a dark mode with the same layout. No
+wallpaper and no colour gradients on buttons. Printed bills (`.sheet`) are not touched, so old bills
+keep their design.
+
+- `design/official.css`: the colours (light and dark), headings, cards, buttons, form fields, the
+  desktop side menu, the phone top bar and bottom bar. It is built into `index.html` (a
+  `<style id="pb-official">` straight after the main styles, so it wins over them).
+- `design/home-gate.html`, `design/home.css`, `design/home.html`: the home page (see below).
+- After editing any of these, run `python3 design/build.py`. It is the only build step.
+- `design/shots.cjs` makes the home page's pictures (`img/home-*.webp`) and the share picture
+  (`img/og.jpg`) from the app itself with its sample data: `npm run dev`, then `node design/shots.cjs`.
+  Run it after a change to how the app looks.
+- The P&L and Labels tools (`pnl.html`, `labels.html`), the admin panel (`admin.html`) and the
+  information pages (`legal.css`) carry the same colours in their own `:root` blocks. The tool scripts
+  (`pro.js`, `support.js`, `shops.js`...) use the colour variables, with the navy as the fallback.
+- White text sits on `--btn-bg` (dark enough in dark mode too), never on `--carbon`, which is the
+  colour for links and selected things and turns light in dark mode.
+
+## Log in and sign up
+
+Log in, sign up and forgot password are a full page with its own address: `/login`, `/signup` and
+`/forgot-password` (`vercel.json` serves `index.html` for them; `pro.js` opens the page). On a laptop
+PakkaBill and what an account gives are on the left and the form on the right; on a phone the form
+fills the screen. Every Log in or Sign up button in the app and on the home page opens the same page
+without leaving the screen behind it; Close, Escape, the phone's back button or "Continue without an
+account" go back. A logged-in visitor to `/login` goes to My account.
+
+The form itself (`authHtml` / `wireAuth` in `pro.js`): mobile number with +91, password with Show and
+a strength line, the 6-digit code boxes when OTP is on (paste and SMS autofill), "Log in with a code",
+and clear messages with a button to the right next step (wrong tab, wrong password, no account).
+
 ## Home page
 
-`index.html` starts with the home page (`#pb-home`, between the `<!--pb-home-->` markers): what
-PakkaBill does, the tools, three steps, real screens with sample data (`img/home-*.webp`), Free and
-Pro with prices and trial days read from `/api/config`, questions, in English and Hindi (the choice is
+`index.html` starts with the home page (`#pb-home`, between the `<!--pb-home-->` markers; edit
+`design/home.html` and `design/home.css`, then run `python3 design/build.py`): a top bar with Log in
+and Sign up, what PakkaBill does, four plain facts, the tools, three steps, real screens with sample
+data (`img/home-*.webp`), Free and Pro with prices and trial days read from `/api/config`, questions,
+and a footer with the tools, company and legal links and the business name, address, email and phone
+saved in the admin panel (Settings → Business details), in English and Hindi (the choice is
 saved as `hisaab:lang`, so the P&L and Labels tools open in the same language). It shows at `/` only to
 first-time visitors; anyone who has used the app on that device, the installed app, the Android app
 and links to a tool (`/#/pnl`) go straight to the app. `/home`, `/?home=1` and `#/home` (Tools →

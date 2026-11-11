@@ -24,7 +24,9 @@ if (!process.env.KV_REST_API_URL && !process.env.UPSTASH_REDIS_REST_URL) process
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.json': 'application/json', '.webmanifest': 'application/manifest+json',
   '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.zip': 'application/zip', '.apk': 'application/vnd.android.package-archive' };
-const REWRITES = Object.fromEntries((JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8')).rewrites || []).map((r) => [r.source, r.destination]));
+const VERCEL = JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8'));
+const REWRITES = Object.fromEntries((VERCEL.rewrites || []).map((r) => [r.source, r.destination]));
+const REDIRECTS = Object.fromEntries((VERCEL.redirects || []).map((r) => [r.source, r.destination]));
 
 http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
@@ -42,6 +44,7 @@ http.createServer((req, res) => {
     });
     return;
   }
+  if (REDIRECTS[url.pathname]) { res.statusCode = 307; res.setHeader('Location', REDIRECTS[url.pathname]); return res.end(); }
   let p = REWRITES[url.pathname] || url.pathname;
   if (p.endsWith('/')) p += 'index.html';
   const file = path.normalize(path.join(ROOT, p));

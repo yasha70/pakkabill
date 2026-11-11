@@ -23,11 +23,22 @@
       if (v[el.getAttribute('data-biz-if')] && v[el.getAttribute('data-biz-if')] !== '0') el.removeAttribute('hidden');
     });
   }
-  fill(null);
-  fetch('/api/config').then(function (r) { return r.ok ? r.json() : null; }).then(fill).catch(function () {});
+  // top bar: the page's own PakkaBill mark, the main links and a button into the app
+  var here = location.pathname.replace(/\.html$/, '');
+  var link = function (href, text) { return '<a href="' + href + '"' + (here === href ? ' aria-current="page"' : '') + '>' + text + '</a>'; };
+  var main = document.querySelector('main'), head = main && main.querySelector(':scope > header');
+  if (main) {
+    var top = document.createElement('div');
+    top.className = 'lg-top';
+    top.innerHTML = '<div class="lg-top__in"><nav aria-label="PakkaBill">' + link('/about', 'About') + link('/contact', 'Contact') + link('/terms', 'Terms') + link('/privacy', 'Privacy') + link('/refund', 'Refunds') + '</nav><a class="lg-open" href="/">Open PakkaBill</a></div>';
+    if (head) top.firstChild.insertBefore(head, top.firstChild.firstChild);
+    document.body.insertBefore(top, main);
+  }
   var f = document.createElement('footer');
   f.className = 'lg-foot';
-  f.innerHTML = '<nav><a href="/">Open PakkaBill</a><a href="/about">About us</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/refund">Refunds</a><a href="/contact">Contact</a></nav><p>© ' + new Date().getFullYear() + ' PakkaBill. Made in India for GST sellers.</p>';
-  (document.querySelector('main') || document.body).appendChild(f);
+  f.innerHTML = '<nav aria-label="More">' + link('/?home=1', 'Home') + link('/about', 'About us') + link('/contact', 'Contact') + link('/terms', 'Terms') + link('/privacy', 'Privacy') + link('/refund', 'Refunds') + link('/delete-account', 'Delete account') + '</nav><p>© ' + new Date().getFullYear() + ' <span data-biz="name">PakkaBill</span>. Made in India for GST sellers.</p>';
+  document.body.appendChild(f);
+  fill(null);
+  fetch('/api/config').then(function (r) { return r.ok ? r.json() : null; }).then(fill).catch(function () {});
   var v = document.createElement('script'); v.src = 'visit.js'; v.defer = true; document.head.appendChild(v);
 })();

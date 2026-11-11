@@ -1,0 +1,206 @@
+/* PakkaBill official look. One brand colour (the app icon's navy, #2B3494), neutral surfaces,
+   plain headings and clean cards. Built into index.html by design/build.py, after the main styles.
+   Printed bills (.sheet) are not touched: old bills keep their design.
+   Rules that restyle parts whose own CSS is added later by a script (pro.js, support.js, shops.js...)
+   start with :root so they win. */
+
+/* ---------- colours ---------- */
+:root{
+--carbon:#2b3494;--carbon-soft:#dfe2f5;--carbon-tint:#f1f3fb;
+--btn-bg:#2b3494;--btn-bg-hover:#222a7c;--btn-fg:#fff;--btn-grad:none;
+--brand-grad:linear-gradient(#2b3494,#2b3494);--brand-2:#6b7190;--glow:none;--doodle:none;
+--spine:#fff;--spine-fg:#141a33;
+--ink:#141a33;--ink-2:#4a5170;--ink-3:#6b7190;
+--red:#b42318;--red-soft:#fde8e6;--green:#0b7a4b;--green-soft:#dcf5e8;--amber:#a15c07;--focus:#5b68d6;
+--desk:#f4f5f9;--desk-2:#e9ebf3;--paper:#fff;--rule:#dcdfea;--rule-soft:#eceef4;
+--shadow-sheet:0 1px 2px #141a330a,0 1px 3px #141a3314;--shadow-pop:0 24px 48px -16px #141a3359,0 0 0 1px #141a330f;
+--r-ctl:10px;--r-card:14px;
+--font-head:"PB Hind","Hind",system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+--carbon:#aeb6f7;--carbon-soft:#2a3063;--carbon-tint:#1c2146;
+--btn-bg:#4c58d0;--btn-bg-hover:#5f6ade;--btn-fg:#fff;--btn-grad:none;
+--brand-grad:linear-gradient(#aeb6f7,#aeb6f7);--brand-2:#8a91b3;--glow:none;--doodle:none;
+--spine:#11152b;--spine-fg:#e9ebf7;
+--ink:#e9ebf7;--ink-2:#b3b9d6;--ink-3:#8a91b3;
+--red:#ff8f88;--red-soft:#3d1a1f;--green:#6fd6a5;--green-soft:#143a2e;--amber:#f0c26a;--focus:#aeb6f7;
+--desk:#0b0e1c;--desk-2:#1d2242;--paper:#151a33;--rule:#2c3258;--rule-soft:#20254a;
+--shadow-sheet:0 1px 2px #0006,0 1px 3px #0006;--shadow-pop:0 24px 48px -16px #000c,0 0 0 1px #ffffff12;
+}}
+:root[data-theme=dark]{
+--carbon:#aeb6f7;--carbon-soft:#2a3063;--carbon-tint:#1c2146;
+--btn-bg:#4c58d0;--btn-bg-hover:#5f6ade;--btn-fg:#fff;--btn-grad:none;
+--brand-grad:linear-gradient(#aeb6f7,#aeb6f7);--brand-2:#8a91b3;--glow:none;--doodle:none;
+--spine:#11152b;--spine-fg:#e9ebf7;
+--ink:#e9ebf7;--ink-2:#b3b9d6;--ink-3:#8a91b3;
+--red:#ff8f88;--red-soft:#3d1a1f;--green:#6fd6a5;--green-soft:#143a2e;--amber:#f0c26a;--focus:#aeb6f7;
+--desk:#0b0e1c;--desk-2:#1d2242;--paper:#151a33;--rule:#2c3258;--rule-soft:#20254a;
+--shadow-sheet:0 1px 2px #0006,0 1px 3px #0006;--shadow-pop:0 24px 48px -16px #000c,0 0 0 1px #ffffff12;
+}
+
+@media screen{
+/* ---------- page ---------- */
+body{background-image:none}
+body:before{display:none!important}
+::selection{background:var(--carbon-soft)}
+:focus-visible{outline:2.5px solid var(--focus);outline-offset:2px}
+
+/* ---------- headings: the text font, bold ---------- */
+.page-title,.pb-modal__head h2,.pb-empty h3,.form-sec__title,.card-title,.gstr-period,.loading{font-family:var(--font-head);font-weight:700;letter-spacing:-.012em;padding-top:0;line-height:1.2}
+.page-title{font-size:27px;text-shadow:none}
+.page-title:after{display:none}
+.page-sub,.back,.page-head>.pill,.page-head .month-switch{text-shadow:none}
+.page-sub{margin-top:5px;font-size:14.5px}
+.pb-modal__head h2{font-size:20px}
+.pb-empty h3{font-size:21px;margin-top:6px}
+.form-sec__title{font-size:17.5px;margin-bottom:14px}
+.card-title{font-size:17.5px}
+.gstr-period{font-size:24px}
+.loading{font-size:16px;font-weight:500}
+
+/* ---------- cards ---------- */
+.paper{border-radius:var(--r-card);border:1px solid var(--rule);box-shadow:0 1px 2px #141a330a}
+.pb-empty{padding:28px 24px}
+
+/* ---------- buttons and controls ---------- */
+.pb-btn{border-radius:var(--r-ctl);font-weight:600;letter-spacing:.002em}
+.pb-btn--primary,.spine__new,.tabbar__new span,.billnav .billnav__new{background-image:none;box-shadow:0 1px 2px #141a3329}
+.pb-btn--primary:hover:not(:disabled),.spine__new:hover{filter:none;background:var(--btn-bg-hover)}
+.pb-btn--secondary{color:var(--ink);border-color:var(--rule);box-shadow:0 1px 2px #141a330d}
+.pb-btn--secondary:hover:not(:disabled){background:var(--desk);border-color:var(--ink-3)}
+.pb-btn--ghost:hover:not(:disabled){background:var(--desk-2)}
+.pb-input{color:var(--ink)}
+.pb-input:focus{background-color:transparent}
+.pb-seg{border-radius:10px}
+.pb-seg:not(.paper .pb-seg){box-shadow:0 0 0 1px var(--rule)}
+.pb-seg__opt{border-radius:7px}
+.pill{font-weight:600}
+
+/* ---------- desktop side menu ---------- */
+.spine__brand{gap:10px}
+.spine__word{font-family:var(--font-head);font-weight:700;font-size:21px;letter-spacing:-.02em;line-height:1.1;padding-top:0;background:none;-webkit-background-clip:border-box;background-clip:border-box;color:var(--ink)}
+.spine__deva{font-family:var(--font-head);font-weight:500;font-size:11.5px;letter-spacing:.01em;margin-top:1px;color:var(--ink-3)}
+.spine__new{border-radius:10px;height:42px;font-size:15px}
+.spine-nav a{border-radius:9px;margin-right:12px;height:40px;padding:0 12px;font-size:14.5px;gap:11px}
+.spine-nav a:hover{background:var(--desk)}
+.spine-nav a[aria-current=page]{background:var(--carbon-tint);color:var(--carbon)}
+.spine-nav a[aria-current=page]:before,.spine-nav a[aria-current=page]:after{display:none}
+.spine-nav__h{font-size:10.5px;letter-spacing:.1em;padding:0 12px 4px;opacity:1}
+.spine-nav__grp+.spine-nav__grp{margin-top:14px}
+.spine__help{background:var(--desk);border:1px solid var(--rule);border-radius:12px}
+.spine__help:hover,.spine__help.is-on{border-color:var(--carbon);transform:none}
+.spine__help-ico{background:var(--btn-bg);border-radius:9px;width:34px;height:34px}
+.net i{background:#1fa971;box-shadow:0 0 0 3px #1fa97126}
+
+/* ---------- phone top bar and bottom bar ---------- */
+.topbar{background:var(--spine);border-bottom:1px solid var(--rule);backdrop-filter:none;-webkit-backdrop-filter:none}
+.topbar__brand .spine__word{font-size:19px;padding-top:0}
+.topbar__help{background:transparent;color:var(--ink-2);border-color:transparent}
+.topbar__tools{box-shadow:none;border:1px solid var(--rule);border-radius:10px;height:36px}
+.topbar__tools .pb-ico{color:var(--ink-2)}
+.tabbar{background:var(--paper);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none;border-top:1px solid var(--rule)}
+.tabbar a{height:58px;font-size:11px;font-weight:600;color:var(--ink-3)}
+.tabbar a[aria-current=page]{color:var(--carbon)}
+.tabbar__new span{width:50px;height:50px;border-radius:50%;transform:translateY(-10px);box-shadow:0 6px 14px -6px #2b3494b3,0 0 0 4px var(--paper)}
+
+/* ---------- billing chips ---------- */
+.billnav a{height:34px;border-radius:8px;font-size:13.5px}
+.billnav a[aria-current=page]{background:var(--btn-bg);border-color:var(--btn-bg);color:var(--btn-fg)}
+.billnav .billnav__new{border-radius:8px}
+
+/* ---------- toasts, dialogs ---------- */
+.pb-toast{background:#141a33;border-radius:12px}
+.pb-toast.is-error{background:#8f1d14}
+.pb-modal{background:#0b0e1c8c}
+.pb-modal__panel{border-radius:18px 18px 0 0}
+}
+@media screen and (width>=640px){.pb-modal__panel{border-radius:16px}}
+@media screen and (width>=1024px){
+.app{grid-template-columns:248px minmax(0,1fr)}
+.spine{background-image:none;padding:20px 0 16px 14px;gap:16px}
+.page-title{font-size:30px}
+}
+
+@media screen{
+/* ---------- form fields: boxed, like a bank or tax form ---------- */
+.pb-field{gap:5px}
+.pb-field__label,.m-label{font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.pb-input{border:1px solid var(--rule);border-radius:9px;height:44px;padding:0 12px;background:var(--paper);color:var(--ink);font-weight:500;box-shadow:inset 0 1px 2px #141a3308}
+.pb-input:hover:not(:disabled){border-color:var(--ink-3)}
+.pb-input:focus{border-color:var(--carbon);background-color:var(--paper);box-shadow:0 0 0 3px var(--carbon-soft)}
+.pb-input:disabled{background:var(--desk)}
+.has-error .pb-input{border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
+.pb-textarea{background-image:none;border:1px solid var(--rule);min-height:78px;padding:9px 12px;line-height:1.45}
+.pb-textarea:focus{box-shadow:0 0 0 3px var(--carbon-soft)}
+.pb-select select{padding-right:34px}
+.pb-select__chev{right:11px}
+.pb-input.serial-input{height:44px;font-family:var(--font-head);font-size:17px;font-weight:700;letter-spacing:.02em;color:var(--ink);padding-top:0}
+.form-top{border-bottom:1px solid var(--rule)}
+.note-strip{background:#fff6dc;color:#5a4300;border:1px solid #f0dc9c;border-radius:10px}
+.sub-block{border-left-color:var(--carbon-soft);background:var(--desk)}
+.item-row{border-bottom-style:solid;border-bottom-color:var(--rule-soft)}
+
+/* ---------- amounts: the text font, bold, figures lined up ---------- */
+.slip__big,.side-total .pb-money,.totals__grand .pb-money,.savebar__total .pb-money,.side-card__total .pb-money,.ledger-row__side .pb-money,.figures dd,.stub__amt,.stub__no,.c-amt .amt,.item-row__n{font-family:var(--font-head);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em;padding-top:0;line-height:1.15}
+.slip__big{font-size:32px;margin-bottom:14px}
+.side-total .pb-money{font-size:27px}
+.totals__grand .pb-money{font-size:28px}
+.savebar__total .pb-money{font-size:21px}
+.side-card__total .pb-money{font-size:30px}
+.ledger-row__side .pb-money{font-size:16.5px}
+.figures dd{font-size:clamp(17px,2vw,21px)}
+.stub__amt{font-size:17.5px}
+.stub__no{font-size:13.5px;letter-spacing:.02em;font-weight:600}
+.c-amt .amt{font-size:17px}
+.item-row__n{font-size:13.5px;color:var(--ink-3)}
+
+/* ---------- parts whose own CSS loads later (scripts): :root makes these win ---------- */
+:root .pbt__title,:root .pbp-dialog h2,:root .pbs-head h2,:root .pls h2,:root .pal h2,:root .g1c h2,:root .pbl-h3,:root .pbl-summary,:root .pbl-more summary,:root .pbl-tpl__name{font-family:var(--font-head);font-weight:700;letter-spacing:-.012em;line-height:1.25;padding-top:0}
+:root .pbt__title{font-size:20px;background:none;-webkit-background-clip:border-box;background-clip:border-box;color:var(--ink)}
+:root .pbp-dialog h2{font-size:22px}
+:root .pbs-head h2,:root .pls h2,:root .pal h2,:root .g1c h2,:root .pbl-h3,:root .pbl-more summary{font-size:18px}
+:root .pbl-summary,:root .pbl-tpl__name{font-size:21px}
+:root .pbp-plan b,:root .pbp-pick button b,:root .pbp-sum__total b,:root .lns-tile__v,:root .g1c-figs b{font-family:var(--font-head);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em;padding-top:0}
+:root .pbp-plan b{font-size:24px}:root .pbp-pick button b{font-size:21px}:root .pbp-sum__total b{font-size:19px}:root .lns-tile__v{font-size:21px}:root .g1c-figs b{font-size:17.5px}
+/* the All tools sheet: one calm colour for every tile */
+:root .pbt{border-radius:20px 20px 0 0;box-shadow:var(--shadow-pop)}
+:root .pbt__ico,:root .g1 .pbt__ico,:root .g2 .pbt__ico,:root .g3 .pbt__ico,:root .g4 .pbt__ico,:root .g5 .pbt__ico{background:var(--carbon-tint);color:var(--carbon);border-radius:10px}
+:root .pbt__tile{border-width:1px;border-color:var(--rule);border-radius:12px}
+:root .pbt__tile:hover{transform:none;box-shadow:none;border-color:var(--carbon)}
+:root .pbt__tile[aria-current=page]{border-color:var(--carbon);background:var(--carbon-tint)}
+:root .pbt__tile[aria-current=page] .pbt__ico{background:var(--btn-bg);color:var(--btn-fg)}
+:root .pbt__x{border-width:1px}
+:root .pbt-back{background:#0b0e1c8c;backdrop-filter:none;-webkit-backdrop-filter:none}
+}
+@media screen and (width>=640px){:root .pbt{border-radius:18px}}
+
+@media screen{
+/* shop switcher, account card and help card in the side menu */
+.pb-shopcard{padding-right:12px}
+:root .pbs-card{border-width:1px;border-radius:12px;margin-bottom:0;box-shadow:0 1px 2px #141a330a}
+:root .pbs-chip{border-width:1px;border-radius:10px;height:36px}
+:root .pbs-sheet{border-radius:20px 20px 0 0;box-shadow:var(--shadow-pop)}
+:root .pbs-row,:root .pbs-in{border-width:1px;border-radius:10px}
+:root .pbs-btn{border-radius:10px;font-weight:600}
+:root .pbs-back{background:#0b0e1c8c}
+:root .pbs-x{border-width:1px}
+}
+@media screen and (width>=640px){:root .pbs-sheet{border-radius:18px}}
+
+@media screen{
+/* the PakkaBill mark as a badge, like the app icon */
+.spine__brand .mark,.topbar__brand .mark{background:#2b3494;border-radius:9px;padding:5px;box-sizing:border-box;box-shadow:0 1px 2px #141a3333}
+.topbar__brand .mark{border-radius:8px;padding:4px}
+.stub__no{color:var(--carbon)}
+/* help page */
+:root .sup-askcard{border-width:1px;border-color:var(--rule);border-radius:var(--r-card);background:var(--paper)}
+:root .sup-avatar{box-shadow:none;border-radius:11px}
+:root .sup-hero{background-image:none;background:var(--carbon-tint);border:1px solid var(--rule)}
+}
+
+@media screen{
+/* white text sits on the button colour (it stays dark enough in dark mode), not on --carbon */
+.gstf__btn:hover:not(:disabled){background:var(--btn-bg);border-color:var(--btn-bg)}
+/* a bill's number as the page title: plain, not red */
+.preview-head .page-title{color:var(--ink);letter-spacing:0}
+}

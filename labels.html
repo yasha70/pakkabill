@@ -9,27 +9,27 @@
 <script>(function () { try { if (/[?&]embed=1(&|$)/.test(location.search)) document.documentElement.classList.add('embed'); } catch (e) { /* ignore */ } })();</script>
 <style>
 :root {
-  --paper: #fdf8f3; --sheet: #FFFFFF; --rule: #e2daf2; --rule-2: #cfc4ea;
-  --ink: #2a2540; --ink-2: #5c5776; --ink-3: #736e8d;
-  --carbon: #5b3fe6; --carbon-ink: #FFFFFF; --carbon-soft: #ece6ff;
-  --neg: #c8202a; --pos: #12714b; --pos-bg: #e6f6ee; --warn: #8a5200; --warn-bg: #fff4df; --focus: #ff7a59;
+  --paper: #f4f5f9; --sheet: #FFFFFF; --rule: #dcdfea; --rule-2: #c3c8dc;
+  --ink: #141a33; --ink-2: #4a5170; --ink-3: #6b7190;
+  --carbon: #2b3494; --carbon-ink: #FFFFFF; --carbon-soft: #e6e9f7;
+  --neg: #b42318; --pos: #0b7a4b; --pos-bg: #e3f5ec; --warn: #8a5200; --warn-bg: #fff6dc; --focus: #5b68d6;
   --f-head: "Anek Latin", "Segoe UI", system-ui, -apple-system, sans-serif;
   --f-body: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
   box-sizing: border-box; color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #110e20; --sheet: #1b1631; --rule: #3a3160; --rule-2: #4a4078;
-    --ink: #ece8fb; --ink-2: #bdb5d9; --ink-3: #958db3;
-    --carbon: #b3a1ff; --carbon-ink: #140c33; --carbon-soft: #35295e;
-    --neg: #ff8a8f; --pos: #74d8a7; --pos-bg: #15302a; --warn: #f0c26a; --warn-bg: #2b2410; color-scheme: dark;
+    --paper: #0b0e1c; --sheet: #151a33; --rule: #2c3258; --rule-2: #3d4470;
+    --ink: #e9ebf7; --ink-2: #b3b9d6; --ink-3: #8a91b3;
+    --carbon: #aeb6f7; --carbon-ink: #0f1330; --carbon-soft: #2a3063;
+    --neg: #ff8f88; --pos: #6fd6a5; --pos-bg: #15302a; --warn: #f0c26a; --warn-bg: #2b2410; --focus: #aeb6f7; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --paper: #110e20; --sheet: #1b1631; --rule: #3a3160; --rule-2: #4a4078;
-  --ink: #ece8fb; --ink-2: #bdb5d9; --ink-3: #958db3;
-  --carbon: #b3a1ff; --carbon-ink: #140c33; --carbon-soft: #35295e;
-  --neg: #ff8a8f; --pos: #74d8a7; --pos-bg: #15302a; --warn: #f0c26a; --warn-bg: #2b2410; color-scheme: dark;
+  --paper: #0b0e1c; --sheet: #151a33; --rule: #2c3258; --rule-2: #3d4470;
+  --ink: #e9ebf7; --ink-2: #b3b9d6; --ink-3: #8a91b3;
+  --carbon: #aeb6f7; --carbon-ink: #0f1330; --carbon-soft: #2a3063;
+  --neg: #ff8f88; --pos: #6fd6a5; --pos-bg: #15302a; --warn: #f0c26a; --warn-bg: #2b2410; --focus: #aeb6f7; color-scheme: dark;
 }
 :root.pbfonts { --f-head: "PB Hind", "Hind", system-ui, -apple-system, "Segoe UI", sans-serif; --f-body: "PB Hind", "Hind", system-ui, -apple-system, "Segoe UI", sans-serif; }
 *, *::before, *::after { box-sizing: inherit; }
@@ -54,8 +54,8 @@ button, input, select { font: inherit; }
 .sub { color: var(--ink-2); font-size: .93rem; margin: 4px 0 0; }
 .fine { color: var(--ink-3); font-size: .85rem; }
 
-.hero { position: relative; overflow: hidden; border-radius: 18px; padding: 22px 20px 20px; color: #fff; background: linear-gradient(125deg, #26307f 0%, #4b3bd6 52%, #7c56ee 100%); box-shadow: 0 14px 36px -22px rgba(40, 30, 140, .8); }
-.hero::after { content: ""; position: absolute; right: -70px; top: -90px; width: 240px; height: 240px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 122, 89, .5), rgba(255, 122, 89, 0) 70%); pointer-events: none; }
+.hero { position: relative; overflow: hidden; border-radius: 18px; padding: 22px 20px 20px; color: #fff; background: linear-gradient(135deg, #222a7c 0%, #2b3494 55%, #3a45b3 100%); }
+.hero::after { content: ""; position: absolute; right: -70px; top: -90px; width: 240px; height: 240px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, .12), rgba(255, 255, 255, 0) 70%); pointer-events: none; }
 .hero-top { position: relative; z-index: 1; display: flex; align-items: flex-start; gap: 12px; }
 .hero-k { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 3px 10px 3px 8px; border-radius: 999px; background: rgba(255, 255, 255, .14); font-size: .72rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
 .hero-k i { width: 7px; height: 7px; border-radius: 50%; background: #5cf2a6; box-shadow: 0 0 0 3px rgba(92, 242, 166, .25); }

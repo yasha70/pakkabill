@@ -7,30 +7,30 @@
 <title>PakkaBill Admin</title>
 <style>
   :root{
-    --ink:#2a2540;--ink-2:#5c5776;--ink-3:#736e8d;--paper:#fff;--desk:#fdf8f3;--rule:#e2daf2;--rule-soft:#f0ebf8;
-    --violet:#5b3fe6;--btn:#6c4dff;--grad:linear-gradient(135deg,#6c4dff 0%,#9a3ff0 55%,#d0457c 100%);
-    --tint:#f6f2ff;--green:#12714b;--green-soft:#ddf1e5;--red:#c8202a;--red-soft:#fbe6e7;--amber:#8a5a00;--amber-soft:#fdf1d6;
-    --shadow:0 1px 2px #2a25400d,0 12px 28px -16px #6c4dff4d;
+    --ink:#141a33;--ink-2:#4a5170;--ink-3:#6b7190;--paper:#fff;--desk:#f4f5f9;--rule:#dcdfea;--rule-soft:#eceef4;
+    --violet:#2b3494;--btn:#2b3494;--grad:none;
+    --tint:#f1f3fb;--green:#0b7a4b;--green-soft:#dcf5e8;--red:#b42318;--red-soft:#fde8e6;--amber:#8a5a00;--amber-soft:#fdf1d6;
+    --shadow:0 1px 2px #141a330a,0 1px 3px #141a3314;
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;color-scheme:light;
   }
   @media (prefers-color-scheme:dark){:root:not([data-theme=light]){
-    --ink:#ece8fb;--ink-2:#bdb5d9;--ink-3:#958db3;--paper:#1b1631;--desk:#110e20;--rule:#3a3160;--rule-soft:#262043;
-    --violet:#b3a1ff;--btn:#9b85ff;--grad:none;--tint:#231c3d;--green:#74d8a7;--green-soft:#173d36;--red:#ff8a8f;--red-soft:#3d1a2c;--amber:#f0c26a;--amber-soft:#3a2c10;
+    --ink:#e9ebf7;--ink-2:#b3b9d6;--ink-3:#8a91b3;--paper:#151a33;--desk:#0b0e1c;--rule:#2c3258;--rule-soft:#20254a;
+    --violet:#aeb6f7;--btn:#4c58d0;--grad:none;--tint:#1c2146;--green:#6fd6a5;--green-soft:#143a2e;--red:#ff8f88;--red-soft:#3d1a1f;--amber:#f0c26a;--amber-soft:#3a2c10;
     --shadow:0 1px 1px #0000004d,0 12px 26px -16px #000c;color-scheme:dark}}
-  :root[data-theme=dark]{--ink:#ece8fb;--ink-2:#bdb5d9;--ink-3:#958db3;--paper:#1b1631;--desk:#110e20;--rule:#3a3160;--rule-soft:#262043;
-    --violet:#b3a1ff;--btn:#9b85ff;--grad:none;--tint:#231c3d;--green:#74d8a7;--green-soft:#173d36;--red:#ff8a8f;--red-soft:#3d1a2c;--amber:#f0c26a;--amber-soft:#3a2c10;color-scheme:dark}
+  :root[data-theme=dark]{--ink:#e9ebf7;--ink-2:#b3b9d6;--ink-3:#8a91b3;--paper:#151a33;--desk:#0b0e1c;--rule:#2c3258;--rule-soft:#20254a;
+    --violet:#aeb6f7;--btn:#4c58d0;--grad:none;--tint:#1c2146;--green:#6fd6a5;--green-soft:#143a2e;--red:#ff8f88;--red-soft:#3d1a1f;--amber:#f0c26a;--amber-soft:#3a2c10;color-scheme:dark}
   *{box-sizing:border-box}
   body{margin:0;background:var(--desk);color:var(--ink);font-size:15px;line-height:1.5}
   button,input{font:inherit;color:inherit}
   .wrap{max-width:1080px;margin:0 auto;padding:24px 16px 60px}
   header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
   .brand{display:flex;align-items:baseline;gap:10px}
-  .brand b{font-size:24px;font-weight:800;letter-spacing:-.02em;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .brand b{font-size:22px;font-weight:700;letter-spacing:-.02em;color:var(--ink)}
   @media (prefers-color-scheme:dark){.brand b{color:var(--violet);background:none}}
   .brand span{color:var(--ink-3);font-weight:600}
   nav.tabs{display:flex;gap:4px;padding:4px;background:var(--tint);border:1px solid var(--rule);border-radius:999px;overflow-x:auto;max-width:100%}
   nav.tabs button{border:0;background:none;padding:8px 14px;border-radius:999px;font-weight:600;color:var(--ink-2);cursor:pointer;white-space:nowrap}
-  nav.tabs button[aria-selected=true]{background:var(--paper);color:var(--violet);box-shadow:0 2px 8px -3px #6c4dff66}
+  nav.tabs button[aria-selected=true]{background:var(--paper);color:var(--violet);box-shadow:0 1px 3px #141a3326}
   .card{background:var(--paper);border:1px solid var(--rule);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow);margin-bottom:16px}
   .card h2{font-size:16px;margin:0 0 4px}
   .sub{color:var(--ink-2);margin:0 0 12px;font-size:14px}
@@ -46,7 +46,7 @@
   .people .who b{display:block}
   .wa{background:#1faa59;background-image:none;color:#fff;text-decoration:none;display:inline-block}
   .stat{background:var(--paper);border:1px solid var(--rule);border-radius:16px;padding:14px 16px;box-shadow:var(--shadow);border-top:4px solid var(--btn)}
-  .stat:nth-child(2){border-top-color:#ff7a59}.stat:nth-child(3){border-top-color:#e0a300}.stat:nth-child(4){border-top-color:#1faa7d}
+  .stat:nth-child(2){border-top-color:#a15c07}.stat:nth-child(3){border-top-color:#e0a300}.stat:nth-child(4){border-top-color:#1faa7d}
   .stat .l{font-size:12px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em}
   .stat .v{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px}
   .banner{border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:14px}
@@ -65,7 +65,7 @@
   label.f input{width:100%}
   label.f input,label.f select,label.f textarea{font-weight:400}
   label.f .muted{font-weight:500}
-  input:focus-visible,button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #ff7a59;outline-offset:2px}
+  input:focus-visible,button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #5b68d6;outline-offset:2px}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   .tablewrap{overflow-x:auto;border:1px solid var(--rule);border-radius:12px}
   table{width:100%;border-collapse:collapse;font-size:14px}
@@ -123,7 +123,7 @@
   .tk-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
   .seg{display:inline-flex;gap:2px;padding:3px;border-radius:999px;background:var(--tint);border:1px solid var(--rule)}
   .seg button{border:0;background:none;padding:6px 12px;border-radius:999px;font-weight:600;color:var(--ink-2);cursor:pointer;white-space:nowrap}
-  .seg button[aria-pressed=true]{background:var(--paper);color:var(--violet);box-shadow:0 2px 8px -3px #6c4dff66}
+  .seg button[aria-pressed=true]{background:var(--paper);color:var(--violet);box-shadow:0 1px 3px #141a3326}
   .tk-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
   .tk-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:12px 14px;border:1px solid var(--rule-soft);border-radius:12px;cursor:pointer;background:var(--paper);text-align:left;width:100%;font:inherit;color:inherit}
   .tk-row:hover,.tk-row.is-on{border-color:var(--violet)}

@@ -8,7 +8,8 @@
 
 export const config = {
   matcher: ['/', '/index.html', '/pnl.html', '/labels.html', '/admin', '/admin.html', '/about', '/about.html', '/terms', '/terms.html',
-    '/privacy', '/privacy.html', '/refund', '/refund.html', '/contact', '/contact.html', '/delete-account', '/delete-account.html'],
+    '/privacy', '/privacy.html', '/refund', '/refund.html', '/contact', '/contact.html', '/delete-account', '/delete-account.html',
+    '/login', '/signup', '/forgot-password'],
 };
 
 const COOKIE = 'pb_ok';

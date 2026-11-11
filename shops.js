@@ -7,7 +7,7 @@
   var REG = 'pb-shops', ACTIVE = 'pb-shop', MAX = 10;
   var KEYS = ['business', 'parties', 'products', 'invoices', 'meta'];
   var STATES = { '01': 'Jammu and Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab', '04': 'Chandigarh', '05': 'Uttarakhand', '06': 'Haryana', '07': 'Delhi', '08': 'Rajasthan', '09': 'Uttar Pradesh', '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh', '13': 'Nagaland', '14': 'Manipur', '15': 'Mizoram', '16': 'Tripura', '17': 'Meghalaya', '18': 'Assam', '19': 'West Bengal', '20': 'Jharkhand', '21': 'Odisha', '22': 'Chhattisgarh', '23': 'Madhya Pradesh', '24': 'Gujarat', '26': 'Dadra and Nagar Haveli and Daman and Diu', '27': 'Maharashtra', '29': 'Karnataka', '30': 'Goa', '31': 'Lakshadweep', '32': 'Kerala', '33': 'Tamil Nadu', '34': 'Puducherry', '35': 'Andaman and Nicobar Islands', '36': 'Telangana', '37': 'Andhra Pradesh', '38': 'Ladakh', '97': 'Other Territory' };
-  var COLORS = ['#6c4dff', '#e0603f', '#0e9f6e', '#0ea5e9', '#d946ef', '#f59e0b', '#14b8a6', '#ef4444', '#8b5cf6', '#64748b'];
+  var COLORS = ['#2b3494', '#e0603f', '#0e9f6e', '#0ea5e9', '#d946ef', '#f59e0b', '#14b8a6', '#ef4444', '#8b5cf6', '#64748b'];
 
   function ls(k, v) {
     try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; }
@@ -161,7 +161,7 @@
     return el;
   }
   function add(el, c) { if (c == null || c === false) return; if (Array.isArray(c)) c.forEach(function (x) { add(el, x); }); else el.append(c.nodeType ? c : document.createTextNode(String(c))); }
-  function avatar(s, big) { return h('span', { class: 'pbs-av' + (big ? ' is-big' : ''), style: 'background:' + (s.color || COLORS[0]), 'aria-hidden': 'true' }, initials(s)); }
+  function avatar(s, big) { return h('span', { class: 'pbs-av' + (big ? ' is-big' : ''), style: 'background:' + ((s.color === '#2b3494' ? '' : s.color) || COLORS[0]), 'aria-hidden': 'true' }, initials(s)); }
   function sub(s) { return [s.gstin || 'No GSTIN yet', STATES[s.state] || ''].filter(Boolean).join(' · '); }
   function toast(msg, bad) {
     var old = document.querySelector('.pbs-toast'); if (old) old.remove();
@@ -306,7 +306,7 @@
     + '.pbs-row{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border-radius:14px;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink);font:inherit;text-align:left;cursor:pointer}.pbs-row:hover,.pbs-row.is-on{border-color:var(--carbon)}.pbs-row.is-on{background:var(--carbon-tint)}'
     + '.pbs-row__t{display:grid;min-width:0;flex:1}.pbs-row__t b{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pbs-row__t span{font-size:12.5px;color:var(--ink-2)}.pbs-go{font-size:22px;color:var(--carbon)}'
     + '.pbs-tag{flex:none;font-size:11.5px;font-weight:800;color:var(--carbon);background:var(--paper);border:1px solid var(--carbon);border-radius:999px;padding:2px 9px}'
-    + '.pbs-foot{display:grid;gap:10px;margin-top:14px;justify-items:start}.pbs-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:12px;padding:11px 16px;font:inherit;font-weight:700;font-size:15px;cursor:pointer;text-decoration:none;color:var(--btn-fg,#fff);background:var(--btn-bg,#6c4dff);background-image:var(--btn-grad,none)}.pbs-btn:disabled{opacity:.6;cursor:wait}.pbs-btn--sm{padding:8px 13px;font-size:14px}'
+    + '.pbs-foot{display:grid;gap:10px;margin-top:14px;justify-items:start}.pbs-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:12px;padding:11px 16px;font:inherit;font-weight:700;font-size:15px;cursor:pointer;text-decoration:none;color:var(--btn-fg,#fff);background:var(--btn-bg,#2b3494);background-image:var(--btn-grad,none)}.pbs-btn:disabled{opacity:.6;cursor:wait}.pbs-btn--sm{padding:8px 13px;font-size:14px}'
     + '.pbs-link{border:0;background:none;font:inherit;font-weight:700;font-size:14px;color:var(--carbon);cursor:pointer;text-decoration:none;padding:4px 0}.pbs-del{color:#c2410c}'
     + '.pbs-page{display:grid;gap:18px;max-width:760px}.pbs-sechead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}.pbs-sechead .form-sec__title{margin:0}'
     + '.pbs-cards{list-style:none;margin:0;padding:0;display:grid;gap:10px}.pbs-shop{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;border:1.5px solid transparent}.pbs-shop.is-on{border-color:var(--carbon)}'
