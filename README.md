@@ -2,10 +2,10 @@
 
 Tools for Meesho sellers, with GST billing on the side. One static page that works offline.
 
-The Meesho tools are the main navigation (sidebar group "Meesho tools"; phone tabs Profit · Labels ·
-+ New bill · Listing · Profile); Meesho Lens sits under "More tools". Billing is one compact tab: every billing page (Bills, Parties, Items, GST summary,
+The app opens on Home. The Meesho tools are the main navigation (sidebar: Home, then the group
+"Meesho tools"; phone tabs Home · Profit · + New bill · Labels · Profile); Meesho Lens sits under "More tools". Billing is one compact tab: every billing page (Bills, Parties, Items, GST summary,
 GSTR-1) shows a small bar of chips to move between them, with New bill; the Profile page shows the same
-bar so bills stay one tap away on a phone. The logo opens the P&L.
+bar so bills stay one tap away on a phone. The logo opens Home.
 
 - Meesho P&L: profit and loss and payment reconciliation from Meesho's payment report, with Excel and PDF.
 - Labels & packing chart: a packing chart from Meesho's manifest (blouse sizes as L / XL / XXL), and shipping labels in SKU and size order, as one PDF.
@@ -75,6 +75,20 @@ bar so bills stay one tap away on a phone. The logo opens the P&L.
   returns with a credit note number go to Table 9B (CDNR). Tests: `node test/gstr1view-audit.js`;
   sample reports in `test/fixtures/gstr1/`.
 - Everything stays in the browser on the device. No server, no accounts, no data leaves the phone or laptop.
+
+## Home (the app's first screen)
+
+`#/dashboard` (`dash.js`, `window.pbHomeMount`) is where the app opens on a phone or a laptop, and
+where the PakkaBill mark and the Home tab lead. It shows, from this device only:
+
+- a greeting with the open shop's name and three quick buttons: Check my profit, New bill, Sort labels;
+- Meesho profit: the profit Profit & Loss last showed for the seller's own files (`pnl.html` saves
+  it as `hisaab:last`: amount, margin, period; never for the sample data), or a button to upload;
+- Billing this month: billed, to collect (every unpaid bill) and the three newest bills;
+- every tool as a tile, the account (Sign up / Log in, or the plan and My account), Help and the app.
+
+It is not the website's home page (`#/home`, below), which is for visitors who have not started yet.
+The Android app has its own screens and does not use this page.
 
 ## Look and design
 

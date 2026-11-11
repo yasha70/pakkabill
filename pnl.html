@@ -3635,6 +3635,8 @@ details.more[open] > summary { margin-bottom: 10px; }
   /* PakkaBill's promise, at the top of the P&L */
   function hero(big) {
     var R = A.hasData() ? S.R : null, kpi = '';
+    // the Home screen of PakkaBill shows this (never for the sample data)
+    if (!S.demo) { try { if (R && S.per && S.per.label) localStorage.setItem('hisaab:last', JSON.stringify({ np: R.NP, margin: R.NR ? R.margin : null, label: S.per.label, at: Date.now() })); else if (!R) localStorage.removeItem('hisaab:last'); } catch (e) { /* ignore */ } }
     if (R && !big) {
       kpi = '<div class="hero-kpi"><div class="hk-top"><span>' + (R.NP < 0 ? 'Real loss' : 'Real profit') + '</span>' +
         (R.NR ? '<em class="hk-chip' + (R.NP < 0 ? ' neg' : '') + '">' + pct(R.margin) + ' margin</em>' : '') + '</div>' +
