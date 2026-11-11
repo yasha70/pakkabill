@@ -88,9 +88,12 @@ sourceSets["test"].resources.srcDir(files(auditsOut).builtBy(buildEngines))
 tasks.test {
     useJUnitPlatform()
     systemProperty("pakkabill.root", rootProject.file("..").absolutePath)
-    System.getenv("LISTING_OUT")?.let { systemProperty("listing.out", it) }
+    // The tests write these files for the CI steps after them. They are declared as outputs, so a
+    // test run taken from Gradle's build cache brings them back too (without this, a cached run
+    // left them out and the next step failed with "no such file").
+    System.getenv("LISTING_OUT")?.let { systemProperty("listing.out", it); outputs.file(it) }
     // the script for Meesho's supplier panel, for the browser check (android/ci/autolist-web-check.mjs)
-    System.getenv("AUTOLIST_WEB_OUT")?.let { systemProperty("autolist.web.out", it) }
+    System.getenv("AUTOLIST_WEB_OUT")?.let { systemProperty("autolist.web.out", it); outputs.file(it) }
     // the shipping check script for Meesho's page, for android/ci/ship-web-check.cjs
-    System.getenv("SHIP_WEB_OUT")?.let { systemProperty("ship.web.out", it) }
+    System.getenv("SHIP_WEB_OUT")?.let { systemProperty("ship.web.out", it); outputs.file(it) }
 }
