@@ -450,19 +450,19 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   function skuCmp(a, b) { a = skuKey(a); b = skuKey(b); return coll ? coll.compare(a, b) : (a < b ? -1 : a > b ? 1 : 0); }
   // blouse: sort inch sizes by their letter size (26, 28 and Free Size 26-30 all as L), then by the inches
   function itemCmp(by, blouse) {
-    var g = function (r) { return (blouse && blouseSize(r.size)) || r.size; };
+    var g = function (r) { return (blouse && blouseSize(r.size, r.sku)) || r.size; };
     return function (a, b) {
       var s = sizeCmp(g(a), g(b)), k = skuCmp(a.sku, b.sku);
       return (by === 'size' ? (s || k) : (k || s)) || sizeCmp(a.size, b.size);
     };
   }
   function isMixed(lab, blouse) {
-    var k = {}; lab.rows.forEach(function (r) { k[skuKey(r.sku) + SEP + ((blouse && blouseSize(r.size)) || canonSize(r.size))] = 1; });
+    var k = {}; lab.rows.forEach(function (r) { k[skuKey(r.sku) + SEP + ((blouse && blouseSize(r.size, r.sku)) || canonSize(r.size))] = 1; });
     return Object.keys(k).length > 1;
   }
   // the one size a label is packed as ('L', 'XL', 'Free Size'…); '' when its products are in different sizes
   function labelSize(lab, blouse) {
-    var k = {}; lab.rows.forEach(function (r) { k[(blouse && blouseSize(r.size)) || showSize(canonSize(r.size)) || '-'] = 1; });
+    var k = {}; lab.rows.forEach(function (r) { k[(blouse && blouseSize(r.size, r.sku)) || showSize(canonSize(r.size)) || '-'] = 1; });
     var ks = Object.keys(k); return ks.length === 1 ? ks[0] : '';
   }
   function courierOrder(labs) {
@@ -489,7 +489,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     var m = {}, sp = {}, ic = itemCmp(by || 'sku');
     labs.forEach(function (L) {
       L.lab.rows.forEach(function (r) {
-        var c = (blouse && blouseSize(r.size)) || canonSize(r.size), k = skuKey(r.sku) + SEP + c;
+        var c = (blouse && blouseSize(r.size, r.sku)) || canonSize(r.size), k = skuKey(r.sku) + SEP + c;
         if (!m[k]) m[k] = { sku: r.sku, size: showSize(c) || r.size, pcs: 0, orders: 0 };
         m[k].pcs += r.qty; m[k].orders += 1;
         var g = skuKey(r.sku); (sp[g] = sp[g] || {})[r.sku] = (sp[g][r.sku] || 0) + 1;
@@ -505,9 +505,22 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
      36 to 40 XXL (31 and 35 go up to the next). A free-size range counts by its middle, so "Free Size 26-30"
      is L, "Free-Size: 30-34" is XL and "Free Size 36-40" is XXL; "38 Alterable" is 38. */
   var BLOUSE = [[26, 31, 'L'], [31, 35, 'XL'], [35, 40.5, 'XXL']];
-  function blouseSize(sz) {
+  /* A size of just "Free Size" with the inches in the SKU ("BLOUSE-RED-26-30", "RB_30_34", "PNK 36 TO 40",
+     "PGR3034"): the range from the SKU, like "30-34". Two numbers from 24 to 44, the second 2 to 8 more. */
+  function skuRange(sku) {
+    var u = String(sku || '').toUpperCase(), re = /(?:^|\D)(\d{2})(?:\s*(?:-|–|_|\/|\.|TO)\s*)?(\d{2})(?!\d)/g, m;
+    while ((m = re.exec(u))) {
+      var a = +m[1], b = +m[2];
+      if (a >= 24 && b <= 44 && b - a >= 2 && b - a <= 8) return a + '-' + b;
+      re.lastIndex = m.index + 1;
+    }
+    return '';
+  }
+  // sku (optional): for a plain "Free Size", the inches written in the SKU
+  function blouseSize(sz, sku) {
     var c = canonSize(sz);
     if (c === 'L' || c === 'XL' || c === 'XXL') return c;
+    if (c === 'FREE SIZE') { var r = skuRange(sku); return r ? blouseSize(r) : null; }
     // only inch sizes: numbers with words like Free-Size or Alterable around them, nothing else
     if (c.replace(/FREE|SIZE|ALTERABLE|INCHES|INCH|BUST|\bIN\b|\bTO\b|\d{2}(?:\.\d)?|[\s:\-–\/"'()]/g, '')) return null;
     var nums = c.match(/\d{2}(?:\.\d)?/g);
@@ -519,7 +532,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   // most pieces in inch sizes from 26 to 40: a blouse seller
   function looksBlouse(items) {
     var all = 0, b = 0;
-    items.forEach(function (it) { all += it.qty; var g = blouseSize(it.size); if (g && !/^(L|XL|XXL)$/.test(canonSize(it.size))) b += it.qty; });
+    items.forEach(function (it) { all += it.qty; var g = blouseSize(it.size, it.sku); if (g && !/^(L|XL|XXL)$/.test(canonSize(it.size))) b += it.qty; });
     return all > 0 && b / all >= 0.5;
   }
   // items [{sku, size, qty}] -> SKU x size table. opt.blouse: inch sizes as L / XL / XXL. opt.sort: 'most' | 'az'
@@ -528,8 +541,8 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     var rows = {}, sp = {}, tot = {}, map = {}, grand = 0;
     items.forEach(function (it) {
       var raw = String(it.size || '').replace(/\s+/g, ' ').trim(), plain = showSize(canonSize(raw)) || '-';
-      var col = (opt.blouse && blouseSize(raw)) || plain;
-      if (col !== plain) { var mk = raw + SEP + col; map[mk] = (map[mk] || 0) + it.qty; }
+      var col = (opt.blouse && blouseSize(raw, it.sku)) || plain, sr = col !== plain && canonSize(raw) === 'FREE SIZE' && skuRange(it.sku);
+      if (col !== plain) { var mk = (sr ? raw + ' ' + sr + ' (SKU)' : raw) + SEP + col; map[mk] = (map[mk] || 0) + it.qty; }
       var g = skuKey(it.sku);
       if (!rows[g]) rows[g] = { sku: it.sku, cells: {}, total: 0 };
       (sp[g] = sp[g] || {})[it.sku] = (sp[g][it.sku] || 0) + 1;
@@ -549,7 +562,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
 
   root.PBL = { words: words, lines: lines, parseLabel: parseLabel, parseManifest: parseManifest, checkManifest: checkManifest, canonSize: canonSize,
     showSize: showSize, sizeCmp: sizeCmp, skuCmp: skuCmp, itemCmp: itemCmp, sortLabels: sortLabels, pickList: pickList, isMixed: isMixed, labelSize: labelSize, courierOrder: courierOrder,
-    skuKey: skuKey, pageKind: pageKind, manifestPage: manifestPage, pickCheck: pickCheck, blouseSize: blouseSize, looksBlouse: looksBlouse, packChart: packChart };
+    skuKey: skuKey, pageKind: pageKind, manifestPage: manifestPage, pickCheck: pickCheck, blouseSize: blouseSize, skuRange: skuRange, looksBlouse: looksBlouse, packChart: packChart };
 })(typeof window !== 'undefined' ? window : this);
 </script>
 <script>
@@ -638,7 +651,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     'From the picklist in the manifest: {n} pieces': 'मैनिफ़ेस्ट की पिकलिस्ट से: {n} पीस',
     'All': 'सभी', 'Parcels': 'पार्सल',
     'Blouse sizes as L / XL / XXL': 'ब्लाउज़ साइज़ L / XL / XXL में',
-    '26–30 = L, 32–34 = XL, 36–40 = XXL. Free-size ranges count by their middle.': '26–30 = L, 32–34 = XL, 36–40 = XXL। फ़्री-साइज़ रेंज बीच वाले साइज़ से गिनी जाती है।',
+    '26–30 = L, 30–34 = XL, 36–40 = XXL. Free Size counts by its range, or by the range in the SKU (like BLOUSE-26-30).': '26–30 = L, 30–34 = XL, 36–40 = XXL। फ़्री साइज़ अपनी रेंज से गिना जाता है, या SKU में लिखी रेंज से (जैसे BLOUSE-26-30)।',
     'Most pieces first': 'सबसे ज़्यादा पीस पहले', 'SKU A to Z': 'SKU A से Z',
     'GRAND TOTAL': 'कुल जोड़',
     'Sizes counted as:': 'साइज़ ऐसे गिने गए:',
@@ -1295,7 +1308,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     // options and download
     h += '<section class="card"><h2>' + esc(t('How to arrange')) + '</h2><div class="opts">' +
       '<div class="opt"><span class="lbl">' + esc(t('Order labels by')) + '</span>' + seg('by', o.by, [['sku', 'SKU, then size', 'All sizes of a product together'], ['size', 'Size, then SKU', 'All S together, then all M…']]) + '</div>' +
-      chk('blouse', labBlouse(), 'Blouse sizes as L / XL / XXL', '26–30 = L, 32–34 = XL, 36–40 = XXL. Free-size ranges count by their middle.') +
+      chk('blouse', labBlouse(), 'Blouse sizes as L / XL / XXL', '26–30 = L, 30–34 = XL, 36–40 = XXL. Free Size counts by its range, or by the range in the SKU (like BLOUSE-26-30).') +
       onlyHtml(labs) +
       (co.names.length > 1 ? chk('courier', o.courier, 'Keep each courier’s labels together', 'Handy when couriers pick up at different times.') : '') +
       chk('mixedLast', o.mixedLast, 'Orders with 2 or more products at the end', 'These need a bigger packet and more checking.') +
@@ -1322,7 +1335,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     if (cs.names.length > 1) h += '<div class="tabs chips" role="group" aria-label="' + esc(t('Courier')) + '" style="margin-top:12px">' + [['all', t('All'), cs.all]].concat(cs.names.map(function (c) { return [c, c, cs.count[c]]; })).map(function (x) {
       return '<button type="button" data-act="ccur" data-v="' + esc(x[0]) + '" aria-pressed="' + (cur === x[0]) + '">' + esc(x[1]) + ' <small>' + x[2] + '</small></button>';
     }).join('') + '</div>';
-    h += '<div class="opts" style="margin:12px 0">' + chk('blouse', bl, 'Blouse sizes as L / XL / XXL', '26–30 = L, 32–34 = XL, 36–40 = XXL. Free-size ranges count by their middle.') +
+    h += '<div class="opts" style="margin:12px 0">' + chk('blouse', bl, 'Blouse sizes as L / XL / XXL', '26–30 = L, 30–34 = XL, 36–40 = XXL. Free Size counts by its range, or by the range in the SKU (like BLOUSE-26-30).') +
       '<div class="opt">' + seg('chartSort', o.chartSort, [['most', 'Most pieces first'], ['az', 'SKU A to Z']]) + '</div></div>';
     h += '<div class="tw"><table class="t chart"><thead><tr><th>SKU</th>' + ch.cols.map(function (c) { return '<th class="n">' + esc(c) + '</th>'; }).join('') + '<th class="n">' + esc(t('Total')) + '</th></tr></thead><tbody>' +
       ch.rows.map(function (r) { return '<tr><td class="sku">' + esc(r.sku) + '</td>' + ch.cols.map(function (c) { var v = r.cells[c] || 0; return '<td class="n' + (v ? '' : ' z') + '">' + v + '</td>'; }).join('') + '<td class="n"><b>' + r.total + '</b></td></tr>'; }).join('') +
@@ -1353,7 +1366,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       if (o.courier && many && c !== lastC) { h += '<tr class="grp"><td colspan="4">' + esc(c === 'Other' ? t('Other') : c) + '</td></tr>'; lastC = c; }
       var rows = p.lab.rows.slice().sort(ic);
       n++;
-      h += '<tr><td class="n">' + n + '</td><td class="sku">' + rows.map(function (r) { return esc(r.sku); }).join('<br>') + (mixed ? ' <span class="pill w">' + esc(t('2+ products')) + '</span>' : '') + '<span class="on">' + esc(c === 'Other' ? t('Other') : c) + (p.lab.orders[0] ? ' · ' + esc(p.lab.orders[0]) : '') + '</span></td><td>' + rows.map(function (r) { var z = showSize(canonSize(r.size)) || r.size || '-', g = bl && L.blouseSize(r.size); return esc(z) + (g && g !== canonSize(r.size) ? ' <span class="pill">' + esc(g) + '</span>' : ''); }).join('<br>') +
+      h += '<tr><td class="n">' + n + '</td><td class="sku">' + rows.map(function (r) { return esc(r.sku); }).join('<br>') + (mixed ? ' <span class="pill w">' + esc(t('2+ products')) + '</span>' : '') + '<span class="on">' + esc(c === 'Other' ? t('Other') : c) + (p.lab.orders[0] ? ' · ' + esc(p.lab.orders[0]) : '') + '</span></td><td>' + rows.map(function (r) { var z = showSize(canonSize(r.size)) || r.size || '-', g = bl && L.blouseSize(r.size, r.sku); return esc(z) + (g && g !== canonSize(r.size) ? ' <span class="pill">' + esc(g) + '</span>' : ''); }).join('<br>') +
         '</td><td class="n">' + rows.map(function (r) { return r.qty > 1 ? '<b>×' + r.qty + '</b>' : '1'; }).join('<br>') + '</td></tr>';
     });
     h += '</tbody></table>';

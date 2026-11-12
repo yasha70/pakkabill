@@ -215,5 +215,21 @@ eq(['26', '28', '30', '31', '32', '34', '35', '36', '38', '40', 'L', '2XL', 'Fre
   eq(L.pickList(labs, 'sku', true).map((r) => r.sku + ' ' + r.size + ' ' + r.pcs), ['A1 L 1', 'A1 XXL 1', 'B1 L 2', 'B1 XL 2', 'B1 XXL 1'], 'pick list in L / XL / XXL');
 }
 
+/* 14. plain "Free Size" with the inches in the SKU */
+{
+  eq(['BLOUSE-RED-26-30', 'RB_30_34', 'PNK 36 TO 40', 'PGR3034', 'BLS-26–30', 'RBGYP0005', 'SAREE-12', 'KURTI-2024', 'X-40-26'].map(L.skuRange),
+    ['26-30', '30-34', '36-40', '30-34', '26-30', '', '', '', ''], 'inch range read from the SKU');
+  eq([['Free Size', 'BLOUSE-RED-26-30'], ['Free Size', 'BLOUSE-RED-30-34'], ['FREE SIZE', 'BLOUSE-RED-36-40'], ['Free', 'PGR3034'], ['Free Size', 'SAREE-12'], ['M', 'BLOUSE-26-30']].map(([z, k]) => L.blouseSize(z, k)),
+    ['L', 'XL', 'XXL', 'XL', null, null], 'Free Size takes L / XL / XXL from the SKU; other sizes do not look at the SKU');
+  const items = [['BLOUSE-RED-26-30', 2], ['BLOUSE-RED-30-34', 1], ['BLOUSE-RED-36-40', 3]].map(([sku, qty]) => ({ sku, size: 'Free Size', qty }));
+  ok(L.looksBlouse(items), 'Free Size with inches in the SKU: a blouse seller');
+  const ch = L.packChart(items, { blouse: true });
+  eq(ch.cols, ['L', 'XL', 'XXL'], 'no separate Free Size column');
+  eq([ch.totals.L, ch.totals.XL, ch.totals.XXL], [2, 1, 3], 'Free Size counted in L, XL and XXL');
+  eq(ch.mapped.map((m) => m.from + '>' + m.to), ['Free Size 26-30 (SKU)>L', 'Free Size 30-34 (SKU)>XL', 'Free Size 36-40 (SKU)>XXL'], 'chart says the range came from the SKU');
+  const labs = items.map((x, i) => ({ i, lab: { courier: 'Valmo', rows: [Object.assign({ color: '', order: '' }, x)], orders: [], ids: [] } }));
+  eq(labs.map((x) => L.labelSize(x.lab, true)), ['L', 'XL', 'XXL'], 'labels with Free Size go under L / XL / XXL for download');
+}
+
 console.log(`${checks - fails}/${checks} label checks passed`);
 if (fails) process.exit(1);
