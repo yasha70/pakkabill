@@ -78,17 +78,23 @@ bar so bills stay one tap away on a phone. The logo opens Home.
 
 ## Home (the app's first screen)
 
-`#/dashboard` (`dash.js`, `window.pbHomeMount`) is where the app opens on a phone or a laptop, and
-where the PakkaBill mark and the Home tab lead. It shows, from this device only:
+`#/dashboard` (`dash.js`, `window.pbHomeMount`) is where the website opens, for everyone, on a phone or
+a laptop: opening `/` with no page in the address always lands here. It is kept short on purpose:
 
-- a greeting with the open shop's name and three quick buttons: Check my profit, New bill, Sort labels;
-- Meesho profit: the profit Profit & Loss last showed for the seller's own files (`pnl.html` saves
-  it as `hisaab:last`: amount, margin, period; never for the sample data), or a button to upload;
-- Billing this month: billed, to collect (every unpaid bill) and the three newest bills;
-- every tool as a tile, the account (Sign up / Log in, or the plan and My account), Help and the app.
+- a greeting ("Welcome to PakkaBill" and one line on what it does, for someone new);
+- the four main tools: Check my profit, New bill, Sort labels, Low shipping photo, and an
+  "All tools" link to the full list;
+- Your numbers, only when there are any: the Meesho profit Profit & Loss last showed for the seller's
+  own files (`pnl.html` saves it as `hisaab:last`, never for the sample data), billed this month and
+  money to collect;
+- Safe to use: four plain facts from the privacy policy (files stay on the device, no ads or selling
+  of data, profit matched to Meesho's payments, help in English and Hindi), the business name,
+  address, email and phone saved in the admin panel (Settings, Business details), and the policy links;
+- the account (Sign up / Log in on a phone; on a laptop the side menu already offers them), Help and
+  the app.
 
-It is not the website's home page (`#/home`, below), which is for visitors who have not started yet.
-The Android app has its own screens and does not use this page.
+The website's own home page (about PakkaBill, pricing, questions) is at `/home` and `#/home`, and
+"About PakkaBill" on Home opens it. The Android app has its own screens and does not use this page.
 
 ## Look and design
 
@@ -126,16 +132,15 @@ and clear messages with a button to the right next step (wrong tab, wrong passwo
 
 ## Home page
 
-`index.html` starts with the home page (`#pb-home`, between the `<!--pb-home-->` markers; edit
+`index.html` starts with the website's home page (`#pb-home`, between the `<!--pb-home-->` markers; edit
 `design/home.html` and `design/home.css`, then run `python3 design/build.py`): a top bar with Log in
 and Sign up, what PakkaBill does, four plain facts, the tools, three steps, real screens with sample
 data (`img/home-*.webp`), Free and Pro with prices and trial days read from `/api/config`, questions,
 and a footer with the tools, company and legal links and the business name, address, email and phone
 saved in the admin panel (Settings → Business details), in English and Hindi (the choice is
-saved as `hisaab:lang`, so the P&L and Labels tools open in the same language). It shows at `/` only to
-first-time visitors; anyone who has used the app on that device, the installed app, the Android app
-and links to a tool (`/#/pnl`) go straight to the app. `/home`, `/?home=1` and `#/home` (Tools →
-Home page, My account) always show it. Share preview image: `img/og.jpg` (1200×630).
+saved as `hisaab:lang`, so the P&L and Labels tools open in the same language). It shows at `/home`
+(`/?home=1`) and `#/home`; the website itself opens on the app's Home screen (above). Share preview image: `img/og.jpg`
+(1200×630).
 
 ## OTP sign-up (off until you turn it on in the admin panel)
 
