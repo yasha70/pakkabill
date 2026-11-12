@@ -198,5 +198,22 @@ eq(['26', '28', '30', '31', '32', '34', '35', '36', '38', '40', 'L', '2XL', 'Fre
   ok(!L.isMixed({ rows: [{ sku: 'all color 8.', size: '32', qty: 1 }, { sku: 'All color 8', size: '32', qty: 1 }] }), 'two spellings of one SKU and size are not a two-product order');
 }
 
+/* 13. blouse labels sorted as L / XL / XXL, and one size picked for download */
+{
+  eq(['Free Size 26-30', 'Free Size (26-30)', 'FREE SIZE 26 TO 30', 'Free-Size: 30-34', 'Free Size 30 - 34', 'Free Size 36-40', '28', '30', '32', '36'].map(L.blouseSize),
+    ['L', 'L', 'L', 'XL', 'XL', 'XXL', 'L', 'L', 'XL', 'XXL'], 'free size 26-30 is L, 30-34 is XL, 36-40 is XXL');
+  const lab = (i, sku, size) => ({ i, lab: { courier: 'Valmo', rows: [{ sku, size, qty: 1, color: '', order: '' }], orders: [], ids: [] } });
+  const labs = [lab(0, 'B1', 'Free Size 36-40'), lab(1, 'B1', '30'), lab(2, 'B1', 'Free Size 30-34'), lab(3, 'B1', 'Free Size 26-30'), lab(4, 'B1', '32'), lab(5, 'A1', '38'), lab(6, 'A1', '28')];
+  eq(L.sortLabels(labs, { by: 'size', courier: false, mixedLast: true, blouse: true }).map((x) => x.lab.rows[0].sku + ' ' + x.lab.rows[0].size),
+    ['A1 28', 'B1 Free Size 26-30', 'B1 30', 'B1 Free Size 30-34', 'B1 32', 'A1 38', 'B1 Free Size 36-40'], 'size then SKU: all L, then all XL, then all XXL');
+  eq(L.sortLabels(labs, { by: 'sku', courier: false, mixedLast: true, blouse: true }).map((x) => x.lab.rows[0].sku + ' ' + x.lab.rows[0].size),
+    ['A1 28', 'A1 38', 'B1 Free Size 26-30', 'B1 30', 'B1 Free Size 30-34', 'B1 32', 'B1 Free Size 36-40'], 'SKU then size: L, XL, XXL inside each SKU');
+  eq(labs.map((x) => L.labelSize(x.lab, true)), ['XXL', 'L', 'XL', 'L', 'XL', 'XXL', 'L'], 'each label is packed as one size');
+  eq(L.labelSize(lab(0, 'B1', 'Free Size 36-40').lab, false), 'FREE SIZE 36-40', 'without blouse sizes a label keeps its own size');
+  eq(L.labelSize({ rows: [{ sku: 'A', size: '28', qty: 1 }, { sku: 'B', size: '36', qty: 1 }] }, true), '', 'two products in different sizes: mixed');
+  eq(L.labelSize({ rows: [{ sku: 'A', size: '28', qty: 1 }, { sku: 'B', size: 'Free Size 26-30', qty: 1 }] }, true), 'L', 'two products both L: L');
+  eq(L.pickList(labs, 'sku', true).map((r) => r.sku + ' ' + r.size + ' ' + r.pcs), ['A1 L 1', 'A1 XXL 1', 'B1 L 2', 'B1 XL 2', 'B1 XXL 1'], 'pick list in L / XL / XXL');
+}
+
 console.log(`${checks - fails}/${checks} label checks passed`);
 if (fails) process.exit(1);

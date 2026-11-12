@@ -448,12 +448,22 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   }
   var coll = (typeof Intl !== 'undefined' && Intl.Collator) ? new Intl.Collator('en', { numeric: true, sensitivity: 'base' }) : null;
   function skuCmp(a, b) { a = skuKey(a); b = skuKey(b); return coll ? coll.compare(a, b) : (a < b ? -1 : a > b ? 1 : 0); }
-  function itemCmp(by) {
-    return function (a, b) { return by === 'size' ? (sizeCmp(a.size, b.size) || skuCmp(a.sku, b.sku)) : (skuCmp(a.sku, b.sku) || sizeCmp(a.size, b.size)); };
+  // blouse: sort inch sizes by their letter size (26, 28 and Free Size 26-30 all as L), then by the inches
+  function itemCmp(by, blouse) {
+    var g = function (r) { return (blouse && blouseSize(r.size)) || r.size; };
+    return function (a, b) {
+      var s = sizeCmp(g(a), g(b)), k = skuCmp(a.sku, b.sku);
+      return (by === 'size' ? (s || k) : (k || s)) || sizeCmp(a.size, b.size);
+    };
   }
-  function isMixed(lab) {
-    var k = {}; lab.rows.forEach(function (r) { k[skuKey(r.sku) + SEP + canonSize(r.size)] = 1; });
+  function isMixed(lab, blouse) {
+    var k = {}; lab.rows.forEach(function (r) { k[skuKey(r.sku) + SEP + ((blouse && blouseSize(r.size)) || canonSize(r.size))] = 1; });
     return Object.keys(k).length > 1;
+  }
+  // the one size a label is packed as ('L', 'XL', 'Free Size'…); '' when its products are in different sizes
+  function labelSize(lab, blouse) {
+    var k = {}; lab.rows.forEach(function (r) { k[(blouse && blouseSize(r.size)) || showSize(canonSize(r.size)) || '-'] = 1; });
+    var ks = Object.keys(k); return ks.length === 1 ? ks[0] : '';
   }
   function courierOrder(labs) {
     var n = {}; labs.forEach(function (L) { var c = L.lab.courier || 'Other'; n[c] = (n[c] || 0) + 1; });
@@ -461,10 +471,10 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     var r = {}; names.forEach(function (c, i) { r[c] = i; });
     return { rank: r, names: names, count: n };
   }
-  // labs: [{lab, i}] -> sorted copy. o: {by:'sku'|'size', courier:bool, mixedLast:bool}
+  // labs: [{lab, i}] -> sorted copy. o: {by:'sku'|'size', courier:bool, mixedLast:bool, blouse:bool}
   function sortLabels(labs, o) {
-    var ic = itemCmp(o.by), co = courierOrder(labs);
-    var a = labs.map(function (L) { return { L: L, items: L.lab.rows.slice().sort(ic), mixed: isMixed(L.lab) ? 1 : 0, c: co.rank[L.lab.courier || 'Other'] }; });
+    var bl = o.blouse === true, ic = itemCmp(o.by, bl), co = courierOrder(labs);
+    var a = labs.map(function (L) { return { L: L, items: L.lab.rows.slice().sort(ic), mixed: isMixed(L.lab, bl) ? 1 : 0, c: co.rank[L.lab.courier || 'Other'] }; });
     a.sort(function (p, q) {
       if (o.courier && p.c !== q.c) return p.c - q.c;
       if (o.mixedLast && p.mixed !== q.mixed) return p.mixed - q.mixed;
@@ -475,11 +485,11 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     return a.map(function (x) { return x.L; });
   }
   // SKU x size totals for packing
-  function pickList(labs, by) {
+  function pickList(labs, by, blouse) {
     var m = {}, sp = {}, ic = itemCmp(by || 'sku');
     labs.forEach(function (L) {
       L.lab.rows.forEach(function (r) {
-        var c = canonSize(r.size), k = skuKey(r.sku) + SEP + c;
+        var c = (blouse && blouseSize(r.size)) || canonSize(r.size), k = skuKey(r.sku) + SEP + c;
         if (!m[k]) m[k] = { sku: r.sku, size: showSize(c) || r.size, pcs: 0, orders: 0 };
         m[k].pcs += r.qty; m[k].orders += 1;
         var g = skuKey(r.sku); (sp[g] = sp[g] || {})[r.sku] = (sp[g][r.sku] || 0) + 1;
@@ -492,8 +502,8 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
 
   /* ---------------- packing chart ---------------- */
   /* Blouse sizes are bust sizes in inches; sellers pack them as letter sizes: 26 to 30 is L, 32 to 34 XL,
-     36 to 40 XXL (31 and 35 go up to the next). A free-size range counts by its middle ("Free-Size: 30-34"
-     is 32, so XL); "38 Alterable" is 38. */
+     36 to 40 XXL (31 and 35 go up to the next). A free-size range counts by its middle, so "Free Size 26-30"
+     is L, "Free-Size: 30-34" is XL and "Free Size 36-40" is XXL; "38 Alterable" is 38. */
   var BLOUSE = [[26, 31, 'L'], [31, 35, 'XL'], [35, 40.5, 'XXL']];
   function blouseSize(sz) {
     var c = canonSize(sz);
@@ -538,7 +548,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   }
 
   root.PBL = { words: words, lines: lines, parseLabel: parseLabel, parseManifest: parseManifest, checkManifest: checkManifest, canonSize: canonSize,
-    showSize: showSize, sizeCmp: sizeCmp, skuCmp: skuCmp, itemCmp: itemCmp, sortLabels: sortLabels, pickList: pickList, isMixed: isMixed, courierOrder: courierOrder,
+    showSize: showSize, sizeCmp: sizeCmp, skuCmp: skuCmp, itemCmp: itemCmp, sortLabels: sortLabels, pickList: pickList, isMixed: isMixed, labelSize: labelSize, courierOrder: courierOrder,
     skuKey: skuKey, pageKind: pageKind, manifestPage: manifestPage, pickCheck: pickCheck, blouseSize: blouseSize, looksBlouse: looksBlouse, packChart: packChart };
 })(typeof window !== 'undefined' ? window : this);
 </script>
@@ -549,7 +559,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   'use strict';
   var L = window.PBL, words = L.words, lines = L.lines, parseLabel = L.parseLabel, parseManifest = L.parseManifest, checkManifest = L.checkManifest,
     canonSize = L.canonSize, showSize = L.showSize, itemCmp = L.itemCmp, sortLabels = L.sortLabels, pickList = L.pickList, isMixed = L.isMixed, courierOrder = L.courierOrder,
-    skuKey = L.skuKey, pageKind = L.pageKind, pickCheck = L.pickCheck, looksBlouse = L.looksBlouse, packChart = L.packChart, skuCmp = L.skuCmp;
+    skuKey = L.skuKey, pageKind = L.pageKind, pickCheck = L.pickCheck, looksBlouse = L.looksBlouse, packChart = L.packChart, skuCmp = L.skuCmp, labelSize = L.labelSize;
 
   /* ---------------- language ---------------- */
   var LANG = 'en';
@@ -643,6 +653,10 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     'Pieces of each SKU in every size, with totals, for packing.': 'पैकिंग के लिए हर SKU के हर साइज़ के पीस, कुल जोड़ के साथ।',
     'Make a packing chart from the Meesho manifest, put your labels in SKU and size order, and print everything as one PDF.': 'Meesho मैनिफ़ेस्ट से पैकिंग चार्ट बनाएँ, लेबल को SKU और साइज़ के क्रम में लगाएँ, और सब कुछ एक PDF में प्रिंट करें।',
     'Add both PDFs here. With only the manifest you still get the packing chart. PakkaBill reads the SKU, size, quantity and courier of every parcel.': 'दोनों PDF यहाँ जोड़ें। सिर्फ़ मैनिफ़ेस्ट से भी पैकिंग चार्ट बन जाता है। PakkaBill हर पार्सल का SKU, साइज़, मात्रा और कूरियर पढ़ता है।',
+    'Labels to download': 'कौन से लेबल डाउनलोड करें', 'All sizes': 'सभी साइज़', 'Mixed sizes': 'मिले-जुले साइज़',
+    'Only size {x}: {n} labels.': 'सिर्फ़ साइज़ {x}: {n} लेबल।',
+    'Pick L, XL or XXL to download only those labels. Blouse sizes: 26–30 = L, 30–34 = XL, 36–40 = XXL.': 'सिर्फ़ उन्हीं लेबल को डाउनलोड करने के लिए L, XL या XXL चुनें। ब्लाउज़ साइज़: 26–30 = L, 30–34 = XL, 36–40 = XXL।',
+    'Pick a size to download only those labels.': 'सिर्फ़ उसी साइज़ के लेबल डाउनलोड करने के लिए साइज़ चुनें।',
     'Pick how to arrange them and download one PDF: packing chart, labels in order, then the manifest.': 'क्रम चुनें और एक PDF डाउनलोड करें: पैकिंग चार्ट, क्रम में लेबल, फिर मैनिफ़ेस्ट।'
   };
   // t('Reading {n} of {n} pages…', 3, 10); in Hindi {n1}/{n2} pick numbers by position. {x} is plain text.
@@ -655,7 +669,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   /* ---------------- state ---------------- */
   var OPTS_KEY = 'pakkabill:labels.opts';
   var S = { files: [], busy: null, out: null, seq: 0 };
-  S.opts = { by: 'sku', courier: true, mixedLast: true, mode: 'full', pick: true, man: 'end', blouse: null, chartSort: 'most', chartCourier: 'all' };
+  S.opts = { by: 'sku', courier: true, mixedLast: true, mode: 'full', pick: true, man: 'end', blouse: null, chartSort: 'most', chartCourier: 'all', only: 'all' };
   try { var so = JSON.parse(localStorage.getItem(OPTS_KEY) || 'null'); if (so) for (var k in S.opts) if (so[k] != null) S.opts[k] = so[k]; } catch (e) { /* ignore */ }
   function saveOpts() { try { localStorage.setItem(OPTS_KEY, JSON.stringify(S.opts)); } catch (e) { /* ignore */ } }
 
@@ -702,7 +716,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   }
   function chartFor(src, courier) {
     var items = courier && courier !== 'all' ? src.items.filter(function (it) { return it.courier === courier; }) : src.items;
-    var ch = packChart(items, { blouse: blouseOn(src.items), sort: S.opts.chartSort });
+    var ch = packChart(items, { blouse: src.blouse != null ? src.blouse : blouseOn(src.items), sort: S.opts.chartSort });
     ch.parcels = courier && courier !== 'all' ? parcelsOf(items) : src.parcels;
     return ch;
   }
@@ -778,10 +792,37 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     S.files = S.files.filter(function (f) { if (f.id === id && f.doc) f.doc.destroy(); return f.id !== id; });
     S.out = null; render();
   }
-  function ordered() {
-    var labs = labelPages().map(function (p, i) { p.i = i; return p; });
-    return sortLabels(labs, S.opts);
+  function labItems(labs) {
+    var it = [];
+    labs.forEach(function (p) { p.lab.rows.forEach(function (r) { it.push({ sku: r.sku, size: r.size, qty: r.qty, courier: p.lab.courier || 'Other', pid: p.fid + ':' + p.pi }); }); });
+    return it;
   }
+  // blouse sizes as L / XL / XXL for the labels too (same tick as the packing chart)
+  function labBlouse() { return blouseOn(labItems(labelPages())); }
+  // every label, in print order
+  function ordered() {
+    var labs = labelPages().map(function (p, i) { p.i = i; return p; }), o = {};
+    for (var k in S.opts) o[k] = S.opts[k];
+    o.blouse = labBlouse();
+    return sortLabels(labs, o);
+  }
+  // sizes the labels are packed in: [[size, labels]] in size order, '' (2+ sizes on one label) last
+  function labelSizes(labs) {
+    var bl = labBlouse(), n = {};
+    labs.forEach(function (p) { var z = labelSize(p.lab, bl); n[z] = (n[z] || 0) + 1; });
+    return Object.keys(n).sort(function (a, b) { return (a === '') - (b === '') || L.sizeCmp(a, b); }).map(function (z) { return [z, n[z]]; });
+  }
+  // the size picked under "Labels to download", or 'all' when no label has it
+  function onlySize(labs) {
+    var v = S.opts.only; if (v == null || v === 'all') return 'all';
+    return labelSizes(labs).some(function (x) { return x[0] === v; }) ? v : 'all';
+  }
+  // the labels that go in the PDF: all of them, or only one size
+  function picked(labs) {
+    var v = onlySize(labs), bl = labBlouse();
+    return v === 'all' ? labs : labs.filter(function (p) { return labelSize(p.lab, bl) === v; });
+  }
+  function sizeName(z) { return z === '' ? t('Mixed sizes') : z; }
 
   /* ---------------- making the PDF ---------------- */
   var LW = 288, LH = 432; // 4 x 6 inch
@@ -849,11 +890,11 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     while (s.length > 1 && font.widthOfTextAtSize(s + '...', size) > max) s = s.slice(0, -1);
     return s + '...';
   }
-  function drawPick(P, out, fonts, W, H, labs, chk) {
+  function drawPick(P, out, fonts, W, H, labs, chk, blouse) {
     var F = fonts.r, B = fonts.b, small = W < 400;
     var M = small ? 14 : 40, fs = small ? 8 : 10, rh = small ? 13 : 18, ink = P.rgb(0.13, 0.11, 0.25), mute = P.rgb(0.42, 0.40, 0.52), brand = P.rgb(0.357, 0.247, 0.902);
     var tint = P.rgb(0.93, 0.91, 1), rule = P.rgb(0.84, 0.81, 0.93);
-    var list = pickList(labs, 'sku');
+    var list = pickList(labs, 'sku', blouse);
     var pcs = list.reduce(function (s, r) { return s + r.pcs; }, 0), skus = {};
     list.forEach(function (r) { skus[skuKey(r.sku)] = 1; });
     var co = courierOrder(labs), today = new Date();
@@ -1000,7 +1041,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   var RANGE = { L: '26-30', XL: '32-34', XXL: '36-40' };
   // what the designed chart pages show: from the manifest (with each courier) or from the labels in the sorted PDF
   function chartDoc(src, forLabels, chk) {
-    var man = src.man, bl = blouseOn(src.items), all = chartFor(src, 'all'), cs = couriersOf(src.items), pc = !forLabels && src.from === 'man' ? pickCheck(man) : null;
+    var man = src.man, bl = src.blouse != null ? src.blouse : blouseOn(src.items), all = chartFor(src, 'all'), cs = couriersOf(src.items), pc = !forLabels && src.from === 'man' ? pickCheck(man) : null;
     var pct = function (v) { return all.grand ? Math.round(1000 * v / all.grand) / 10 + '%' : '0%'; };
     var kp = [{ label: 'PIECES TO PACK', value: all.grand, note: (all.parcels != null ? all.parcels + (forLabels ? ' labels' : ' parcels') + '  ·  ' : '') + all.rows.length + ' SKUs' }];
     if (bl) ['L', 'XL', 'XXL'].forEach(function (k) { kp.push({ label: 'SIZE ' + k, value: all.totals[k] || 0, note: pct(all.totals[k] || 0) + '  ·  ' + RANGE[k] + ' in', size: k }); });
@@ -1016,7 +1057,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       kicker: 'Ready to pack,', title: 'Packing chart', pill: forLabels ? 'LABELS IN ORDER' : 'PACKING CHART', date: date, blouse: bl,
       tagline: forLabels ? 'Packing chart for your sorted Meesho labels' : 'Packing chart from your Meesho manifest',
       sub: (bl ? 'Blouse sizes as L / XL / XXL' : 'Every size as written') + '  ·  ' + date,
-      forName: (man && man.supplier) || '', forLine: forLabels ? all.parcels + ' labels sorted by SKU and size  ·  ' + cs.names.length + (cs.names.length === 1 ? ' courier' : ' couriers')
+      forName: (man && man.supplier) || '', forLine: forLabels ? all.parcels + ' labels sorted by SKU and size' + (src.only != null && src.only !== 'all' ? ' (size ' + (src.only || 'mixed') + ' only)' : '') + '  ·  ' + cs.names.length + (cs.names.length === 1 ? ' courier' : ' couriers')
         : (src.from === 'man' ? 'From the Meesho manifest' : src.from === 'labels' ? 'From the labels' : 'From the picklist') + (all.parcels != null ? '  ·  ' + all.parcels + ' parcels' : '') + (cs.names.length ? '  ·  ' + cs.names.length + (cs.names.length === 1 ? ' courier' : ' couriers') : ''),
       main: all, kpis: kp, notes: notes, tableSub: 'Most pieces first' + (forLabels ? '. The labels follow in SKU and size order.' : '. One table for each courier follows.'),
       sections: forLabels || cs.names.length < 2 ? [] : cs.names.map(function (c) { var ch = chartFor(src, c); return { title: c, sub: ch.parcels + ' parcels  ·  ' + ch.grand + ' pieces', chart: ch }; }),
@@ -1073,7 +1114,9 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   }
 
   function build() {
-    var P = window.PDFLib, labs = ordered(), bad = badPages(), man = manPages(), o = S.opts, labelOnly = o.mode === 'label';
+    var P = window.PDFLib, allLabs = ordered(), only = onlySize(allLabs), labs = picked(allLabs), man = manPages(), o = S.opts, labelOnly = o.mode === 'label';
+    // one size only: just those labels (pages that could not be read have no size, so they stay out)
+    var bad = only === 'all' ? badPages() : [];
     if (!labs.length) { toast(t('No labels found yet. Add the label PDF from Meesho.')); return Promise.resolve(null); }
     S.busy = { msg: t('Making your PDF…'), done: 0, of: 1 }; render();
     var out, fonts, copied = {};
@@ -1100,16 +1143,16 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       var first = labs[0], W = labelOnly ? LW : first.view[2] - first.view[0], H = labelOnly ? LH : first.view[3] - first.view[1];
       if (first.rot % 180) { var tmp = W; W = H; H = tmp; }
       if (o.pick) {
-        var items = [], chk = manPages().length ? checkManifest(labs, manInfo()) : null;
-        labs.forEach(function (p) { p.lab.rows.forEach(function (r) { items.push({ sku: r.sku, size: r.size, qty: r.qty, courier: p.lab.courier || 'Other', pid: p.fid + ':' + p.pi }); }); });
-        var bl = blouseOn(items), ch = packChart(items, { blouse: bl, sort: o.chartSort }), small = W < 400;
+        // the manifest check is for all labels; with one size only the rest would show as missing
+        var items = labItems(labs), chk = manPages().length && only === 'all' ? checkManifest(labs, manInfo()) : null;
+        var bl = labBlouse(), ch = packChart(items, { blouse: bl, sort: o.chartSort }), small = W < 400;
         // the designed chart (labels-pdf.js); plain pages when it did not load, a plain list when there are very many sizes
-        if (window.PBPDF && ch.cols.length <= (small ? 9 : 12)) return window.PBPDF.draw(P, out, chartDoc({ from: 'labels', items: items, man: manInfo(), parcels: labs.length }, true, chk), W, H);
-        if (ch.cols.length > (small ? 5 : 9)) drawPick(P, out, fonts, W, H, labs, chk);
+        if (window.PBPDF && ch.cols.length <= (small ? 9 : 12)) return window.PBPDF.draw(P, out, chartDoc({ from: 'labels', items: items, man: manInfo(), parcels: labs.length, blouse: bl, only: only }, true, chk), W, H);
+        if (ch.cols.length > (small ? 5 : 9)) drawPick(P, out, fonts, W, H, labs, chk, bl);
         else {
           var cw = chartWriter(P, out, fonts, W, H, { title: 'Packing chart', right: fmtDateEn(new Date()) }), co = courierOrder(labs);
           cw.newPage();
-          cw.line(labs.length + (labs.length === 1 ? ' order' : ' orders') + '  -  ' + ch.grand + ' pieces  -  ' + ch.rows.length + ' SKUs', { bold: true });
+          cw.line(labs.length + (labs.length === 1 ? ' order' : ' orders') + (only === 'all' ? '' : ' (size ' + (only || 'mixed') + ' only)') + '  -  ' + ch.grand + ' pieces  -  ' + ch.rows.length + ' SKUs', { bold: true });
           cw.line('Couriers: ' + co.names.map(function (c) { return c + ' ' + co.count[c]; }).join('   '), { color: cw.colors.mute });
           if (chk) cw.line(chk.off.length || chk.extra.length ? 'Manifest: ' + chk.on.length + ' of ' + labs.length + ' labels found' + (chk.extra.length ? ', ' + chk.extra.length + ' listed without a label' : '') : 'Manifest: all ' + labs.length + ' labels are on it', { bold: true, color: chk.off.length || chk.extra.length ? cw.colors.warn : cw.colors.ok });
           cw.gap(0.3);
@@ -1138,8 +1181,8 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       return out.save({ useObjectStreams: true });
     }).then(function (bytes) {
       var d = new Date(), pad = function (n) { return (n < 10 ? '0' : '') + n; };
-      var name = 'meesho-labels-sorted-' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + (labelOnly ? '-4x6' : '') + '.pdf';
-      S.out = { bytes: bytes, blob: new Blob([bytes], { type: 'application/pdf' }), name: name, pages: out.getPageCount() };
+      var name = 'meesho-labels-sorted-' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + (only === 'all' ? '' : '-size-' + (only || 'mixed').toLowerCase().replace(/[^a-z0-9]+/g, '-')) + (labelOnly ? '-4x6' : '') + '.pdf';
+      S.out = { bytes: bytes, blob: new Blob([bytes], { type: 'application/pdf' }), name: name, pages: out.getPageCount(), labels: labs.length, only: only };
       S.busy = null; return S.out;
     }).catch(function (e) {
       console.error('label sorter: build failed', e);
@@ -1182,7 +1225,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   };
   function seg(name, val, items) {
     return '<div class="seg" role="group">' + items.map(function (it) {
-      return '<button type="button" data-act="opt" data-k="' + name + '" data-v="' + it[0] + '" aria-pressed="' + (String(val) === String(it[0])) + '"' + (it[3] ? ' disabled' : '') + '>' + esc(t(it[1])) + (it[2] ? '<small>' + esc(t(it[2])) + '</small>' : '') + '</button>';
+      return '<button type="button" data-act="opt" data-k="' + name + '" data-v="' + esc(it[0]) + '" aria-pressed="' + (String(val) === String(it[0])) + '"' + (it[3] ? ' disabled' : '') + '>' + esc(t(it[1])) + (it[2] ? '<small>' + esc(t(it[2])) + '</small>' : '') + '</button>';
     }).join('') + '</div>';
   }
   function chk(name, val, label, help) {
@@ -1252,6 +1295,8 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     // options and download
     h += '<section class="card"><h2>' + esc(t('How to arrange')) + '</h2><div class="opts">' +
       '<div class="opt"><span class="lbl">' + esc(t('Order labels by')) + '</span>' + seg('by', o.by, [['sku', 'SKU, then size', 'All sizes of a product together'], ['size', 'Size, then SKU', 'All S together, then all M…']]) + '</div>' +
+      chk('blouse', labBlouse(), 'Blouse sizes as L / XL / XXL', '26–30 = L, 32–34 = XL, 36–40 = XXL. Free-size ranges count by their middle.') +
+      onlyHtml(labs) +
       (co.names.length > 1 ? chk('courier', o.courier, 'Keep each courier’s labels together', 'Handy when couriers pick up at different times.') : '') +
       chk('mixedLast', o.mixedLast, 'Orders with 2 or more products at the end', 'These need a bigger packet and more checking.') +
       '<div class="opt"><span class="lbl">' + esc(t('Page')) + '</span>' + seg('mode', o.mode, [['full', 'Full page', 'Label and invoice, as Meesho gives it'], ['label', 'Label only, 4×6 inch', 'For thermal label printers']]) + '</div>' +
@@ -1260,9 +1305,11 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       (man && o.mode === 'label' && o.man !== 'none' ? '<p class="fine" style="margin:6px 0 0">' + esc(t('Manifest pages keep their own page size.')) + '</p>' : '') + '</div>' +
       '</div><div class="acts"><button type="button" class="btn pri big" data-act="make"' + (S.busy ? ' disabled' : '') + '>' + ICO.dl + esc(t('Download sorted PDF')) + '</button>' +
       (canShare() ? '<button type="button" class="btn big" data-act="share"' + (S.busy ? ' disabled' : '') + '>' + ICO.share + esc(t('Share PDF')) + '</button>' : '') + '</div>';
-    if (S.out) h += '<div class="note ok done" role="status"><b>' + esc(t('Your PDF is ready: {n} pages.', S.out.pages)) + '</b><button type="button" class="btn" style="margin-top:8px" data-act="again">' + ICO.dl + esc(t('Download again')) + '</button><div class="thumbs" id="thumbs" aria-label="' + esc(t('Preview')) + '"></div></div>';
+    if (S.out) h += '<div class="note ok done" role="status"><b>' + esc(t('Your PDF is ready: {n} pages.', S.out.pages)) + '</b>' +
+      (S.out.only !== 'all' ? '<span class="fine" style="display:block">' + esc(t('Only size {x}: {n} labels.', sizeName(S.out.only), S.out.labels)) + '</span>' : '') + '<button type="button" class="btn" style="margin-top:8px" data-act="again">' + ICO.dl + esc(t('Download again')) + '</button><div class="thumbs" id="thumbs" aria-label="' + esc(t('Preview')) + '"></div></div>';
     h += '</section>';
-    h += '<section class="card"><h2>' + esc(t('Print order')) + '</h2>' + orderHtml(labs) + '</section>';
+    var pk = picked(labs);
+    h += '<section class="card"><h2>' + esc(t('Print order')) + '</h2>' + (pk.length < labs.length ? '<p class="sub">' + esc(t('Only size {x}: {n} labels.', sizeName(onlySize(labs)), pk.length)) + '</p>' : '') + orderHtml(pk) + '</section>';
     return h;
   }
   // SKU x size table like a packing sheet: L / XL / XXL for blouses, totals per SKU and size
@@ -1289,15 +1336,24 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       '<button type="button" class="btn" data-act="chartcopy">' + ICO.copy + esc(t('Copy for WhatsApp')) + '</button></div>';
     return h + '</section>';
   }
+  // "Labels to download": all, or only one size (L / XL / XXL for blouses), to print each size on its own
+  function onlyHtml(labs) {
+    var zs = labelSizes(labs); if (zs.length < 2) return '';
+    var bl = labBlouse(), items = [['all', 'All sizes', plural(labs.length, '1 label', '{n} labels')]].concat(zs.map(function (x) {
+      return [x[0], sizeName(x[0]), plural(x[1], '1 label', '{n} labels')];
+    }));
+    return '<div class="opt"><span class="lbl">' + esc(t('Labels to download')) + '</span>' + seg('only', onlySize(labs), items) +
+      '<p class="fine" style="margin:6px 0 0">' + esc(t(bl ? 'Pick L, XL or XXL to download only those labels. Blouse sizes: 26–30 = L, 30–34 = XL, 36–40 = XXL.' : 'Pick a size to download only those labels.')) + '</p></div>';
+  }
   function orderHtml(labs) {
     var o = S.opts, MAX = 400, h = '<div class="tw"><table class="t ord"><thead><tr><th class="n">#</th><th>SKU</th><th>' + esc(t('Size')) + '</th><th class="n">' + esc(t('Qty')) + '</th></tr></thead><tbody>';
-    var lastC = null, n = 0, ic = itemCmp(o.by), many = courierOrder(labs).names.length > 1;
+    var bl = labBlouse(), lastC = null, n = 0, ic = itemCmp(o.by, bl), many = courierOrder(labs).names.length > 1;
     labs.slice(0, MAX).forEach(function (p) {
-      var c = p.lab.courier || 'Other', mixed = isMixed(p.lab);
+      var c = p.lab.courier || 'Other', mixed = isMixed(p.lab, bl);
       if (o.courier && many && c !== lastC) { h += '<tr class="grp"><td colspan="4">' + esc(c === 'Other' ? t('Other') : c) + '</td></tr>'; lastC = c; }
       var rows = p.lab.rows.slice().sort(ic);
       n++;
-      h += '<tr><td class="n">' + n + '</td><td class="sku">' + rows.map(function (r) { return esc(r.sku); }).join('<br>') + (mixed ? ' <span class="pill w">' + esc(t('2+ products')) + '</span>' : '') + '<span class="on">' + esc(c === 'Other' ? t('Other') : c) + (p.lab.orders[0] ? ' · ' + esc(p.lab.orders[0]) : '') + '</span></td><td>' + rows.map(function (r) { return esc(showSize(canonSize(r.size)) || r.size || '-'); }).join('<br>') +
+      h += '<tr><td class="n">' + n + '</td><td class="sku">' + rows.map(function (r) { return esc(r.sku); }).join('<br>') + (mixed ? ' <span class="pill w">' + esc(t('2+ products')) + '</span>' : '') + '<span class="on">' + esc(c === 'Other' ? t('Other') : c) + (p.lab.orders[0] ? ' · ' + esc(p.lab.orders[0]) : '') + '</span></td><td>' + rows.map(function (r) { var z = showSize(canonSize(r.size)) || r.size || '-', g = bl && L.blouseSize(r.size); return esc(z) + (g && g !== canonSize(r.size) ? ' <span class="pill">' + esc(g) + '</span>' : ''); }).join('<br>') +
         '</td><td class="n">' + rows.map(function (r) { return r.qty > 1 ? '<b>×' + r.qty + '</b>' : '1'; }).join('<br>') + '</td></tr>';
     });
     h += '</tbody></table>';
