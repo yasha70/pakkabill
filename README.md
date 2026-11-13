@@ -3,13 +3,14 @@
 Tools for Meesho sellers, with GST billing on the side. One static page that works offline.
 
 The app opens on Home. The Meesho tools are the main navigation (sidebar: Home, then the group
-"Meesho tools"; phone tabs Home · Profit · + New bill · Labels · Profile); Meesho Lens sits under "More tools". Billing is one compact tab: every billing page (Bills, Parties, Items, GST summary,
+"Meesho tools"; phone tabs Home · Profit · + New bill · Labels · Profile); Meesho Lens and the Label cropper sit under "More tools". Billing is one compact tab: every billing page (Bills, Parties, Items, GST summary,
 GSTR-1) shows a small bar of chips to move between them, with New bill; the Profile page shows the same
 bar so bills stay one tap away on a phone. The logo opens Home.
 
 - Meesho P&L: profit and loss and payment reconciliation from Meesho's payment report, with Excel and PDF.
 - Labels & packing chart: a packing chart from Meesho's manifest (blouse sizes as L / XL / XXL), and shipping labels in SKU and size order, as one PDF.
 - Meesho Lens: competitor prices and sales.
+- Label cropper: cuts the empty white space under shipping labels in a PDF.
 - Meesho listing: the bulk catalog upload Excel from catalogue photos and a Meesho template.
 - Billing: bills with Original / Duplicate / Triplicate copies, CGST+SGST or IGST by place of supply,
   the garment 5% / 18% slab, UPI QR, PDF, printing and WhatsApp sharing; GSTR-1 JSON built from
@@ -480,6 +481,21 @@ changes (checked every 30 s, when the app is hidden, and before switching shops)
   "Changes from your other device are ready" bar waits for the customer.
 - Restoring always works, even after Pro ends; only uploads need Pro (or the admin's free setting).
 - The admin sees each customer's cloud use (shops, MB) in Customers.
+
+## Label cropper
+
+`#/crop` (under "More tools" in the side menu and the All tools sheet; not in the phone tabs or on Home)
+cuts the empty white space under shipping labels. Each page is drawn on a canvas, the lowest
+non-white pixels are found (a row needs 2+ dark pixels, so specks are ignored) and the page's
+MediaBox / CropBox / TrimBox / BleedBox / ArtBox are set just below them, with the "Space kept" gap
+(0–40 pt). "Also cut top and sides" trims all four edges. Nothing is redrawn, so text and barcodes stay
+sharp. Rotated pages are cut along their visual bottom; blank pages are left as they are; a page is
+never cut below 18 pt. Files are done one at a time (phones), the result can be downloaded, shared,
+or joined into one PDF, and changing a setting crops every file again.
+
+- `cropper.js` the page (`window.pbCropMount`) and the engine (`window.PBCrop`, tested in Node by
+  `test/cropper-audit.js`). It loads `labels-libs.js` (PDF.js + pdf-lib) and `pdf.worker.min.js` only
+  when the page opens. Files never leave the device.
 
 ## Meesho Lens (competitor insights)
 
