@@ -62,5 +62,36 @@ eq(E.pdfRect(view, 90, { x0: 0, y0: 0, x1: 842, y1: 100 }), [15, 30, 100, 842], 
 eq(E.pdfRect(view, 180, { x0: 0, y0: 0, x1: 288, y1: 421 }), [15, 30, 288, 421], 'rot 180 keeps the visual top');
 eq(E.pdfRect(view, 270, { x0: 0, y0: 0, x1: 842, y1: 100 }), [203, 30, 100, 842], 'rot 270 keeps the visual top');
 
+
+// exact label sizes: the label fits inside the page with the margin, upright, centred; turned only when much bigger
+eq(E.SIZES['4x4'], [288, 288], '4x4 inch is 288 x 288 pt');
+eq(E.SIZES['4x6'], [288, 432], '4x6 inch is 288 x 432 pt');
+const close = (a, b) => Math.abs(a - b) < 1e-6;
+for (const rot of [0, 90, 180, 270]) {
+  const [vw, vh] = E.visualSize(view, rot);
+  // a tall label in the top part of the page as shown
+  const cut = { x0: 10, y0: 12, x1: Math.min(vw, 10 + 260), y1: 12 + 380 };
+  for (const [OW, OH, name] of [[288, 288, '4x4'], [288, 432, '4x6']]) {
+    const f = E.fitMatrix(view, rot, cut, OW, OH, 6);
+    const pts = [[cut.x0, cut.y0], [cut.x1, cut.y0], [cut.x0, cut.y1], [cut.x1, cut.y1]].map(([x, y]) => E.apply(f.m, ...E.toPdf(view, rot, x, y)));
+    ok(pts.every(([x, y]) => x > 6 - 1e-6 && x < OW - 6 + 1e-6 && y > 6 - 1e-6 && y < OH - 6 + 1e-6), `${name} rot ${rot}: label inside the margin`, JSON.stringify(pts));
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    ok(close((Math.min(...xs) + Math.max(...xs)) / 2, OW / 2) && close((Math.min(...ys) + Math.max(...ys)) / 2, OH / 2), `${name} rot ${rot}: centred`);
+    ok(close(Math.max(...xs) - Math.min(...xs), OW - 12) || close(Math.max(...ys) - Math.min(...ys), OH - 12), `${name} rot ${rot}: as big as fits`);
+    eq(f.turned, false, `${name} rot ${rot}: tall label is not turned`);
+    // upright: the label's top-left (as shown) is at the top-left of the new page
+    const tl = pts[0], br = pts[3];
+    ok(tl[0] < br[0] && tl[1] > br[1], `${name} rot ${rot}: label stays upright`, JSON.stringify([tl, br]));
+    const m = f.m; ok(m[0] * m[3] - m[1] * m[2] > 0, `${name} rot ${rot}: not mirrored`);
+  }
+  // a wide label on a 4x6 page is turned a quarter, and still not mirrored
+  const wide = { x0: 0, y0: 0, x1: Math.min(vw, 280), y1: 120 };
+  const fw = E.fitMatrix(view, rot, wide, 288, 432, 0);
+  eq(fw.turned, true, `rot ${rot}: wide label turned on 4x6`);
+  ok(fw.m[0] * fw.m[3] - fw.m[1] * fw.m[2] > 0, `rot ${rot}: turned label not mirrored`);
+  const c = [[wide.x0, wide.y0], [wide.x1, wide.y1]].map(([x, y]) => E.apply(fw.m, ...E.toPdf(view, rot, x, y)));
+  ok(c.every(([x, y]) => x > -1e-6 && x < 288 + 1e-6 && y > -1e-6 && y < 432 + 1e-6), `rot ${rot}: turned label inside the page`, JSON.stringify(c));
+}
+
 console.log(`${checks - fails}/${checks} checks passed`);
 if (fails) process.exit(1);

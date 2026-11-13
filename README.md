@@ -358,7 +358,7 @@ inch sizes count as letter sizes (26–30 L, 32–34 XL, 36–40 XXL, a free-siz
 rule as the P&L's Returns tab. It shows for all parcels or one courier, and downloads as a PDF (all, then
 each courier), Excel (CSV) or WhatsApp text. With labels only, the chart is made from the labels.
 
-Page: Full page, Label only 4×6 inch, or **Cut empty space** (label and invoice as Meesho made them, the blank
+Page: Full page, Label only 4×6 inch, Label only 4×4 inch (every page exactly 288 × 288 pt), or **Cut empty space** (label and invoice as Meesho made them, the blank
 white area at the bottom of each label page cut off, as in the Label cropper; rotated pages too; manifest pages are
 not cut).
 
@@ -489,7 +489,11 @@ changes (checked every 30 s, when the app is hidden, and before switching shops)
 ## Label cropper
 
 `#/crop` (under "More tools" in the side menu and the All tools sheet; not in the phone tabs or on Home)
-cuts the empty white space under shipping labels. Each page is drawn on a canvas, the lowest
+makes label PDFs print one label per label on thermal printers. **Label size**: 4 × 4 inch (default) or
+4 × 6 inch makes every page exactly that size: the label alone (all sides cut, the Meesho invoice under it left
+out at the "TAX INVOICE" line) is scaled to fit inside the "Margin", turned upright by its text, and clipped so
+nothing else prints (`fitPage` / `PBCrop.fitMatrix`). **Any size** only cuts the empty white space, as below.
+Each page is drawn on a canvas, the lowest
 non-white pixels are found (a row needs 2+ dark pixels, so specks are ignored) and the page's
 MediaBox / CropBox / TrimBox / BleedBox / ArtBox are set just below them, with the "Space kept" gap
 (0–40 pt). "Also cut top and sides" trims all four edges. Nothing is redrawn, so text and barcodes stay

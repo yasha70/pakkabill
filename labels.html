@@ -617,6 +617,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     'Page': 'पेज',
     'Full page': 'पूरा पेज', 'Label and invoice, as Meesho gives it': 'लेबल और बिल, जैसे Meesho देता है',
     'Label only, 4×6 inch': 'सिर्फ़ लेबल, 4×6 इंच', 'For thermal label printers': 'थर्मल लेबल प्रिंटर के लिए',
+    'Label only, 4×4 inch': 'सिर्फ़ लेबल, 4×4 इंच', 'For 4×4 thermal labels, exact size': '4×4 थर्मल लेबल के लिए, सही नाप',
     'Cut empty space': 'खाली जगह काटें', 'Label and invoice, blank white area at the bottom cut off': 'लेबल और बिल, नीचे की खाली सफ़ेद जगह काट दी जाती है', 'Cutting empty space {n} of {n}…': 'खाली जगह काट रहे हैं {n} / {n}…',
     'Add a pick list page at the start': 'शुरू में पिक लिस्ट का पेज जोड़ें',
     'How many pieces of each SKU and size to pack, with tick boxes.': 'हर SKU और साइज़ के कितने पीस पैक करने हैं, टिक बॉक्स के साथ।',
@@ -839,7 +840,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   function sizeName(z) { return z === '' ? t('Mixed sizes') : z; }
 
   /* ---------------- making the PDF ---------------- */
-  var LW = 288, LH = 432; // 4 x 6 inch
+  var LW = 288, LH = 432; // 4 x 6 inch; 4 x 4 inch (288 x 288) for mode 'label4', set in build()
   // Where the label is on the page (PDF points), found by drawing the page and finding the ink above the invoice.
   function labelBox(p) {
     if (p.box) return Promise.resolve(p.box);
@@ -1163,7 +1164,8 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   }
 
   function build() {
-    var P = window.PDFLib, allLabs = ordered(), only = onlySize(allLabs), labs = picked(allLabs), man = manPages(), o = S.opts, labelOnly = o.mode === 'label';
+    var P = window.PDFLib, allLabs = ordered(), only = onlySize(allLabs), labs = picked(allLabs), man = manPages(), o = S.opts, labelOnly = o.mode === 'label' || o.mode === 'label4';
+    LH = o.mode === 'label4' ? 288 : 432;
     // one size only: just those labels (pages that could not be read have no size, so they stay out)
     var bad = only === 'all' ? badPages() : [];
     if (!labs.length) { toast(t('No labels found yet. Add the label PDF from Meesho.')); return Promise.resolve(null); }
@@ -1236,7 +1238,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       return out.save({ useObjectStreams: true });
     }).then(function (bytes) {
       var d = new Date(), pad = function (n) { return (n < 10 ? '0' : '') + n; };
-      var name = 'meesho-labels-sorted-' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + (only === 'all' ? '' : '-size-' + (only || 'mixed').toLowerCase().replace(/[^a-z0-9]+/g, '-')) + (labelOnly ? '-4x6' : o.mode === 'crop' ? '-cropped' : '') + '.pdf';
+      var name = 'meesho-labels-sorted-' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + (only === 'all' ? '' : '-size-' + (only || 'mixed').toLowerCase().replace(/[^a-z0-9]+/g, '-')) + (labelOnly ? (o.mode === 'label4' ? '-4x4' : '-4x6') : o.mode === 'crop' ? '-cropped' : '') + '.pdf';
       S.out = { bytes: bytes, blob: new Blob([bytes], { type: 'application/pdf' }), name: name, pages: out.getPageCount(), labels: labs.length, only: only };
       S.busy = null; return S.out;
     }).catch(function (e) {
@@ -1354,10 +1356,10 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       onlyHtml(labs) +
       (co.names.length > 1 ? chk('courier', o.courier, 'Keep each courier’s labels together', 'Handy when couriers pick up at different times.') : '') +
       chk('mixedLast', o.mixedLast, 'Orders with 2 or more products at the end', 'These need a bigger packet and more checking.') +
-      '<div class="opt"><span class="lbl">' + esc(t('Page')) + '</span>' + seg('mode', o.mode, [['full', 'Full page', 'Label and invoice, as Meesho gives it'], ['label', 'Label only, 4×6 inch', 'For thermal label printers'], ['crop', 'Cut empty space', 'Label and invoice, blank white area at the bottom cut off']]) + '</div>' +
+      '<div class="opt"><span class="lbl">' + esc(t('Page')) + '</span>' + seg('mode', o.mode, [['full', 'Full page', 'Label and invoice, as Meesho gives it'], ['label', 'Label only, 4×6 inch', 'For thermal label printers'], ['label4', 'Label only, 4×4 inch', 'For 4×4 thermal labels, exact size'], ['crop', 'Cut empty space', 'Label and invoice, blank white area at the bottom cut off']]) + '</div>' +
       chk('pick', o.pick, 'Add the packing chart at the start', 'Pieces of each SKU in every size, with totals, for packing.') +
       '<div class="opt"><span class="lbl">' + esc(t('Manifest in the PDF')) + '</span>' + seg('man', o.man, [['end', 'At the end', '', !man], ['start', 'At the start', '', !man], ['none', 'Leave out', '', !man]]) +
-      (man && o.mode === 'label' && o.man !== 'none' ? '<p class="fine" style="margin:6px 0 0">' + esc(t('Manifest pages keep their own page size.')) + '</p>' : '') + '</div>' +
+      (man && (o.mode === 'label' || o.mode === 'label4') && o.man !== 'none' ? '<p class="fine" style="margin:6px 0 0">' + esc(t('Manifest pages keep their own page size.')) + '</p>' : '') + '</div>' +
       '</div><div class="acts"><button type="button" class="btn pri big" data-act="make"' + (S.busy ? ' disabled' : '') + '>' + ICO.dl + esc(t('Download sorted PDF')) + '</button>' +
       (canShare() ? '<button type="button" class="btn big" data-act="share"' + (S.busy ? ' disabled' : '') + '>' + ICO.share + esc(t('Share PDF')) + '</button>' : '') + '</div>';
     if (S.out) h += '<div class="note ok done" role="status"><b>' + esc(t('Your PDF is ready: {n} pages.', S.out.pages)) + '</b>' +

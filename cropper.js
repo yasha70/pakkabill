@@ -78,14 +78,54 @@
     return [r(x0), r(y0), r(x1 - x0), r(y1 - y0)];
   }
 
-  root.PBCrop = { contentBox, cutBox, toPdf, visualSize, pdfRect, WHITE, MIN_SIZE };
+  // Label sizes for thermal printers, in points (72 = 1 inch). 'any': keep the page's own size, only cut.
+  const SIZES = { '4x4': [288, 288], '4x6': [288, 432], 'any': null };
+
+  // Affine matrices in PDF order [a, b, c, d, e, f]: x' = a x + c y + e, y' = b x + d y + f.
+  function mul(m2, m1) { // m2 after m1
+    return [m2[0] * m1[0] + m2[2] * m1[1], m2[1] * m1[0] + m2[3] * m1[1], m2[0] * m1[2] + m2[2] * m1[3],
+      m2[1] * m1[2] + m2[3] * m1[3], m2[0] * m1[4] + m2[2] * m1[5] + m2[4], m2[1] * m1[4] + m2[3] * m1[5] + m2[5]];
+  }
+  function apply(m, x, y) { return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]; }
+  // PDF user space → visual (as shown, y down, unscaled): the inverse of toPdf.
+  function userToVisual(view, rot) {
+    const [a, b, c, d] = view, W = c - a, H = d - b;
+    switch (((rot % 360) + 360) % 360) {
+      case 90: return [0, 1, 1, 0, -b, -a];
+      case 180: return [-1, 0, 0, 1, a + W, -b];
+      case 270: return [0, -1, -1, 0, b + H, a + W];
+      default: return [1, 0, 0, -1, -a, b + H];
+    }
+  }
+  // Fit the visual box cut = {x0, y0, x1, y1} into an OW x OH page with pad points of margin on every side,
+  // centred, turned a quarter (clockwise) when that makes the label at least 8% bigger.
+  // Returns { m: user space → new page, turned, scale }.
+  function fitMatrix(view, rot, cut, OW, OH, pad) {
+    const w = Math.max(1, cut.x1 - cut.x0), h = Math.max(1, cut.y1 - cut.y0);
+    pad = Math.max(0, Math.min(pad || 0, OW / 4, OH / 4));
+    const AW = OW - 2 * pad, AH = OH - 2 * pad;
+    const s1 = Math.min(AW / w, AH / h), s2 = Math.min(AW / h, AH / w), turned = s2 > s1 * 1.08;
+    let v2o;
+    if (!turned) {
+      const ox = (OW - w * s1) / 2, oy = (OH - h * s1) / 2;
+      v2o = [s1, 0, 0, -s1, ox - s1 * cut.x0, OH - oy + s1 * cut.y0];
+    } else {
+      const ox = (OW - h * s2) / 2, oy = (OH - w * s2) / 2;
+      v2o = [0, -s2, -s2, 0, ox + s2 * (h + cut.y0), OH - oy + s2 * cut.x0];
+    }
+    return { m: mul(v2o, userToVisual(view, rot)), turned, scale: turned ? s2 : s1 };
+  }
+
+  root.PBCrop = { contentBox, cutBox, toPdf, visualSize, pdfRect, SIZES, mul, apply, userToVisual, fitMatrix, WHITE, MIN_SIZE };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.PBCrop;
   if (typeof document === 'undefined') return;
 
   /* ======================================================= page */
 
   const S = {
-    gap: 8,          // points kept around the label
+    size: '4x4',     // '4x4' | '4x6' | 'any' (see SIZES)
+    inv: true,       // leave out the invoice under a Meesho label (cut at "TAX INVOICE")
+    gap: 8,          // points kept around the label (fixed sizes: margin inside the label)
     all: false,      // also cut top and sides
     files: [],       // { id, file, name, status: 'wait'|'work'|'done'|'err', msg, out, thumbs, pages, cut, size }
     run: 0,          // bumps when settings change, so an old run stops
@@ -96,13 +136,17 @@
     const g = localStorage.getItem('pb-crop-gap'), n = Number(g);
     if (g !== null && g !== '' && Number.isFinite(n) && n >= 0 && n <= 40) S.gap = Math.round(n);
     S.all = localStorage.getItem('pb-crop-all') === '1';
+    const z = localStorage.getItem('pb-crop-size'); if (z && Object.prototype.hasOwnProperty.call(SIZES, z)) S.size = z;
+    S.inv = localStorage.getItem('pb-crop-inv') !== '0';
   } catch (e) { /* ignore */ }
   let el = null, nextId = 1, libs = null;
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const kb = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
   const isPdf = (f) => /pdf$/i.test(f.type || '') || /\.pdf$/i.test(f.name || '');
-  const outName = (n) => String(n || 'labels').replace(/\.pdf$/i, '') + '-cropped.pdf';
+  const outName = (n) => String(n || 'labels').replace(/\.pdf$/i, '') + (SIZES[S.size] ? '-' + S.size : '-cropped') + '.pdf';
+  // Where a Meesho invoice starts under the label (the same words the label sorter stops at).
+  const STOP = /tax\s*invoice|\binvoice\b|bill\s*to|ship\s*to|sold\s*by|original\s*for|bill\s*of\s*supply/i;
 
   function loadLibs() {
     const ready = () => root.pdfjsLib && root.PDFLib;
@@ -133,10 +177,47 @@
   }
 
   // Finds the content of one PDF.js page, in visual points. Returns { vw, vh, box } (box null when blank).
-  async function measure(page) {
-    const v1 = page.getViewport({ scale: 1 });
+  // upright: turn the page so most of its text reads left to right (for exact label sizes, so a label stored
+  // sideways or upside down still prints upright). Returns { rot, vw, vh, box, invoice } in that orientation.
+  async function measure(page, cutInvoice, upright) {
+    const base = page.rotate || 0;
+    let items = null;
+    if (cutInvoice || upright) { try { items = (await page.getTextContent()).items; } catch (e) { items = null; } }
+    let rot = base;
+    if (upright && items && items.length) {
+      const v0 = page.getViewport({ scale: 1 }), w = [0, 0, 0, 0]; // reads right, down, left, up (as shown)
+      for (const t of items) {
+        const n = (t.str || '').trim().length;
+        if (!n) continue;
+        const a = v0.convertToViewportPoint(t.transform[4], t.transform[5]);
+        const e = v0.convertToViewportPoint(t.transform[4] + t.transform[0], t.transform[5] + t.transform[1]);
+        const dx = e[0] - a[0], dy = e[1] - a[1];
+        w[Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 0 : 2) : (dy >= 0 ? 1 : 3)] += n;
+      }
+      const best = w.indexOf(Math.max(...w));
+      if (w[best] > 0 && w[best] > w[0] * 1.5) rot = (base + [0, 270, 180, 90][best]) % 360;
+    }
+    const v1 = page.getViewport({ scale: 1, rotation: rot });
+    // the top of the invoice, as shown (visual points); content below it is left out
+    let limit = v1.height;
+    if (cutInvoice && items) {
+      {
+        for (const t of items) {
+          if (!t.str || !STOP.test(t.str)) continue;
+          const z = Math.hypot(t.transform[2], t.transform[3]) || Math.abs(t.transform[3]) || 10;
+          const a = v1.convertToViewportPoint(t.transform[4], t.transform[5]);
+          // only text that reads left to right as the page is shown (a turned page's invoice is not "below")
+          const e = v1.convertToViewportPoint(t.transform[4] + t.transform[0], t.transform[5] + t.transform[1]);
+          if (!(e[0] - a[0] > 3 * Math.abs(e[1] - a[1]))) continue;
+          const b = v1.convertToViewportPoint(t.transform[4] - t.transform[2], t.transform[5] + z);
+          const top = Math.min(a[1], b[1]) - 2;
+          // only when there is a label above it (not an invoice-only page)
+          if (top > v1.height * 0.15 && top < limit) limit = top;
+        }
+      }
+    }
     const scale = Math.max(0.5, Math.min(2.5, MAX_SIDE / Math.max(v1.width, v1.height)));
-    const vp = page.getViewport({ scale });
+    const vp = page.getViewport({ scale, rotation: rot });
     const c = document.createElement('canvas');
     c.width = Math.max(1, Math.ceil(vp.width)); c.height = Math.max(1, Math.ceil(vp.height));
     const ctx = c.getContext('2d', { willReadFrequently: true });
@@ -144,12 +225,36 @@
     try {
       await page.render({ canvasContext: ctx, viewport: vp }).promise;
       const img = ctx.getImageData(0, 0, c.width, c.height);
-      const b = contentBox(img.data, img.width, img.height);
+      const rows = Math.max(1, Math.min(img.height, Math.floor(limit * scale)));
+      const b = contentBox(img.data, img.width, rows);
       return {
-        vw: v1.width, vh: v1.height,
+        rot, vw: v1.width, vh: v1.height, invoice: limit < v1.height,
         box: b && { top: b.top / scale, bottom: b.bottom / scale, left: b.left / scale, right: b.right / scale },
       };
     } finally { c.width = c.height = 0; }
+  }
+
+  function setBoxes(pg, r) {
+    pg.setMediaBox(r[0], r[1], r[2], r[3]);
+    pg.setCropBox(r[0], r[1], r[2], r[3]);
+    pg.setBleedBox(r[0], r[1], r[2], r[3]);
+    pg.setTrimBox(r[0], r[1], r[2], r[3]);
+    pg.setArtBox(r[0], r[1], r[2], r[3]);
+  }
+  // Puts the visual box vcut of a pdf-lib page on a new OW x OH page: the page's drawing is moved and scaled
+  // with one matrix and clipped to the label, so nothing outside it prints. Text and barcodes stay vector.
+  function fitPage(pg, view, rot, vcut, OW, OH, pad) {
+    const P = root.PDFLib, f = fitMatrix(view, rot, vcut, OW, OH, pad), m = f.m, r = pdfRect(view, rot, vcut);
+    pg.node.normalize();
+    const ctx = pg.doc.context;
+    const a = ctx.register(pg.createContentStream(P.pushGraphicsState(), P.concatTransformationMatrix(m[0], m[1], m[2], m[3], m[4], m[5]),
+      P.rectangle(r[0], r[1], r[2], r[3]), P.clip(), P.endPath()));
+    const b = ctx.register(pg.createContentStream(P.popGraphicsState()));
+    pg.node.wrapContentStreams(a, b);
+    ['Annots', 'TrimBox', 'BleedBox', 'ArtBox', 'UserUnit'].forEach((k) => pg.node.delete(P.PDFName.of(k)));
+    pg.setRotation(P.degrees(0));
+    pg.setMediaBox(0, 0, OW, OH);
+    pg.setCropBox(0, 0, OW, OH);
   }
 
   async function cropOne(it, run) {
@@ -173,21 +278,29 @@
         it.msg = `Checking page ${i + 1} of ${src.numPages}…`; status(it);
         const p = await src.getPage(i + 1);
         try {
-          const m = await measure(p);
-          const view = p.view, rot = p.rotate || 0;
+          const fixed = SIZES[S.size];
+          const m = await measure(p, S.inv, !!fixed);
+          const view = p.view, rot = m.rot;
           before += (view[2] - view[0]) * (view[3] - view[1]);
-          if (!m.box) { after += (view[2] - view[0]) * (view[3] - view[1]); continue; } // blank page: leave it
-          const r = pdfRect(view, rot, cutBox(m.vw, m.vh, m.box, S.gap, S.all));
+          if (!m.box) { // blank page: leave it (a fixed size still gets the exact page size, empty)
+            if (fixed) { const pg = pages[i]; pg.setRotation(root.PDFLib.degrees(0)); setBoxes(pg, [0, 0, fixed[0], fixed[1]]); pg.node.set(root.PDFLib.PDFName.of('Contents'), out.context.obj([])); cut++; }
+            after += (view[2] - view[0]) * (view[3] - view[1]); continue;
+          }
+          if (fixed) {
+            // exact label size: the label alone (all sides cut), scaled to fit with S.gap of margin
+            const vcut = cutBox(m.vw, m.vh, m.box, 1, true);
+            fitPage(pages[i], view, rot, vcut, fixed[0], fixed[1], Math.min(S.gap, 20));
+            after += fixed[0] * fixed[1]; cut++;
+            continue;
+          }
+          const vc = cutBox(m.vw, m.vh, m.box, S.gap, S.all);
+          if (m.invoice) vc.y1 = Math.min(vc.y1, m.box.bottom + Math.min(S.gap, 4)); // never into the invoice
+          const r = pdfRect(view, rot, vc);
           after += r[2] * r[3];
           const same = Math.abs(r[0] - view[0]) < 0.5 && Math.abs(r[1] - view[1]) < 0.5 &&
             Math.abs(r[2] - (view[2] - view[0])) < 0.5 && Math.abs(r[3] - (view[3] - view[1])) < 0.5;
           if (same) continue;
-          const pg = pages[i];
-          pg.setMediaBox(r[0], r[1], r[2], r[3]);
-          pg.setCropBox(r[0], r[1], r[2], r[3]);
-          pg.setBleedBox(r[0], r[1], r[2], r[3]);
-          pg.setTrimBox(r[0], r[1], r[2], r[3]);
-          pg.setArtBox(r[0], r[1], r[2], r[3]);
+          setBoxes(pages[i], r);
           cut++;
         } finally { p.cleanup(); }
       }
@@ -236,7 +349,7 @@
           const th = await thumbsOf(r.bytes, run);
           if (run !== S.run) { it.status = 'wait'; continue; }
           it.out = new Blob([r.bytes], { type: 'application/pdf' });
-          it.bytes = r.bytes; it.pages = r.pages; it.cut = r.cut; it.saved = r.saved; it.thumbs = th;
+          it.bytes = r.bytes; it.pages = r.pages; it.size = S.size; it.cut = r.cut; it.saved = r.saved; it.thumbs = th;
           it.status = 'done'; it.msg = '';
         } catch (e) {
           console.warn('label cropper:', e);
@@ -306,6 +419,11 @@
 .pcr-opts input[type=range]{width:140px;accent-color:var(--carbon)}
 .pcr-opts input[type=checkbox]{width:18px;height:18px;accent-color:var(--carbon)}
 .pcr-opts output{min-width:44px;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.pcr-size{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-top:16px;font-size:14.5px;font-weight:700}
+.pcr-seg{display:flex;flex-wrap:wrap;gap:8px}
+.pcr-seg button{font:inherit;font-size:14.5px;font-weight:700;text-align:left;padding:8px 14px;border-radius:10px;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink);cursor:pointer;line-height:1.25}
+.pcr-seg button small{display:block;font-weight:500;font-size:12px;color:var(--ink-3)}
+.pcr-seg button[aria-pressed=true]{border-color:var(--carbon);background:var(--carbon-tint);color:var(--carbon)}
 .pcr-note{font-size:13px;color:var(--ink-3);margin:10px 0 0}
 .pcr-warn{color:var(--red,#b42318)}
 .pcr-bar{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin:4px 0 12px}
@@ -331,7 +449,7 @@
 
   function fileHtml(f) {
     const meta = f.status === 'done'
-      ? `${f.pages} page${f.pages === 1 ? '' : 's'} · ${f.cut ? `${f.cut} cropped${f.saved > 0 ? `, ${f.saved}% smaller` : ''}` : 'nothing to cut'} · ${kb(f.out.size)}`
+      ? `${f.pages} page${f.pages === 1 ? '' : 's'} · ${f.size !== 'any' ? `every page exactly ${f.size.replace('x', ' × ')} inch` : f.cut ? `${f.cut} cropped${f.saved > 0 ? `, ${f.saved}% smaller` : ''}` : 'nothing to cut'} · ${kb(f.out.size)}`
       : f.status === 'err' ? esc(f.msg) : `<span class="pcr-spin" aria-hidden="true"></span>${esc(f.msg || 'Working…')}`;
     const acts = f.status === 'done'
       ? `<button type="button" class="pcr-btn" data-dl="${f.id}">⬇ Download</button>${canShare() ? `<button type="button" class="pcr-btn pcr-btn--ghost" data-share="${f.id}">Share</button>` : ''}`
@@ -347,13 +465,16 @@
     if (!el || !el.isConnected) return;
     const done = S.files.filter((f) => f.status === 'done').length;
     el.innerHTML = `<div class="pcr">
-      <div class="page-head"><div><h1 class="page-title">Label cropper</h1><p class="page-sub">Cuts the empty white space under your shipping labels, so they print right on 4×6 label sheets and thermal printers. Text and barcodes stay sharp. Files never leave your device.</p></div></div>
+      <div class="page-head"><div><h1 class="page-title">Label cropper</h1><p class="page-sub">Makes every label page exactly 4×4 or 4×6 inch (or just cuts the empty white space), so each label prints on one label of your thermal printer. Text and barcodes stay sharp. Files never leave your device.</p></div></div>
       <section class="paper pcr-card">
         <label class="pcr-drop" data-drop><input type="file" accept="application/pdf,.pdf" multiple class="pcr-sr" data-pick><b>📄 Choose label PDFs</b><span>Or drop them here. Many files at once is fine.</span></label>
+        <div class="pcr-size"><span>Label size</span><div class="pcr-seg" role="group" aria-label="Label size">${[['4x4', '4 × 4 inch', 'Exact size'], ['4x6', '4 × 6 inch', 'Exact size'], ['any', 'Any size', 'Only cut empty space']].map(([k, a, b]) => `<button type="button" data-size="${k}" aria-pressed="${S.size === k}">${a}<small>${b}</small></button>`).join('')}</div></div>
         <div class="pcr-opts">
-          <label>Space kept <input type="range" min="0" max="40" step="1" value="${S.gap}" data-gap aria-label="Space kept around the label, in points"><output data-gapv>${S.gap} pt</output></label>
-          <label><input type="checkbox" data-all${S.all ? ' checked' : ''}> Also cut top and sides</label>
+          <label>${SIZES[S.size] ? 'Margin' : 'Space kept'} <input type="range" min="0" max="${SIZES[S.size] ? 20 : 40}" step="1" value="${Math.min(S.gap, SIZES[S.size] ? 20 : 40)}" data-gap aria-label="${SIZES[S.size] ? 'Margin inside the label' : 'Space kept around the label'}, in points"><output data-gapv>${Math.min(S.gap, SIZES[S.size] ? 20 : 40)} pt</output></label>
+          ${SIZES[S.size] ? '' : `<label><input type="checkbox" data-all${S.all ? ' checked' : ''}> Also cut top and sides</label>`}
+          <label><input type="checkbox" data-inv${S.inv ? ' checked' : ''}> Leave out the invoice (label only)</label>
         </div>
+        ${SIZES[S.size] ? `<p class="pcr-note">Every page comes out exactly ${S.size.replace('x', ' × ')} inch, so each label prints on one label. In the print window choose this paper size, <b>Actual size</b> (100%, not "Fit") and no margins.</p>` : ''}
         ${S.note ? `<p class="pcr-note pcr-warn">${esc(S.note)}</p>` : ''}
       </section>
       ${S.files.length ? `<div class="pcr-bar"><h2>Your files</h2><span class="pcr-acts">${done > 1 ? `<button type="button" class="pcr-btn" data-all-dl>⬇ All in one PDF</button>` : ''}<button type="button" class="pcr-btn pcr-btn--ghost" data-clear>Clear</button></span></div>${S.files.map(fileHtml).join('')}` :
@@ -389,7 +510,19 @@
         if (S.files.length) redo();
       }, 350);
     });
-    q('[data-all]').addEventListener('change', (e) => {
+    el.querySelectorAll('[data-size]').forEach((b) => b.addEventListener('click', () => {
+      const z = b.dataset.size;
+      if (z === S.size) return;
+      S.size = z; try { localStorage.setItem('pb-crop-size', z); } catch (x) { /* ignore */ }
+      if (SIZES[z] && S.gap > 20) S.gap = 20;
+      if (S.files.length) redo(); else draw();
+    }));
+    q('[data-inv]').addEventListener('change', (e) => {
+      S.inv = e.target.checked; try { localStorage.setItem('pb-crop-inv', S.inv ? '1' : '0'); } catch (x) { /* ignore */ }
+      if (S.files.length) redo();
+    });
+    const allBox = q('[data-all]');
+    if (allBox) allBox.addEventListener('change', (e) => {
       S.all = e.target.checked; try { localStorage.setItem('pb-crop-all', S.all ? '1' : '0'); } catch (x) { /* ignore */ }
       if (S.files.length) redo();
     });
