@@ -1,0 +1,181 @@
+11-13 08:51:23.556   557   821 W WifiService: Couldn't get PackageInfo for package:com.pakkabill.app
+11-13 08:51:23.559   557   821 D WifiService: Remove settings for package:com.pakkabill.app
+11-13 08:51:23.562   557   821 D WifiConfigManager: Remove all networks for app ApplicationInfo{abdcfd4 com.pakkabill.app}
+11-13 08:51:23.586   557   821 I PasspointManager: No app ops listener found for com.pakkabill.app
+11-13 08:51:23.586   557   821 W WifiService: Couldn't get PackageInfo for package:com.pakkabill.app
+11-13 08:51:23.586   557   821 D WifiService: Remove settings for package:com.pakkabill.app
+11-13 08:51:23.586   557   821 D WifiConfigManager: Remove all networks for app ApplicationInfo{6354c58 com.pakkabill.app}
+11-13 08:51:23.586   557   821 I PasspointManager: No app ops listener found for com.pakkabill.app
+11-13 08:51:23.639   557   874 D ShortcutService: removing package: com.pakkabill.app userId0
+11-13 08:51:23.640   557   874 D ShortcutService: handlePackageRemoved: com.pakkabill.app user=0
+11-13 08:51:23.692  1186  1194 W s.nexuslauncher: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~39UaMBv1rtx61loXmfogfQ==/com.pakkabill.app-eBK8i5wQJql63G9ef2YpWQ==/base.apk' with 1 weak references
+11-13 08:51:23.733   557   557 I Telecom : CarModeTracker: Package com.pakkabill.app is not tracked.: SSH.oR@AOY🔒
+11-13 08:51:23.817   557   557 I ConditionProviders: Disallowing condition provider com.pakkabill.app (userSet: true)
+11-13 08:51:23.891  1186  1186 D LauncherAppsCallbackImpl: package removed received com.pakkabill.app
+11-13 08:51:23.891  1186  1231 D PackageUpdatedTask: Package updated: mOp=REMOVE packages=[com.pakkabill.app]
+11-13 08:51:23.892   557   591 D ShortcutService: Getting shortcuts for launcher= com.google.android.apps.nexuslauncheruser=0 pkg=com.pakkabill.app
+11-13 08:51:23.892   557   591 D ShortcutService: getShortcutsInnerLocked() returned empty results because com.pakkabill.app isn't loaded
+11-13 08:51:23.892   557   591 D ShortcutService: Getting shortcuts for launcher= com.android.systemuiuser=0 pkg=com.pakkabill.app
+11-13 08:51:23.892   557   591 D ShortcutService: getShortcutsInnerLocked() returned empty results because com.pakkabill.app isn't loaded
+11-13 08:51:23.892   557   591 D ShortcutService: Getting shortcuts for launcher= com.google.android.asuser=0 pkg=com.pakkabill.app
+11-13 08:51:23.892   557   591 D ShortcutService: getShortcutsInnerLocked() returned empty results because com.pakkabill.app isn't loaded
+11-13 08:51:23.895  1460  1460 I AiAiEcho: AppFetcherImplV2 onPackageRemoved com.pakkabill.app.
+11-13 08:51:23.897   914   914 D PersistedStoragePackageUninstalledReceiver: Received android.intent.action.PACKAGE_FULLY_REMOVED for com.pakkabill.app for u0
+11-13 08:51:23.904  1445  2112 D MediaProvider: Deleted 0 Android/media items belonging to com.pakkabill.app on /data/user/0/com.google.android.providers.media.module/databases/external.db
+11-13 08:51:23.905  1209 10718 I ProximityAuth: [RecentAppsMediator] Package removed: (user=UserHandle{0}) com.pakkabill.app
+11-13 08:51:23.908  1186  1231 D PackageUpdatedTask: REMOVE: removing package=com.pakkabill.app
+11-13 08:51:23.908  1186  1231 D PackageUpdatedTask: OP_REMOVE: removing packages=[com.pakkabill.app]
+11-13 08:51:23.908  1186  1231 D ModelWriter: removing items from db . Reason: [removed because the corresponding package or component is removed. mOp=3 removedPackages=[com.pakkabill.app] removedComponents=[]]
+11-13 08:51:23.994  1336 10713 I Blockstore: [PackageIntentOperation] Deleted restore credential for package com.pakkabill.app is successful: true [CONTEXT service_id=258 ]
+11-13 08:51:24.001  1445  2112 D MediaGrants: Removed 0 media_grants for 0 user for [com.pakkabill.app]. Reason: Package orphaned
+11-13 08:51:24.027  1336  5975 I Icing   : doRemovePackageData com.pakkabill.app
+11-13 08:51:24.045  1336 10713 I Blockstore: [DataStoreImpl] Clearing all the Blockstore Data for package com.pakkabill.app [CONTEXT service_id=258 ]
+11-13 08:51:24.051  1336 10713 I Blockstore: [DataStoreImpl] Removing Blockstore data for packages [com.pakkabill.app] [CONTEXT service_id=258 ]
+11-13 08:51:24.070  1336 10733 W SQLiteLog: (28) double-quoted string literal: "com.pakkabill.app"
+11-13 08:51:24.273   910   930 W ndroid.systemui: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~39UaMBv1rtx61loXmfogfQ==/com.pakkabill.app-eBK8i5wQJql63G9ef2YpWQ==/base.apk' with 2 weak references
+11-13 08:51:24.374   557   576 W system_server: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~39UaMBv1rtx61loXmfogfQ==/com.pakkabill.app-eBK8i5wQJql63G9ef2YpWQ==/base.apk' with 1 weak references
+11-13 08:51:24.434   557   616 V BackupManagerService: [UserID:0] restoreAtInstall pkg=com.pakkabill.app token=2 restoreSet=0
+11-13 08:51:24.464   557   616 I AppsFilter: interaction: PackageSetting{2da8f57 com.android.microdroid.empty_payload/10189} -> PackageSetting{e6a870e com.pakkabill.app/10210} BLOCKED
+11-13 08:51:24.477  1186  1231 D SessionCommitReceiver: Removing PromiseIcon for package: com.pakkabill.app, install reason: 0, alreadyAddedPromiseIcon: false
+11-13 08:51:24.486   557   885 I SdkSandboxManager: No SDKs used. Skipping SDK data reconcilation for CallingInfo{mUid=10210, mPackageName='com.pakkabill.app, mAppProcessToken='null'}
+11-13 08:51:24.490  1077  1077 D CarrierSvcBindHelper: onPackageAdded: com.pakkabill.app
+11-13 08:51:24.498   557   874 D ShortcutService: adding package: com.pakkabill.app userId0
+11-13 08:51:24.507   914   914 I SafetyLabelChangedBroadcastReceiver: received broadcast packageName: com.pakkabill.app, current user: UserHandle{0}, packageChangeEvent: NEW_INSTALL, intent user: UserHandle{0}
+11-13 08:51:24.520   557   874 D ShortcutService: handlePackageAdded: com.pakkabill.app user=0
+11-13 08:51:24.520   557   874 D ShortcutService: rescanPackageIfNeeded 0@com.pakkabill.app, forceRescan=true , isNewApp=true
+11-13 08:51:24.521   557   874 D ShortcutService: Package com.pakkabill.app has 4 manifest shortcut(s), and 0 share target(s)
+11-13 08:51:24.521   557   874 D ShortcutService: Package com.pakkabill.app added, version -1 -> 12
+11-13 08:51:24.521   557   874 D ShortcutService: Package com.pakkabill.app: publishing manifest shortcuts
+11-13 08:51:24.570  1077  1279 D ImsResolver: maybeAddedImsService, packageName: com.pakkabill.app
+11-13 08:51:24.591   557  2058 I ActivityTaskManager: START u0 {flg=0x10000000 cmp=com.pakkabill.app/.MainActivity} with LAUNCH_SINGLE_TASK from uid 2000 (BAL_ALLOW_PERMISSION) result code=0
+11-13 08:51:24.592   910   968 V WindowManagerShell: Transition requested (#65): android.os.BinderProxy@1561e21 TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=12 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.pakkabill.app/.MainActivity } baseActivity=ComponentInfo{com.pakkabill.app/com.pakkabill.app.MainActivity} topActivity=ComponentInfo{com.pakkabill.app/com.pakkabill.app.MainActivity} origActivity=null realActivity=ComponentInfo{com.pakkabill.app/com.pakkabill.app.MainActivity} numActivities=1 lastActiveTime=1229201 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@d5f1246} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 128 - 0, 0) topActivityInfo=ActivityInfo{1304c07 com.pakkabill.app.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= falseisLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false topActivityEligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=1080 topActivityLetterboxHeight=2400 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false cameraCompatTaskInfo=CameraCompatTaskInfo { cameraCompatControlState=hidden freeformCameraCompatMode=inactive}}}, pipTask = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 65 }
+11-13 08:51:24.597   557   983 I AppsFilter: interaction: PackageSetting{489f7b6 com.android.microdroid.empty_payload/10189} -> PackageSetting{4fc1cb7 com.pakkabill.app/10210} BLOCKED
+11-13 08:51:24.599  1186  1186 I TopTaskTracker: onTaskMovedToFront: (moved taskInfo to front) taskId=12, baseIntent=Intent { flg=0x10000000 cmp=com.pakkabill.app/.MainActivity }
+11-13 08:51:24.640   557   874 D ShortcutService: Saving package item com.pakkabill.app to /data/system_ce/0/shortcut_service/packages/com.pakkabill.app.xml
+11-13 08:51:24.746   557   859 I AppWidgetServiceImpl: Updating package stopped masked state for uid 10210 package com.pakkabill.app isStopped false
+11-13 08:51:24.799   557   557 I AppsFilter: interaction: PackageSetting{489f7b6 com.android.microdroid.empty_payload/10189} -> PackageSetting{4fc1cb7 com.pakkabill.app/10210} BLOCKED
+11-13 08:51:24.804   557   582 V WindowManager: Sent Transition (#65) createdAt=11-13 08:51:24.563 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=12 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.pakkabill.app/.MainActivity } baseActivity=ComponentInfo{com.pakkabill.app/com.pakkabill.app.MainActivity} topActivity=ComponentInfo{com.pakkabill.app/com.pakkabill.app.MainActivity} origActivity=null realActivity=ComponentInfo{com.pakkabill.app/com.pakkabill.app.MainActivity} numActivities=1 lastActiveTime=1229201 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{7fe1949 Task{a668a27 #12 type=standard A=10210:com.pakkabill.app}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 128 - 0, 0) topActivityInfo=ActivityInfo{a5b324e com.pakkabill.app.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= falseisLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false topActivityEligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=1080 topActivityLetterboxHeight=2400 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false cameraCompatTaskInfo=CameraCompatTaskInfo { cameraCompatControlState=hidden freeformCameraCompatMode=inactive}}}, pipTask = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 65 }
+11-13 08:51:24.804   557   582 V WindowManager:         {WCT{RemoteToken{7fe1949 Task{a668a27 #12 type=standard A=10210:com.pakkabill.app}}} m=OPEN f=NONE leash=Surface(name=Task=12)/@0xff8d877 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0 taskParent=-1},
+11-13 08:51:24.813   557   593 I ActivityManager: Start proc 10806:com.pakkabill.app/u0a210 for next-top-activity {com.pakkabill.app/com.pakkabill.app.MainActivity}
+11-13 08:51:24.814  1077  1077 D CarrierSvcBindHelper: onPackageModified: com.pakkabill.app
+11-13 08:51:24.909 10806 10806 I m.pakkabill.app: Using CollectorTypeCMC GC.
+11-13 08:51:24.962 10806 10806 W m.pakkabill.app: Unexpected CPU variant for x86: x86_64.
+11-13 08:51:24.962 10806 10806 W m.pakkabill.app: Known variants: atom, sandybridge, silvermont, goldmont, goldmont-plus, goldmont-without-sha-xsaves, tremont, kabylake, default
+11-13 08:51:24.963 10806 10806 E m.pakkabill.app: Not starting debugger since process cannot load the jdwp agent.
+11-13 08:51:24.967   557   874 D ShortcutService: changing package: com.pakkabill.app userId0
+11-13 08:51:24.967   557   874 D ShortcutService: handlePackageChanged: com.pakkabill.app user=0
+11-13 08:51:24.967   557   874 D ShortcutService: rescanPackageIfNeeded 0@com.pakkabill.app, forceRescan=true , isNewApp=false
+11-13 08:51:25.019   557   874 D ShortcutService: Package com.pakkabill.app has 4 manifest shortcut(s), and 0 share target(s)
+11-13 08:51:25.019   557   874 D ShortcutService: Package com.pakkabill.app updated, version 12 -> 12
+11-13 08:51:25.042   557   874 D ShortcutService: Package com.pakkabill.app: publishing manifest shortcuts
+11-13 08:51:25.089  1077  1279 D ImsResolver: maybeAddedImsService, packageName: com.pakkabill.app
+11-13 08:51:25.144   557   874 D ShortcutService: Saving package item com.pakkabill.app to /data/system_ce/0/shortcut_service/packages/com.pakkabill.app.xml
+11-13 08:51:25.175 10806 10806 W ziparchive: Unable to open '/data/app/~~dS40mOGIvWNwAWEs6ZDuXw==/com.pakkabill.app-yTCSOGZR5Wc80K-H3c0-Hg==/base.dm': No such file or directory
+11-13 08:51:25.175 10806 10806 W ziparchive: Unable to open '/data/app/~~dS40mOGIvWNwAWEs6ZDuXw==/com.pakkabill.app-yTCSOGZR5Wc80K-H3c0-Hg==/base.dm': No such file or directory
+11-13 08:51:25.286 10806 10806 D nativeloader: Configuring clns-7 for other apk /data/app/~~dS40mOGIvWNwAWEs6ZDuXw==/com.pakkabill.app-yTCSOGZR5Wc80K-H3c0-Hg==/base.apk. target_sdk_version=37, uses_libraries=, library_path=/data/app/~~dS40mOGIvWNwAWEs6ZDuXw==/com.pakkabill.app-yTCSOGZR5Wc80K-H3c0-Hg==/lib/x86_64:/data/app/~~dS40mOGIvWNwAWEs6ZDuXw==/com.pakkabill.app-yTCSOGZR5Wc80K-H3c0-Hg==/base.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.pakkabill.app
+11-13 08:51:25.294   557   591 D ShortcutService: Getting shortcuts for launcher= com.google.android.apps.nexuslauncheruser=0 pkg=com.pakkabill.app
+11-13 08:51:25.294  1460  1460 I AiAiEcho: AppFetcherImplV2 updateApps package:[com.pakkabill.app], userId:[0], reason:[package is added.].
+11-13 08:51:25.294  1186  1231 D PackageUpdatedTask: Package updated: mOp=ADD packages=[com.pakkabill.app]
+11-13 08:51:25.298  1209 10720 I ProximityAuth: [RecentAppsMediator] Package added: (user=UserHandle{0}) com.pakkabill.app
+11-13 08:51:25.355   557   591 D ShortcutService: Getting shortcuts for launcher= com.android.systemuiuser=0 pkg=com.pakkabill.app
+11-13 08:51:25.355   557   591 D ShortcutService: Getting shortcuts for launcher= com.google.android.asuser=0 pkg=com.pakkabill.app
+11-13 08:51:25.358  1336 10733 I Blockstore: [DataStoreImpl] Clearing Blockstore Data for package com.pakkabill.app [CONTEXT service_id=258 ]
+11-13 08:51:25.445 10806 10806 V ActivityThread: getPackageInfo() caused update to cached ApplicationInfo for package com.pakkabill.app
+11-13 08:51:25.453  1186  1231 D PackageUpdatedTask: Package updated: mOp=UPDATE packages=[com.pakkabill.app]
+11-13 08:51:25.456  1460  1460 I AiAiEcho: AppFetcherImpl onPackageChanged com.pakkabill.app.
+11-13 08:51:25.457  1460 10852 I AiAiEcho: AppIndexer Package:[com.pakkabill.app] UserProfile:[0] Enabled:[true].
+11-13 08:51:25.457  1460 10852 I AiAiEcho: AppFetcherImplV2 updateApps package:[com.pakkabill.app], userId:[0], reason:[package is updated.].
+11-13 08:51:25.458   557   591 D ShortcutService: Getting shortcuts for launcher= com.google.android.apps.nexuslauncheruser=0 pkg=com.pakkabill.app
+11-13 08:51:25.458   557   591 D ShortcutService: Getting shortcuts for launcher= com.android.systemuiuser=0 pkg=com.pakkabill.app
+11-13 08:51:25.458   557   591 D ShortcutService: Getting shortcuts for launcher= com.google.android.asuser=0 pkg=com.pakkabill.app
+11-13 08:51:25.471  1460  1466 W ogle.android.as: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~dS40mOGIvWNwAWEs6ZDuXw==/com.pakkabill.app-yTCSOGZR5Wc80K-H3c0-Hg==/base.apk' with 1 weak references
+11-13 08:51:25.521 10806 10806 I PlayCore: UID: [10210]  PID: [10806] AppUpdateService : requestUpdateInfo(com.pakkabill.app)
+11-13 08:51:25.558   557   643 D CoreBackPreview: Window{127cf2f u0 com.pakkabill.app/com.pakkabill.app.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@99056c5, mPriority=-1, mIsAnimationCallback=false}
+11-13 08:51:26.850   557   582 W ziparchive: Unable to open '/data/app/~~dS40mOGIvWNwAWEs6ZDuXw==/com.pakkabill.app-yTCSOGZR5Wc80K-H3c0-Hg==/base.dm': No such file or directory
+11-13 08:51:26.851   557   582 I ActivityTaskManager: Displayed com.pakkabill.app/.MainActivity for user 0: +2s325ms
+11-13 08:51:26.860   557  2058 W InputManager-JNI: Input channel object 'b198078 Splash Screen com.pakkabill.app (client)' was disposed without first being removed with the input manager!
+11-13 08:51:27.094 10806 10806 W m.pakkabill.app: Entry not found
+11-13 08:51:27.159 10806 10876 I cr_VariationsUtils: Failed reading seed file "/data/user/0/com.pakkabill.app/app_webview/variations_seed_new"
+11-13 08:51:27.160 10806 10876 I cr_VariationsUtils: Failed reading seed file "/data/user/0/com.pakkabill.app/app_webview/variations_seed"
+11-13 08:51:27.183   557   593 I ActivityManager: Start proc 10882:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0/u0i5 for  {com.pakkabill.app/org.chromium.content.app.SandboxedProcessService0:0}
+11-13 08:51:27.220   557  2058 D ConnectivityService: requestNetwork for uid/pid:10210/10806 activeRequest: null callbackRequest: 174 [NetworkRequest [ REQUEST id=175, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10210 RequestorUid: 10210 RequestorPkg: com.pakkabill.app UnderlyingNetworks: Null] ]] callback flags: 0 order: 2147483647 isUidTracked: false
+11-13 08:51:27.221   557   821 D OemPaidWifiNetworkFactory: got request NetworkRequest [ REQUEST id=175, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10210 RequestorUid: 10210 RequestorPkg: com.pakkabill.app UnderlyingNetworks: Null] ]
+11-13 08:51:27.221   557   821 D MultiInternetWifiNetworkFactory: got request NetworkRequest [ REQUEST id=175, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10210 RequestorUid: 10210 RequestorPkg: com.pakkabill.app UnderlyingNetworks: Null] ]
+11-13 08:51:27.222   557   821 D WifiNetworkFactory: got request NetworkRequest [ REQUEST id=175, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10210 RequestorUid: 10210 RequestorPkg: com.pakkabill.app UnderlyingNetworks: Null] ]
+11-13 08:51:27.222   557   821 D UntrustedWifiNetworkFactory: got request NetworkRequest [ REQUEST id=175, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10210 RequestorUid: 10210 RequestorPkg: com.pakkabill.app UnderlyingNetworks: Null] ]
+11-13 08:51:27.240   557   680 I ImeTracker: com.pakkabill.app:acc8d398: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+11-13 08:51:27.240   557   680 I ImeTracker: com.pakkabill.app:acc8d398: onCancelled at PHASE_SERVER_SHOULD_HIDE
+11-13 08:51:27.246  1345  1345 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1986 onStartInput(EditorInfo{EditorInfo{packageName=com.pakkabill.app, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+11-13 08:51:27.247   557   641 W PackageConfigPersister: App-specific configuration not found for packageName: com.pakkabill.app and userId: 0
+11-13 08:51:27.315   557  2063 D ShortcutService: Getting shortcuts for launcher= com.google.android.asuser=0 pkg=com.pakkabill.app
+11-13 08:51:27.424   557  2063 D ShortcutService: Getting shortcuts for launcher= com.google.android.asuser=0 pkg=com.pakkabill.app
+11-13 08:51:31.230 10806 10916 D ProfileInstaller: Installing profile for com.pakkabill.app
+11-13 08:51:35.340 10922 10922 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-13 08:51:35.343 10922 10922 I AndroidRuntime: Using default boot image
+11-13 08:51:35.343 10922 10922 I AndroidRuntime: Leaving lock profiling enabled
+11-13 08:51:35.412 10922 10922 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-13 08:51:36.457 10922 10922 D AndroidRuntime: Shutting down VM
+11-13 08:51:36.477 10806 10809 I m.pakkabill.app: Compiler allocated 4314KB to compile r2 g9.o(int)
+11-13 08:51:36.510 10806 10812 W m.pakkabill.app: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~1JCl2m_T2lrvYSirKgULFQ==/com.google.android.webview-1x7GmB5N4zlQU1I5B0LTrA==/WebViewGoogle.apk' with 2 weak references
+11-13 08:51:37.937 10806 10809 I m.pakkabill.app: Compiler allocated 16MB to compile void fu2.j(ik2, q3, jq, bk, boolean, jk2, java.lang.String, n01, int)
+11-13 08:51:39.009 10806 10843 I System.out: PakkaBill P&L: report in 136 ms, 8 SKUs
+11-13 08:51:41.154  1209  1216 W .gms.persistent: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~dS40mOGIvWNwAWEs6ZDuXw==/com.pakkabill.app-yTCSOGZR5Wc80K-H3c0-Hg==/base.apk' with 1 weak references
+11-13 08:51:51.644  1336  1342 W gle.android.gms: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~dS40mOGIvWNwAWEs6ZDuXw==/com.pakkabill.app-yTCSOGZR5Wc80K-H3c0-Hg==/base.apk' with 1 weak references
+11-13 08:51:52.513 10758 10764 W .apps.wellbeing: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~dS40mOGIvWNwAWEs6ZDuXw==/com.pakkabill.app-yTCSOGZR5Wc80K-H3c0-Hg==/base.apk' with 1 weak references
+11-13 08:52:14.885 11104 11104 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-13 08:52:14.888 11104 11104 I AndroidRuntime: Using default boot image
+11-13 08:52:14.888 11104 11104 I AndroidRuntime: Leaving lock profiling enabled
+11-13 08:52:14.962 11104 11104 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-13 08:52:15.982 11104 11104 I AccessibilityNodeInfoDumper: Skipping invisible child: android.view.accessibility.AccessibilityNodeInfo@c338; boundsInParent: Rect(0, 0 - 0, 0); boundsInScreen: Rect(79, 212 - 760, 259); boundsInWindow: Rect(79, 212 - 760, 259); packageName: com.pakkabill.app; className: android.widget.TextView; text: Each Meesho fee on returns and RTO; error: null; maxTextLength: -1; stateDescription: null; contentDescription: null; tooltipText: null; containerTitle: null; viewIdResName: null; uniqueId: null; checkable: false; checked: false; focusable: false; focused: false; selected: false; clickable: false; longClickable: false; contextClickable: false; enabled: true; password: false; scrollable: false; granularScrollingSupported: false; importantForAccessibility: true; visible: false; actions: [AccessibilityAction: ACTION_NEXT_AT_MOVEMENT_GRANULARITY - null, AccessibilityAction: ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY - null, AccessibilityAction: ACTION_ACCESSIBILITY_FOCUS - null, AccessibilityAction: ACTION_SET_SELECTION - null]; isTextSelectable: false
+11-13 08:52:15.982 11104 11104 I AccessibilityNodeInfoDumper: Skipping invisible child: android.view.accessibility.AccessibilityNodeInfo@c357; boundsInParent: Rect(0, 0 - 0, 0); boundsInScreen: Rect(971, 212 - 1001, 269); boundsInWindow: Rect(971, 212 - 1001, 269); packageName: com.pakkabill.app; className: android.widget.TextView; text: +; error: null; maxTextLength: -1; stateDescription: null; contentDescription: null; tooltipText: null; containerTitle: null; viewIdResName: null; uniqueId: null; checkable: false; checked: false; focusable: false; focused: false; selected: false; clickable: false; longClickable: false; contextClickable: false; enabled: true; password: false; scrollable: false; granularScrollingSupported: false; importantForAccessibility: true; visible: false; actions: [AccessibilityAction: ACTION_NEXT_AT_MOVEMENT_GRANULARITY - null, AccessibilityAction: ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY - null, AccessibilityAction: ACTION_ACCESSIBILITY_FOCUS - null, AccessibilityAction: ACTION_SET_SELECTION - null]; isTextSelectable: false
+11-13 08:52:15.992 11104 11104 D AndroidRuntime: Shutting down VM
+11-13 08:52:16.844   557  2058 D CoreBackPreview: Window{127cf2f u0 com.pakkabill.app/com.pakkabill.app.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@65c3474, mPriority=0, mIsAnimationCallback=true}
+11-13 08:52:16.875 10806 10809 I m.pakkabill.app: Compiler allocated 4157KB to compile java.lang.Object gj3.b(java.lang.Object, java.lang.Object, java.lang.Object)
+11-13 08:52:17.932 11129 11129 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-13 08:52:17.935 11129 11129 I AndroidRuntime: Using default boot image
+11-13 08:52:17.935 11129 11129 I AndroidRuntime: Leaving lock profiling enabled
+11-13 08:52:18.005 11129 11129 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-13 08:52:19.030 11129 11129 D AndroidRuntime: Shutting down VM
+11-13 08:52:20.980 11151 11151 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-13 08:52:20.983 11151 11151 I AndroidRuntime: Using default boot image
+11-13 08:52:20.983 11151 11151 I AndroidRuntime: Leaving lock profiling enabled
+11-13 08:52:21.055 11151 11151 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-13 08:52:22.077 11151 11151 D AndroidRuntime: Shutting down VM
+11-13 08:52:34.780 11214 11214 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-13 08:52:34.783 11214 11214 I AndroidRuntime: Using default boot image
+11-13 08:52:34.784 11214 11214 I AndroidRuntime: Leaving lock profiling enabled
+11-13 08:52:34.853 11214 11214 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-13 08:52:35.888 11214 11214 D AndroidRuntime: Shutting down VM
+11-13 08:52:40.074 11243 11243 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-13 08:52:40.077 11243 11243 I AndroidRuntime: Using default boot image
+11-13 08:52:40.077 11243 11243 I AndroidRuntime: Leaving lock profiling enabled
+11-13 08:52:40.156 11243 11243 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-13 08:52:41.185 11243 11243 D AndroidRuntime: Shutting down VM
+11-13 08:52:42.158 10806 10821 I m.pakkabill.app: Waiting for a blocking GC ProfileSaver
+11-13 08:52:42.264 10806 10810 I m.pakkabill.app: Background concurrent mark compact GC freed 10MB AllocSpace bytes, 11(1504KB) LOS objects, 49% free, 12MB/25MB, paused 3.942ms,7.646ms total 185.144ms
+11-13 08:52:42.266 10806 10821 I m.pakkabill.app: WaitForGcToComplete blocked ProfileSaver on Background for 107.486ms
+11-13 08:52:45.284 10806 10806 W m.pakkabill.app: Accessing hidden field Landroid/graphics/ColorSpace$Named;->OK_LAB:Landroid/graphics/ColorSpace$Named; (blocked, linking, denied)
+11-13 08:52:46.321   557  2058 D CoreBackPreview: Window{127cf2f u0 com.pakkabill.app/com.pakkabill.app.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@af80a20, mPriority=-1, mIsAnimationCallback=false}
+11-13 08:52:47.394 11280 11280 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-13 08:52:47.397 11280 11280 I AndroidRuntime: Using default boot image
+11-13 08:52:47.397 11280 11280 I AndroidRuntime: Leaving lock profiling enabled
+11-13 08:52:47.472 11280 11280 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-13 08:52:48.487 11280 11280 I AccessibilityNodeInfoDumper: Skipping invisible child: android.view.accessibility.AccessibilityNodeInfo@13162; boundsInParent: Rect(0, 0 - 0, 0); boundsInScreen: Rect(79, 212 - 760, 259); boundsInWindow: Rect(79, 212 - 760, 259); packageName: com.pakkabill.app; className: android.widget.TextView; text: Each Meesho fee on returns and RTO; error: null; maxTextLength: -1; stateDescription: null; contentDescription: null; tooltipText: null; containerTitle: null; viewIdResName: null; uniqueId: null; checkable: false; checked: false; focusable: false; focused: false; selected: false; clickable: false; longClickable: false; contextClickable: false; enabled: true; password: false; scrollable: false; granularScrollingSupported: false; importantForAccessibility: true; visible: false; actions: [AccessibilityAction: ACTION_NEXT_AT_MOVEMENT_GRANULARITY - null, AccessibilityAction: ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY - null, AccessibilityAction: ACTION_ACCESSIBILITY_FOCUS - null, AccessibilityAction: ACTION_SET_SELECTION - null]; isTextSelectable: false
+11-13 08:52:48.487 11280 11280 I AccessibilityNodeInfoDumper: Skipping invisible child: android.view.accessibility.AccessibilityNodeInfo@13181; boundsInParent: Rect(0, 0 - 0, 0); boundsInScreen: Rect(971, 212 - 1001, 269); boundsInWindow: Rect(971, 212 - 1001, 269); packageName: com.pakkabill.app; className: android.widget.TextView; text: +; error: null; maxTextLength: -1; stateDescription: null; contentDescription: null; tooltipText: null; containerTitle: null; viewIdResName: null; uniqueId: null; checkable: false; checked: false; focusable: false; focused: false; selected: false; clickable: false; longClickable: false; contextClickable: false; enabled: true; password: false; scrollable: false; granularScrollingSupported: false; importantForAccessibility: true; visible: false; actions: [AccessibilityAction: ACTION_NEXT_AT_MOVEMENT_GRANULARITY - null, AccessibilityAction: ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY - null, AccessibilityAction: ACTION_ACCESSIBILITY_FOCUS - null, AccessibilityAction: ACTION_SET_SELECTION - null]; isTextSelectable: false
+11-13 08:52:48.498 11280 11280 D AndroidRuntime: Shutting down VM
+11-13 08:52:50.444 11304 11304 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-13 08:52:50.447 11304 11304 I AndroidRuntime: Using default boot image
+11-13 08:52:50.447 11304 11304 I AndroidRuntime: Leaving lock profiling enabled
+11-13 08:52:50.525 11304 11304 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-13 08:52:51.554 11304 11304 D AndroidRuntime: Shutting down VM
+11-13 08:52:54.494 11326 11326 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-13 08:52:54.497 11326 11326 I AndroidRuntime: Using default boot image
+11-13 08:52:54.497 11326 11326 I AndroidRuntime: Leaving lock profiling enabled
+11-13 08:52:54.570 11326 11326 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-13 08:52:55.587 11326 11326 D AndroidRuntime: Shutting down VM
+11-13 08:52:56.446   557   579 D CoreBackPreview: Window{127cf2f u0 com.pakkabill.app/com.pakkabill.app.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@bf54540, mPriority=0, mIsAnimationCallback=true}
+11-13 08:53:00.754 11352 11352 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-13 08:53:00.757 11352 11352 I AndroidRuntime: Using default boot image
+11-13 08:53:00.757 11352 11352 I AndroidRuntime: Leaving lock profiling enabled
+11-13 08:53:00.827 11352 11352 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-13 08:53:01.845 11352 11352 D AndroidRuntime: Shutting down VM
