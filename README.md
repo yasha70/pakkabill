@@ -358,6 +358,10 @@ inch sizes count as letter sizes (26–30 L, 32–34 XL, 36–40 XXL, a free-siz
 rule as the P&L's Returns tab. It shows for all parcels or one courier, and downloads as a PDF (all, then
 each courier), Excel (CSV) or WhatsApp text. With labels only, the chart is made from the labels.
 
+Page: Full page, Label only 4×6 inch, or **Cut empty space** (label and invoice as Meesho made them, the blank
+white area at the bottom of each label page cut off, as in the Label cropper; rotated pages too; manifest pages are
+not cut).
+
 - `labels.html` the whole tool; the engine (first script) runs in Node for `test/labels-audit.js`.
 - `labels-libs.js` PDF.js 3.11.174 (reads text, `isEvalSupported: false`) and pdf-lib 1.17.1 (builds the
   PDF); `pdf.worker.min.js` is PDF.js's worker. Files never leave the device.

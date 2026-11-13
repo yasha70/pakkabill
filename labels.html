@@ -617,6 +617,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     'Page': 'पेज',
     'Full page': 'पूरा पेज', 'Label and invoice, as Meesho gives it': 'लेबल और बिल, जैसे Meesho देता है',
     'Label only, 4×6 inch': 'सिर्फ़ लेबल, 4×6 इंच', 'For thermal label printers': 'थर्मल लेबल प्रिंटर के लिए',
+    'Cut empty space': 'खाली जगह काटें', 'Label and invoice, blank white area at the bottom cut off': 'लेबल और बिल, नीचे की खाली सफ़ेद जगह काट दी जाती है', 'Cutting empty space {n} of {n}…': 'खाली जगह काट रहे हैं {n} / {n}…',
     'Add a pick list page at the start': 'शुरू में पिक लिस्ट का पेज जोड़ें',
     'How many pieces of each SKU and size to pack, with tick boxes.': 'हर SKU और साइज़ के कितने पीस पैक करने हैं, टिक बॉक्स के साथ।',
     'Manifest in the PDF': 'PDF में मैनिफ़ेस्ट',
@@ -878,6 +879,41 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
         p.box = box; return box;
       });
     });
+  }
+  // "Cut empty space": where the page's ink ends (PDF rectangle [x, y, w, h]), cut along the bottom as the page is
+  // shown (rotated pages too), with a small gap. Same method as the Label cropper (cropper.js). null: leave the page.
+  function inkRect(p) {
+    if (p.ink !== undefined) return Promise.resolve(p.ink);
+    var f = fileOf(p.fid), v = p.view, rot = (((p.rot || 0) % 360) + 360) % 360;
+    return f.doc.getPage(p.pi + 1).then(function (page) {
+      var v1 = page.getViewport({ scale: 1 }), SC = Math.max(0.5, Math.min(2, 1800 / Math.max(v1.width, v1.height)));
+      var vp = page.getViewport({ scale: SC });
+      var cv = inkRect.cv || (inkRect.cv = document.createElement('canvas'));
+      cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
+      var ctx = cv.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+      return page.render({ canvasContext: ctx, viewport: vp }).promise.then(function () {
+        var W = cv.width, H = cv.height, d = ctx.getImageData(0, 0, W, H).data, bottom = -1;
+        for (var y = H - 1; y >= 0 && bottom < 0; y--) {
+          for (var x = 0, o = y * W * 4, n = 0; x < W; x++, o += 4) if (d[o] < 235 || d[o + 1] < 235 || d[o + 2] < 235) { if (++n >= 2) { bottom = y; break; } }
+        }
+        cv.width = cv.height = 1;
+        if (bottom < 0) return (p.ink = null);
+        var vw = v1.width, vh = v1.height, cut = Math.max(18, Math.min(vh, (bottom + 1) / SC + 8));
+        if (vh - cut < 2) return (p.ink = null);
+        var a = v[0], b = v[1], PW = v[2] - v[0], PH = v[3] - v[1];
+        function pt(x, y) { return rot === 90 ? [a + y, b + x] : rot === 180 ? [a + PW - x, b + y] : rot === 270 ? [a + PW - y, b + PH - x] : [a + x, b + PH - y]; }
+        var p0 = pt(0, 0), p1 = pt(vw, cut);
+        var x0 = Math.max(v[0], Math.min(p0[0], p1[0])), x1 = Math.min(v[2], Math.max(p0[0], p1[0]));
+        var y0 = Math.max(v[1], Math.min(p0[1], p1[1])), y1 = Math.min(v[3], Math.max(p0[1], p1[1]));
+        return (p.ink = [x0, y0, x1 - x0, y1 - y0]);
+      });
+    }).catch(function (e) { console.warn('label sorter: could not check page for empty space', e); return (p.ink = null); });
+  }
+  function cropPage(P, pg, r) {
+    if (!r) return;
+    ['TrimBox', 'BleedBox', 'ArtBox'].forEach(function (k) { pg.node.delete(P.PDFName.of(k)); });
+    pg.setMediaBox(r[0], r[1], r[2], r[3]); pg.setCropBox(r[0], r[1], r[2], r[3]);
   }
   // Shrink a copied page to the label and fit it on a 4x6 inch page (turned sideways when that is bigger).
   function fitPage(P, pg, box) {
@@ -1180,6 +1216,12 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       seq.forEach(function (p, i) {
         chain = chain.then(function () {
           var pg = copied[p.fid + ':' + p.pi];
+          if (o.mode === 'crop') {
+            return inkRect(p).then(function (r) {
+              cropPage(P, pg, r); out.addPage(pg);
+              if (i % 5 === 0) { S.busy = { msg: t('Cutting empty space {n} of {n}…', i + 1, seq.length), done: i + 1, of: seq.length }; paintBusy(); }
+            });
+          }
           if (!labelOnly) { out.addPage(pg); return; }
           var box = p.kind === 'label' ? labelBox(p) : Promise.resolve({ x0: p.view[0], y0: p.view[1], x1: p.view[2], y1: p.view[3] });
           return box.then(function (b) {
@@ -1194,7 +1236,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       return out.save({ useObjectStreams: true });
     }).then(function (bytes) {
       var d = new Date(), pad = function (n) { return (n < 10 ? '0' : '') + n; };
-      var name = 'meesho-labels-sorted-' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + (only === 'all' ? '' : '-size-' + (only || 'mixed').toLowerCase().replace(/[^a-z0-9]+/g, '-')) + (labelOnly ? '-4x6' : '') + '.pdf';
+      var name = 'meesho-labels-sorted-' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + (only === 'all' ? '' : '-size-' + (only || 'mixed').toLowerCase().replace(/[^a-z0-9]+/g, '-')) + (labelOnly ? '-4x6' : o.mode === 'crop' ? '-cropped' : '') + '.pdf';
       S.out = { bytes: bytes, blob: new Blob([bytes], { type: 'application/pdf' }), name: name, pages: out.getPageCount(), labels: labs.length, only: only };
       S.busy = null; return S.out;
     }).catch(function (e) {
@@ -1312,7 +1354,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       onlyHtml(labs) +
       (co.names.length > 1 ? chk('courier', o.courier, 'Keep each courier’s labels together', 'Handy when couriers pick up at different times.') : '') +
       chk('mixedLast', o.mixedLast, 'Orders with 2 or more products at the end', 'These need a bigger packet and more checking.') +
-      '<div class="opt"><span class="lbl">' + esc(t('Page')) + '</span>' + seg('mode', o.mode, [['full', 'Full page', 'Label and invoice, as Meesho gives it'], ['label', 'Label only, 4×6 inch', 'For thermal label printers']]) + '</div>' +
+      '<div class="opt"><span class="lbl">' + esc(t('Page')) + '</span>' + seg('mode', o.mode, [['full', 'Full page', 'Label and invoice, as Meesho gives it'], ['label', 'Label only, 4×6 inch', 'For thermal label printers'], ['crop', 'Cut empty space', 'Label and invoice, blank white area at the bottom cut off']]) + '</div>' +
       chk('pick', o.pick, 'Add the packing chart at the start', 'Pieces of each SKU in every size, with totals, for packing.') +
       '<div class="opt"><span class="lbl">' + esc(t('Manifest in the PDF')) + '</span>' + seg('man', o.man, [['end', 'At the end', '', !man], ['start', 'At the start', '', !man], ['none', 'Leave out', '', !man]]) +
       (man && o.mode === 'label' && o.man !== 'none' ? '<p class="fine" style="margin:6px 0 0">' + esc(t('Manifest pages keep their own page size.')) + '</p>' : '') + '</div>' +
