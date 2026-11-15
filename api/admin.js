@@ -332,6 +332,9 @@ const actions = {
   async otpRecent() {
     return otp.waRecent();
   },
+  async gupshupTemplates({ otp: o }) {
+    return { templates: await otp.gupshupTemplates(o || {}) };
+  },
 
   // Checks Razorpay keys (typed in the form, or the saved ones) with a harmless read.
   async rzpTest({ keyId, keySecret }) {
@@ -376,6 +379,8 @@ const actions = {
     if (s.otp.on && !s.otp.provider) throw new core.HttpError(400, 'Choose the SMS company for OTP, or turn OTP off.');
     if (s.otp.on && !s.otp.apiKey) throw new core.HttpError(400, 'Paste the API key of your SMS company for OTP.');
     if (s.otp.on && s.otp.provider === 'msg91' && !s.otp.templateId) throw new core.HttpError(400, 'MSG91 needs the Template ID of your OTP template too.');
+    const mix = s.otp.provider === 'gupshup' && s.otp.templateId && otp.gupshupTemplateMistake(s.otp.templateId);
+    if (mix) throw new core.HttpError(400, mix);
     if (s.otp.on && s.otp.provider === 'gupshup' && !(s.otp.templateId && s.otp.source.replace(/\D/g, '').length >= 10 && s.otp.appName)) throw new core.HttpError(400, 'Gupshup needs the API key, your WhatsApp business number, the app name and the template ID.');
     if (!(s.trialDays >= 0 && s.trialDays <= 90)) throw new core.HttpError(400, 'Free trial days must be 0 to 90.');
     if (s.upiId && !core.UPI_ID.test(s.upiId)) throw new core.HttpError(400, 'That does not look like a UPI ID (name@bank).');

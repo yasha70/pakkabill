@@ -144,7 +144,7 @@ const lastCode = () => { const u = sent[sent.length - 1].url; return (/variables
   await otp.send('9000000006', 'login', '5.5.5.6').then(() => ok(false, 'gupshup error reported as sent'), (e) => ok(e.status === 502 && /WhatsApp/.test(e.message), 'gupshup: an error reply is reported'));
   global.fetch = async (url, opts = {}) => { sent.push({ url: String(url), opts }); return { ok: true, status: 202, text: async () => '{"status":"submitted","messageId":"x"}' }; };
   await otp.test('9000000004', { provider: 'gupshup', apiKey: 'GSK' }).then(() => ok(false, 'gupshup test without fields'), (e) => ok(/four Gupshup boxes/.test(e.message), 'gupshup test asks for all fields'));
-  const gtr = await otp.test('9000000004', { provider: 'gupshup', apiKey: 'GSK', templateId: 't', source: '919876543210', appName: 'A' });
+  const gtr = await otp.test('9000000004', { provider: 'gupshup', apiKey: 'GSK', templateId: '3f1c9a2e-7b1d-4c2e-9a51-0e6f3c2d1b7a', source: '919876543210', appName: 'A' });
   ok(gtr.sent && gtr.via === 'whatsapp', 'gupshup test OTP sent');
   // delivery reports: message id kept, Gupshup's callback (v2 and Meta format) updates it, wrong token refused
   global.fetch = async (url, opts = {}) => { sent.push({ url: String(url), opts }); return { ok: true, status: 202, text: async () => '{"status":"submitted","messageId":"gs-111"}' }; };
@@ -171,10 +171,23 @@ const lastCode = () => { const u = sent[sent.length - 1].url; return (/variables
   // the Copy code button option sends the code twice; a refused test shows Gupshup's answer
   sent = [];
   global.fetch = async (url, opts = {}) => { sent.push({ url: String(url), opts }); return { ok: true, status: 202, text: async () => '{"status":"submitted","messageId":"x"}' }; };
-  await otp.test('9000000004', { provider: 'gupshup', apiKey: 'GSK', templateId: 't', source: '919876543210', appName: 'A', button: true });
+  await otp.test('9000000004', { provider: 'gupshup', apiKey: 'GSK', templateId: '3f1c9a2e-7b1d-4c2e-9a51-0e6f3c2d1b7a', source: '919876543210', appName: 'A', button: true });
   ok(JSON.parse(new URLSearchParams(sent[0].opts.body).get('template')).params.length === 2, 'button option: code also for the button');
   global.fetch = async () => ({ ok: false, status: 401, text: async () => '{"status":"error","message":"Authentication Failed"}' });
-  await otp.test('9000000004', { provider: 'gupshup', apiKey: 'BAD', templateId: 't', source: '919876543210', appName: 'A' }).then(() => ok(false, 'bad key accepted'), (e) => ok(/Authentication Failed/.test(e.message), 'admin test shows Gupshup\'s answer: ' + e.message));
+  await otp.test('9000000004', { provider: 'gupshup', apiKey: 'BAD', templateId: '3f1c9a2e-7b1d-4c2e-9a51-0e6f3c2d1b7a', source: '919876543210', appName: 'A' }).then(() => ok(false, 'bad key accepted'), (e) => ok(/Authentication Failed/.test(e.message), 'admin test shows Gupshup\'s answer: ' + e.message));
+  global.fetch = async (url, opts = {}) => { sent.push({ url: String(url), opts }); return { ok: true, status: 202, text: async () => '{"status":"submitted","messageId":"x"}' }; };
+  // template ID mix-ups are caught; "Find my templates" reads Gupshup's list
+  ok(/Namespace/.test(otp.gupshupTemplateMistake('0cdebaa1_47dc_484f_886b_fa795c225c9e')), 'namespace pasted as template ID is caught');
+  ok(/name/.test(otp.gupshupTemplateMistake('otp_verif')), 'template name pasted as template ID is caught');
+  ok(otp.gupshupTemplateMistake('3f1c9a2e-7b1d-4c2e-9a51-0e6f3c2d1b7a') === '', 'a real template ID passes');
+  await otp.test('9000000004', { provider: 'gupshup', apiKey: 'K', templateId: 'otp_verif', source: '919876543210', appName: 'PAKKABILL' }).then(() => ok(false, 'name as ID accepted'), (e) => ok(e.status === 400, 'test refuses a template name'));
+  sent = [];
+  global.fetch = async (url, opts = {}) => { sent.push({ url: String(url), opts }); return { ok: true, status: 200, text: async () => JSON.stringify({ status: 'success', templates: [{ id: 'aaaa-1', elementName: 'otp_verif', status: 'APPROVED', category: 'AUTHENTICATION', languageCode: 'en', data: '{{1}} is your verification code.' }] }) }; };
+  const tl = await otp.gupshupTemplates({ apiKey: 'K', appName: 'PAKKABILL' });
+  ok(sent[0].url === 'https://api.gupshup.io/sm/api/v1/template/list/PAKKABILL' && sent[0].opts.headers.apikey === 'K', 'templates: asked with the app name and key');
+  ok(tl.length === 1 && tl[0].id === 'aaaa-1' && tl[0].name === 'otp_verif' && tl[0].status === 'APPROVED', 'templates: name, ID and status read');
+  global.fetch = async () => ({ ok: false, status: 401, text: async () => '{"status":"error","message":"Authentication Failed"}' });
+  await otp.gupshupTemplates({ apiKey: 'BAD', appName: 'X' }).then(() => ok(false, 'bad key listed'), (e) => ok(/Authentication Failed/.test(e.message), 'templates: Gupshup\'s answer shown'));
   global.fetch = async (url, opts = {}) => { sent.push({ url: String(url), opts }); return { ok: true, status: 202, text: async () => '{"status":"submitted","messageId":"x"}' }; };
   await setAdmin({});
   set({ OTP_PROVIDER: 'gupshup', GUPSHUP_API_KEY: 'k', GUPSHUP_TEMPLATE_ID: 't', GUPSHUP_SOURCE: '919876543210', GUPSHUP_APP_NAME: 'A' });

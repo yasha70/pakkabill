@@ -192,6 +192,34 @@ async function countSms() {
   await db.pipe([['INCR', k], ['EXPIRE', k, 40 * 86400]]).catch(() => {});
 }
 
+// A Gupshup template ID is a long ID like 3f1c9a2e-7b1d-4c2e-9a51-0e6f3c2d1b7a. Two easy mix-ups:
+// the app's namespace (shown with a copy button on the Templates page) and the template's name.
+function gupshupTemplateMistake(id) {
+  const t = String(id || '').trim();
+  if (/^[0-9a-f]{8}_[0-9a-f]{4}_[0-9a-f]{4}_[0-9a-f]{4}_[0-9a-f]{12}$/i.test(t)) return 'That is your app\'s Namespace, not the template ID. Tap "Find my templates" and choose your OTP template.';
+  if (/^[a-z0-9_]+$/.test(t) && !/^[0-9a-f]{32}$/.test(t)) return `"${t}" looks like the template's name. Gupshup needs its ID: tap "Find my templates" and choose it.`;
+  return '';
+}
+
+// Admin panel "Find my templates": the Gupshup app's templates (name, ID, status, text), so the
+// admin picks the ID instead of copying it by hand. Uses the API key and app name typed in the form.
+async function gupshupTemplates(o) {
+  const key = String((o && o.apiKey) || '').trim(), app = String((o && o.appName) || '').trim();
+  if (!key || !app) throw new core.HttpError(400, 'Fill the Gupshup API key and app name first.');
+  let res, text = '';
+  try {
+    res = await fetch(`https://api.gupshup.io/sm/api/v1/template/list/${encodeURIComponent(app)}`, { headers: { apikey: key }, signal: AbortSignal.timeout(10000) });
+    text = await res.text();
+  } catch (e) { throw new core.HttpError(502, `Could not reach Gupshup (${e.message}). Try again.`); }
+  let j = null;
+  try { j = JSON.parse(text); } catch { j = null; }
+  if (!res.ok || !j || !Array.isArray(j.templates)) throw new core.HttpError(502, `Gupshup did not give the templates. Check the API key and that the app name is exactly as in Gupshup (capital letters too). Its answer: HTTP ${res.status} ${text.slice(0, 300)}`);
+  return j.templates.map((t) => ({
+    id: String(t.id || ''), name: String(t.elementName || ''), status: String(t.status || ''), category: String(t.category || ''),
+    language: String(t.languageCode || ''), text: String(t.data || '').slice(0, 300),
+  })).filter((t) => t.id);
+}
+
 // Admin panel "Send test SMS": sends a code with settings that may not be saved yet.
 async function test(phone, o) {
   const cfg = valid(o && o.provider, o && o.apiKey, o && o.templateId, o || {});
@@ -199,6 +227,8 @@ async function test(phone, o) {
     const why = { msg91: 'Paste the MSG91 Auth Key and the Template ID.', gupshup: 'Fill all four Gupshup boxes: API key, WhatsApp number (with 91), app name and template ID.' };
     throw new core.HttpError(400, why[o && o.provider] || 'Choose the OTP company and paste its API key.');
   }
+  const mix = cfg.provider === 'gupshup' && gupshupTemplateMistake(cfg.templateId);
+  if (mix) throw new core.HttpError(400, mix);
   await core.rateLimit('otp:admintest', 10, 3600);
   const code = String(crypto.randomInt(0, 1e6)).padStart(6, '0');
   let r;
@@ -239,4 +269,4 @@ async function check(phone, purpose, code) {
   await db.cmd(['DEL', key(phone)]);
 }
 
-module.exports = { enabled, channel, webhook, waStatus, waRecent, hookPath, send, check, smsSeries, test, fromEnv, PROVIDERS, PURPOSES };
+module.exports = { enabled, channel, webhook, gupshupTemplates, gupshupTemplateMistake, waStatus, waRecent, hookPath, send, check, smsSeries, test, fromEnv, PROVIDERS, PURPOSES };

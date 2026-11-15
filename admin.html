@@ -448,6 +448,7 @@
         <div class="grid2" data-otp-keys hidden style="margin-top:8px">
           <label class="f">API key<input type="password" name="otpKey" maxlength="200" autocomplete="new-password" spellcheck="false"></label>
           <label class="f" data-otp-tpl><span data-otp-tpl-label>Template ID</span><input type="text" name="otpTemplate" maxlength="100" autocomplete="off" spellcheck="false"></label>
+          <div data-otp="gupshup" hidden style="grid-column:1/-1"><button class="btn sec sm" type="button" id="gsTplBtn">Find my templates</button> <span class="muted" style="font-size:.85rem">Fill the API key and app name, then tap to pick your approved OTP template.</span><div id="gsTplList" style="margin-top:8px"></div></div>
         </div>
         <div class="row" style="margin-top:10px;gap:8px;align-items:flex-end"><label class="f" style="flex:1">Send a test OTP to <span class="muted">(works before saving)</span><input type="text" inputmode="numeric" id="otpTry" maxlength="14" placeholder="Your 10-digit mobile number"></label><button class="btn sec" type="button" id="otpTryBtn">Send test OTP</button></div>
         <pre id="otpTryOut" class="muted" style="white-space:pre-wrap;margin:8px 0 0;font-size:.85rem" hidden></pre>
@@ -1154,6 +1155,26 @@
     } catch (e) { box.textContent = e.message; }
   }
   $('#waRefresh').addEventListener('click', waRefresh);
+  // "Find my templates": pick the approved template instead of copying its ID by hand
+  $('#gsTplBtn').addEventListener('click', async () => {
+    const box = $('#gsTplList'), b = $('#gsTplBtn');
+    box.textContent = 'Asking Gupshup…'; b.disabled = true;
+    try {
+      const { templates } = await api('gupshupTemplates', { otp: otpForm() });
+      const list = templates.sort((x, y) => (y.category === 'AUTHENTICATION') - (x.category === 'AUTHENTICATION') || (y.status === 'APPROVED') - (x.status === 'APPROVED'));
+      box.innerHTML = list.length ? list.map((t, i) => `<div style="border:1px solid var(--rule,#ddd);border-radius:10px;padding:8px 10px;margin-top:6px;display:flex;gap:10px;align-items:center;justify-content:space-between">
+          <div style="min-width:0"><b>${esc(t.name)}</b> <span class="muted">${esc(t.category)} · ${esc(t.language)} · ${esc(t.status)}</span><br><span class="muted" style="font-size:.85rem">${esc(t.text)}</span><br><code style="font-size:.8rem">${esc(t.id)}</code></div>
+          <button class="btn ${t.status === 'APPROVED' ? '' : 'sec'} sm" type="button" data-use="${i}">Use this</button></div>`).join('')
+        : 'No templates in this Gupshup app. Make an Authentication template in Gupshup first.';
+      box.querySelectorAll('[data-use]').forEach((u) => u.addEventListener('click', () => {
+        const t = list[+u.dataset.use];
+        form.otpTemplate.value = t.id;
+        toast(`Template "${t.name}" chosen. Save settings, then send a test OTP.`);
+        if (t.status !== 'APPROVED') toast(`"${t.name}" is ${t.status}, not APPROVED yet.`, true);
+      }));
+    } catch (e) { box.textContent = '✗ ' + e.message; }
+    b.disabled = false;
+  });
   $('#gsHookCopy').addEventListener('click', async () => { const v = $('#gsHook').value; if (!v) return toast('Save the Gupshup settings first.', true); try { await navigator.clipboard.writeText(v); toast('Address copied.'); } catch { prompt('Copy the address:', v); } });
   // after a test: Gupshup's delivery report for that message, checked every 3 seconds for a minute
   async function waWatch(id, out, first) {
