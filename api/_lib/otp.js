@@ -213,6 +213,8 @@ async function gupshupTemplates(o) {
   } catch (e) { throw new core.HttpError(502, `Could not reach Gupshup (${e.message}). Try again.`); }
   let j = null;
   try { j = JSON.parse(text); } catch { j = null; }
+  // Gupshup's newer accounts (apps of type ACP) do not list templates with an app API key
+  if (res.status === 401 && /Portal User Not Found/i.test(text)) throw new core.HttpError(400, 'Gupshup does not list templates for this kind of app. Copy the ID by hand: in Gupshup open Templates, tap the ⓘ (or the arrow next to Manage) on your OTP template, copy its Template ID (a long code with dashes, not the Namespace) and paste it in Template ID. Sending still works with this API key.');
   if (!res.ok || !j || !Array.isArray(j.templates)) throw new core.HttpError(502, `Gupshup did not give the templates. Check the API key and that the app name is exactly as in Gupshup (capital letters too). Its answer: HTTP ${res.status} ${text.slice(0, 300)}`);
   return j.templates.map((t) => ({
     id: String(t.id || ''), name: String(t.elementName || ''), status: String(t.status || ''), category: String(t.category || ''),

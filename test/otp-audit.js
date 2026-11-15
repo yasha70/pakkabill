@@ -186,6 +186,8 @@ const lastCode = () => { const u = sent[sent.length - 1].url; return (/variables
   const tl = await otp.gupshupTemplates({ apiKey: 'K', appName: 'PAKKABILL' });
   ok(sent[0].url === 'https://api.gupshup.io/sm/api/v1/template/list/PAKKABILL' && sent[0].opts.headers.apikey === 'K', 'templates: asked with the app name and key');
   ok(tl.length === 1 && tl[0].id === 'aaaa-1' && tl[0].name === 'otp_verif' && tl[0].status === 'APPROVED', 'templates: name, ID and status read');
+  global.fetch = async () => ({ ok: false, status: 401, text: async () => 'Portal User Not Found With APIKey' });
+  await otp.gupshupTemplates({ apiKey: 'K', appName: 'X' }).then(() => ok(false, 'listed'), (e) => ok(/by hand/.test(e.message), 'templates: newer Gupshup apps get the copy-by-hand steps'));
   global.fetch = async () => ({ ok: false, status: 401, text: async () => '{"status":"error","message":"Authentication Failed"}' });
   await otp.gupshupTemplates({ apiKey: 'BAD', appName: 'X' }).then(() => ok(false, 'bad key listed'), (e) => ok(/Authentication Failed/.test(e.message), 'templates: Gupshup\'s answer shown'));
   global.fetch = async (url, opts = {}) => { sent.push({ url: String(url), opts }); return { ok: true, status: 202, text: async () => '{"status":"submitted","messageId":"x"}' }; };
