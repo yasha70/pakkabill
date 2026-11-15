@@ -314,7 +314,7 @@ const actions = {
   async getSettings() {
     // otpEnv: an SMS company is set in Vercel's environment variables (used while none is chosen here)
     const env = otp.fromEnv();
-    return { settings: await core.getSettings(true), otpEnv: env ? env.provider : '' };
+    return { settings: await core.getSettings(true), otpEnv: env ? env.provider : '', gupshupHook: await otp.hookPath() };
   },
 
   // "Send test SMS" in Settings > OTP by SMS, with the company and key typed in the form
@@ -322,7 +322,15 @@ const actions = {
     const p = core.normPhone(phone);
     if (!p) throw new core.HttpError(400, 'Type a 10-digit mobile number to send the test SMS to.');
     const r = await otp.test(p, o || {});
-    return { sent: true, code: r.code, via: r.via };
+    return { sent: true, code: r.code, via: r.via, id: r.id, reply: r.reply };
+  },
+
+  // Gupshup's delivery report for one WhatsApp OTP, and the latest 30 with their status
+  async otpStatus({ id }) {
+    return { msg: await otp.waStatus(id) };
+  },
+  async otpRecent() {
+    return otp.waRecent();
   },
 
   // Checks Razorpay keys (typed in the form, or the saved ones) with a harmless read.
@@ -364,7 +372,7 @@ const actions = {
     // OTP by SMS: the SMS company and its key; the switch turns sign-up OTP on or off for everyone
     const O = otpIn && typeof otpIn === 'object' ? otpIn : prev.otp || {};
     s.otp = { on: !!O.on, provider: otp.PROVIDERS.includes(O.provider) ? O.provider : '', apiKey: String(O.apiKey || '').trim().slice(0, 200), templateId: String(O.templateId || '').trim().slice(0, 100),
-      source: String(O.source || '').replace(/[^\d+]/g, '').slice(0, 16), appName: String(O.appName || '').trim().slice(0, 80) }; // source and appName: Gupshup WhatsApp only
+      source: String(O.source || '').replace(/[^\d+]/g, '').slice(0, 16), appName: String(O.appName || '').trim().slice(0, 80), button: !!O.button }; // source, appName, button: Gupshup WhatsApp only
     if (s.otp.on && !s.otp.provider) throw new core.HttpError(400, 'Choose the SMS company for OTP, or turn OTP off.');
     if (s.otp.on && !s.otp.apiKey) throw new core.HttpError(400, 'Paste the API key of your SMS company for OTP.');
     if (s.otp.on && s.otp.provider === 'msg91' && !s.otp.templateId) throw new core.HttpError(400, 'MSG91 needs the Template ID of your OTP template too.');

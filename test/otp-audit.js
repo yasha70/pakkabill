@@ -146,6 +146,36 @@ const lastCode = () => { const u = sent[sent.length - 1].url; return (/variables
   await otp.test('9000000004', { provider: 'gupshup', apiKey: 'GSK' }).then(() => ok(false, 'gupshup test without fields'), (e) => ok(/four Gupshup boxes/.test(e.message), 'gupshup test asks for all fields'));
   const gtr = await otp.test('9000000004', { provider: 'gupshup', apiKey: 'GSK', templateId: 't', source: '919876543210', appName: 'A' });
   ok(gtr.sent && gtr.via === 'whatsapp', 'gupshup test OTP sent');
+  // delivery reports: message id kept, Gupshup's callback (v2 and Meta format) updates it, wrong token refused
+  global.fetch = async (url, opts = {}) => { sent.push({ url: String(url), opts }); return { ok: true, status: 202, text: async () => '{"status":"submitted","messageId":"gs-111"}' }; };
+  await setAdmin({ on: true, provider: 'gupshup', apiKey: 'GSK', templateId: 'tpl-uuid', source: '919876543210', appName: 'PB' });
+  await require('../api/_lib/db').cmd(['DEL', 'rl:otp:ph:9000000007']);
+  await otp.send('9000000007', 'login', '7.7.7.7');
+  ok((await otp.waStatus('gs-111')).status === 'submitted', 'gupshup: message id kept');
+  const path = await otp.hookPath(), tok = new URLSearchParams(path.split('?')[1]).get('gupshup');
+  const hook = (token, body) => new Promise((resolve) => { const res = { statusCode: 0, setHeader() {}, end(t) { resolve({ status: this.statusCode, ...JSON.parse(t) }); } }; otp.webhook({ method: 'POST', body, headers: {} }, res, token); });
+  ok((await hook('wrong', {})).status === 404, 'gupshup hook: wrong token refused');
+  await hook(tok, { type: 'message-event', payload: { id: 'wa-1', gsId: 'gs-111', type: 'sent', payload: {} } });
+  ok((await otp.waStatus('gs-111')).status === 'sent', 'gupshup hook v2: sent');
+  await hook(tok, { type: 'message-event', payload: { id: 'gs-111', type: 'failed', payload: { code: 1005, reason: 'Template params does not match' } } });
+  const fm = await otp.waStatus('gs-111');
+  ok(fm.status === 'failed' && fm.code === 1005 && /params/.test(fm.reason), 'gupshup hook v2: failed with the reason');
+  global.fetch = async () => ({ ok: true, status: 202, text: async () => '{"status":"submitted","messageId":"gs-222"}' });
+  await require('../api/_lib/db').cmd(['DEL', 'rl:otp:ph:9000000007']);
+  await otp.send('9000000007', 'login', '7.7.7.7');
+  await hook(tok, { entry: [{ changes: [{ value: { statuses: [{ gs_id: 'gs-222', status: 'delivered' }] } }] }] });
+  await hook(tok, { entry: [{ changes: [{ value: { statuses: [{ gs_id: 'gs-222', status: 'sent' }] } }] }] });
+  ok((await otp.waStatus('gs-222')).status === 'delivered', 'gupshup hook Meta format: delivered, and a late "sent" does not undo it');
+  const rec = await otp.waRecent();
+  ok(rec.list.length >= 2 && rec.hookSeen > 0 && /^90••••0007$/.test(rec.list[0].to), 'recent WhatsApp OTPs listed with a hidden number');
+  // the Copy code button option sends the code twice; a refused test shows Gupshup's answer
+  sent = [];
+  global.fetch = async (url, opts = {}) => { sent.push({ url: String(url), opts }); return { ok: true, status: 202, text: async () => '{"status":"submitted","messageId":"x"}' }; };
+  await otp.test('9000000004', { provider: 'gupshup', apiKey: 'GSK', templateId: 't', source: '919876543210', appName: 'A', button: true });
+  ok(JSON.parse(new URLSearchParams(sent[0].opts.body).get('template')).params.length === 2, 'button option: code also for the button');
+  global.fetch = async () => ({ ok: false, status: 401, text: async () => '{"status":"error","message":"Authentication Failed"}' });
+  await otp.test('9000000004', { provider: 'gupshup', apiKey: 'BAD', templateId: 't', source: '919876543210', appName: 'A' }).then(() => ok(false, 'bad key accepted'), (e) => ok(/Authentication Failed/.test(e.message), 'admin test shows Gupshup\'s answer: ' + e.message));
+  global.fetch = async (url, opts = {}) => { sent.push({ url: String(url), opts }); return { ok: true, status: 202, text: async () => '{"status":"submitted","messageId":"x"}' }; };
   await setAdmin({});
   set({ OTP_PROVIDER: 'gupshup', GUPSHUP_API_KEY: 'k', GUPSHUP_TEMPLATE_ID: 't', GUPSHUP_SOURCE: '919876543210', GUPSHUP_APP_NAME: 'A' });
   ok(await otp.enabled(), 'gupshup from Vercel variables');

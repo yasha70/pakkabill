@@ -57,6 +57,21 @@ To turn it off, untick it and save. Your key stays saved for next time.
 `GUPSHUP_API_KEY`, `GUPSHUP_SOURCE`, `GUPSHUP_APP_NAME`, `GUPSHUP_TEMPLATE_ID`. They are used only
 while no company is chosen in the admin panel.)
 
+## If the WhatsApp OTP (Gupshup) does not come
+
+Gupshup answers "submitted" at once; whether WhatsApp delivered it, or why it failed, comes later.
+
+1. Admin panel → Settings → OTP: save the Gupshup settings, then copy the **Delivery report address**.
+2. In Gupshup open your app → **Webhooks** (or Settings → Callback URL), paste it and switch on
+   message events (sent, delivered, read, failed).
+3. Tap **Send test OTP** again. Below it you see "Delivered", or "Failed" with Gupshup's reason and
+   what to do. **Latest WhatsApp OTPs** lists the last 30.
+
+Usual reasons: the app is still in **sandbox** (it only sends to numbers that joined it: take the
+app live), the template is not **approved** or the ID is wrong, the template's **Copy code**
+button needs the code too (tick that box), no **wallet balance**, the app name or business number
+is not exactly as in Gupshup, or the customer's number has no WhatsApp.
+
 ## Step 3: Check it
 
 Open the site in a private window → **Sign up** → you should see **Send OTP**. Try it with your own

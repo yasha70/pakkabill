@@ -41,7 +41,8 @@ function valid(provider, apiKey, templateId, extra = {}) {
   if (p === 'gupshup') {
     const source = waNumber(extra.source), appName = String(extra.appName || '').trim();
     if (!tpl || source.length < 11 || !appName) return null;
-    return { provider: p, apiKey: key, templateId: tpl, source, appName };
+    // button: the template's Copy code button also takes the code (sent as a second parameter)
+    return { provider: p, apiKey: key, templateId: tpl, source, appName, button: !!extra.button };
   }
   return { provider: p, apiKey: key, templateId: tpl };
 }
@@ -52,7 +53,7 @@ function fromEnv() {
   if (p === 'fast2sms') return valid(p, e.FAST2SMS_API_KEY);
   if (p === 'msg91') return valid(p, e.MSG91_AUTH_KEY, e.MSG91_TEMPLATE_ID);
   if (p === '2factor') return valid(p, e.TWOFACTOR_API_KEY, e.TWOFACTOR_TEMPLATE);
-  if (p === 'gupshup') return valid(p, e.GUPSHUP_API_KEY, e.GUPSHUP_TEMPLATE_ID, { source: e.GUPSHUP_SOURCE, appName: e.GUPSHUP_APP_NAME });
+  if (p === 'gupshup') return valid(p, e.GUPSHUP_API_KEY, e.GUPSHUP_TEMPLATE_ID, { source: e.GUPSHUP_SOURCE, appName: e.GUPSHUP_APP_NAME, button: e.GUPSHUP_BUTTON_CODE === '1' });
   if (p === 'test') return valid(p);
   return null;
 }
@@ -65,11 +66,14 @@ async function config() {
 }
 const enabled = async () => !!(await config());
 
+// Sends the code. Returns { id, reply }: Gupshup's message ID (for its delivery reports) and the reply.
 async function deliver(cfg, phone, code) {
   const p = cfg.provider, key = cfg.apiKey, tpl = cfg.templateId;
-  const go = (url, opts) => fetch(url, { ...opts, signal: AbortSignal.timeout(10000) });
+  // no answer (timeout, network) counts as a failed send, with a clear message
+  let netErr = '';
+  const go = (url, opts) => fetch(url, { ...opts, signal: AbortSignal.timeout(10000) }).catch((e) => { netErr = e.message || 'no answer'; return null; });
   let res;
-  if (p === 'test') { console.log(`[OTP test] ${phone}: ${code}`); return; }
+  if (p === 'test') { console.log(`[OTP test] ${phone}: ${code}`); return { id: '', reply: '' }; }
   if (p === 'fast2sms') {
     res = await go(`https://www.fast2sms.com/dev/bulkV2?route=otp&variables_values=${code}&numbers=${phone}`, { headers: { authorization: key } });
   } else if (p === 'msg91') {
@@ -79,15 +83,89 @@ async function deliver(cfg, phone, code) {
     res = await go(`https://2factor.in/API/V1/${encodeURIComponent(key)}/SMS/${phone}/${code}${t}`, {});
   } else if (p === 'gupshup') {
     // WhatsApp template message; the approved authentication template's {{1}} is the code
-    const body = new URLSearchParams({ channel: 'whatsapp', source: cfg.source, destination: '91' + phone, 'src.name': cfg.appName, template: JSON.stringify({ id: tpl, params: [code] }) });
+    const params = cfg.button ? [code, code] : [code];
+    const body = new URLSearchParams({ channel: 'whatsapp', source: cfg.source, destination: '91' + phone, 'src.name': cfg.appName, template: JSON.stringify({ id: tpl, params }) });
     res = await go('https://api.gupshup.io/wa/api/v1/template/msg', { method: 'POST', headers: { apikey: key, 'Content-Type': 'application/x-www-form-urlencoded', 'Cache-Control': 'no-cache' }, body: body.toString() });
   }
   const text = res ? await res.text().catch(() => '') : '';
   // each provider says "ok" differently; a failure status or an error word means the SMS did not go
   if (!res || !res.ok || /"(return|status)"\s*:\s*(false|"error"|"failed")|"type"\s*:\s*"error"/i.test(text)) {
     console.error('OTP send failed', p, res && res.status, text.slice(0, 300));
-    throw new core.HttpError(502, via(p) === 'whatsapp' ? 'Could not send the OTP on WhatsApp right now. Check that this number has WhatsApp, try again in a minute, or use your password.' : 'Could not send the OTP right now. Try again in a minute, or use your password.');
+    const e = new core.HttpError(502, via(p) === 'whatsapp' ? 'Could not send the OTP on WhatsApp right now. Check that this number has WhatsApp, try again in a minute, or use your password.' : 'Could not send the OTP right now. Try again in a minute, or use your password.');
+    e.reply = res ? `HTTP ${res.status} ${text.slice(0, 400)}` : `no answer (${netErr})`; // shown in the admin test
+    throw e;
   }
+  let id = '';
+  if (p === 'gupshup') {
+    try { id = String(JSON.parse(text).messageId || ''); } catch { id = ''; }
+    if (id) await track(id, phone);
+  }
+  return { id, reply: text.slice(0, 400) };
+}
+
+// ----- Gupshup delivery reports -----
+// Gupshup answers "submitted" at once; whether WhatsApp delivered the message, or why it failed,
+// comes later to the callback URL (/api/config?gupshup=<token>, set in the Gupshup app). Each OTP
+// message is kept 3 days with its latest status, and the last 30 are listed in the admin panel.
+const WA = (id) => `otpwa:${id}`;
+const masked = (phone) => phone.slice(0, 2) + '••••' + phone.slice(-4);
+async function track(id, phone) {
+  await db.pipe([['SET', WA(id), JSON.stringify({ id, to: masked(phone), at: Date.now(), status: 'submitted' }), 'EX', 3 * 86400], ['LPUSH', 'otpwa', id], ['LTRIM', 'otpwa', 0, 29]]).catch(() => {});
+}
+const hookToken = (apiKey) => core.sha256('gupshup-hook|' + apiKey).slice(0, 24);
+// the token in the callback URL, from the saved Gupshup key (admin panel, or Vercel variables)
+async function gupshupKey() {
+  const o = (await core.getSettings()).otp || {};
+  if (o.provider === 'gupshup' && o.apiKey) return o.apiKey;
+  const e = fromEnv();
+  return e && e.provider === 'gupshup' ? e.apiKey : '';
+}
+async function hookPath() {
+  const k = await gupshupKey();
+  return k ? `/api/config?gupshup=${hookToken(k)}` : '';
+}
+// Reads Gupshup's event (its own format v2, or Meta's format) into [{ id, status, code, reason }]
+function events(b) {
+  const out = [];
+  if (b && b.type === 'message-event' && b.payload) {
+    const p = b.payload, d = p.payload || {};
+    out.push({ ids: [p.gsId, p.id].filter(Boolean), status: p.type, code: d.code, reason: d.reason || d.description || '' });
+  }
+  for (const en of (b && b.entry) || []) for (const ch of en.changes || []) for (const st of (ch.value && ch.value.statuses) || []) {
+    const er = (st.errors || [])[0] || {};
+    out.push({ ids: [st.gs_id, st.id, st.meta_msg_id].filter(Boolean), status: st.status, code: er.code, reason: [er.title, er.message, er.error_data && er.error_data.details].filter(Boolean).join(': ') });
+  }
+  return out;
+}
+const RANK = { submitted: 0, enqueued: 1, sent: 2, delivered: 3, read: 4, failed: 5 };
+async function webhook(req, res, token) {
+  const k = await gupshupKey();
+  if (!k || !core.safeEqual(String(token), hookToken(k))) return core.send(res, 404, { error: 'Not found' });
+  if (req.method !== 'POST') return core.send(res, 200, { ok: true }); // Gupshup checks the URL first
+  for (const ev of events(core.body(req))) {
+    for (const id of ev.ids) {
+      const raw = await db.cmd(['GET', WA(id)]).catch(() => null);
+      if (!raw) continue;
+      let o;
+      try { o = JSON.parse(raw); } catch { continue; }
+      // reports can come out of order: never go back from delivered to sent
+      if ((RANK[ev.status] ?? 0) < (RANK[o.status] ?? 0) && ev.status !== 'failed') break;
+      Object.assign(o, { status: ev.status || o.status, code: ev.code || o.code || '', reason: ev.reason || o.reason || '', upd: Date.now() });
+      await db.cmd(['SET', WA(id), JSON.stringify(o), 'EX', 3 * 86400]).catch(() => {});
+      break;
+    }
+  }
+  await db.cmd(['SET', 'otpwa:hookseen', String(Date.now()), 'EX', 30 * 86400]).catch(() => {});
+  return core.send(res, 200, { ok: true });
+}
+async function waStatus(id) {
+  const raw = await db.cmd(['GET', WA(String(id))]).catch(() => null);
+  try { return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+async function waRecent() {
+  const ids = await db.cmd(['LRANGE', 'otpwa', 0, 29]).catch(() => []);
+  const list = ids.length ? await db.mgetJSON(ids.map(WA)).catch(() => []) : [];
+  return { list: list.filter(Boolean), hookSeen: Number(await db.cmd(['GET', 'otpwa:hookseen']).catch(() => 0)) || 0 };
 }
 
 const key = (phone) => `otp:${phone}`;
@@ -123,9 +201,13 @@ async function test(phone, o) {
   }
   await core.rateLimit('otp:admintest', 10, 3600);
   const code = String(crypto.randomInt(0, 1e6)).padStart(6, '0');
-  await deliver(cfg, phone, code);
+  let r;
+  try { r = await deliver(cfg, phone, code); } catch (e) {
+    // the admin sees what the company answered
+    throw new core.HttpError(e.status || 502, `${cfg.provider} said no. Its answer: ${e.reply || e.message}`);
+  }
   await countSms();
-  return { sent: true, code, via: via(cfg.provider) };
+  return { sent: true, code, via: via(cfg.provider), id: r.id, reply: r.reply };
 }
 
 // 'whatsapp' or 'sms' for the company in use now, or '' when OTP is off
@@ -157,4 +239,4 @@ async function check(phone, purpose, code) {
   await db.cmd(['DEL', key(phone)]);
 }
 
-module.exports = { enabled, channel, send, check, smsSeries, test, fromEnv, PROVIDERS, PURPOSES };
+module.exports = { enabled, channel, webhook, waStatus, waRecent, hookPath, send, check, smsSeries, test, fromEnv, PROVIDERS, PURPOSES };
