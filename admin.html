@@ -1131,6 +1131,9 @@
   // what a Gupshup failure reason means, in plain words
   function waHint(m) {
     const t = `${m.code || ''} ${m.reason || ''}`;
+    if (/did not match|4003/i.test(t)) return form.otpButton.checked
+      ? 'The code did not fit the template. Untick "Copy code button needs the code too", save and test again. Also check the Template ID is the long ID from Gupshup (not the template name) and the template has exactly one {{1}}.'
+      : 'The code did not fit the template. Tick "My template has a Copy code button that needs the code too", save and test again.';
     if (/param|132000|1005/i.test(t)) return 'The template and the code do not match. Tick or untick "Copy code button needs the code too" and try again, and check the template has exactly one {{1}}.';
     if (/opt|sandbox|1008|not.*live/i.test(t)) return 'Your Gupshup app is still in sandbox: it can only send to numbers that joined it. Take the app live in Gupshup (with your own business number).';
     if (/balance|wallet|insufficient|credit|1003|1006/i.test(t)) return 'Add balance to your Gupshup wallet.';
