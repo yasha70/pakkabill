@@ -111,5 +111,21 @@ eq([c('amazon').status, c('amazonb2b').status, c('amazonb2b').have], ['done', 'p
 eq([c('flipkart').status, c('portal').have], ['empty', 1], 'import: platforms with nothing added, and the portal TCS file');
 eq(V.coverage([], ['2025-03']).map((p) => p.need), [3, 1, 1, 1, 1], 'import: files needed for one month');
 
+/* TCS: nothing is collected on a state where returns were more than sales */
+{
+  const T = V.tcsReport([row({ taxable: 1000, tax: 50, pos: '24' }), row({ kind: 'returns', taxable: 600, tax: 30, pos: '27' })],
+    [{ etin: MEESHO, period: '2025-03', pos: '24', gross: 1000, returned: 0, net: 1000, igst: 0, cgst: 2.5, sgst: 2.5 }, { etin: MEESHO, period: '2025-03', pos: '27', gross: 0, returned: 600, net: -600, igst: 0, cgst: 0, sgst: 0 }],
+    { months: ['2025-03'], etinBySource: { meesho: MEESHO } });
+  eq(T.lines.map((L) => [L.pos, L.status, L.tcsDue, L.tcsGap]), [['24', 'match', 5, 0], ['27', 'match', 0, 0]], 'TCS: 0.5% of a positive net, nothing on a negative net');
+  eq([T.total.tcs, T.total.tcsDue, T.total.diff], [5, 5, 0], 'TCS: the total collected agrees');
+  eq([V.tcsRate('2024-06'), V.tcsRate('2024-07'), V.tcsRate('2024-08')], [0.01, null, 0.005], 'TCS rate: 1% before July 2024, 0.5% after, July 2024 itself has both');
+}
+
+/* B2C large from marketplace invoices: Rs 2.5 lakh before August 2024, Rs 1 lakh from it */
+{
+  const big = (period) => V.b2clCandidates([row({ source: 'amazon', invNo: 'A-1', pos: '27', taxable: 200000, tax: 10000, total: 210000, period })], { home: '24', months: [period] }).map((b) => b.invNo);
+  eq([big('2024-07'), big('2024-08')], [[], ['A-1']], 'large B2C: the limit of the month of the invoice');
+}
+
 console.log(`${checks - fails}/${checks} checks passed`);
 process.exit(fails ? 1 : 0);

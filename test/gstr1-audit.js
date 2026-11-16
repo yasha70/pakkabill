@@ -173,5 +173,51 @@ eq(G.compare(GOOD, clone(GOOD)).differ.length, 0, 'compare: a file with itself h
   ok(D.includes('Maharashtra 5%: taxable value') && D.includes('B2C (Table 7): taxable value'), 'compare: a changed state shows in totals and by state', D.join(', '));
 }
 
+/* Table 9B: every credit note checked like an invoice */
+{
+  const note = (o) => ({ ntty: 'C', nt_num: 'CN/26/001', nt_dt: '18-09-2026', pos: '27', rchrg: 'N', inv_typ: 'R', val: 1050, itms: [{ num: 1, itm_det: { rt: 5, txval: 1000, iamt: 50, csamt: 0 } }], ...o });
+  const withNotes = (...n) => { const j = clone(GOOD); j.cdnr = [{ ctin: '27AAPFU0939F1ZV', nt: n }]; j.hsn.hsn_b2b[0].txval -= n.length * 1000; return j; };
+  eq(G.check(withNotes(note())).issues.filter((x) => x.table === 'cdnr'), [], 'credit note: a good note passes');
+  ok(has(G.check(withNotes(note({ nt_dt: '2026-09-18' }))), /date "2026-09-18" must be DD-MM-YYYY/, 'error'), 'credit note: a wrong date form is an error');
+  ok(has(G.check(withNotes(note({ nt_dt: '02-10-2026' }))), /after the return period ends/, 'error'), 'credit note: dated after the period is an error');
+  ok(has(G.check(withNotes(note({ nt_num: 'CN 26 001 too long number' }))), /note number .* is not allowed/, 'error'), 'credit note: a bad number is an error');
+  ok(has(G.check(withNotes(note(), note())), /note number CN\/26\/001 is used twice/, 'error'), 'credit note: the same number twice is an error');
+  ok(has(G.check(withNotes(note({ pos: '28' }))), /state code 28 no longer exists/, 'error'), 'credit note: an old state code is an error');
+  ok(has(G.check(withNotes(note({ itms: [{ num: 1, itm_det: { rt: 5, txval: 1000, iamt: 500, csamt: 0 } }] }))), /IGST ₹500 is ₹450 more than 5% of ₹1,000/, 'warn'), 'credit note: tax is checked against the rate');
+  ok(has(G.check(withNotes(note({ itms: [{ num: 1, itm_det: { rt: 5, txval: 1000, camt: 25, samt: 25, csamt: 0 } }] }))), /inter-state, so only IGST is allowed/, 'error'), 'credit note: CGST on an inter-state note is an error');
+  ok(has(G.check(withNotes(note({ itms: [{ num: 1, itm_det: { rt: 5, txval: -1000, iamt: -50, csamt: 0 } }] }))), /written with plus amounts/, 'error'), 'credit note: minus amounts are an error');
+  ok(has(G.check(withNotes(note({ itms: [] }))), /no items/, 'error'), 'credit note: no items is an error');
+  const own = withNotes(note()); own.cdnr[0].ctin = own.gstin;
+  ok(has(G.check(own), /made out to your own GSTIN/, 'error'), 'credit note: to your own GSTIN is an error');
+}
+
+/* B2C large: above Rs 2.5 lakh before the August 2024 return, above Rs 1 lakh from it */
+{
+  const j = clone(GOOD); j.fp = '072024'; j.b2b[0].inv[0].idt = '15-07-2024'; j.b2cl[0].inv[0].idt = '20-07-2024';
+  ok(has(G.check(j), /value ₹2,10,000 is not above ₹2,50,000/, 'warn'), 'B2C large: Rs 2.1 lakh in July 2024 belongs in Table 7');
+  j.fp = '082024'; j.b2b[0].inv[0].idt = '15-08-2024'; j.b2cl[0].inv[0].idt = '20-08-2024';
+  ok(!has(G.check(j), /is not above/), 'B2C large: Rs 2.1 lakh in August 2024 is B2C large');
+}
+
+/* Table 12 lists nil rated and exempt supplies too: with or without them it ties */
+{
+  const j = clone(GOOD);
+  j.nil = { inv: [{ sply_ty: 'INTRAB2C', nil_amt: 4000, expt_amt: 0, ngsup_amt: 0 }] };
+  ok(!has(G.check(j), /Table 12 B2C adds up/), 'Table 12: nil rated sales left out of it still tie');
+  j.hsn.hsn_b2c.push({ num: 9, hsn_sc: '4901', desc: 'Books', uqc: 'PCS', qty: 8, rt: 0, txval: 4000, iamt: 0, camt: 0, samt: 0, csamt: 0 });
+  ok(!has(G.check(j), /Table 12 B2C adds up/), 'Table 12: nil rated sales listed in it tie as well');
+  j.hsn.hsn_b2c[j.hsn.hsn_b2c.length - 1].txval = 3000;
+  ok(has(G.check(j), /Table 12 B2C adds up/, 'warn'), 'Table 12: a wrong nil rated line is still found');
+}
+
+/* GSTR-3B 3.2 is net of credit notes to unregistered buyers in other states */
+{
+  const j = clone(GOOD);
+  const before = G.check(j).threeB.a32.find((u) => u.pos === '29');
+  j.cdnur = [{ ntty: 'C', nt_num: 'CN/26/009', nt_dt: '25-09-2026', typ: 'B2CL', pos: '29', val: 21000, itms: [{ num: 1, itm_det: { rt: 5, txval: 20000, iamt: 1000, csamt: 0 } }] }];
+  const after = G.check(j).threeB.a32.find((u) => u.pos === '29');
+  eq([after.txval, after.iamt], [before.txval - 20000, before.iamt - 1000], '3B 3.2: a B2C large credit note is taken off its state');
+}
+
 console.log(`${checks - fails}/${checks} GSTR-1 checker checks passed`);
 process.exit(fails ? 1 : 0);

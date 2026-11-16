@@ -35,7 +35,8 @@
   const TABLES = { b2b: '4A', b2cl: '5', exp: '6A', b2cs: '7', nil: '8', cdnr: '9B', cdnur: '9B', hsn: '12', doc_issue: '13', supeco: '14' };
   const TABNAME = { header: 'File', b2b: 'Table 4', b2cl: 'Table 5', exp: 'Table 6', b2cs: 'Table 7', nil: 'Table 8', cdnr: 'Table 9B', cdnur: 'Table 9B', hsn: 'Table 12', doc_issue: 'Table 13', supeco: 'Table 14', file: 'File' };
   const TOL = 1; // the portal accepts tax up to Rs 1 away from rate × value
-  const B2CL_LIMIT = 100000; // invoice value above which an inter-state B2C invoice is B2CL (from Aug 2024; Rs 2.5 lakh before)
+  // invoice value above which an inter-state B2C invoice is B2CL: Rs 1 lakh from the August 2024 return, Rs 2.5 lakh before
+  const b2clLimit = (year, month) => (year && (year < 2024 || (year === 2024 && month < 8)) ? 250000 : 100000);
 
   const num = (v) => (typeof v === 'number' && isFinite(v) ? v : 0);
   const r2 = (v) => Math.round(v * 100) / 100;
@@ -214,7 +215,7 @@
       (p.inv || []).forEach((v) => {
         const label = `B2C large invoice ${v.inum || '?'}`;
         invCheck('b2cl', label, v.inum, v.idt);
-        if (num(v.val) <= B2CL_LIMIT) say('warn', 'b2cl', `${label}: value ${rs(v.val)} is not above ₹1,00,000, so it belongs in B2C (Table 7).`, 'Move it to Table 7.');
+        if (num(v.val) <= b2clLimit(fpYear, fpMonth)) say('warn', 'b2cl', `${label}: value ${rs(v.val)} is not above ${rs(b2clLimit(fpYear, fpMonth))}, so it belongs in B2C (Table 7).`, 'Move it to Table 7.');
         (v.itms || []).forEach((it) => { const d = it.itm_det || {}; amountsOk('b2cl', d, ['txval', 'iamt', 'csamt']); rateOk('b2cl', label, d.rt); taxMath('b2cl', label, true, d.rt, num(d.txval), num(d.iamt), 0, 0); add(T.b2cl, d); });
       });
     });
@@ -257,13 +258,48 @@
 
     /* Table 9B: credit and debit notes */
     const noteSign = (t) => (t === 'D' ? 1 : -1);
+    const noteSeen = new Map();
+    const noteCheck = (where, label, n, who) => {
+      if (!docNoOk(n.nt_num)) say('error', where, `${label}: note number "${n.nt_num || ''}" is not allowed. Use up to 16 letters, numbers, / or -.`, 'Fix the note number.');
+      const k = who + String(n.nt_num || '').toUpperCase();
+      if (noteSeen.has(k)) say('error', where, `${label}: note number ${n.nt_num} is used twice.`, 'Each credit or debit note can be reported once.');
+      noteSeen.set(k, 1);
+      const d = dateOk(n.nt_dt);
+      if (!d) say('error', where, `${label}: date "${n.nt_dt || ''}" must be DD-MM-YYYY.`, 'Fix the note date.');
+      else if (periodEnd && d > periodEnd) say('error', where, `${label}: dated ${n.nt_dt}, after the return period ends.`, 'Report it in the return for its own month.');
+    };
     (J.cdnr || []).forEach((p) => (p.nt || []).forEach((n) => {
       const label = `Credit/debit note ${n.nt_num || '?'}`;
       if (!['C', 'D'].includes(n.ntty)) say('error', 'cdnr', `${label}: note type must be C or D.`, '');
       if (!gstinOk(p.ctin)) say('error', 'cdnr', `${label}: buyer GSTIN ${p.ctin} is not valid.`, '');
-      (n.itms || []).forEach((it) => add(T.cdnr, it.itm_det || {}, noteSign(n.ntty)));
+      if (String(p.ctin || '').toUpperCase() === gstin && gstin) say('error', 'cdnr', `${label}: made out to your own GSTIN.`, 'Use the buyer’s GSTIN.');
+      noteCheck('cdnr', label, n, (p.ctin || '') + '|');
+      const posGood = posOk('cdnr', label, n.pos);
+      if (!(n.itms || []).length) say('error', 'cdnr', `${label}: no items.`, '');
+      let sum = 0;
+      (n.itms || []).forEach((it) => {
+        const d = it.itm_det || {};
+        amountsOk('cdnr', d, ['txval', 'iamt', 'camt', 'samt', 'csamt']);
+        rateOk('cdnr', label, d.rt);
+        if (posGood && (n.inv_typ === 'R' || !n.inv_typ)) taxMath('cdnr', label, n.pos !== st, d.rt, num(d.txval), num(d.iamt), num(d.camt), num(d.samt));
+        if (num(d.txval) < 0 || num(d.iamt) < 0 || num(d.camt) < 0 || num(d.samt) < 0) say('error', 'cdnr', `${label}: a note is written with plus amounts; the note type (C or D) gives the sign.`, 'Remove the minus sign.');
+        sum += num(d.txval) + num(d.iamt) + num(d.camt) + num(d.samt) + num(d.csamt);
+        add(T.cdnr, d, noteSign(n.ntty));
+      });
+      if (num(n.val) + TOL < sum) say('warn', 'cdnr', `${label}: note value ${rs(n.val)} is less than its value plus tax ${rs(sum)}.`, 'Check the note value.');
     }));
-    (J.cdnur || []).forEach((n) => (n.itms || []).forEach((it) => add(T.cdnur, it.itm_det || {}, noteSign(n.ntty))));
+    (J.cdnur || []).forEach((n) => {
+      const label = `Credit/debit note ${n.nt_num || '?'} (unregistered)`;
+      if (!['C', 'D'].includes(n.ntty)) say('error', 'cdnur', `${label}: note type must be C or D.`, '');
+      noteCheck('cdnur', label, n, 'UR|');
+      (n.itms || []).forEach((it) => {
+        const d = it.itm_det || {};
+        amountsOk('cdnur', d, ['txval', 'iamt', 'csamt']);
+        rateOk('cdnur', label, d.rt);
+        if (n.typ === 'B2CL' || !n.typ) taxMath('cdnur', label, true, d.rt, num(d.txval), num(d.iamt), 0, 0);
+        add(T.cdnur, d, noteSign(n.ntty));
+      });
+    });
 
     /* Table 12: HSN */
     const hasSupplies = T.b2b.n + T.b2cl.n + T.b2cs.n + T.exp.n + T.nil.n > 0;
@@ -297,13 +333,16 @@
     // Table 12 should add up to the sales reported in the other tables (the portal compares them)
     const b2cWant = T.b2cs.txval + T.b2cl.txval + T.exp.txval + T.cdnur.txval;
     const b2bWant = T.b2b.txval + T.cdnr.txval;
+    // nil rated and exempt supplies (Table 8) are part of Table 12 as well; a file may list them there or not
+    const nilOf = (types) => (J.nil && J.nil.inv || []).filter((r) => types.includes(r.sply_ty)).reduce((a, r) => a + num(r.nil_amt) + num(r.expt_amt) + num(r.ngsup_amt), 0);
+    const nilB2C = nilOf(['INTRB2C', 'INTRAB2C']), nilB2B = nilOf(['INTRB2B', 'INTRAB2B']);
     if (J.hsn && (J.hsn.hsn_b2c || J.hsn.data)) {
       const d = T.hsnB2C.txval - b2cWant;
-      if (Math.abs(d) > TOL) say('warn', 'hsn', `Table 12 B2C adds up to ${rs(T.hsnB2C.txval)}, but B2C sales in Tables 5, 6, 7 and 9B are ${rs(b2cWant)} (${rs(Math.abs(d))} ${d > 0 ? 'more' : 'less'}).`, 'Every taxable sale needs an HSN line. Rows without HSN in the marketplace report are the usual cause.', { key: 'hsnb2c' });
+      if (Math.abs(d) > TOL && Math.abs(d - nilB2C) > TOL) say('warn', 'hsn', `Table 12 B2C adds up to ${rs(T.hsnB2C.txval)}, but B2C sales in Tables 5, 6, 7 and 9B are ${rs(b2cWant)} (${rs(Math.abs(d))} ${d > 0 ? 'more' : 'less'}).`, 'Every taxable sale needs an HSN line. Rows without HSN in the marketplace report are the usual cause.', { key: 'hsnb2c' });
     }
     if (J.hsn && J.hsn.hsn_b2b) {
       const d = T.hsnB2B.txval - b2bWant;
-      if (Math.abs(d) > TOL) say('warn', 'hsn', `Table 12 B2B adds up to ${rs(T.hsnB2B.txval)}, but B2B sales in Tables 4 and 9B are ${rs(b2bWant)}.`, 'Add the HSN of every B2B invoice line.');
+      if (Math.abs(d) > TOL && Math.abs(d - nilB2B) > TOL) say('warn', 'hsn', `Table 12 B2B adds up to ${rs(T.hsnB2B.txval)}, but B2B sales in Tables 4 and 9B are ${rs(b2bWant)}.`, 'Add the HSN of every B2B invoice line.');
     }
 
     /* Table 13: documents issued */
@@ -376,6 +415,7 @@
     const unreg = {};
     (J.b2cs || []).filter((r) => r.pos !== st).forEach((r) => { const u = unreg[r.pos] || (unreg[r.pos] = { txval: 0, iamt: 0 }); u.txval += num(r.txval); u.iamt += num(r.iamt); });
     (J.b2cl || []).forEach((p) => (p.inv || []).forEach((v) => (v.itms || []).forEach((it) => { const u = unreg[p.pos] || (unreg[p.pos] = { txval: 0, iamt: 0 }); u.txval += num(it.itm_det.txval); u.iamt += num(it.itm_det.iamt); })));
+    (J.cdnur || []).filter((n) => n.pos && n.pos !== st && (n.typ === 'B2CL' || !n.typ)).forEach((n) => (n.itms || []).forEach((it) => { const d = it.itm_det || {}, u = unreg[n.pos] || (unreg[n.pos] = { txval: 0, iamt: 0 }); u.txval += noteSign(n.ntty) * num(d.txval); u.iamt += noteSign(n.ntty) * num(d.iamt); }));
     const threeB = {
       a31: out,
       a32: Object.entries(unreg).map(([pos, u]) => ({ pos, name: stateName(pos), txval: r2(u.txval), iamt: r2(u.iamt) })).filter((u) => u.txval || u.iamt).sort((a, b) => a.pos.localeCompare(b.pos)),

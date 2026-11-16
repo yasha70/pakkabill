@@ -109,7 +109,8 @@
       const ours = { gross: r2(L.ours.gross), returns: r2(L.ours.returns), net: r2(L.ours.net), tax: r2(L.ours.tax), n: L.ours.n };
       const P = L.portal && { ...L.portal, gross: r2(L.portal.gross), returned: r2(L.portal.returned), net: r2(L.portal.net), igst: r2(L.portal.igst), cgst: r2(L.portal.cgst), sgst: r2(L.portal.sgst), tcs: r2(L.portal.tcs) };
       const diff = P ? r2(ours.net - P.net) : null, rate = tcsRate(L.period);
-      const tcsDue = P && rate != null ? r2(P.net * rate) : null;
+      // no TCS is collected on a state where returns were more than sales
+      const tcsDue = P && rate != null ? r2(Math.max(0, P.net) * rate) : null;
       const status = !P ? 'noportal' : !ours.n ? 'noreport' : Math.abs(diff) <= tol ? 'match' : 'diff';
       return { ...L, ours, portal: P, diff, tcsDue, tcsGap: tcsDue == null ? null : r2(P.tcs - tcsDue), status };
     };
@@ -138,16 +139,16 @@
     return { groups, lines: all, total: sumUp(all), hasPortal: all.some((L) => L.portal), portalFile: (portal || []).length > 0, otherMonths, skippedNil, noOperator, noState, gstinMismatch };
   }
 
-  // Invoices of more than Rs 1 lakh to unregistered buyers in another state belong in Table 5 (B2CL)
-  // with their invoice number, not in Table 7. Marketplace rows carry invoice numbers for Amazon/Flipkart.
+  // Invoices of more than Rs 1 lakh (Rs 2.5 lakh before August 2024) to unregistered buyers in another
+  // state belong in Table 5 (B2CL) with their invoice number, not in Table 7. Marketplace rows carry invoice numbers for Amazon/Flipkart.
   function b2clCandidates(rows, opts) {
     const home = (opts && opts.home) || '', months = new Set((opts && opts.months) || []), inv = new Map();
     (rows || []).forEach((r) => {
       if (!r || r.kind !== 'sales' || isB2B(r) || !r.invNo || !r.pos || r.pos === home || !months.has(r.period)) return;
-      const k = r.source + '|' + r.invNo, t = inv.get(k) || { source: r.source, invNo: r.invNo, pos: r.pos, val: 0 };
+      const k = r.source + '|' + r.invNo, t = inv.get(k) || { source: r.source, invNo: r.invNo, pos: r.pos, val: 0, limit: r.period < '2024-08' ? 250000 : 100000 };
       t.val += num(r.total) || num(r.taxable) + num(r.tax); inv.set(k, t);
     });
-    return [...inv.values()].filter((t) => t.val > 100000).map((t) => ({ ...t, val: r2(t.val) }));
+    return [...inv.values()].filter((t) => t.val > t.limit).map((t) => ({ ...t, val: r2(t.val) }));
   }
 
   // The GSTR-1 summary the way the portal shows it after upload: per table, records, value and tax.
@@ -660,7 +661,7 @@
       if (T.hasPortal) {
         const due = T.groups.filter((g) => g.total.hasPortal && g.lines.some((L) => L.tcsDue != null));
         const gap = due.filter((g) => Math.abs(r2(g.total.tcs - g.total.tcsDue)) > 2);
-        if (due.length) h += `<p class="g1v-note">TCS is ${T.groups.some((g) => g.period < '2024-07') ? '1% (0.5% from 10 July 2024)' : '0.5%'} of the net value. ${gap.length ? `<span class="g1v-warn">${gap.map((g) => `${esc(g.name)} ${esc(monthName(g.period))}: collected ${rs(g.total.tcs)}, 0.5% of net is ${rs(g.total.tcsDue)}`).join('; ')}. Ask the operator's seller support about the gap.</span>` : 'The TCS collected agrees with the net values.'}</p>`;
+        if (due.length) h += `<p class="g1v-note">TCS is ${T.groups.some((g) => g.period < '2024-07') ? '1% (0.5% from 10 July 2024)' : '0.5%'} of the net value. ${gap.length ? `<span class="g1v-warn">${gap.map((g) => `${esc(g.name)} ${esc(monthName(g.period))}: collected ${rs(g.total.tcs)}, ${g.period < '2024-07' ? '1%' : '0.5%'} of net is ${rs(g.total.tcsDue)}`).join('; ')}. Ask the operator's seller support about the gap.</span>` : 'The TCS collected agrees with the net values.'}</p>`;
       }
       h += `</div></div>`;
       // the switch that makes the GSTR-1 use the operators' figures

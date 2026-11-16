@@ -54,6 +54,20 @@ bar so bills stay one tap away on a phone. The logo opens Home.
   switched off); Table 7 lines are type OE with the operator in Table 14; Table 13 takes each document by
   its own date (a quarter's invoice file used for a monthly return no longer puts every month in one).
   The page is in numbered steps, and gives the GSTR-3B figures and an Excel workbook for the CA.
+- GSTR-1 accuracy rules (`node test/gstr1build-audit.js` works every table out a second time from the
+  report rows and compares to the paisa): Table 7, Table 12 (B2C) and Table 14 always tie; besides a
+  whole state and rate, a return that would push one HSN line (value, tax or quantity), one operator's
+  line, or a state line tagged with the operator below zero is held back, largest first, and carried
+  with its HSN to the next return; rows of another GSTIN (an Amazon report lists every GSTIN of the
+  account) never enter the return, statement, TCS report or Table 13; B2C large is above Rs 2.5 lakh
+  before 1 August 2024 and above Rs 1 lakh from then; a 0% line of a PakkaBill bill to an unregistered
+  buyer goes to Table 8; a quarterly return with B2B invoices reminds about IFF; the GSTR-8 tax period
+  is read as Mar-2025, March 2025, Mar-25, 032025, 03/2025, a date or an Excel date number. The
+  checker checks every credit note in Table 9B like an invoice (number, date, state, rate, tax, sign,
+  duplicates), lets Table 12 tie with or without nil rated sales, and takes B2C large credit notes
+  off GSTR-3B 3.2. The TCS report expects no TCS on a state whose returns were more than its sales.
+  After a rule change, `node test/gstr1build-audit.js --write` saves the sample month's return again
+  (`android/core/src/test/resources/gstr1/website-GSTR1.json`, which the Android app must also give).
 - GSTR-1 checker (`gstr1check.js`, under the GSTR-1 page): checks PakkaBill's JSON, or one made by any
   other tool, against the portal's rules before upload: GSTIN check digits, return period, tax from
   rate and value (Rs 1 tolerance), INTRA/INTER against the place of supply, state codes (25 and 28

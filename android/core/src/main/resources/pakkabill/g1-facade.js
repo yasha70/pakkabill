@@ -59,12 +59,14 @@ var PBGstr1 = (function () {
           shopGstin, invoices (PakkaBill bills), hsnB2c, docTable } */
   function compute(st) {
     var a = S.files, d = st.period, p = !!st.quarterly, T = st.cashback !== false, k = st.docs || {}, Q = st.etinBySource || {};
-    var L = flat(a, function (e) { return e.tcs; }).filter(function (e) { return T || e.bucket !== 'cashback'; });
+    var LA = flat(a, function (e) { return e.tcs; }).filter(function (e) { return T || e.bucket !== 'cashback'; });
     var M = p ? (function () { var y = +d.slice(0, 4), m0 = +d.slice(5, 7), t = m0 - (m0 - 1) % 3; return [0, 1, 2].map(function (i) { return y + '-' + pad(t + i); }); })() : [d];
     var last = M[M.length - 1], R = last ? last.slice(5, 7) + last.slice(0, 4) : '';
     var label = p ? B.monthLabel(M[0]).split(' ')[0] + ' to ' + B.monthLabel(M[2]) : B.monthLabel(d);
     var P = flat(a, function (e) { return e.tcs; }).filter(function (e) { return e.bucket === 'cashback' && M.indexOf(e.period) >= 0; }).length;
     var j = B.gstinCheck(st.gstin || ''), K = B.gstinClean(st.gstin || '');
+    // rows of another GSTIN (an Amazon report lists every GSTIN of the account) never enter the return
+    var L = K.length === 15 ? LA.filter(function (e) { return !e.gstin || e.gstin === K; }) : LA;
     var G = !!st.shopGstin && B.gstinClean(st.shopGstin) === K;
     var invoices = st.invoices || [];
     var Vb = invoices.filter(function (e) { return e.docType === 'invoice' && M.indexOf(String(e.date || '').slice(0, 7)) >= 0; });
@@ -106,8 +108,10 @@ var PBGstr1 = (function () {
     });
     if (Z.ecoB2bCount) q.push({ tone: 'info', text: Z.ecoB2bCount + ' marketplace ' + (Z.ecoB2bCount === 1 ? 'invoice was' : 'invoices were') + ' sold to registered buyers, so they go in Table 4 with their invoice numbers rather than the B2C table.' });
     a.filter(function (e) { return e.note; }).forEach(function (e) { q.push({ tone: 'info', text: e.name + ': ' + e.note }); });
-    var et = uniq(L.map(function (e) { return e.gstin; })).filter(function (e) { return e && e !== K; });
-    if (et.length) q.unshift({ tone: 'warn', text: 'Some reports are for a different GSTIN (' + et.join(', ') + '). Only file reports that belong to ' + (K || 'your GSTIN') + '.' });
+    var et = uniq(LA.map(function (e) { return e.gstin; })).filter(function (e) { return e && e !== K; }), left = LA.length - L.length;
+    if (et.length) q.unshift({ tone: 'warn', text: K.length === 15
+      ? left + ' report ' + (left === 1 ? 'row belongs' : 'rows belong') + ' to another GSTIN (' + et.join(', ') + ') and ' + (left === 1 ? 'is' : 'are') + ' left out. This return has only the rows of ' + K + '. Make a separate return for each GSTIN.'
+      : 'Some reports are for a different GSTIN (' + et.join(', ') + '). Only file reports that belong to ' + (K || 'your GSTIN') + '.' });
     if (Z.outOfPeriod) q.push({ tone: 'info', text: Z.outOfPeriod + ' report rows belong to other months and are left out of ' + label + '.' });
     var er = new Set(W.filter(function (e) { return e.type === 'invoice'; }).map(function (e) { return e.order; }));
     var en = L.filter(function (e) { return e.kind === 'sales' && e.qty > 0 && M.indexOf(e.period) >= 0 && er.size && !er.has(e.order); });
