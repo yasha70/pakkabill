@@ -127,5 +127,18 @@ eq(V.coverage([], ['2025-03']).map((p) => p.need), [3, 1, 1, 1, 1], 'import: fil
   eq([big('2024-07'), big('2024-08')], [[], ['A-1']], 'large B2C: the limit of the month of the invoice');
 }
 
+/* set-off: what "make this GSTR-1 equal to GSTR-8" moves, line by line */
+{
+  const T = V.tcsReport([row({ taxable: 1000, tax: 50, pos: '24' }), row({ taxable: 2000, tax: 100, pos: '27' }), row({ taxable: 300, tax: 15, pos: '29' }), row({ source: 'amazon', etin: AMAZON, taxable: 900, tax: 45, pos: '24' })],
+    [{ etin: MEESHO, period: '2025-03', pos: '24', gross: 1000, returned: 0, net: 1000.4, igst: 0, cgst: 2.5, sgst: 2.5 }, { etin: MEESHO, period: '2025-03', pos: '27', gross: 2000, returned: 400, net: 1600, igst: 8, cgst: 0, sgst: 0 },
+      { etin: MEESHO, period: '2025-03', pos: '07', gross: 500, returned: 0, net: 500, igst: 2.5, cgst: 0, sgst: 0 }],
+    { months: ['2025-03'], etinBySource: { meesho: MEESHO } });
+  const so = V.setoff(T);
+  eq(so.lines.map((l) => [l.name, l.pos, l.ours, l.portal, l.amount, l.inPortal, l.inReports]), [['Meesho', '07', 0, 500, 500, true, false], ['Meesho', '27', 2000, 1600, -400, true, true], ['Meesho', '29', 300, 0, -300, false, true]],
+    'set-off: GSTR-8 less your net for each state; rounding left alone; an operator with no portal entries left alone');
+  eq([so.add, so.less, so.total], [500, -700, -200], 'set-off: added, taken off and net');
+  eq(V.setoff(V.tcsReport([row({ taxable: 1000, tax: 50 })], [], { months: ['2025-03'], etinBySource: { meesho: MEESHO } })).lines, [], 'set-off: nothing without the portal report');
+}
+
 console.log(`${checks - fails}/${checks} checks passed`);
 process.exit(fails ? 1 : 0);

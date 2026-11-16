@@ -224,6 +224,30 @@ function noNegative(J, what) {
   ok(!M.v.notes.some((n) => /IFF/.test(n.text)), 'a monthly return has no IFF note');
 }
 
+/* ---------------- 9. the portal report and the set-off ---------------- */
+{
+  const HEAD = ['GSTIN of E-commerce Operator', 'Trade Name', 'Tax Period of GSTR-8', 'Gross Value', 'Supplies Returned', 'Net Value', 'Amount of tax collected by e-commerce operators', '', '', 'POS', 'Action'];
+  const base = [['tcs_sales.csv', sheet(SALES, [['S1', '6204', 1, 5, 1000, 'GUJARAT'], ['S2', '6204', 2, 5, 2000, 'Maharashtra'], ['S3', '6109', 1, 5, 300, 'Karnataka']].map(sale(3, 2025)))]];
+  const first = make(base);
+  const etin = first.d.etinBySource.meesho;
+  // GSTR-8: Gujarat the same, Maharashtra 400 lower (a return the operator booked), Delhi 500 that the reports do not have, Karnataka missing
+  const portal = ['tcs_credit_received.csv', sheet(HEAD, [[etin, 'Meesho', 'Mar-2025', 1000, 0, 1000, 0, 2.5, 2.5, '24-Gujarat', ''], [etin, 'Meesho', 'Mar-2025', 2000, 400, 1600, 8, 0, 0, '27-Maharashtra', ''], [etin, 'Meesho', 'Mar-2025', 500, 0, 500, 2.5, 0, 0, '07-Delhi', '']])];
+  const off = make([...base, portal]);
+  eq(sumOf(off.json.b2cs, 'txval'), 3300, 'portal report added: the return does not change by itself');
+  eq(off.v.tcs.total.status, 'diff', 'portal report added: the TCS report shows the difference');
+  const so = off.E.V.setoff(off.v.tcs);
+  eq(so.lines.map((l) => [l.pos, l.amount]), [['07', 500], ['27', -400], ['29', -300]], 'set-off lines: Delhi added, Maharashtra and Karnataka taken off');
+  const on = make([...base, portal], { usePortal: true });
+  eq(on.v.z.portalAdj, so.total, 'set-off on: the return moves by exactly the set-off shown');
+  eq(on.json.b2cs.map((r) => [r.pos, r.rt, r.txval, r.iamt || 0, r.camt || 0]), [['07', 5, 500, 25, 0], ['24', 5, 1000, 0, 25], ['27', 5, 1600, 80, 0]], 'set-off on: Table 7 equals GSTR-8, state by state, tax at the rate sold');
+  eq(on.json.supeco.clttx.map((e) => [e.etin, e.suppval, e.igst, e.cgst]), [[etin, 3100, 105, 25]], 'set-off on: Table 14 equals GSTR-8');
+  eq(sumOf(on.json.hsn.hsn_b2c, 'txval'), 3100, 'set-off on: Table 12 moves with it');
+  noNegative(on.json, 'set-off on');
+  eq(on.v.bridge.unexplained, 0, 'set-off on: every rupee accounted for');
+  eq(on.v.bridge.steps.find((x) => x.key === 'portal').v, -200, 'set-off on: shown as its own step from reports to return');
+  eq(on.check.errors, 0, 'set-off on: the checker finds no error');
+}
+
 fs.rmSync(out, { recursive: true, force: true });
 console.log(fails ? `${fails} of ${checks} GSTR-1 return checks FAILED` : `${checks}/${checks} GSTR-1 return checks passed`);
 process.exit(fails ? 1 : 0);

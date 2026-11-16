@@ -69,6 +69,12 @@ bar so bills stay one tap away on a phone. The logo opens Home.
   checker checks every credit note in Table 9B like an invoice (number, date, state, rate, tax, sign,
   duplicates), lets Table 12 tie with or without nil rated sales, and takes B2C large credit notes
   off GSTR-3B 3.2. The TCS report expects no TCS on a state whose returns were more than its sales.
+  The TCS Report step has its own upload for the GST portal report (TDS and TCS credit received), with
+  the months covered and a remove button, and a Set off card: every state where GSTR-8 and the reports
+  differ, the amount each would move (GSTR-8 net less your net; a state the operator did not report goes
+  to zero), and one switch, "make this GSTR-1 equal to GSTR-8", that moves Tables 7, 12 and 14 by exactly
+  those amounts at the rate sold. The reconciliation downloads as CSV. A state whose sales all came back
+  counts as matched when the operator reported the month.
   After a rule change, `node test/gstr1build-audit.js --write` saves the sample month's return again
   (`android/core/src/test/resources/gstr1/website-GSTR1.json`, which the Android app must also give).
 - GSTR-1 checker (`gstr1check.js`, under the GSTR-1 page): checks PakkaBill's JSON, or one made by any

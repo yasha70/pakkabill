@@ -105,13 +105,15 @@
       L.portal.n++; L.portal.gross += num(p.gross); L.portal.returned += num(p.returned); L.portal.net += num(p.net);
       L.portal.igst += num(p.igst); L.portal.cgst += num(p.cgst); L.portal.sgst += num(p.sgst); L.portal.tcs += num(p.igst) + num(p.cgst) + num(p.sgst);
     });
+    const opMonths = new Set([...lines.values()].filter((L) => L.portal).map((L) => L.op + '|' + L.period));
     const fin = (L) => {
       const ours = { gross: r2(L.ours.gross), returns: r2(L.ours.returns), net: r2(L.ours.net), tax: r2(L.ours.tax), n: L.ours.n };
       const P = L.portal && { ...L.portal, gross: r2(L.portal.gross), returned: r2(L.portal.returned), net: r2(L.portal.net), igst: r2(L.portal.igst), cgst: r2(L.portal.cgst), sgst: r2(L.portal.sgst), tcs: r2(L.portal.tcs) };
       const diff = P ? r2(ours.net - P.net) : null, rate = tcsRate(L.period);
       // no TCS is collected on a state where returns were more than sales
       const tcsDue = P && rate != null ? r2(Math.max(0, P.net) * rate) : null;
-      const status = !P ? 'noportal' : !ours.n ? 'noreport' : Math.abs(diff) <= tol ? 'match' : 'diff';
+      // a state whose sales all came back (net zero) need not be in GSTR-8 when the operator reported the month
+      const status = !P ? (opMonths.has(L.op + '|' + L.period) && Math.abs(ours.net) <= tol ? 'match' : 'noportal') : !ours.n ? 'noreport' : Math.abs(diff) <= tol ? 'match' : 'diff';
       return { ...L, ours, portal: P, diff, tcsDue, tcsGap: tcsDue == null ? null : r2(P.tcs - tcsDue), status };
     };
     const all = [...lines.values()].map(fin).sort((a, b) => a.op.localeCompare(b.op) || a.period.localeCompare(b.period) || String(a.pos).localeCompare(String(b.pos)));
@@ -137,6 +139,24 @@
     const gstinMismatch = [...ops.values()].filter((op) => op.portalEtin && op.sources.size && [...op.sources].some((s) => ebs[s] && ebs[s] !== op.portalEtin))
       .map((op) => ({ name: op.name, sources: [...op.sources], ours: [...op.sources].map((s) => ebs[s]).find(Boolean), portal: op.portalEtin }));
     return { groups, lines: all, total: sumUp(all), hasPortal: all.some((L) => L.portal), portalFile: (portal || []).length > 0, otherMonths, skippedNil, noOperator, noState, gstinMismatch };
+  }
+
+  // Set-off: what turning "use the GSTR-8 figures" on moves in the return, operator by operator and
+  // state by state: GSTR-8 net less your net, for every state of an operator that is in the portal file
+  // (a state the operator did not report is set off to zero). Lines within the tolerance are left alone.
+  function setoff(T, opts) {
+    const tol = opts && opts.tolerance != null ? opts.tolerance : 1, lines = [];
+    ((T && T.groups) || []).forEach((g) => {
+      if (!g.total.hasPortal) return;
+      g.lines.forEach((L) => {
+        if (!L.pos || L.pos === '?') return;
+        const pnet = L.portal ? L.portal.net : 0, amt = r2(pnet - L.ours.net);
+        if (Math.abs(amt) <= tol) return;
+        lines.push({ pan: g.pan, name: g.name, period: g.period, pos: L.pos, ours: L.ours.net, portal: r2(pnet), inPortal: !!L.portal, inReports: L.ours.n > 0, amount: amt });
+      });
+    });
+    const add = r2(lines.filter((l) => l.amount > 0).reduce((a, l) => a + l.amount, 0)), less = r2(lines.filter((l) => l.amount < 0).reduce((a, l) => a + l.amount, 0));
+    return { lines, add, less, total: r2(add + less) };
   }
 
   // Invoices of more than Rs 1 lakh (Rs 2.5 lakh before August 2024) to unregistered buyers in another
@@ -198,7 +218,7 @@
     if (Math.abs(b2bRetNoNote) >= 0.005) steps.push({ key: 'b2bret', label: 'B2B returns with no credit note number (enter on the portal)', v: r2(-b2bRetNoNote) });
     if (Math.abs(carryOut) >= 0.005) steps.push({ key: 'carryOut', label: 'Returns more than sales, carried to your next return', v: r2(carryOut) });
     if (Math.abs(carryIn) >= 0.005) steps.push({ key: 'carryIn', label: 'Returns carried from your last return', v: r2(carryIn) });
-    if (Math.abs(portal) >= 0.005) steps.push({ key: 'portal', label: "Moved to the operators' GSTR-8 figures", v: r2(portal) });
+    if (Math.abs(portal) >= 0.005) steps.push({ key: 'portal', label: "Set off to the operators' GSTR-8 figures", v: r2(portal) });
     const known = steps.reduce((a, s) => a + s.v, 0), rest = r2(ret - known);
     if (o.bills && Math.abs(rest) >= 0.005) steps.push({ key: 'bills', label: 'Bills made in PakkaBill', v: rest });
     const unexplained = o.bills ? 0 : rest;
@@ -327,7 +347,7 @@
     });
   }
 
-  root.PBG1V = { coverage, PLATFORMS, platformOf, statement, tcsReport, b2clCandidates, summary, returnTotals, bridge, trimJson, offlineWorkbook, opName, monthName, tcsRate, r2 };
+  root.PBG1V = { coverage, PLATFORMS, platformOf, statement, tcsReport, setoff, b2clCandidates, summary, returnTotals, bridge, trimJson, offlineWorkbook, opName, monthName, tcsRate, r2 };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.PBG1V;
   if (typeof document === 'undefined') return;
 
@@ -640,10 +660,15 @@
   function tcsHtml(C) {
     const D = S.data, T = C.tcs;
     let h = `<section class="paper g1v" aria-labelledby="g1v-tcs"><h3 id="g1v-tcs">TCS Report</h3><p class="sub">Your platform data against what Meesho, Amazon and Flipkart reported to GST in their GSTR-8, month by month and state by state. The TCS they collected is credited to your cash ledger.</p>`;
-    if (!T.hasPortal && T.portalFile) {
-      h += `<div class="g1v-card"><div class="hd"><b>The portal's TCS file has nothing for ${esc(periodLabel())}</b></div><div class="bd"><p class="g1v-note">Its entries are for other months. Check the return month in GST Profile, or download the file for this month.</p></div></div>`;
-    } else if (!T.hasPortal) {
-      h += `<div class="g1v-card"><div class="hd"><b>Add the portal's TCS file to compare</b></div><div class="bd"><p class="g1v-note">On gst.gov.in open Returns Dashboard, pick the month, choose <b>TDS and TCS credit received</b> and download the details. Add the file (the .zip is fine) under Import Data → Match with the GST portal.</p></div></div>`;
+    {
+      const pf = (D.files || []).filter((f) => f.kind === 'portaltcs'), got = new Set(pf.flatMap(monthsOf)), M = D.months || [];
+      h += `<div class="g1v-card"><div class="hd"><b>GST portal report for reconciliation</b>${pf.length ? `<span class="g1v-pill ${M.every((m) => got.has(m)) ? 'ok' : 'mid'}">${M.filter((m) => got.has(m)).length} of ${M.length} ${M.length === 1 ? 'month' : 'months'} uploaded</span>` : '<span class="g1v-pill off">Not uploaded</span>'}</div><div class="bd" style="padding:12px 14px">
+        <p class="g1v-where"><b>Where to download:</b> gst.gov.in → Returns Dashboard → pick the month → <b>TDS and TCS credit received</b> → download the details. One file for each month of the return; the .zip is fine.</p>
+        <label class="g1v-drop" data-g1v-pdrop><input type="file" multiple accept=".xlsx,.xls,.csv,.zip" data-g1v-pfile><b>${D.busy ? 'Reading…' : pf.length ? 'Upload another portal report' : 'Upload the portal report'}</b><small>Drop it here or tap to choose. It is used only for this reconciliation, never added to your sales.</small></label>
+        <div class="g1v-mchips" style="margin:0 0 4px">${M.map((m) => `<span class="g1v-mchip ${got.has(m) ? 'ok' : 'no'}">${got.has(m) ? '✓' : '✗'} ${esc(monthName(m))}</span>`).join('')}</div>
+        ${pf.length ? `<ul class="g1v-flist">${pf.map((f) => `<li><span title="${esc(f.name)}">${esc(f.name)}</span><small>${(f.portal || []).length} entries, ${esc(monthsOf(f).map(monthName).join(', ') || 'month unknown')}</small><button type="button" data-g1v-prm="${esc(f.id)}" aria-label="Remove ${esc(f.name)}">×</button></li>`).join('')}</ul>` : ''}
+        ${!T.hasPortal && T.portalFile ? `<p class="g1v-note g1v-warn" style="margin:10px 0 0">This report has nothing for ${esc(periodLabel())}: its entries are for other months. Check the return month in GST Profile, or download the report for this month.</p>` : ''}
+      </div></div>`;
     }
     if (T.gstinMismatch.length) {
       T.gstinMismatch.forEach((g) => { h += `<p class="g1v-note g1v-warn">${esc(g.name)}'s operator GSTIN on this page is ${esc(g.ours)}, but GSTR-8 shows ${esc(g.portal)}. Table 14 must use the operator's real GSTIN. <button type="button" class="g1v-link" data-g1v-etin="${esc(g.sources.join(','))}" data-v="${esc(g.portal)}">Use ${esc(g.portal)}</button></p>`; });
@@ -666,8 +691,13 @@
       h += `</div></div>`;
       // the switch that makes the GSTR-1 use the operators' figures
       if (T.hasPortal && T.total.hasOurs) {
-        const diff = T.total.diff, on = !!D.usePortal;
-        h += `<div class="g1v-card"><div class="bd"><label class="g1v-tg" style="margin:4px 12px;border:0"><input type="checkbox" data-g1v-useportal ${on ? 'checked' : ''}><span><b>Use the GSTR-8 figures in this GSTR-1</b><small>${on ? `On: Tables 7, 12 and 14 moved by ${rs(num(D.Z && D.Z.portalAdj))} so your return equals what the operators reported.${D.Z && D.Z.portalHsnMiss ? ` ${rs(D.Z.portalHsnMiss)} had no HSN line at the same rate, so Table 12 differs by that amount.` : ''}` : Math.abs(diff) <= 1 ? 'Your reports already match GSTR-8; nothing to move.' : `GSTR-8 is ${diff < 0 ? 'higher' : 'lower'} by ${rs(Math.abs(diff))}. Turning this on ${diff < 0 ? 'adds' : 'takes off'} that amount in Tables 7, 12 and 14, state by state, so your return equals GSTR-8. Find the cause first (a missing report or month) where you can.`}</small></span></label></div></div>`;
+        const on = !!D.usePortal, SO = setoff(T);
+        h += `<div class="g1v-card"><div class="hd"><b>Set off the difference</b>${on ? '<span class="g1v-pill ok">Set-off applied</span>' : SO.lines.length ? `<span class="g1v-pill bad">${SO.lines.length} ${SO.lines.length === 1 ? 'line' : 'lines'} to set off</span>` : '<span class="g1v-pill ok">Nothing to set off</span>'}</div><div class="bd">`;
+        if (SO.lines.length) {
+          h += `<div class="tw"><table><thead><tr><th class="l">Operator</th><th class="l">Month</th><th class="l">Place of supply</th><th>Your net</th><th>GSTR-8 net</th><th>Set-off</th><th class="l">Why</th></tr></thead><tbody>${SO.lines.map((l) => `<tr><td class="l">${esc(l.name)}</td><td class="l">${esc(monthName(l.period))}</td><td class="l">${esc(l.pos + ' ' + stName(l.pos))}</td><td>${nf(l.ours)}</td><td>${l.inPortal ? nf(l.portal) : '—'}</td><td><b>${l.amount > 0 ? '+ ' : '− '}${nf(Math.abs(l.amount))}</b></td><td class="l">${!l.inPortal ? 'Not in GSTR-8' : !l.inReports ? 'Not in your reports' : l.amount > 0 ? 'GSTR-8 is higher' : 'GSTR-8 is lower'}</td></tr>`).join('')}<tr class="tot"><td class="l" colspan="5">Net set-off (added ${nf(SO.add)}, taken off ${nf(Math.abs(SO.less))})</td><td>${SO.total >= 0 ? '+ ' : '− '}${nf(Math.abs(SO.total))}</td><td></td></tr></tbody></table></div>`;
+        }
+        h += `<label class="g1v-tg" style="margin:4px 12px;border:0"><input type="checkbox" data-g1v-useportal ${on ? 'checked' : ''}><span><b>Set off: make this GSTR-1 equal to GSTR-8</b><small>${on ? `On: Tables 7, 12 and 14 moved by ${rs(num(D.Z && D.Z.portalAdj))}, state by state, so your return equals what the operators reported. Turn it off to file your own figures.${D.Z && D.Z.portalHsnMiss ? ` ${rs(D.Z.portalHsnMiss)} had no HSN line at the same rate, so Table 12 differs by that amount.` : ''}` : !SO.lines.length ? 'Your reports already match GSTR-8; there is nothing to set off.' : `Off: your return uses your own reports. Turning this on moves each line above in Tables 7, 12 and 14 by its set-off amount, at the GST rate you sold at in that state. Find the cause first where you can (a missing report or month, or a return the operator booked in another month).`}</small></span></label>
+          <p class="g1v-note" style="text-align:center;margin-top:0"><button type="button" class="g1v-link" data-g1v-reccsv>Download the reconciliation (CSV)</button></p></div></div>`;
       }
       // state-wise detail per operator and month
       T.groups.forEach((g) => {
@@ -734,10 +764,10 @@
 
   const csvCell = (v) => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 
-  function addFiles(list) {
+  function addFiles(list, wantKey) {
     const D = S.data, files = [...(list || [])];
     if (!files.length || !D.addFiles) return;
-    const want = S.modal, before = new Set((D.files || []).map((f) => f.id));
+    const want = wantKey || S.modal, before = new Set((D.files || []).map((f) => f.id));
     Promise.resolve(D.addFiles(files)).then(() => setTimeout(() => {
       const added = (S.data.files || []).filter((f) => !before.has(f.id)), wrong = added.filter((f) => want && platformOf(f) !== want);
       if (wrong.length && D.toast) {
@@ -781,6 +811,23 @@
       if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }));
     el.querySelectorAll('[data-g1v-opt]').forEach((b) => b.addEventListener('change', () => { S[b.dataset.g1vOpt] = b.checked; }));
+    const pin = el.querySelector('[data-g1v-pfile]');
+    if (pin) pin.addEventListener('change', () => { const f = [...pin.files]; pin.value = ''; addFiles(f, 'portal'); });
+    const pdz = el.querySelector('[data-g1v-pdrop]');
+    if (pdz) {
+      pdz.addEventListener('dragover', (e) => { e.preventDefault(); pdz.classList.add('over'); });
+      pdz.addEventListener('dragleave', () => pdz.classList.remove('over'));
+      pdz.addEventListener('drop', (e) => { e.preventDefault(); pdz.classList.remove('over'); addFiles(e.dataTransfer.files, 'portal'); });
+    }
+    el.querySelectorAll('[data-g1v-prm]').forEach((b) => b.addEventListener('click', () => S.data.removeFile && S.data.removeFile(b.dataset.g1vPrm)));
+    const rc = el.querySelector('[data-g1v-reccsv]');
+    if (rc) rc.addEventListener('click', () => {
+      const T = calc().tcs, so = new Map(setoff(T).lines.map((l) => [l.pan + '|' + l.period + '|' + l.pos, l.amount]));
+      const lines = [['Operator', 'Operator GSTIN', 'Month', 'State code', 'State', 'Your gross', 'Your returns', 'Your net', 'GSTR-8 gross', 'GSTR-8 returns', 'GSTR-8 net', 'Difference', 'TCS collected', 'TCS expected', 'Status', 'Set-off']];
+      T.groups.forEach((g) => g.lines.forEach((L) => lines.push([g.name, g.portalEtin || g.etin, g.period, L.pos, stName(L.pos) || L.stateRaw || '', L.ours.gross, L.ours.returns, L.ours.net, L.portal ? L.portal.gross : '', L.portal ? L.portal.returned : '', L.portal ? L.portal.net : '', L.diff == null ? '' : L.diff, L.portal ? L.portal.tcs : '', L.tcsDue == null ? '' : L.tcsDue,
+        { match: 'Matched', diff: 'Differs', noportal: 'Not in GSTR-8', noreport: 'Not in your reports' }[L.status] || L.status, so.get(g.pan + '|' + g.period + '|' + L.pos) || 0])));
+      saveBytes(`TCS_reconciliation_${S.data.gstin || 'GSTIN'}_${S.data.fp || ''}.csv`, new TextEncoder().encode('\uFEFF' + lines.map((l) => l.map(csvCell).join(',')).join('\r\n')), 'text/csv');
+    });
     const up = el.querySelector('[data-g1v-useportal]');
     if (up) up.addEventListener('change', () => S.data.setUsePortal && S.data.setUsePortal(up.checked));
     el.querySelectorAll('[data-g1v-etin]').forEach((b) => b.addEventListener('click', () => {
