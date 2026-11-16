@@ -1182,6 +1182,15 @@
     fill(dialog.firstChild);
     return dialog.firstChild;
   }
+  // What PakkaBill has already done on this device ("pb-did": Home, the label sorter and the cropper
+  // keep the counts), shown above the Pro list so the price sits next to real work.
+  function doneHtml() {
+    const d = read('pb-did') || {}, n = (v) => Math.round(Number(v) || 0), bits = [];
+    if (n(d.bills) > 0) bits.push(`<b>${n(d.bills).toLocaleString('en-IN')}</b> bill${n(d.bills) === 1 ? '' : 's'} made`);
+    if (n(d.labels) > 0) bits.push(`<b>${n(d.labels).toLocaleString('en-IN')}</b> label${n(d.labels) === 1 ? '' : 's'} sorted`);
+    if (n(d.crop) > 0) bits.push(`<b>${n(d.crop).toLocaleString('en-IN')}</b> label page${n(d.crop) === 1 ? '' : 's'} cropped`);
+    return bits.length ? `<p class="pbp-sofar">On this device so far: ${bits.join(' · ')}.</p>` : '';
+  }
   function openUpgrade(feature, arg) {
     // Already Pro (a page asked from an old state): say so instead of asking to pay again.
     if (isPro() && !['renew', 'offer', 'claim'].includes(feature)) return toast(`PakkaBill Pro is already active till ${dateStr(acct.user.paidUntil)}.`);
@@ -1194,7 +1203,7 @@
         <div class="pbp-badge">PRO</div>
         <h2 id="pbp-title">${!(acct && acct.token) && /^pnl/.test(feature) ? 'Log in to see your full report' : 'Upgrade to PakkaBill Pro'}</h2>
         <p class="pbp-why">${!(acct && acct.token) && /^pnl/.test(feature) ? 'Create a free account or log in to open your full profit and loss report and download it as PDF or Excel.' : esc((WHY[feature] || WHY.pdf)(arg))}</p>
-        <ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>
+        ${doneHtml()}<ul class="pbp-perks">${PERKS.map((p) => `<li>${p}</li>`).join('')}</ul>
         ${acct && acct.token ? accountHtml() + plansHtml() + (playApp() ? '' : `<p class="pbp-fine">${cfg && cfg.razorpay ? 'Pay by UPI, card or net banking. Pro turns on as soon as you pay.' : 'Pay by UPI from any app: PhonePe, Google Pay, Paytm or your bank.'}</p>`) : authHtml(mode)}`;
       box.querySelector('.pbp-x').addEventListener('click', closeUpgrade);
       wire(box, draw);
@@ -1312,6 +1321,7 @@
 .pbp-overlay{position:fixed;inset:0;z-index:1000;background:#1a14307a;display:grid;place-items:center;padding:16px;animation:pbp-in .15s}
 @keyframes pbp-in{from{opacity:0}}
 .pbp-dialog{position:relative;background:var(--paper,#fff);color:var(--ink,#222);width:min(420px,100%);max-height:calc(100dvh - 32px);overflow:auto;border-radius:18px;padding:26px 22px 20px;box-shadow:0 24px 60px -20px #1a1430b3}
+.pbp-sofar{margin:0 0 12px;padding:9px 12px;border-radius:10px;background:var(--carbon-tint,#eef0fb);font-size:13.5px;line-height:1.45;color:var(--ink,#222)}
 .pbp-x{position:absolute;top:10px;right:12px;border:0;background:none;font-size:26px;line-height:1;color:var(--ink-3,#777);cursor:pointer;padding:4px 8px}
 .pbp-badge{display:inline-block;background:var(--btn-grad,var(--btn-bg,#2b3494));background-color:var(--btn-bg,#2b3494);color:var(--btn-fg,#fff);font-weight:700;font-size:11px;letter-spacing:.12em;padding:3px 10px;border-radius:999px}
 .pbp-dialog h2{font-family:var(--font-display);font-size:28px;font-weight:600;line-height:1;margin:10px 0 6px;padding-top:4px}

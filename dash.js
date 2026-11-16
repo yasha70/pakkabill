@@ -1,6 +1,8 @@
 // PakkaBill Home (#/dashboard): the screen the website opens on, on a phone or a laptop.
 // Kept short on purpose: a greeting, the four main tools (the rest are one tap away in All tools),
-// this month's numbers when there are any, why PakkaBill is safe to use, and the account.
+// what needs doing now (at most two of: GST due dates, an old profit check, unpaid bills, shop details), this month's
+// numbers when there are any, what PakkaBill has done on this device so far ("pb-did": the label and
+// cropper tools add to it), why PakkaBill is safe to use, and the account.
 // Everything is read from this device: the open shop (shops.js), the profit the P&L tool last
 // showed (pnl.html saves it as "hisaab:last"), the login and the business details saved in the
 // admin panel (pro.js keeps /api/config as "pb-cfg"). The app calls window.pbHomeMount(el).
@@ -31,11 +33,12 @@
   /* ---------------- the numbers ---------------- */
   function total(i) { var t = i.totals || {}; return Number(t.total != null ? t.total : t.grandTotal) || 0; }
   function billing(d) {
-    var month = ymd(new Date()).slice(0, 7), s = { monthSales: 0, monthBills: 0, due: 0, dueBills: 0, any: false };
+    var month = ymd(new Date()).slice(0, 7), s = { monthSales: 0, monthBills: 0, due: 0, dueBills: 0, any: false, made: 0 };
     (d.invoices || []).forEach(function (i) {
       if (!i || i.status === 'cancelled') return;
       s.any = true;
       if (i.docType !== 'invoice') return;
+      s.made++;
       if (String(i.date || '').slice(0, 7) === month) { s.monthBills++; s.monthSales += total(i); }
       if (i.status !== 'paid') { s.dueBills++; s.due += total(i); }
     });
@@ -71,6 +74,53 @@
     return '<section class="pbh-sec" aria-labelledby="pbh-n"><h2 class="pbh-h" id="pbh-n">Your numbers</h2><div class="paper pbh-nums">' + cells.join('') + '</div>' +
       (p ? '<p class="pbh-fine">Meesho profit is what Profit &amp; Loss last showed for your own reports' + (p.at ? ', on ' + longDate(p.at) : '') + '.</p>' : '') + '</section>';
   }
+  /* ---------------- what needs doing now ---------------- */
+  var DAY = 864e5;
+  function days(n) { return n + ' day' + (n === 1 ? '' : 's'); }
+  // The GST return that is due next, for a shop with a GSTIN. Monthly filers: GSTR-1 by the 11th and
+  // GSTR-3B by the 20th of the next month. Shown from the 1st until the due date, never after it.
+  function gstDue(now) {
+    var d = now.getDate(), prev = MONTHS[(now.getMonth() + 11) % 12], mon = MONTHS[now.getMonth()];
+    if (d <= 11) return { form: 'GSTR-1', period: prev, on: '11 ' + mon, left: 11 - d };
+    if (d <= 20) return { form: 'GSTR-3B', period: prev, on: '20 ' + mon, left: 20 - d };
+    return null;
+  }
+  function todo(st, now) {
+    var out = [], p = profit(), b = st.bill || {};
+    var g = st.gstin ? gstDue(now) : null;
+    if (g) out.push({ k: g.left <= 3 ? 'warn' : 'info', href: '#/gstr1', t: g.form + ' for ' + g.period + ' is due on ' + g.on,
+      s: (g.left === 0 ? 'Due today' : g.left === 1 ? 'Due tomorrow' : days(g.left) + ' left') + ' for monthly filers. ' + (g.form === 'GSTR-1' ? 'Make the JSON from your Meesho reports.' : 'Your GSTR-3B figures are on the GSTR-1 page.'), a: g.form === 'GSTR-1' ? 'Make GSTR-1' : 'See figures' });
+    if (p && p.at) {
+      var old = Math.floor((now.getTime() - p.at) / DAY);
+      if (old >= 7) out.push({ k: 'info', href: '#/pnl', t: 'Your profit was last checked ' + days(old) + ' ago',
+        s: 'Add Meesho’s newest payment report to see what you earned since ' + longDate(p.at) + '.', a: 'Check now' });
+    }
+    if (b.due > 0) out.push({ k: 'info', href: '#/bills', t: rupees(b.due) + ' to collect',
+      s: b.dueBills + ' unpaid bill' + (b.dueBills === 1 ? '' : 's') + '. Open a bill to send it on WhatsApp or mark it paid.', a: 'See bills' });
+    if (b.any && !st.name) out.push({ k: 'info', href: '#/shop', t: 'Add your shop name and GSTIN',
+      s: 'Typed once, they print on every bill.', a: 'Add details' });
+    if (!out.length) return '';
+    return '<section class="pbh-sec" aria-labelledby="pbh-d"><h2 class="pbh-h" id="pbh-d">To do</h2><div class="pbh-todo">' + out.slice(0, 2).map(function (x) {
+      return '<a class="pbh-td pbh-td--' + x.k + '" href="' + x.href + '"><span class="pbh-tdt"><b>' + esc(x.t) + '</b><small>' + esc(x.s) + '</small></span><span class="pbh-tda">' + esc(x.a) + GO + '</span></a>';
+    }).join('') + '</div></section>';
+  }
+
+  /* ---------------- what PakkaBill has done on this device ---------------- */
+  function did() { var d = ls('pb-did'); return d && typeof d === 'object' ? d : {}; }
+  function count(n) { return Math.round(Number(n) || 0).toLocaleString('en-IN'); }
+  function work(st) {
+    var d = did(), b = st.bill || {}, cells = [];
+    if (b.made > 0) cells.push([count(b.made), 'GST bill' + (b.made === 1 ? '' : 's') + ' made', '#/bills']);
+    if (d.labels > 0) cells.push([count(d.labels), 'label' + (d.labels === 1 ? '' : 's') + ' sorted', '#/labels']);
+    if (d.crop > 0) cells.push([count(d.crop), 'label page' + (d.crop === 1 ? '' : 's') + ' cropped', '#/crop']);
+    // kept for the upgrade dialog (pro.js), which cannot read the bills itself
+    if (st.data && window.pbShops) { try { if ((d.bills || 0) !== b.made) { d.bills = b.made || 0; localStorage.setItem('pb-did', JSON.stringify(d)); } } catch (e) { /* ignore */ } }
+    if (!cells.length) return '';
+    var p = plan(), nudge = p.paid && !p.pro ? '<p class="pbh-fine">All of this is on the free plan. Pro adds unlimited bills, cloud backup and PDF sharing. <a href="#/plan">See Pro</a></p>' : '';
+    return '<section class="pbh-sec" aria-labelledby="pbh-w"><h2 class="pbh-h" id="pbh-w">Done with PakkaBill</h2><div class="paper pbh-nums">' + cells.map(function (c) {
+      return '<a class="pbh-n" href="' + c[2] + '"><b>' + c[0] + '</b><small>' + c[1] + '</small></a>';
+    }).join('') + '</div>' + nudge + '</section>';
+  }
   function trust() {
     var biz = (ls('pb-cfg') || {}).biz || {}, name = String(biz.name || '').trim(), addr = String(biz.address || '').trim(), mail = String(biz.email || '').trim(), phone = String(biz.phone || '').trim();
     var bits = [];
@@ -97,15 +147,16 @@
   }
 
   function draw(el) {
-    var st = el._pbh, now = new Date(), fresh = st.data && !st.name && !(st.bill && st.bill.any) && !profit();
+    var st = el._pbh, now = new Date(), tasks = st.data ? todo(st, now) : '', fresh = st.data && !st.name && !(st.bill && st.bill.any) && !profit();
     el.innerHTML = '<div class="pbh">' +
       '<header class="pbh-hello"><p class="pbh-date">' + DAYS[now.getDay()] + ', ' + now.getDate() + ' ' + MONTHS[now.getMonth()] + '</p>' +
         '<h1 class="page-title">' + (fresh ? 'Welcome to PakkaBill' : hello() + (st.name ? ', <span>' + esc(st.name) + '</span>' : '')) + '</h1>' +
         '<p class="page-sub">' + (fresh ? 'Know your real profit on Meesho, make GST bills and sort labels. Free to start, no sign-up needed.' : 'What would you like to do today?') + '</p></header>' +
+      tasks +
       '<section aria-label="Main tools"><div class="pbh-main">' + MAIN.map(function (t) {
         return '<a class="pbh-m' + (t[4] ? ' pbh-m--pri' : '') + '" href="' + t[1] + '"><span class="pbh-mi">' + (t[0] === 'new' ? PLUS : icon(t[0])) + '</span><span class="pbh-mt"><b>' + t[2] + '</b><small>' + t[3] + '</small></span><span class="pbh-go">' + GO + '</span></a>';
       }).join('') + '</div><button type="button" class="pbh-all" data-pbh="tools">' + GRID + 'All tools<span>Bills, GST, GSTR-1, listing, Lens and more</span></button></section>' +
-      numbers(st) + trust() + account() +
+      numbers(st) + (st.data ? work(st) : '') + trust() + account() +
       '<nav class="pbh-foot" aria-label="More"><a href="#/support">Help &amp; support</a><a href="#/app">Get the Android app</a><a href="#/home">About PakkaBill</a></nav></div>';
   }
 
@@ -116,7 +167,7 @@
     P.read(P.active()).then(function (d) {
       if (!el.isConnected) return;
       var b = (d && d.business) || {};
-      st.data = true; st.name = (b.name || '').trim(); st.bill = billing(d || {});
+      st.data = true; st.name = (b.name || '').trim(); st.gstin = (b.gstin || '').trim(); st.bill = billing(d || {});
       draw(el);
     }).catch(function () { st.data = true; st.bill = billing({}); draw(el); });
   }
@@ -139,6 +190,13 @@
     '.pbh-n{display:grid;gap:1px;padding:16px 18px;color:var(--ink);text-decoration:none;border-top:1px solid var(--rule-soft)}.pbh-n:first-child{border-top:0}.pbh-n:hover{background:var(--desk)}' +
     '.pbh-n small{font-size:13px;font-weight:600;color:var(--ink-2)}.pbh-n b{font-size:24px;font-weight:700;letter-spacing:-.015em;font-variant-numeric:tabular-nums;line-height:1.2}.pbh-n span{font-size:12.5px;color:var(--ink-3)}' +
     '.pbh .is-pos{color:var(--green)}.pbh .is-neg{color:var(--red)}' +
+    '.pbh-todo{display:grid;gap:10px}' +
+    '.pbh-td{display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:14px;border:1px solid var(--rule);border-left:4px solid var(--carbon);background:var(--paper);color:var(--ink);text-decoration:none}' +
+    '.pbh-td:hover{border-color:var(--carbon)}.pbh-td--warn{border-left-color:var(--red)}' +
+    '.pbh-tdt{flex:1;min-width:0}.pbh-tdt b{display:block;font-size:15.5px;font-weight:700;line-height:1.3}.pbh-tdt small{display:block;margin-top:2px;font-size:13.5px;line-height:1.4;color:var(--ink-2)}' +
+    '.pbh-tda{flex:none;display:inline-flex;align-items:center;gap:5px;font-size:14px;font-weight:700;color:var(--carbon);white-space:nowrap}.pbh-tda svg{display:block}' +
+    '.pbh-fine a{color:var(--carbon);font-weight:600}' +
+    '@media (width<420px){.pbh-td{flex-wrap:wrap}.pbh-tdt{flex-basis:100%}}' +
     '.pbh-fine{margin:8px 2px 0;font-size:12.5px;color:var(--ink-3)}' +
     '.pbh-trust{padding:6px 18px 0;overflow:hidden}.pbh-trust ul{list-style:none;margin:0;padding:0;display:grid}' +
     '.pbh-trust li{display:flex;gap:13px;align-items:flex-start;padding:13px 0;border-top:1px solid var(--rule-soft)}.pbh-trust li:first-child{border-top:0}' +
@@ -175,6 +233,6 @@
   };
   function redraw() { mounts = mounts.filter(function (el) { return el.isConnected; }); mounts.forEach(function (el) { if (el._pbh.data) draw(el); }); }
   window.addEventListener('pb-account', redraw);
-  window.addEventListener('storage', function (e) { if (e.key === 'pb-acct' || e.key === 'hisaab:last' || e.key === 'pb-cfg') redraw(); });
+  window.addEventListener('storage', function (e) { if (e.key === 'pb-acct' || e.key === 'hisaab:last' || e.key === 'pb-cfg' || e.key === 'pb-did') redraw(); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) mounts.forEach(function (el) { if (el.isConnected) load(el); }); });
 })();

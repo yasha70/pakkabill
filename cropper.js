@@ -350,6 +350,8 @@
           if (run !== S.run) { it.status = 'wait'; continue; }
           it.out = new Blob([r.bytes], { type: 'application/pdf' });
           it.bytes = r.bytes; it.pages = r.pages; it.size = S.size; it.cut = r.cut; it.saved = r.saved; it.thumbs = th;
+          // Home shows how many label pages were cropped on this device: once per file, not per re-crop
+          if (!it.counted) { it.counted = true; try { const d = JSON.parse(localStorage.getItem('pb-did') || '{}') || {}; d.crop = (Number(d.crop) || 0) + (Number(r.pages) || 0); localStorage.setItem('pb-did', JSON.stringify(d)); } catch (e) { /* ignore */ } }
           it.status = 'done'; it.msg = '';
         } catch (e) {
           console.warn('label cropper:', e);

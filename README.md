@@ -94,6 +94,13 @@ a laptop: opening `/` with no page in the address always lands here. It is kept 
 - the account (Sign up / Log in on a phone; on a laptop the side menu already offers them), Help and
   the app.
 
+Home (`dash.js`) also shows, when there is something to show: **To do** (at most two: the next GST
+return for a shop with a GSTIN, GSTR-1 by the 11th and GSTR-3B by the 20th for monthly filers; a
+profit check older than 7 days; money to collect on unpaid bills; missing shop details) and **Done
+with PakkaBill** (bills made, labels sorted, label pages cropped on this device). The counts live in
+`pb-did` in localStorage: the label sorter adds once per set of files, the cropper once per file, Home
+writes the bill count. The upgrade dialog (`pro.js`) shows the same counts above the Pro list.
+
 The website's own home page (about PakkaBill, pricing, questions) is at `/home` and `#/home`, and
 "About PakkaBill" on Home opens it. The Android app has its own screens and does not use this page.
 
