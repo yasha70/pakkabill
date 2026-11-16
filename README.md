@@ -94,6 +94,10 @@ a laptop: opening `/` with no page in the address always lands here. It is kept 
 - the account (Sign up / Log in on a phone; on a laptop the side menu already offers them), Help and
   the app.
 
+Home (`dash.js`) opens with a welcome card (the one place with a colour gradient: navy to violet,
+greeting, shop name, the last Meesho profit or this month's billing, Check my profit and New bill),
+then "Your tools": eight tiles, each with its own icon colour (two across on a phone, four on a laptop).
+
 Home (`dash.js`) also shows, when there is something to show: **To do** (at most two: the next GST
 return for a shop with a GSTIN, GSTR-1 by the 11th and GSTR-3B by the 20th for monthly filers; a
 profit check older than 7 days; money to collect on unpaid bills; missing shop details) and **Done

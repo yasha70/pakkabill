@@ -55,11 +55,16 @@
   }
 
   /* ---------------- drawing ---------------- */
+  // key, link, name, one line, colour of its icon
   var MAIN = [
-    ['pnl', '#/pnl', 'Check my profit', 'Profit & Loss from Meesho’s payment report', 1],
-    ['new', '#/new', 'New bill', 'GST invoice or estimate'],
-    ['labels', '#/labels', 'Sort labels', 'Packing chart and labels in one PDF'],
-    ['lowship', '#/lowship', 'Low shipping photo', 'Find the photo Meesho charges less for'],
+    ['pnl', '#/pnl', 'Profit & Loss', 'Real profit from Meesho’s payment report', '#0b9f63'],
+    ['new', '#/new', 'New bill', 'GST invoice or estimate', '#3b48c9'],
+    ['labels', '#/labels', 'Sort labels', 'Packing chart and labels in one PDF', '#e8590c'],
+    ['lowship', '#/lowship', 'Low shipping photo', 'The photo Meesho charges less for', '#d6336c'],
+    ['gstr1', '#/gstr1', 'GSTR-1', 'JSON from your Meesho reports', '#7048e8'],
+    ['autolist', '#/autolist', 'Auto listing', 'Fill Meesho’s form in one tap', '#0c8599'],
+    ['lens', '#/lens', 'Meesho Lens', 'Competitor prices and sales', '#1c7ed6'],
+    ['crop', '#/crop', 'Label cropper', '4×4 or 4×6 thermal labels', '#d9730d'],
   ];
   function hello() { var h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; }
 
@@ -150,16 +155,26 @@
       '<div class="pbh-acts"><a class="pb-btn pb-btn--secondary" href="#/account">My account</a>' + (p.paid && (!p.pro || p.left <= 7) ? '<a class="pb-btn pb-btn--primary" href="#/plan">' + (p.pro ? 'Renew Pro' : 'See Pro') + '</a>' : '') + '</div></section>';
   }
 
+  // The big number in the top card: the last Meesho profit, else what was billed this month.
+  function headline(st) {
+    var p = profit(), b = st.bill || {};
+    if (p) return '<a class="pbh-stat" href="#/pnl"><small>Meesho ' + (p.np < 0 ? 'loss' : 'profit') + ' · ' + esc(p.label) + '</small><b>' + rupees(p.np) + '</b></a>';
+    if (b.any && b.monthBills) return '<a class="pbh-stat" href="#/bills"><small>Billed in ' + MONTHS[new Date().getMonth()] + ' · ' + b.monthBills + ' bill' + (b.monthBills === 1 ? '' : 's') + '</small><b>' + rupees(b.monthSales) + '</b></a>';
+    return '';
+  }
   function draw(el) {
     var st = el._pbh, now = new Date(), tasks = st.data ? todo(st, now) : '', fresh = st.data && !st.name && !(st.bill && st.bill.any) && !profit();
     el.innerHTML = '<div class="pbh">' +
-      '<header class="pbh-hello"><p class="pbh-date">' + DAYS[now.getDay()] + ', ' + now.getDate() + ' ' + MONTHS[now.getMonth()] + '</p>' +
-        '<h1 class="page-title">' + (fresh ? 'Welcome to PakkaBill' : hello() + (st.name ? ', <span>' + esc(st.name) + '</span>' : '')) + '</h1>' +
-        '<p class="page-sub">' + (fresh ? 'Know your real profit on Meesho, make GST bills and sort labels. Free to start, no sign-up needed.' : 'What would you like to do today?') + '</p></header>' +
+      '<header class="pbh-hero"><span class="pbh-orb pbh-orb--a" aria-hidden="true"></span><span class="pbh-orb pbh-orb--b" aria-hidden="true"></span>' +
+        '<p class="pbh-date">' + DAYS[now.getDay()] + ', ' + now.getDate() + ' ' + MONTHS[now.getMonth()] + '</p>' +
+        '<h1 class="pbh-title">' + (fresh ? 'Welcome to PakkaBill' : hello() + (st.name ? ',<br><span>' + esc(st.name) + '</span>' : '')) + '</h1>' +
+        '<p class="pbh-sub">' + (fresh ? 'Know your real profit on Meesho, make GST bills and sort labels. Free to start, no sign-up needed.' : 'What would you like to do today?') + '</p>' +
+        (st.data ? headline(st) : '') +
+        '<div class="pbh-cta"><a class="pbh-btn pbh-btn--w" href="#/pnl">' + icon('pnl') + 'Check my profit</a><a class="pbh-btn" href="#/new">' + PLUS + 'New bill</a></div></header>' +
       tasks +
-      '<section aria-label="Main tools"><div class="pbh-main">' + MAIN.map(function (t) {
-        return '<a class="pbh-m' + (t[4] ? ' pbh-m--pri' : '') + '" href="' + t[1] + '"><span class="pbh-mi">' + (t[0] === 'new' ? PLUS : icon(t[0])) + '</span><span class="pbh-mt"><b>' + t[2] + '</b><small>' + t[3] + '</small></span><span class="pbh-go">' + GO + '</span></a>';
-      }).join('') + '</div><button type="button" class="pbh-all" data-pbh="tools">' + GRID + 'All tools<span>Bills, GST, GSTR-1, listing, Lens and more</span></button></section>' +
+      '<section class="pbh-sec" aria-labelledby="pbh-tl"><h2 class="pbh-h" id="pbh-tl">Your tools</h2><div class="pbh-main">' + MAIN.map(function (t) {
+        return '<a class="pbh-m" href="' + t[1] + '" style="--h:' + t[4] + '"><span class="pbh-mi">' + (t[0] === 'new' ? PLUS : icon(t[0])) + '</span><span class="pbh-mt"><b>' + t[2] + '</b><small>' + t[3] + '</small></span></a>';
+      }).join('') + '</div><button type="button" class="pbh-all" data-pbh="tools">' + GRID + 'All tools<span>Bills, parties, items, GST summary and more</span></button></section>' +
       numbers(st) + (st.data ? work(st) : '') + trust() + account() +
       '<nav class="pbh-foot" aria-label="More"><a href="#/support">Help &amp; support</a><a href="#/app">Get the Android app</a><a href="#/home">About PakkaBill</a></nav></div>';
   }
@@ -177,25 +192,34 @@
   }
 
   var CSS = '.pbh{display:grid;gap:22px;max-width:880px}' +
-    '.pbh-date{margin:0 0 4px;font-size:12.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}' +
-    '.pbh-hello .page-title span{color:var(--carbon)}.pbh-hello .page-sub{margin-top:6px;max-width:46ch}' +
-    '.pbh-main{display:grid;gap:10px}' +
-    '.pbh-m{display:flex;align-items:center;gap:14px;min-height:72px;padding:13px 16px;border-radius:14px;border:1px solid var(--rule);background:var(--paper);color:var(--ink);text-decoration:none;box-shadow:0 1px 2px #141a330a;transition:border-color .15s,box-shadow .15s}' +
-    '.pbh-m:hover{border-color:var(--carbon);box-shadow:0 10px 24px -18px #141a3366}' +
-    '.pbh-mi{flex:none;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--carbon-tint);color:var(--carbon)}.pbh-mi svg{display:block}' +
-    '.pbh-mt{flex:1;min-width:0}.pbh-mt b{display:block;font-size:16.5px;font-weight:700;line-height:1.25}.pbh-mt small{display:block;font-size:13.5px;line-height:1.35;color:var(--ink-2)}' +
-    '.pbh-go{flex:none;color:var(--ink-3)}.pbh-go svg{display:block}' +
-    '.pbh-m--pri{background:var(--btn-bg);border-color:var(--btn-bg);color:var(--btn-fg)}.pbh-m--pri:hover{background:var(--btn-bg-hover);border-color:var(--btn-bg-hover)}' +
-    '.pbh-m--pri .pbh-mi{background:#ffffff26;color:#fff}.pbh-m--pri small,.pbh-m--pri .pbh-go{color:#ffffffd9}' +
+    '.pbh-hero{position:relative;overflow:hidden;isolation:isolate;padding:24px 22px 22px;border-radius:24px;color:#fff;background:linear-gradient(135deg,#1d2470 0%,#2b3494 45%,#5a4fd6 100%);box-shadow:0 18px 40px -22px #2b3494cc}' +
+    '.pbh-orb{position:absolute;z-index:-1;border-radius:50%;pointer-events:none}.pbh-orb--a{width:230px;height:230px;right:-70px;top:-90px;background:radial-gradient(circle at 30% 30%,#ffffff3d,#ffffff00 70%)}' +
+    '.pbh-orb--b{width:180px;height:180px;right:40px;bottom:-110px;background:radial-gradient(circle,#ff8fb84d,#ff8fb800 70%)}' +
+    '.pbh-date{margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#ffffffbf}' +
+    '.pbh-title{margin:0;font-size:clamp(26px,6.4vw,36px);font-weight:700;line-height:1.14;letter-spacing:-.02em;color:#fff;overflow-wrap:anywhere}.pbh-title span{color:#ffd9a8}' +
+    '.pbh-sub{margin:8px 0 0;max-width:46ch;font-size:15px;line-height:1.45;color:#ffffffd9}' +
+    '.pbh-stat{display:inline-grid;gap:1px;margin-top:16px;padding:11px 16px;border-radius:16px;background:#ffffff1f;border:1px solid #ffffff33;color:#fff;text-decoration:none;backdrop-filter:blur(6px)}' +
+    '.pbh-stat small{font-size:12.5px;font-weight:600;color:#ffffffcc}.pbh-stat b{font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.15;font-variant-numeric:tabular-nums}.pbh-stat:hover{background:#ffffff2e}' +
+    '.pbh-cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}' +
+    '.pbh-btn{display:inline-flex;align-items:center;gap:8px;min-height:46px;padding:0 18px;border-radius:999px;border:1px solid #ffffff59;background:#ffffff1a;color:#fff;font-size:15px;font-weight:700;text-decoration:none;transition:transform .15s,background .15s}' +
+    '.pbh-btn svg{width:18px;height:18px;display:block}.pbh-btn:hover{background:#ffffff2e;transform:translateY(-1px)}' +
+    '.pbh-btn--w{background:#fff;border-color:#fff;color:#232b85;box-shadow:0 8px 18px -10px #0b0e1c99}.pbh-btn--w:hover{background:#f1f3fb}' +
+    '.pbh-main{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}' +
+    '.pbh-m{--h:#2b3494;display:grid;align-content:start;gap:12px;min-height:128px;padding:15px 14px 14px;border-radius:18px;border:1px solid var(--rule);background:var(--paper);color:var(--ink);text-decoration:none;box-shadow:0 1px 2px #141a330a;transition:transform .16s,border-color .16s,box-shadow .16s}' +
+    '.pbh-m:hover{transform:translateY(-2px);border-color:var(--h);box-shadow:0 14px 26px -18px var(--h)}.pbh-m:active{transform:scale(.98)}' +
+    '.pbh-mi{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;color:var(--h);background:color-mix(in srgb,var(--h) 14%,transparent)}.pbh-mi svg{display:block}' +
+    '.pbh-mt{min-width:0}.pbh-mt b{display:block;font-size:15.5px;font-weight:700;line-height:1.25}.pbh-mt small{display:block;margin-top:2px;font-size:12.5px;line-height:1.35;color:var(--ink-2)}' +
+    ':root[data-theme="dark"] .pbh-mi{background:color-mix(in srgb,var(--h) 26%,transparent);color:color-mix(in srgb,var(--h) 55%,#fff)}' +
+    '@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .pbh-mi{background:color-mix(in srgb,var(--h) 26%,transparent);color:color-mix(in srgb,var(--h) 55%,#fff)}}' +
     '.pbh-all{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;padding:6px 2px;border:0;background:none;font:inherit;font-size:15px;font-weight:600;color:var(--carbon);cursor:pointer}' +
     '.pbh-all span{font-weight:400;font-size:13.5px;color:var(--ink-3)}.pbh-all:hover{text-decoration:underline;text-underline-offset:3px}' +
     '.pbh-h{margin:0 0 10px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}' +
-    '.pbh-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));padding:0;overflow:hidden}' +
+    '.pbh-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));padding:0;overflow:hidden;border-radius:18px}' +
     '.pbh-n{display:grid;gap:1px;padding:16px 18px;color:var(--ink);text-decoration:none;border-top:1px solid var(--rule-soft)}.pbh-n:first-child{border-top:0}.pbh-n:hover{background:var(--desk)}' +
     '.pbh-n small{font-size:13px;font-weight:600;color:var(--ink-2)}.pbh-n b{font-size:24px;font-weight:700;letter-spacing:-.015em;font-variant-numeric:tabular-nums;line-height:1.2}.pbh-n span{font-size:12.5px;color:var(--ink-3)}' +
     '.pbh .is-pos{color:var(--green)}.pbh .is-neg{color:var(--red)}' +
     '.pbh-todo{display:grid;gap:10px}' +
-    '.pbh-td{display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:14px;border:1px solid var(--rule);border-left:4px solid var(--carbon);background:var(--paper);color:var(--ink);text-decoration:none}' +
+    '.pbh-td{display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:16px;border:1px solid var(--rule);border-left:4px solid var(--carbon);background:var(--paper);color:var(--ink);text-decoration:none}' +
     '.pbh-td:hover{border-color:var(--carbon)}.pbh-td--warn{border-left-color:var(--red)}' +
     '.pbh-tdt{flex:1;min-width:0}.pbh-tdt b{display:block;font-size:15.5px;font-weight:700;line-height:1.3}.pbh-tdt small{display:block;margin-top:2px;font-size:13.5px;line-height:1.4;color:var(--ink-2)}' +
     '.pbh-tda{flex:none;display:inline-flex;align-items:center;gap:5px;font-size:14px;font-weight:700;color:var(--carbon);white-space:nowrap}.pbh-tda svg{display:block}' +
@@ -213,10 +237,10 @@
     '.pbh-acts{display:flex;flex-wrap:wrap;gap:10px}.pbh-acts .pb-btn{text-decoration:none}' +
     '.pbh-foot{display:flex;flex-wrap:wrap;gap:6px 22px;padding:0 2px;font-size:14px}.pbh-foot a{color:var(--ink-2);font-weight:600;text-decoration:none}.pbh-foot a:hover{color:var(--carbon);text-decoration:underline}' +
     '.pbh a:focus-visible,.pbh button:focus-visible{outline:2.5px solid var(--focus,var(--carbon));outline-offset:2px}' +
-    '@media (width>=640px){.pbh-main{grid-template-columns:repeat(2,minmax(0,1fr))}.pbh-nums .pbh-n{border-top:0;border-left:1px solid var(--rule-soft)}.pbh-nums .pbh-n:first-child{border-left:0}' +
+    '@media (width>=640px){.pbh-main{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.pbh-hero{padding:32px 34px 30px}.pbh-nums .pbh-n{border-top:0;border-left:1px solid var(--rule-soft)}.pbh-nums .pbh-n:first-child{border-left:0}' +
       '.pbh-trust ul{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:24px}.pbh-trust li:nth-child(2){border-top:0}.pbh-acct{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:18px}}' +
     '@media (width>=900px){.pbh{gap:28px}}@media (width>=1024px){.pbh-acct--out{display:none}}' +
-    '@media (prefers-reduced-motion:reduce){.pbh-m{transition:none}}';
+    '@media (prefers-reduced-motion:reduce){.pbh-m,.pbh-btn{transition:none}.pbh-m:hover,.pbh-btn:hover{transform:none}}';
 
   var mounts = [];
   window.pbHomeMount = function (el) {
