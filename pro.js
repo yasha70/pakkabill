@@ -1041,6 +1041,7 @@
         }
         myOrders = null;
         if (res && res.user) setAcct({ ...acct, user: res.user }, false);
+        if (res && res.order) lastPaid = res.order;
         const pid = esc(r.razorpay_payment_id || '');
         box.innerHTML = res
           ? `<button type="button" class="pbp-x" aria-label="Close">×</button><div class="pbp-done">${TICK}
@@ -1048,7 +1049,8 @@
             <p class="pbp-why">PakkaBill Pro is active till <b>${dateStr(res.user.paidUntil)}</b>.</p>
             <div class="pbp-rows"><div><span>Paid</span><b>${rupees(res.order.amount / 100)}</b></div><div><span>Plan</span><b>Pro, ${res.order.plan === 'yearly' ? '1 year' : '1 month'}</b></div><div><span>Payment ID</span><b>${pid}</b></div></div>
             <button type="button" class="pbp-btn pbp-paybtn" data-done>Start using Pro</button>
-            <p class="pbp-fine">Razorpay also sends a receipt by SMS or email.</p></div>`
+            <p class="pbp-fine"><button type="button" class="pbp-link" data-pb-receipt="${esc(res.order.id)}">Download receipt (PDF)</button></p>
+            <p class="pbp-fine">It stays under My payments in your account. Razorpay also sends a receipt by SMS or email.</p></div>`
           : `<button type="button" class="pbp-x" aria-label="Close">×</button><div class="pbp-done"><div class="pbp-wait" aria-hidden="true">⏳</div>
             <h2 id="pbp-title">Payment received</h2>
             <p class="pbp-why">We are still confirming it with Razorpay. Pro turns on by itself within a few minutes; this page updates when it does.${last ? ` <span class="pbp-fine">(${esc(last.message)})</span>` : ''}</p>
@@ -1070,6 +1072,125 @@
   }
 
   let myOrders = null;
+  let lastPaid = null; // the payment just made, for the receipt button on the success screen
+  // ---------- Payment receipt (PDF) ----------
+  // A confirmed payment as a one-page A4 PDF, made on the device: the receipt is drawn on a canvas
+  // (so a shop name in Hindi and the rupee sign print right) and put in the PDF as one picture.
+  function receiptCanvas(o) {
+    const W = 620, H = 877, K = 2.6, c = document.createElement('canvas');
+    c.width = Math.round(W * K); c.height = Math.round(H * K);
+    const g = c.getContext('2d');
+    g.scale(K, K);
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    const FONT = 'Hind, "Noto Sans Devanagari", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+    const text = (s, x, y, size, o2 = {}) => {
+      g.font = `${o2.bold ? 700 : 400} ${size}px ${FONT}`; g.fillStyle = o2.color || '#1b1f3a'; g.textAlign = o2.right ? 'right' : 'left'; g.textBaseline = 'alphabetic';
+      g.fillText(String(s), x, y);
+    };
+    // words wrapped to a width; returns the y after the last line
+    const para = (s, x, y, size, width, o2 = {}) => {
+      g.font = `${o2.bold ? 700 : 400} ${size}px ${FONT}`;
+      let line = '';
+      const lines = [];
+      String(s).split(/\s+/).forEach((w) => { const t = line ? line + ' ' + w : w; if (line && g.measureText(t).width > width) { lines.push(line); line = w; } else line = t; });
+      if (line) lines.push(line);
+      lines.slice(0, 4).forEach((l, i) => text(l, x, y + i * (size + 5), size, o2));
+      return y + Math.min(lines.length, 4) * (size + 5);
+    };
+    const rule = (y, col) => { g.fillStyle = col || '#d9dcec'; g.fillRect(48, y, W - 96, 1); };
+    const biz = (cfg && cfg.biz) || {}, u = (acct && acct.user) || {};
+    const L = 48, R = W - 48, soft = '#5b6184', navy = '#2b3494';
+    const paidAt = o.paidAt || o.appliedAt || o.createdAt || Date.now();
+    const list = Number(o.listAmount) || Number(o.amount) || 0, paid = Number(o.amount) || 0;
+    const money = (p) => '₹' + (p / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    g.fillStyle = navy; g.fillRect(0, 0, W, 8);
+    text('PakkaBill', L, 66, 30, { bold: true, color: navy });
+    text('PAYMENT RECEIPT', R, 58, 15, { bold: true, right: true });
+    text(o.state === 'REFUNDED' ? 'Refunded' : 'Paid', R, 78, 13, { bold: true, right: true, color: o.state === 'REFUNDED' ? '#c8202a' : '#12714b' });
+    let y = 92;
+    if (biz.name) { text(biz.name, L, y, 13, { bold: true }); y += 18; }
+    if (biz.address) y = para(biz.address, L, y, 11.5, 300, { color: soft });
+    const reach = [biz.email, biz.phone].filter(Boolean).join('  ·  ');
+    if (reach) { text(reach, L, y, 11.5, { color: soft }); y += 17; }
+    if (biz.gstin) { text('GSTIN ' + biz.gstin, L, y, 11.5, { color: soft }); y += 17; }
+    y = Math.max(y, 150) + 6; rule(y); y += 30;
+
+    text('Receipt no.', L, y, 11.5, { color: soft }); text('Date', 330, y, 11.5, { color: soft });
+    text(o.id || '', L, y + 20, 15, { bold: true }); text(dateStr(paidAt), 330, y + 20, 15, { bold: true });
+    y += 58;
+    text('Received from', L, y, 11.5, { color: soft }); y += 20;
+    if (u.shopName) { y = para(u.shopName, L, y, 15, R - L, { bold: true }) + 1; }
+    text(u.phone && u.phone !== 'owner' ? '+91 ' + String(u.phone).replace(/^(\d{5})(\d{5})$/, '$1 $2') : 'Owner account', L, y, u.shopName ? 13 : 15, { bold: !u.shopName });
+    y += 34;
+
+    g.fillStyle = '#eef0fb'; g.fillRect(L, y, R - L, 34);
+    text('Description', L + 14, y + 22, 12, { bold: true }); text('Amount', R - 14, y + 22, 12, { bold: true, right: true });
+    y += 34;
+    const row = (a, b2, o2 = {}) => { text(a, L + 14, y + 26, o2.big ? 16 : 13.5, { bold: o2.bold, color: o2.color }); text(b2, R - 14, y + 26, o2.big ? 16 : 13.5, { bold: o2.bold, right: true, color: o2.color }); y += o2.big ? 46 : 40; rule(y - 1, '#e7e9f4'); };
+    row('PakkaBill Pro, ' + (o.plan === 'yearly' ? '1 year (365 days)' : '1 month (30 days)'), money(list));
+    if (list > paid) row('Discount' + (o.coupon ? ' (coupon ' + o.coupon + ')' : ''), '− ' + money(list - paid), { color: '#12714b' });
+    row('Total paid', money(paid), { bold: true, big: true });
+    y += 22;
+
+    text('Paid by', L, y, 11.5, { color: soft }); y += 20;
+    const how = o.utr ? 'UPI' : 'Razorpay' + (o.payMethod ? ' (' + String(o.payMethod).replace(/^upi$/i, 'UPI').replace(/^./, (m) => m.toUpperCase()) + ')' : '');
+    text(how, L, y, 14, { bold: true }); y += 20;
+    if (o.utr) { text('UPI transaction number (UTR) ' + o.utr, L, y, 12.5, { color: soft }); y += 18; }
+    if (o.paymentId) { text('Payment ID ' + o.paymentId, L, y, 12.5, { color: soft }); y += 18; }
+    if (o.state === 'REFUNDED') { y += 8; text('This payment was refunded' + (o.refundedAt ? ' on ' + dateStr(o.refundedAt) : '') + (o.refundAmount ? ': ' + money(o.refundAmount) : '') + '.', L, y, 12.5, { bold: true, color: '#c8202a' }); }
+
+    rule(H - 84);
+    text('This receipt is made by computer and needs no signature.', L, H - 58, 11, { color: soft });
+    text((biz.email ? 'Questions: ' + biz.email + '  ·  ' : '') + location.host, L, H - 40, 11, { color: soft });
+    return c;
+  }
+  // One JPEG picture as a one-page A4 PDF.
+  function jpegPdf(jpg, w, h) {
+    const enc = new TextEncoder(), parts = [], offs = [];
+    let len = 0;
+    const put = (x) => { const b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); len += b.length; };
+    const obj = (n, body) => { offs[n] = len; put(`${n} 0 obj\n${body}\nendobj\n`); };
+    const page = 'q 595.28 0 0 841.89 0 0 cm /Im0 Do Q';
+    put('%PDF-1.4\n%âãÏÓ\n');
+    obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+    obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    obj(3, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>');
+    offs[4] = len;
+    put(`4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`);
+    put(jpg); put('\nendstream\nendobj\n');
+    obj(5, `<< /Length ${page.length} >>\nstream\n${page}\nendstream`);
+    const xref = len;
+    put('xref\n0 6\n0000000000 65535 f \n' + [1, 2, 3, 4, 5].map((n) => String(offs[n]).padStart(10, '0') + ' 00000 n \n').join(''));
+    put(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+    return new Blob(parts, { type: 'application/pdf' });
+  }
+  async function pbReceipt(o) {
+    if (!o || !['COMPLETED', 'REFUNDED'].includes(o.state)) return toast('A receipt is ready once the payment is confirmed.', true);
+    try {
+      if (document.fonts && document.fonts.load) await Promise.all([document.fonts.load('400 14px Hind'), document.fonts.load('700 14px Hind')]).catch(() => {});
+      const c = receiptCanvas(o);
+      const bin = atob(c.toDataURL('image/jpeg', 0.93).split(',')[1]), jpg = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) jpg[i] = bin.charCodeAt(i);
+      const blob = jpegPdf(jpg, c.width, c.height), name = `PakkaBill-receipt-${String(o.id || '').replace(/[^A-Za-z0-9-]/g, '')}.pdf`;
+      const url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = name; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      toast('Receipt downloaded: ' + name);
+    } catch (e) {
+      console.warn('receipt:', e);
+      toast('Could not make the receipt. Try again.', true);
+    }
+  }
+  // "Receipt" buttons on the Plan page and after paying
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('[data-pb-receipt]');
+    if (!b) return;
+    const o = (myOrders || []).find((x) => x.id === b.getAttribute('data-pb-receipt')) || (lastPaid && lastPaid.id === b.getAttribute('data-pb-receipt') ? lastPaid : null);
+    if (o) pbReceipt(o);
+  });
+
   async function loadOrders() {
     if (!acct || !acct.token || !cfg || !cfg.enabled) return;
     try {
@@ -1083,7 +1204,7 @@
     if (!myOrders || !myOrders.length) return '';
     const label = { PENDING: 'Waiting for confirmation', COMPLETED: 'Confirmed', REJECTED: 'Not found in our account', REFUNDED: 'Refunded' };
     return `<ul class="pbp-orders">${myOrders
-      .map((o) => `<li class="is-${o.state.toLowerCase()}"><span>${rupees(o.amount / 100)} · ${o.plan === 'yearly' ? 'Yearly' : 'Monthly'} · ${o.utr ? 'UTR ' + esc(o.utr) : 'Razorpay'}</span><b>${label[o.state] || esc(o.state)}</b></li>`)
+      .map((o) => `<li class="is-${o.state.toLowerCase()}"><span>${rupees(o.amount / 100)} · ${o.plan === 'yearly' ? 'Yearly' : 'Monthly'} · ${o.utr ? 'UTR ' + esc(o.utr) : 'Razorpay'}</span><b>${label[o.state] || esc(o.state)}${o.state === 'COMPLETED' || o.state === 'REFUNDED' ? ` · <button type="button" class="pbp-link" data-pb-receipt="${esc(o.id)}">Receipt</button>` : ''}</b></li>`)
       .join('')}</ul>${myOrders.some((o) => o.state === 'REJECTED') ? '<p class="pbp-fine">If a payment was not found, check the transaction number and submit it again.</p>' : ''}`;
   }
 
@@ -1186,9 +1307,11 @@
   // keep the counts), shown above the Pro list so the price sits next to real work.
   function doneHtml() {
     const d = read('pb-did') || {}, n = (v) => Math.round(Number(v) || 0), bits = [];
+    if (n(d.pnl) > 0) bits.push(`<b>${n(d.pnl).toLocaleString('en-IN')}</b> profit report${n(d.pnl) === 1 ? '' : 's'} checked`);
     if (n(d.bills) > 0) bits.push(`<b>${n(d.bills).toLocaleString('en-IN')}</b> bill${n(d.bills) === 1 ? '' : 's'} made`);
     if (n(d.labels) > 0) bits.push(`<b>${n(d.labels).toLocaleString('en-IN')}</b> label${n(d.labels) === 1 ? '' : 's'} sorted`);
     if (n(d.crop) > 0) bits.push(`<b>${n(d.crop).toLocaleString('en-IN')}</b> label page${n(d.crop) === 1 ? '' : 's'} cropped`);
+    if (n(d.gstr1) > 0) bits.push(`<b>${n(d.gstr1).toLocaleString('en-IN')}</b> GSTR-1 file${n(d.gstr1) === 1 ? '' : 's'} made`);
     return bits.length ? `<p class="pbp-sofar">On this device so far: ${bits.join(' · ')}.</p>` : '';
   }
   function openUpgrade(feature, arg) {
@@ -1687,5 +1810,5 @@ p.pbp-help{display:block}
     const login = !!(acct && acct.token);
     return { login, pro: login && pbPro(), trialDays: (cfg && cfg.trialDays) || 0, play: playApp() };
   };
-  Object.assign(window, { pbPnlAccess, pbPro, pbGate, pbCanAddBill, pbPlanMount, pbLocked, pbUpgrade: openUpgrade, pbUnzipFiles, pbRefreshAccount: refresh, pbAuth: openAuth, pbAuthChip, pbAuthCard, pbNudge, pbAuthProfile: () => askProfile(true) });
+  Object.assign(window, { pbPnlAccess, pbPro, pbGate, pbCanAddBill, pbPlanMount, pbLocked, pbUpgrade: openUpgrade, pbUnzipFiles, pbReceipt, pbRefreshAccount: refresh, pbAuth: openAuth, pbAuthChip, pbAuthCard, pbNudge, pbAuthProfile: () => askProfile(true) });
 })();

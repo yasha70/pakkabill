@@ -4,7 +4,7 @@ const db = require('./db');
 
 const DAY = 24 * 60 * 60 * 1000;
 const PLAN_DAYS = { monthly: 30, yearly: 365 };
-const DEFAULT_SETTINGS = { monthly: 99, yearly: 999, freeBills: 15, enforce: true, upiId: '', payeeName: '', trialDays: 7, syncFree: false, bizName: '', bizEmail: '', bizPhone: '', bizAddress: '', grievanceName: '' };
+const DEFAULT_SETTINGS = { monthly: 99, yearly: 999, freeBills: 15, enforce: true, upiId: '', payeeName: '', trialDays: 7, syncFree: false, bizName: '', bizEmail: '', bizPhone: '', bizAddress: '', bizGstin: '', grievanceName: '' };
 const UPI_ID = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z][a-zA-Z0-9]{1,64}$/;
 const SESSION_DAYS = 180;
 

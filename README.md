@@ -97,9 +97,11 @@ a laptop: opening `/` with no page in the address always lands here. It is kept 
 Home (`dash.js`) also shows, when there is something to show: **To do** (at most two: the next GST
 return for a shop with a GSTIN, GSTR-1 by the 11th and GSTR-3B by the 20th for monthly filers; a
 profit check older than 7 days; money to collect on unpaid bills; missing shop details) and **Done
-with PakkaBill** (bills made, labels sorted, label pages cropped on this device). The counts live in
-`pb-did` in localStorage: the label sorter adds once per set of files, the cropper once per file, Home
-writes the bill count. The upgrade dialog (`pro.js`) shows the same counts above the Pro list.
+with PakkaBill** (profit reports checked, bills made, labels sorted, label pages cropped, GSTR-1 files
+made, listing Excel files made, low shipping photo versions made, on this device). The counts live in
+`pb-did` in localStorage: each tool adds when it finishes a job (the label sorter once per set of
+files, the cropper once per file, P&L once per new period, GSTR-1 and listing once per file name),
+Home writes the bill count. The upgrade dialog (`pro.js`) shows the main counts above the Pro list.
 
 The website's own home page (about PakkaBill, pricing, questions) is at `/home` and `#/home`, and
 "About PakkaBill" on Home opens it. The Android app has its own screens and does not use this page.
@@ -416,6 +418,12 @@ name. A cancelled number is shown in red.
 - **Renewals:** the last 3 days of Pro show a reminder in the app once a day, and a daily job
   (`api/cron.js`, Vercel Cron at 09:00 IST) sends a phone notification 3 days before and on the day
   Pro ends. Set `CRON_SECRET` in Vercel to lock that endpoint to the scheduler.
+- **Payment receipt:** every confirmed (or refunded) payment has Download receipt on My account → My
+  payments, on the Plan page and on the "Payment successful" screen. `pbReceipt` in `pro.js` draws a
+  one-page A4 PDF on the device (receipt number = the order id, date, the customer's shop name and
+  mobile number, plan, coupon discount, amount paid, UTR or Razorpay payment ID) with the business
+  name, address, email, phone and GSTIN from Admin → Settings → Business details ("Your GSTIN" is
+  optional). It is a payment receipt, not a GST tax invoice. My payments keeps the last 24.
 - **Paying:** after paying in the UPI app, "Paste" finds the 12-digit UTR in whatever was copied.
   Renewing adds the new time on top of what is left.
 

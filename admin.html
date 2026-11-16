@@ -403,6 +403,7 @@
           <label class="f">Grievance officer name<input type="text" name="grievanceName" maxlength="80"></label>
         </div>
         <label class="f" style="margin-top:10px">Business address <span class="muted">(city and state at least)</span><input type="text" name="bizAddress" maxlength="300"></label>
+        <label class="f" style="margin-top:10px">Your GSTIN <span class="muted">(optional; printed on customers' payment receipts)</span><input type="text" name="bizGstin" maxlength="15" autocapitalize="characters"></label>
         <h2 style="margin-top:20px">GST number lookup</h2>
         <p class="sub">When someone types a GST number in a bill, a party or the Shop page and taps <b>Fetch details</b>, PakkaBill fills the registered name and address. Each new number is one paid lookup at the service you choose; answers are kept for 30 days, so a number is paid for once. With the service off, the button still fills the state, PAN and kind of business from the number itself.</p>
         <div class="grid2">
@@ -1079,7 +1080,7 @@
   });
 
   const form = $('#settingsForm');
-  const BIZ = ['bizName', 'bizEmail', 'bizPhone', 'bizAddress', 'grievanceName'];
+  const BIZ = ['bizName', 'bizEmail', 'bizPhone', 'bizAddress', 'bizGstin', 'grievanceName'];
   async function loadSettings() {
     try {
       const { settings, otpEnv, gupshupHook } = await api('getSettings');

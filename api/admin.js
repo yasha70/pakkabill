@@ -359,6 +359,8 @@ const actions = {
     // Business details shown on the Contact, Terms and Refund pages.
     const B = biz && typeof biz === 'object' ? biz : prev;
     for (const [k, n] of [['bizName', 100], ['bizEmail', 100], ['bizPhone', 20], ['bizAddress', 300], ['grievanceName', 80]]) s[k] = String(B[k] || '').trim().slice(0, n);
+    s.bizGstin = String(B.bizGstin != null ? B.bizGstin : prev.bizGstin || '').trim().toUpperCase().slice(0, 15);
+    if (s.bizGstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]Z[A-Z0-9]$/.test(s.bizGstin)) throw new core.HttpError(400, 'That GSTIN does not look right (15 letters and digits). Leave it empty if you have none.');
     if (s.bizEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.bizEmail)) throw new core.HttpError(400, 'That email address does not look right.');
     // GST number lookup service (fills buyer name and address from a GSTIN)
     const G = gst && typeof gst === 'object' ? gst : prev.gst || {};

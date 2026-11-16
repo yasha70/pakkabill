@@ -58,6 +58,7 @@
     '.pba-shop{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px;font-size:.82rem}.pba-shop div{background:var(--desk-2,#f6f3fd);border-radius:8px;padding:6px 8px;min-width:0}.pba-shop b{display:block;font-size:.95rem}' +
     '.pba-shopc{border:1px solid var(--rule,#dcdfea);border-radius:12px;padding:12px;margin-top:10px}.pba-shopc:first-of-type{margin-top:0}.pba-shopc.is-on{border-color:var(--carbon,#2b3494)}.pba-shopc header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}' +
     '.pba-tag{font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:99px;background:#e6e9f7;color:#2b3494;white-space:nowrap}' +
+    '.pba-rc{margin-top:4px;padding:0;border:0;background:none;font:inherit;font-size:.84rem;font-weight:600;color:var(--carbon,#2b3494);text-decoration:underline;text-underline-offset:3px;cursor:pointer}' +
     '.pba-st{font-weight:700;font-size:.8rem}.pba-st.ok{color:#12714b}.pba-st.wait{color:#9a5a00}.pba-st.bad{color:#c8202a}' +
     '.pba-muted{color:var(--ink-3,#6b7190);font-size:.88rem;margin:0}' +
     '.pba-kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:.9rem;margin:0}.pba-kv dt{color:var(--ink-3,#6b7190)}.pba-kv dd{margin:0;text-align:right;overflow-wrap:anywhere}' +
@@ -136,11 +137,12 @@
   function payHtml(p) {
     if (!p) return '<section class="pba-card"><h2>My payments</h2><p class="pba-muted">Loading…</p></section>';
     if (p.error) return ''; // payments not switched on, or offline
-    var L = { PENDING: ['Waiting for check', 'wait'], COMPLETED: ['Confirmed', 'ok'], REJECTED: ['Not found', 'bad'] };
+    var L = { PENDING: ['Waiting for check', 'wait'], COMPLETED: ['Confirmed', 'ok'], REJECTED: ['Not found', 'bad'], REFUNDED: ['Refunded', 'bad'] };
     var list = p.orders || [];
     return '<section class="pba-card"><h2>My payments</h2>' + (list.length ? '<ul class="pba-list">' + list.map(function (o) {
       var l = L[o.state] || [o.state, ''];
-      return '<li><div class="pba-l"><b>' + rupees((o.amount || 0) / 100) + ' · ' + (o.plan === 'yearly' ? 'Yearly' : 'Monthly') + ' plan</b><span>' + (o.createdAt ? day(o.createdAt) + ' · ' : '') + 'UTR ' + esc(o.utr || '') + '</span></div><div class="pba-r"><span class="pba-st ' + l[1] + '">' + esc(l[0]) + '</span></div></li>';
+      return '<li><div class="pba-l"><b>' + rupees((o.amount || 0) / 100) + ' · ' + (o.plan === 'yearly' ? 'Yearly' : 'Monthly') + ' plan</b><span>' + (o.createdAt ? day(o.createdAt) + ' · ' : '') + (o.utr ? 'UTR ' + esc(o.utr) : 'Razorpay' + (o.paymentId ? ' · ' + esc(o.paymentId) : '')) + '</span></div><div class="pba-r"><span class="pba-st ' + l[1] + '">' + esc(l[0]) + '</span>' +
+        (window.pbReceipt && (o.state === 'COMPLETED' || o.state === 'REFUNDED') ? '<br><button type="button" class="pba-rc" data-pba="receipt" data-id="' + esc(o.id) + '">Download receipt</button>' : '') + '</div></li>';
     }).join('') + '</ul>' : '<p class="pba-muted">No payments yet.</p>') + '</section>';
   }
 
@@ -340,6 +342,7 @@
       if (!b) return;
       var act = b.getAttribute('data-pba');
       if (act === 'download') download(el);
+      else if (act === 'receipt') { var po = ((el._pba && el._pba.pay && el._pba.pay.orders) || []).filter(function (o) { return o.id === b.getAttribute('data-id'); })[0]; if (po && window.pbReceipt) window.pbReceipt(po); }
       else if (act === 'delete') deleteAccount(el);
       else if (act === 'password') changePassword(el);
       else if (act === 'versend') sendOtp(el, 'verify', 'ver');

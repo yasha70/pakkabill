@@ -1586,9 +1586,11 @@ async function saveFile(name, blob) {
     document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 8000);
     toast(window.claude ? 'If nothing downloads, open this tool from Claude and try again.' : 'Downloading ' + name);
+    if (/\.xlsx$/i.test(name) && !saveCounted.has(name)) { saveCounted.add(name); try { const d = JSON.parse(localStorage.getItem('pb-did') || '{}') || {}; d.listing = (Number(d.listing) || 0) + 1; localStorage.setItem('pb-did', JSON.stringify(d)); } catch (e) { /* ignore */ } } // Home: listing Excel files made
     return true;
   } catch (e) { toast('The browser blocked the download.', 'error'); return false; }
 }
+const saveCounted = new Set();
 async function downloadPart(plan, i) {
   setBusy('Making the Excel file…');
   let out;

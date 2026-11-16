@@ -44,7 +44,7 @@ async function claim(user, plan, rawUtr, couponCode) {
 }
 
 async function mine(phone) {
-  const ids = await db.cmd(['ZREVRANGE', `orders:${phone}`, 0, 4]);
+  const ids = await db.cmd(['ZREVRANGE', `orders:${phone}`, 0, 23]);
   return (await db.mgetJSON(ids.map(orderKey))).filter(Boolean);
 }
 

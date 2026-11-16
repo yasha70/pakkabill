@@ -1,8 +1,8 @@
 // PakkaBill Home (#/dashboard): the screen the website opens on, on a phone or a laptop.
 // Kept short on purpose: a greeting, the four main tools (the rest are one tap away in All tools),
 // what needs doing now (at most two of: GST due dates, an old profit check, unpaid bills, shop details), this month's
-// numbers when there are any, what PakkaBill has done on this device so far ("pb-did": the label and
-// cropper tools add to it), why PakkaBill is safe to use, and the account.
+// numbers when there are any, what PakkaBill has done on this device so far ("pb-did": the tools add
+// to it when they finish a job), why PakkaBill is safe to use, and the account.
 // Everything is read from this device: the open shop (shops.js), the profit the P&L tool last
 // showed (pnl.html saves it as "hisaab:last"), the login and the business details saved in the
 // admin panel (pro.js keeps /api/config as "pb-cfg"). The app calls window.pbHomeMount(el).
@@ -110,9 +110,13 @@
   function count(n) { return Math.round(Number(n) || 0).toLocaleString('en-IN'); }
   function work(st) {
     var d = did(), b = st.bill || {}, cells = [];
+    if (d.pnl > 0) cells.push([count(d.pnl), 'profit report' + (d.pnl === 1 ? '' : 's') + ' checked', '#/pnl']);
     if (b.made > 0) cells.push([count(b.made), 'GST bill' + (b.made === 1 ? '' : 's') + ' made', '#/bills']);
     if (d.labels > 0) cells.push([count(d.labels), 'label' + (d.labels === 1 ? '' : 's') + ' sorted', '#/labels']);
     if (d.crop > 0) cells.push([count(d.crop), 'label page' + (d.crop === 1 ? '' : 's') + ' cropped', '#/crop']);
+    if (d.gstr1 > 0) cells.push([count(d.gstr1), 'GSTR-1 file' + (d.gstr1 === 1 ? '' : 's') + ' made', '#/gstr1']);
+    if (d.listing > 0) cells.push([count(d.listing), 'listing Excel file' + (d.listing === 1 ? '' : 's') + ' made', '#/listing']);
+    if (d.photos > 0) cells.push([count(d.photos), 'photo version' + (d.photos === 1 ? '' : 's') + ' made for low shipping', '#/lowship']);
     // kept for the upgrade dialog (pro.js), which cannot read the bills itself
     if (st.data && window.pbShops) { try { if ((d.bills || 0) !== b.made) { d.bills = b.made || 0; localStorage.setItem('pb-did', JSON.stringify(d)); } } catch (e) { /* ignore */ } }
     if (!cells.length) return '';

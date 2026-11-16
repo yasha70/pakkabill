@@ -30,6 +30,6 @@ module.exports = core.handler(async (req, res) => {
     otp: await otp.enabled(), // sign-up checks the number with an OTP; log in with OTP is offered
     otpVia: await otp.channel(), // 'whatsapp' (Gupshup) or 'sms': where the customer gets the OTP
     trialDays: core.paymentsReady(s) && s.enforce ? Number(s.trialDays) || 0 : 0,
-    biz: { name: s.bizName, email: s.bizEmail, phone: s.bizPhone, address: s.bizAddress, grievance: s.grievanceName },
+    biz: { name: s.bizName, email: s.bizEmail, phone: s.bizPhone, address: s.bizAddress, gstin: s.bizGstin || '', grievance: s.grievanceName },
   }, 'public, max-age=0, must-revalidate');
 });

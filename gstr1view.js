@@ -718,7 +718,9 @@
     return h + '</section>';
   }
 
+  let didJson = '';
   function saveBytes(name, bytes, type) {
+    if (/\.json$/i.test(name) && didJson !== name) { didJson = name; try { const d = JSON.parse(localStorage.getItem('pb-did') || '{}') || {}; d.gstr1 = (Number(d.gstr1) || 0) + 1; localStorage.setItem('pb-did', JSON.stringify(d)); } catch (e) { /* ignore */ } } // Home: GSTR-1 files made
     const D = S.data, blob = new Blob([bytes], { type });
     if (D.save) {
       return Promise.resolve(D.save(blob, name)).then((r) => {

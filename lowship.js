@@ -886,6 +886,7 @@
       if (bar) bar.style.width = Math.min(100, Math.round((S.made / Math.max(1, S.total)) * 100)) + '%';
       await new Promise((r) => setTimeout(r)); // keep the page responsive
     }
+    try { const d = JSON.parse(localStorage.getItem('pb-did') || '{}') || {}; d.photos = (Number(d.photos) || 0) + ph.out.length; localStorage.setItem('pb-did', JSON.stringify(d)); } catch (e) { /* ignore */ } // Home: photo versions made on this device
   }
   // Round 2: up to 12 new versions close to the cheapest one of this photo.
   async function more(ph) {
