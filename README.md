@@ -56,9 +56,12 @@ bar so bills stay one tap away on a phone. The logo opens Home.
   The page is in numbered steps, and gives the GSTR-3B figures and an Excel workbook for the CA.
 - GSTR-1 accuracy rules (`node test/gstr1build-audit.js` works every table out a second time from the
   report rows and compares to the paisa): Table 7, Table 12 (B2C) and Table 14 always tie; besides a
-  whole state and rate, a return that would push one HSN line (value, tax or quantity), one operator's
+  whole state and rate, a return that would push the value or quantity of one HSN line, one operator's
   line, or a state line tagged with the operator below zero is held back, largest first, and carried
-  with its HSN to the next return; rows of another GSTIN (an Amazon report lists every GSTIN of the
+  with its HSN to the next return; while those stay above zero a return is netted in its own month, as
+  the marketplace GST tools do (an HSN line can then show one state's CGST and SGST below zero; the
+  checker explains it); each Meesho order is taken at the paise of its invoice before adding (checked
+  against a real month and the GST Tool's JSON for it: every taxable value the same, tax within 2 paise); rows of another GSTIN (an Amazon report lists every GSTIN of the
   account) never enter the return, statement, TCS report or Table 13; B2C large is above Rs 2.5 lakh
   before 1 August 2024 and above Rs 1 lakh from then; a 0% line of a PakkaBill bill to an unregistered
   buyer goes to Table 8; a quarterly return with B2B invoices reminds about IFF; the GSTR-8 tax period

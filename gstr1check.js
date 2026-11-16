@@ -314,7 +314,8 @@
         if (!UQC.includes(String(h.uqc || ''))) say('error', 'hsn', `${label}: unit "${h.uqc}" is not a GST unit (UQC).`, 'Use PCS for pieces, NOS for numbers, KGS for kilograms.');
         if (code.startsWith('99') && h.uqc !== 'NA') say('warn', 'hsn', `${label}: services (SAC 99) use unit NA and no quantity.`, '');
         if (!code.startsWith('99') && !(num(h.qty) > 0) && num(h.txval) > 0) say('warn', 'hsn', `${label}: quantity is missing.`, 'Add the number of pieces sold.');
-        if (num(h.txval) < 0 || num(h.qty) < 0 || num(h.iamt) < 0 || num(h.camt) < 0) say('error', 'hsn', `${label}: negative after returns. The portal does not take a negative HSN line.`, 'Carry the extra returns to the next return, as for Table 7.');
+        if (num(h.txval) < 0 || num(h.qty) < 0) say('error', 'hsn', `${label}: negative after returns. The portal does not take a negative HSN line.`, 'Carry the extra returns to the next return, as for Table 7.');
+        else if (num(h.iamt) < 0 || num(h.camt) < 0 || num(h.samt) < 0) say('info', 'hsn', `${label}: ${num(h.iamt) < 0 ? 'IGST' : 'CGST and SGST'} is below zero while the value is above it. Returns ${num(h.iamt) < 0 ? 'from other states' : 'within your state'} were more than the sales there, and sales ${num(h.iamt) < 0 ? 'within your state' : 'to other states'} keep the line positive.`, 'This is how the returns of the month are netted. Check the line in the portal summary after upload.');
         rateOk('hsn', label, h.rt);
         const k = code + '|' + h.rt + '|' + h.uqc;
         if (seen.has(k)) say('error', 'hsn', `${label}: the same HSN, rate and unit appear twice in ${where}.`, 'Add them together.');
@@ -391,7 +392,7 @@
       else if (String(e.etin)[13] !== 'C') say('error', 'supeco', `${label}: this is not an e-commerce TCS registration (its 14th character is C for those).`, 'Use the operator’s TCS GSTIN, for example Meesho’s for your state.');
       amountsOk('supeco', e, ['suppval', 'igst', 'cgst', 'sgst', 'cess']);
       if (paise(e.cgst) !== paise(e.sgst)) say('error', 'supeco', `${label}: CGST and SGST must be equal.`, '');
-      if (num(e.suppval) < 0 || num(e.igst) < 0 || num(e.cgst) < 0) say('error', 'supeco', `${label}: negative value. The portal does not take negative values in Table 14.`, 'Carry the extra returns to the next return.');
+      if (num(e.suppval) < 0) say('error', 'supeco', `${label}: negative value. The portal does not take negative values in Table 14.`, 'Carry the extra returns to the next return.');
       T.supeco.n++; T.supeco.txval += num(e.suppval); T.supeco.iamt += num(e.igst); T.supeco.camt += num(e.cgst); T.supeco.samt += num(e.sgst);
     });
     if (eco.length) {

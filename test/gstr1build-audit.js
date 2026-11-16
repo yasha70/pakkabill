@@ -66,9 +66,9 @@ function make(files, st) {
 const sumOf = (list, k) => r2((list || []).reduce((a, r) => a + (Number(r[k]) || 0), 0));
 function noNegative(J, what) {
   const bad = [];
-  (J.b2cs || []).forEach((r) => { if (r.txval < 0 || (r.iamt || 0) < 0 || (r.camt || 0) < 0) bad.push('Table 7 ' + r.pos + ' ' + r.rt); });
-  ((J.hsn && J.hsn.hsn_b2c) || []).forEach((h) => { if (h.txval < 0 || h.qty < 0 || h.iamt < 0 || h.camt < 0) bad.push('Table 12 ' + h.hsn_sc + ' ' + h.rt); });
-  ((J.supeco && J.supeco.clttx) || []).forEach((e) => { if (e.suppval < 0 || e.igst < 0 || e.cgst < 0) bad.push('Table 14 ' + e.etin); });
+  (J.b2cs || []).forEach((r) => { if (r.txval < 0 || (r.iamt || 0) < 0 || (r.camt || 0) < 0 || (r.samt || 0) < 0) bad.push('Table 7 ' + r.pos + ' ' + r.rt); });
+  ((J.hsn && J.hsn.hsn_b2c) || []).forEach((h) => { if (h.txval < 0 || h.qty < 0) bad.push('Table 12 ' + h.hsn_sc + ' ' + h.rt); });
+  ((J.supeco && J.supeco.clttx) || []).forEach((e) => { if (e.suppval < 0) bad.push('Table 14 ' + e.etin); });
   eq(bad, [], what + ': no negative value in Tables 7, 12 (B2C) and 14');
 }
 
@@ -140,12 +140,21 @@ function noNegative(J, what) {
   eq(A0.json.b2cs.map((r) => r.txval), [1500], 'carry switched off: left out');
 }
 
-/* ---------------- 3. intra-state tax of one HSN below zero while its value is above ---------------- */
+/* ---------------- 3. a return is netted in its own month while the value of every line stays above zero ---------------- */
 {
-  const R = make([['tcs_sales.csv', sheet(SALES, [['S1', '6204', 1, 5, 2000, 'Maharashtra'], ['S2', '6109', 2, 5, 1000, 'GUJARAT']].map(sale(3, 2025)))],
-    ['tcs_sales_return.csv', sheet(RET, [['R1', '6204', 1, 5, 500, 'GUJARAT']].map(ret(3, 2025)))]]);
-  noNegative(R.json, 'HSN tax below zero');
-  eq(R.json.hsn.hsn_b2c.map((x) => [x.hsn_sc, x.txval, x.iamt, x.camt]), [['6109', 1000, 0, 25], ['6204', 2000, 100, 0]], 'a return whose CGST would go below zero in its HSN line is held back');
+  // as in a real Meesho month: one HSN sold to other states, and returned within the state (an order of the
+  // month before). The state line and the HSN line both stay positive, so nothing is held back; the HSN
+  // line shows the state's CGST and SGST below zero, as the marketplace GST tools write it.
+  const R = make([['tcs_sales.csv', sheet(SALES, [['S1', '392410', 1, 18, 295.85593220338984, 'RAJASTHAN'], ['S2', '392410', 2, 18, 636.6610169491526, 'Karnataka'], ['S3', '940320', 3, 18, 1571.19, 'GUJARAT']].map(sale(10, 2026)))],
+    ['tcs_sales_return.csv', sheet(RET, [['R1', '392410', 1, 18, 667.7966101694915, 'GUJARAT']].map(ret(10, 2026)))]]);
+  noNegative(R.json, 'netted return');
+  eq(R.json.b2cs.map((r) => [r.pos, r.txval, r.iamt || 0, r.camt || 0]), [['08', 295.86, 53.25, 0], ['24', 903.39, 0, 81.31], ['29', 636.66, 114.6, 0]], 'Table 7: the return is netted in its state, each order at the paise of its invoice');
+  eq(R.json.hsn.hsn_b2c.map((x) => [x.hsn_sc, x.qty, x.txval, x.iamt, x.camt, x.samt]), [['392410', 2, 264.72, 167.85, -60.1, -60.1], ['940320', 3, 1571.19, 0, 141.41, 141.41]], 'Table 12: the HSN line is net of the return');
+  eq(sumOf(R.json.hsn.hsn_b2c, 'txval'), sumOf(R.json.b2cs, 'txval'), 'Table 12 = Table 7');
+  eq(R.json.supeco.clttx.map((e) => e.suppval), [1835.91], 'Table 14 the same');
+  eq(R.E.G.carrySave({}, 0)[ME]['102026'].items, [], 'nothing is carried');
+  eq(R.check.errors, 0, 'the checker finds no error');
+  ok(R.check.issues.some((x) => x.lvl === 'info' && /HSN 392410 18%: CGST and SGST is below zero while the value is above it/.test(x.msg)), 'and explains the line');
 }
 
 /* ---------------- 4. state by state: whole state negative is carried as before ---------------- */
