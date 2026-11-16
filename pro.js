@@ -42,12 +42,20 @@
     acct = read(ACCT); // another page (My account → Change password) may have saved a new token
     const headers = { 'Content-Type': 'application/json' };
     if (acct && acct.token) headers.Authorization = 'Bearer ' + acct.token;
-    const res = await fetch('/api/' + path, {
-      method: opts.body ? 'POST' : 'GET',
-      headers,
-      cache: 'no-store',
-      body: opts.body ? JSON.stringify(opts.body) : undefined,
-    });
+    let res;
+    try {
+      res = await fetch('/api/' + path, {
+        method: opts.body ? 'POST' : 'GET',
+        headers,
+        cache: 'no-store',
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+    } catch {
+      // no network (the browser's own "Failed to fetch" tells a seller nothing)
+      const e = new Error(navigator.onLine === false ? 'You are offline. Connect to the internet and try again.' : 'Could not reach PakkaBill. Check your internet and try again.');
+      e.status = 0;
+      throw e;
+    }
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 && acct && path !== 'auth') setAcct(null);
     if (!res.ok) {
@@ -188,14 +196,14 @@
     const phone = authPhone || read(LAST_PHONE) || '';
     const by = otpBy();
     const trial = cfg && cfg.trialDays;
-    const pwField = (name, label, isNew) => `<div class="pbp-f">
+    const pwField = (name, label, isNew) => `<div class="pbp-f" data-f="pw">
         <div class="pbp-lrow"><span>${label}</span>${login ? '<button type="button" class="pbp-link pbp-forgot" data-to="reset">Forgot password?</button>' : ''}</div>
         <span class="pbp-pw"><input name="${name}" type="password" aria-label="${label}" autocomplete="${isNew ? 'new-password' : 'current-password'}" autocapitalize="none" autocorrect="off" spellcheck="false" minlength="6" required${isNew ? ' data-strength' : ''}><button type="button" class="pbp-show" aria-label="Show password">Show</button></span>
         ${isNew ? '<span class="pbp-meter" aria-hidden="true"><i></i></span><span class="pbp-hint" data-hint>At least 6 characters. Letters and numbers together are stronger.</span>' : ''}
         <span class="pbp-caps" hidden>Caps Lock is on</span>
       </div>`;
     const phoneField = `<label class="pbp-f"><span class="pbp-lrow"><span>Mobile number</span></span>
-        <span class="pbp-phone${phoneOk(phone) ? ' is-ok' : ''}"><span class="pbp-cc" aria-hidden="true">+91</span><input name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="10-digit mobile number" value="${esc(phone)}" required></span></label>`;
+        <span class="pbp-phone${phoneOk(phone) ? ' is-ok' : ''}"><span class="pbp-cc" aria-hidden="true">+91</span><input name="phone" type="tel" inputmode="numeric" autocomplete="${login ? 'username' : 'tel-national'}" placeholder="10-digit mobile number" maxlength="16" value="${esc(phone)}" required><span class="pbp-tick" aria-hidden="true"></span></span></label>`;
     const shopField = '<label class="pbp-f"><span class="pbp-lrow"><span>Shop name <i class="pbp-opt">optional</i></span></span><input name="shopName" autocomplete="organization" placeholder="As on your bills" maxlength="80"></label>';
     const codeField = `<div class="pbp-f">
         <p class="pbp-sent"><span class="pbp-sent__ic" aria-hidden="true">${by === 'WhatsApp' ? '💬' : '✉️'}</span><span><span data-sent-to>We sent a 6-digit code.</span> <button type="button" class="pbp-link pbp-inl" data-change>Change number</button></span></p>
@@ -204,6 +212,8 @@
         <p class="pbp-resend"><span data-wait></span><button type="button" class="pbp-link pbp-inl" data-resend hidden>Resend code</button></p>
       </div>`;
     const btn = (text) => `<button class="pbp-btn" type="submit"><span>${text}</span></button>`;
+    // two-step flows show where the person is: 1 number, 2 code
+    const steps = `<ol class="pbp-steps" aria-label="Steps"><li><b>1</b> Mobile number</li><li><b>2</b> ${signup ? 'Code and password' : mode === 'reset' ? 'Code and new password' : 'Code'}</li></ol>`;
     const errBox = '<p class="pbp-err" role="alert"></p><div class="pbp-erract"></div>';
     const terms = 'By creating an account you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.';
     const top = page && (signup || login) ? ''
@@ -222,16 +232,13 @@
         ${login && otp ? `<div class="pbp-or"><span>or</span></div><button type="button" class="pbp-btn pbp-btn--ghost pbp-btn--alt" data-to="otp">Log in with a code on ${by}</button>` : ''}
         <p class="pbp-fine">${signup ? `${trial ? `Every new account gets ${trial} days of Pro free, no payment needed. ` : ''}${terms}` : 'Your shops, bills and plan from your other devices come to this one.'}</p>`;
     } else {
-      body = `<div data-s="phone">${phoneField}${signup ? shopField : ''}${errBox}${btn(signup ? 'Continue' : 'Send code')}
+      body = `${steps}<div data-s="phone">${phoneField}${signup ? shopField : ''}${errBox}${btn(signup ? 'Continue' : 'Send code')}
           <p class="pbp-fine">${signup ? `We check your number with a 6-digit code on ${by}, so only you can use it. ${terms}` : `The code works for 10 minutes.${by === 'WhatsApp' ? ' It comes on WhatsApp, so use a number that has WhatsApp.' : ''}`}</p></div>
         <div data-s="code" hidden>${codeField}${signup ? pwField('password', 'Make a password', true) : mode === 'reset' ? pwField('newPassword', 'New password', true) : ''}${errBox}
           ${btn(signup ? (trial ? `Create account · ${trial} days of Pro free` : 'Create account') : mode === 'reset' ? 'Save new password and log in' : 'Log in')}
           ${mode === 'reset' ? '<p class="pbp-fine">For your safety, PakkaBill logs out on your other phones and computers after the new password is saved.</p>' : ''}</div>`;
     }
-    const other = !page || !(signup || login) ? ''
-      : signup ? '<p class="pbauth__switch">Already have an account? <button type="button" class="pbp-link" data-to="login">Log in</button></p>'
-      : '<p class="pbauth__switch">New to PakkaBill? <button type="button" class="pbp-link" data-to="signup">Create a free account</button></p>';
-    return `<form class="pbp-auth" novalidate data-mode="${mode}" data-step="${twoStep ? 'phone' : 'one'}" data-from="${esc(from)}">${top}${body}</form>${other}`;
+    return `<form class="pbp-auth" novalidate data-mode="${mode}" data-step="${twoStep ? 'phone' : 'one'}" data-from="${esc(from)}">${top}${body}</form>`;
   }
 
   // Wires the log in / sign up form made by authHtml.
@@ -243,7 +250,10 @@
     const by = otpBy();
     let ticker = 0, lastDone = '', otpAbort = null;
 
-    const showErr = (msg, action) => {
+    // `field`: the input the message is about; it gets a red border until the person types again
+    const showErr = (msg, action, field) => {
+      form.querySelectorAll('.pbp-f.is-bad').forEach((x) => { x.classList.remove('is-bad'); x.querySelectorAll('[aria-invalid]').forEach((i) => i.removeAttribute('aria-invalid')); });
+      if (msg && field) { field.closest('.pbp-f')?.classList.add('is-bad'); field.setAttribute('aria-invalid', 'true'); }
       form.querySelectorAll('.pbp-err').forEach((e) => { e.textContent = ''; });
       form.querySelectorAll('.pbp-erract').forEach((e) => { e.innerHTML = ''; });
       const e = $f('.pbp-err'), a = $f('.pbp-erract');
@@ -259,9 +269,10 @@
     // the server's answer, with a button to the right place when the number is in the wrong tab
     const smartErr = (e) => {
       const m = e.message || 'Something went wrong. Please try again.';
-      if (e.status === 409) return showErr(m, ['Log in with this number', () => redraw('login')]);
-      if (e.status === 404 && /No account/.test(m)) return showErr(m, ['Create an account with this number', () => redraw('signup')]);
-      if (mode === 'login' && e.status === 401 && otpOn()) return showErr('The password is wrong. Check capital letters, or tap Show to see what you typed.', ['Forgot password? Reset it with a code', () => redraw('reset')]);
+      if (!e.status) return showErr(m, ['Try again', () => form.requestSubmit()]);
+      if (e.status === 409) return showErr(m, ['Log in with this number', () => redraw('login')], phoneIn);
+      if ((e.status === 404 || e.status === 401) && /No account/.test(m)) return showErr(m, ['Create an account with this number', () => redraw('signup')], phoneIn);
+      if (mode === 'login' && e.status === 401) return showErr('The password is wrong. Check capital letters, or tap Show to see what you typed.', otpOn() ? ['Forgot password? Reset it with a code', () => redraw('reset')] : ['Forgot password? Get help', () => redraw('reset')], form.querySelector('input[name=password]'));
       if (/OTP|code/i.test(m) && boxes.length) { clearCode(); form.querySelector('.pbp-otp')?.classList.add('is-bad'); }
       showErr(m);
     };
@@ -287,7 +298,8 @@
     });
     const checkPhone = () => {
       if (phoneOk(phoneIn.value)) return true;
-      showErr(phoneIn.value ? 'That number does not look right. Use your 10-digit mobile number.' : 'Enter your mobile number.');
+      const n = phoneIn.value.length;
+      showErr(!n ? 'Enter your mobile number.' : n < 10 ? `A mobile number has 10 digits. You typed ${n}.` : 'That number does not look right. Indian mobile numbers start with 6, 7, 8 or 9.', null, phoneIn);
       phoneIn.focus();
       return false;
     };
@@ -400,8 +412,10 @@
       if (v.length >= 8 && /[a-zA-Z]/.test(v) && /\d/.test(v)) s = 2;
       if (v.length >= 10 && /[a-zA-Z]/.test(v) && /\d/.test(v) && (/[^a-zA-Z0-9]/.test(v) || (/[a-z]/.test(v) && /[A-Z]/.test(v)))) s = 3;
       if (/^(.)\1+$/.test(v) || /^(123456|1234567|12345678|123456789|password|qwerty)/i.test(v)) s = Math.min(s, 1);
-      f.dataset.pw = v ? String(s) : '';
-      f.querySelector('[data-hint]').textContent = !v ? 'At least 6 characters. Letters and numbers together are stronger.'
+      const isPhone = v.length >= 6 && v === phoneIn?.value;
+      if (isPhone) s = 0;
+      f.dataset.pw = v ? String(v.length < 6 ? 0 : s) : '';
+      f.querySelector('[data-hint]').textContent = isPhone ? 'Do not use your mobile number as the password.' : !v ? 'At least 6 characters. Letters and numbers together are stronger.'
         : v.length < 6 ? `${6 - v.length} more character${6 - v.length === 1 ? '' : 's'}`
         : ['', 'Okay. Add letters and numbers to make it stronger.', 'Good password', 'Strong password'][s];
     }));
@@ -421,9 +435,12 @@
       const pwName = mode === 'reset' ? 'newPassword' : 'password';
       if (form.dataset.step === 'code' && code().length !== 6) { showErr(`Enter the 6-digit code from ${by}.`); return boxes[code().length]?.focus(); }
       if (mode !== 'otp') {
-        const pw = String(f.get(pwName) || '');
-        if (!pw) { showErr(mode === 'login' ? 'Enter your password.' : 'Make a password.'); return form.querySelector(`input[name=${pwName}]`).focus(); }
-        if (mode !== 'login' && pw.length < 6) { showErr('Use a password of at least 6 characters.'); return form.querySelector(`input[name=${pwName}]`).focus(); }
+        const pw = String(f.get(pwName) || ''), pwIn = form.querySelector(`input[name=${pwName}]`);
+        // Enter after the number: go on to the password, without an error
+        if (!pw && mode === 'login' && document.activeElement === phoneIn) return pwIn.focus();
+        if (!pw) { showErr(mode === 'login' ? 'Enter your password.' : 'Make a password.', null, pwIn); return pwIn.focus(); }
+        if (mode !== 'login' && pw.length < 6) { showErr('Use a password of at least 6 characters.', null, pwIn); return pwIn.focus(); }
+        if (mode !== 'login' && pw === phoneIn.value) { showErr('Do not use your mobile number as the password. Anyone who knows your number could log in.', null, pwIn); return pwIn.focus(); }
       }
       busy(true);
       try {
@@ -557,10 +574,11 @@
       authUrl(mode);
       dialog.querySelector('[data-pitch]').textContent = signup ? 'One account for your shop, on every phone and laptop.' : 'Welcome back. Your shops, bills and plan are waiting.';
       dialog.querySelector('[data-gets]').innerHTML = accountGets().map((g) => `<li>${esc(g)}</li>`).join('');
-      box.innerHTML = `<h1 id="pbp-title">${AUTH_TITLE[mode] || AUTH_TITLE.login}</h1>
+      const tabs = signup || mode === 'login' ? `<div class="pbp-tabs pbauth__tabs" role="tablist" aria-label="Log in or create an account"><button type="button" role="tab" aria-selected="${!signup}" data-mode="login" class="${signup ? '' : 'is-on'}">Log in</button><button type="button" role="tab" aria-selected="${signup}" data-mode="signup" class="${signup ? 'is-on' : ''}">Create account</button></div>` : '';
+      box.innerHTML = `${tabs}<h1 id="pbp-title">${AUTH_TITLE[mode] || AUTH_TITLE.login}</h1>
         ${mode === 'reset' || mode === 'otp' ? '' : `<p class="pbp-why">${esc(o.why || (signup ? `Your mobile number and a password${otpOn() ? ', checked with a code on ' + otpBy() : ''}. It takes a minute.` : 'Use the mobile number and password of your PakkaBill account.'))}</p>`}
-        ${signup ? `<ul class="pbp-gets pbauth__gets">${accountGets().map((g) => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}
         ${authHtml(mode, o.from || '', true)}
+        ${signup ? `<ul class="pbp-gets pbauth__gets">${accountGets().map((g) => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}
         <p class="pbp-keep">Bills already on this device stay as they are.</p>
         <button type="button" class="pbp-link pbp-later" data-later>Continue without an account</button>`;
       box.querySelector('[data-later]').addEventListener('click', closeUpgrade);
@@ -1523,11 +1541,25 @@ html.pbauth-open{overflow:hidden}
 .pbauth .pbp-why{margin:0 0 18px;font-size:15px}
 .pbauth .pbp-auth{gap:14px}
 .pbauth .pbp-auth [data-s]{gap:14px}
-.pbauth .pbp-gets{margin:0 0 18px;border:1px solid var(--rule,#dcdfea);background:var(--desk,#f4f5f9)}
+.pbauth .pbp-gets{margin:18px 0 0;border:1px solid var(--rule,#dcdfea);background:var(--desk,#f4f5f9);font-size:13.5px}
+.pbauth__tabs{margin:0 0 22px}
+.pbauth__tabs button{padding:9px;font-size:15px}
+.pbp-tabs button:focus-visible{outline:2px solid var(--focus,#5b68d6);outline-offset:1px}
+.pbp-f.is-bad input,.pbp-f.is-bad .pbp-phone{border-color:var(--red,#c8202a)}
+.pbp-f.is-bad input:focus,.pbp-f.is-bad .pbp-phone:focus-within{border-color:var(--red,#c8202a);box-shadow:0 0 0 3px color-mix(in srgb,var(--red,#c8202a) 18%,transparent)}
+.pbp-f.is-bad .pbp-phone input:focus{box-shadow:none}
+.pbp-tick{display:none;flex:none;align-self:center;position:relative;width:20px;height:20px;margin-right:12px;border-radius:50%;background:var(--green,#12714b)}
+.pbp-tick:after{content:"";position:absolute;left:6px;top:6px;width:7px;height:4px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg)}
+.pbp-phone.is-ok .pbp-tick{display:block}
+.pbp-f.is-bad .pbp-tick{display:none}
+.pbp-steps{list-style:none;display:flex;gap:8px;margin:0;padding:0;font-size:12.5px;font-weight:600;color:var(--ink-3,#777)}
+.pbp-steps li{flex:1;display:flex;gap:6px;align-items:baseline;padding-top:8px;border-top:3px solid var(--rule,#dcdfea)}
+.pbp-steps b{display:inline;font-weight:700}
+.pbp-auth[data-step=phone] .pbp-steps li:first-child,.pbp-auth[data-step=code] .pbp-steps li{border-color:var(--carbon,#2b3494);color:var(--carbon,#2b3494)}
+p.pbp-help{display:block}
 .pbauth .pbp-mode b{display:none}
 .pbauth .pbp-mode span{font-size:15px}
-.pbauth__switch{margin:18px 0 0;padding-top:16px;border-top:1px solid var(--rule-soft,#eceef4);text-align:center;font-size:14.5px;color:var(--ink-2,#4a5170)}
-.pbauth .pbp-keep{margin-top:14px}
+.pbauth .pbp-keep{margin-top:18px;padding-top:16px;border-top:1px solid var(--rule-soft,#eceef4)}
 .pbauth .pbp-err:not(:empty){padding:10px 12px;border-radius:10px;background:var(--red-soft,#fde8e6);border:1px solid color-mix(in srgb,var(--red,#b42318) 28%,transparent);font-weight:500}
 .pbauth .pbp-later{font-size:14px}
 .pbauth__foot{margin-top:auto;display:flex;justify-content:center;gap:20px;padding:16px 16px calc(18px + env(safe-area-inset-bottom,0px));font-size:13px}

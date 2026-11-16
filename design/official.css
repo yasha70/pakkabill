@@ -206,3 +206,24 @@ body:before{display:none!important}
 /* a bill's number as the page title: plain, not red */
 .preview-head .page-title{color:var(--ink);letter-spacing:0}
 }
+
+@media screen and (width>=1024px){
+/* side menu: the list of tools scrolls between the shop and the cards at the bottom; it fades out
+   at the bottom edge so it is clear there is more below */
+.spine-nav{flex:1 1 auto;min-height:0;padding-bottom:22px;-webkit-mask-image:linear-gradient(#000 calc(100% - 30px),transparent);mask-image:linear-gradient(#000 calc(100% - 30px),transparent)}
+.spine__foot{flex:none}
+}
+@media screen and (width>=1024px) and (height<900px){
+/* a laptop screen: smaller cards at the bottom, so more of the menu shows */
+.spine{gap:12px}
+.spine-nav a{height:34px}
+.spine-nav__grp+.spine-nav__grp{margin-top:8px}
+.pbp-acard{padding:10px 12px}
+.pbp-acard span{display:none}
+.pbp-acard div{margin-top:6px}
+.pbp-acard .pbp-in{height:32px}
+.spine__help{padding:7px 10px}
+.spine__help-t span{display:none}
+.spine__help-ico{width:28px;height:28px}
+.spine__help-ico svg{width:18px;height:18px}
+}

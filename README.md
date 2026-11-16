@@ -105,7 +105,8 @@ wallpaper and no colour gradients on buttons. Printed bills (`.sheet`) are not t
 keep their design.
 
 - `design/official.css`: the colours (light and dark), headings, cards, buttons, form fields, the
-  desktop side menu, the phone top bar and bottom bar. It is built into `index.html` (a
+  desktop side menu (the tool list scrolls and fades at the bottom edge; on a laptop screen the
+  account and help cards under it are smaller so more tools show), the phone top bar and bottom bar. It is built into `index.html` (a
   `<style id="pb-official">` straight after the main styles, so it wins over them).
 - `design/home-gate.html`, `design/home.css`, `design/home.html`: the home page (see below).
 - After editing any of these, run `python3 design/build.py`. It is the only build step.
@@ -127,9 +128,13 @@ fills the screen. Every Log in or Sign up button in the app and on the home page
 without leaving the screen behind it; Close, Escape, the phone's back button or "Continue without an
 account" go back. A logged-in visitor to `/login` goes to My account.
 
-The form itself (`authHtml` / `wireAuth` in `pro.js`): mobile number with +91, password with Show and
-a strength line, the 6-digit code boxes when OTP is on (paste and SMS autofill), "Log in with a code",
-and clear messages with a button to the right next step (wrong tab, wrong password, no account).
+The form itself (`authHtml` / `wireAuth` in `pro.js`): a Log in / Create account switch at the top of
+the page, mobile number with +91 (a green tick when it is a full number), password with Show and
+a strength line, the 6-digit code boxes when OTP is on (paste and SMS autofill, with a "1 Mobile
+number, 2 Code" steps line), "Log in with a code", and clear messages with a button to the right next
+step (wrong tab, wrong password, no account, no internet: Try again). The field a message is about gets
+a red border until it is typed in again. Enter after the number moves to the password. A new password
+may not be the account's own mobile number (checked in the form and in `api/auth.js`).
 
 ## Home page
 

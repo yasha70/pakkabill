@@ -30,6 +30,11 @@ const PROFILE = {
   orders: ['Up to 10', '10 to 50', '50 to 200', 'More than 200'],
 };
 
+// A new password may not be the account's own mobile number: anyone who knows the number could log in.
+const notPhone = (pw, phone) => {
+  if (/^\d{10}$/.test(String(phone)) && String(pw).trim() === String(phone)) throw new core.HttpError(400, 'Do not use your mobile number as the password. Choose something only you know.');
+};
+
 module.exports = core.handler(async (req, res) => {
   core.requireMethod(req, 'POST');
   core.requireDb();
@@ -86,6 +91,7 @@ module.exports = core.handler(async (req, res) => {
     if (user.phone === 'owner') throw new core.HttpError(400, 'The owner account has no password.');
     if (!(await core.checkPassword(String(password), user.pass))) throw new core.HttpError(401, 'Your current password is wrong.');
     if (next.length < 6) throw new core.HttpError(400, 'Use a new password of at least 6 characters.');
+    notPhone(next, user.phone);
     user.pass = await core.hashPassword(next);
     user.pwAt = Date.now();
     delete user.tempPw;
@@ -148,6 +154,7 @@ module.exports = core.handler(async (req, res) => {
     const next = String(core.body(req).newPassword || '');
     // checked before the OTP, so a short password does not use up the code
     if (next.length < 6) throw new core.HttpError(400, 'Use a new password of at least 6 characters.');
+    notPhone(next, phone);
     const user = await core.getUser(phone);
     if (!user) throw new core.HttpError(404, 'No account with this mobile number. Check the number, or create an account.');
     await otp.check(phone, 'reset', core.body(req).otp);
@@ -163,6 +170,7 @@ module.exports = core.handler(async (req, res) => {
 
   if (action === 'signup') {
     if (String(password).length < 6) throw new core.HttpError(400, 'Use a password of at least 6 characters.');
+    notPhone(password, phone);
     const needOtp = !fromApp(req) && (await otp.enabled());
     if (needOtp) {
       if (await core.getUser(phone)) throw new core.HttpError(409, 'This number already has an account. Log in instead.');
