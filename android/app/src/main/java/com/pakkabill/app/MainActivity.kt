@@ -67,7 +67,7 @@ class MainActivity : FragmentActivity(), PaymentResultWithDataListener {
 
     private var locked by mutableStateOf(false)
     private var lockOn by mutableStateOf(false)
-    private var startTab by mutableStateOf("pl")
+    private var startTab by mutableStateOf("home")
     private var prefsLoaded = false
     private var authPurpose = Auth.UNLOCK
     private var backgroundAt = 0L

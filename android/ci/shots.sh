@@ -48,6 +48,8 @@ cap 01-start 8
 alive start
 
 echo "== sample data" >> "$R"
+# the app opens on Home; the P&L is the Profit tab
+tap "Check my profit"; sleep 2
 tap "Try with sample data"
 cap 02-pl 20
 adb logcat -d | grep -E "PakkaBill P&L" | tail -3 >> "$R"
@@ -79,7 +81,7 @@ up; cap 34-plan 1; up; cap 35-plan 1
 adb shell input keyevent KEYCODE_BACK; sleep 1
 
 echo "== Hindi" >> "$R"
-tap "P&L"; sleep 1; top
+tap "Profit"; sleep 1; top
 tap "हिंदी"; cap 40-hi-pl 6
 up; cap 41-hi-pl 1; up; cap 42-hi-pl 1
 top; tap "EN"; sleep 2
@@ -104,7 +106,7 @@ up; cap 52-own-pl 1
 more "Upload"; cap 53-files 3; up; cap 54-files 1
 
 echo "== dark mode" >> "$R"
-top; tap "P&L"; adb shell cmd uimode night yes
+top; tap "Profit"; adb shell cmd uimode night yes
 cap 60-dark 6
 up; cap 61-dark 1
 adb shell cmd uimode night no
@@ -118,7 +120,7 @@ adb shell am force-stop $PKG
 adb push android/ci/bills-sample.json /data/local/tmp/bills.json
 adb shell "run-as $PKG sh -c 'mkdir -p files/bills; cat /data/local/tmp/bills.json > files/bills/bills.json'"
 adb shell am start -W -n $PKG/.MainActivity; sleep 5
-tap "Bills"; cap b01-bills 3
+more "Bills"; cap b01-bills 3
 up; cap b02-bills 1; top
 tap "Ravi Traders"; cap b03-bill-view 8
 up; cap b04-bill-view 1; up; cap b05-bill-view 1
@@ -145,9 +147,9 @@ more "Shop details"; cap b17-shop 3
 up; cap b18-shop 1; up; cap b19-shop 1
 more "Parties"; cap b20-parties 3
 more "Items"; cap b21-items 3
-python3 android/ci/tap.py "New bill or Meesho files" | tee -a "$R"; cap b22-add-menu 2
+python3 android/ci/tap.py "New bill, labels or Meesho files" | tee -a "$R"; cap b22-add-menu 2
 adb shell input keyevent KEYCODE_BACK; sleep 1
-adb shell cmd uimode night yes; tap "Bills"; cap b23-bills-dark 5
+adb shell cmd uimode night yes; more "Bills"; cap b23-bills-dark 5
 adb shell cmd uimode night no; sleep 3
 alive bills
 
@@ -245,6 +247,7 @@ adb logcat -c
 adb install -r rel/PakkaBill-release-test.apk 2>&1 | tee -a "$R"
 adb shell am start -W -n $PKG/.MainActivity
 cap 80-release-start 8
+tap "Check my profit"; sleep 2
 tap "Try with sample data"
 cap 81-release-sample 25
 adb shell dumpsys gfxinfo $PKG reset > /dev/null
@@ -254,10 +257,10 @@ more "Product costs"; sleep 3
 adb shell dumpsys gfxinfo $PKG reset > /dev/null
 for i in 1 2 3 4 5 6; do up; sleep 1; done
 frames "Release Costs scroll"
-tap "Bills"; cap 84-release-bills 3
+more "Bills"; cap 84-release-bills 3
 tap "+ New bill"; cap 85-release-new-bill 3
 adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_BACK; sleep 1
-tap "P&L"; sleep 1; tap "P&L"; sleep 2
+tap "Profit"; sleep 1; tap "Profit"; sleep 2
 tap "How to use"; cap 82-release-guide 4
 tap "हिंदी"; cap 83-release-hindi 5
 alive release
