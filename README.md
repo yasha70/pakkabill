@@ -216,13 +216,22 @@ inside the app, for Meesho Lens and Auto listing, which work on Meesho's pages.
     Chrome runs it on a laptop, so the catalogue form fills on the phone too. Its storage is the
     app's, reachable only from supplier.meesho.com; Meesho's page is left as it is, and the seller
     checks and submits each form in Meesho.
+- The website's look and Home (4.3): the same navy brand, white cards on a light grey page, rounded
+  cards and controls, no wallpaper and no gradients, in light and dark. The app opens on Home (the
+  website's #/dashboard): a greeting, the four main tools, All tools, your numbers (Meesho profit,
+  billed this month, money to collect), Safe to use and the account. Pages change with a short fade
+  and each keeps its scroll position. Labels & packing chart has the website's new options: blouse
+  sizes as L / XL / XXL for the labels too ("Free Size" read from the SKU), Labels to download (one
+  size only), and pages Label only 4×4 inch and Cut empty space. The Label cropper is under More
+  tools and on the + button (`labels/LabelCrop.kt`, engine `core/.../labels/Crop.kt`, checked by
+  `CropTest` with the website's own cropper checks).
 - Also: splash screen, edge-to-edge, adaptive and themed icons, launcher shortcuts (New bill, Meesho
   P&L, Upload, Costs), fingerprint/face app lock, Hindi, dark mode, Google Play in-app updates and
   reviews. The app is recognised by `PakkaBillApp/` in its user agent (`store=play` when installed
   from Google Play, where Pro is not sold because Play requires its own billing for that).
 
-Bottom bar: P&L · Labels · + (new bill, estimate or Meesho files) · Bills · Tools (every tool,
-grouped as on the website's menu).
+Bottom bar: Home · Profit · + (new bill, estimate, sort or crop labels, Meesho files) · Labels · Tools
+(every tool, Bills included, grouped as on the website's menu).
 
 Building: pushing `android/` (or a website file the engines come from) to `main` runs
 `.github/workflows/android.yml`. It builds the Play Store bundle (.aab) and the website APK unsigned

@@ -60,6 +60,7 @@ fun toolGroups(login: Boolean, pro: Boolean, issues: Int): List<Pair<String, Lis
     "More tools" to listOf(
         Tool("listing", "Meesho listing", "Meesho's bulk upload Excel from your template", PbIcons.Sheet),
         Tool("lens", "Meesho Lens", "Competitor prices and how fast they sell", PbIcons.Scan),
+        Tool("crop", "Label cropper", "Cuts the empty white space under shipping labels", PbIcons.Crop),
     ),
     "Account" to listOf(
         Tool("plan", if (pro) "PakkaBill Pro is active" else "PakkaBill Pro", "Plans, trial and payment", PbIcons.Crown),
@@ -73,7 +74,7 @@ fun toolGroups(login: Boolean, pro: Boolean, issues: Int): List<Pair<String, Lis
 fun LazyListScope.toolsTab(groups: List<Pair<String, List<Tool>>>, open: (String) -> Unit) {
     groups.forEach { (title, tools) ->
         block("tools-$title") {
-            Txt(title, size = 13.sp, weight = FontWeight.SemiBold, color = LocalHues.current.ink3, upper = true)
+            Txt(title, size = 13.sp, weight = FontWeight.Bold, color = LocalHues.current.ink3, upper = true)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 tools.chunked(2).forEach { pair ->
                     Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -90,7 +91,7 @@ fun LazyListScope.toolsTab(groups: List<Pair<String, List<Tool>>>, open: (String
 private fun ToolCard(t: Tool, modifier: Modifier, onClick: () -> Unit) {
     val h = LocalHues.current
     Column(
-        modifier.heightIn(min = 128.dp).clip(RoundedCornerShape(12.dp)).background(h.sheet).border(1.dp, h.rule, RoundedCornerShape(12.dp))
+        modifier.heightIn(min = 128.dp).clip(RoundedCornerShape(14.dp)).background(h.sheet).border(1.dp, h.rule, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick).padding(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

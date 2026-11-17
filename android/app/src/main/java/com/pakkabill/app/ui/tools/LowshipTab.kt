@@ -223,7 +223,7 @@ private fun VersionCard(ph: PhotoView, v: VersionView, c: LowshipController, mod
         modifier.clip(RoundedCornerShape(10.dp)).border(if (cheapest) 2.dp else 1.dp, if (cheapest) h.pos else h.rule, RoundedCornerShape(10.dp)).background(h.sheet).padding(8.dp),
     ) {
         Box {
-            Image(v.thumb.asImageBitmap(), v.label, Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(6.dp)).background(Color.White), contentScale = ContentScale.Fit)
+            Image(v.thumb.asImageBitmap(), v.label, Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(Color.White), contentScale = ContentScale.Fit)
             val tag = when { cheapest -> "Cheapest ✓"; v.key == "orig" -> "Your photo"; v.round > 0 -> "New · round ${v.round + 1}"; else -> null }
             if (tag != null) Box(Modifier.padding(4.dp)) { Tag(tag, if (cheapest) TagKind.GOOD else TagKind.PLAIN, raw = true) }
         }

@@ -87,7 +87,7 @@ fun GuideTab(guide: Guide?, ui: PnlUi, lang: String, setLang: (String) -> Unit, 
         Txt(body, raw = true, lineHeight = 25.sp)
         Spacer(Modifier.height(14.dp))
         Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(h.rule)) {
-            Box(Modifier.fillMaxWidth((i + 1f) / n).height(5.dp).clip(CircleShape).background(Brush.horizontalGradient(listOf(Color(0xFF2B3494), Color(0xFF5B3FE6), Color(0xFFFF7A59)))))
+            Box(Modifier.fillMaxWidth((i + 1f) / n).height(5.dp).clip(CircleShape).background(h.btnBg))
         }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {

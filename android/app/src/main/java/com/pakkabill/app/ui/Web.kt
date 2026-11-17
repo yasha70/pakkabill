@@ -51,6 +51,11 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -131,7 +136,7 @@ fun Txt(
         maxLines = maxLines, overflow = if (maxLines == Int.MAX_VALUE) TextOverflow.Clip else TextOverflow.Ellipsis,
     )
 }
-@Composable fun H2(s: String, modifier: Modifier = Modifier, size: TextUnit = 20.8.sp) = Txt(s, modifier, size = size, weight = FontWeight.SemiBold, head = true, lineHeight = size * 1.2f)
+@Composable fun H2(s: String, modifier: Modifier = Modifier, size: TextUnit = 20.8.sp) = Txt(s, modifier, size = size, weight = FontWeight.Bold, head = true, lineHeight = size * 1.2f)
 @Composable fun H3(s: String, modifier: Modifier = Modifier) = Txt(s, modifier, size = 16.8.sp, weight = FontWeight.SemiBold, head = true, lineHeight = 20.sp)
 @Composable fun Small(s: String, modifier: Modifier = Modifier, color: Color = LocalHues.current.ink3, raw: Boolean = false, weight: FontWeight? = null) =
     Txt(s, modifier, size = 14.sp, color = color, raw = raw, weight = weight)
@@ -139,12 +144,17 @@ fun Txt(
 
 /* ---------------- containers ---------------- */
 
-/** .sheet: white panel, 1px rule border, 3px corners */
+/** Corners of a card and of a control (the website's --r-card and --r-ctl). */
+val CardShape = RoundedCornerShape(14.dp)
+val CtlShape = RoundedCornerShape(10.dp)
+private val CardR = 14.dp
+
+/** .sheet: a white card with a 1px border and 14px corners */
 @Composable
 fun Sheet(modifier: Modifier = Modifier, padding: Dp = 16.dp, content: @Composable ColumnScope.() -> Unit) {
     val h = LocalHues.current
     Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp)).background(h.sheet).border(1.dp, h.rule, RoundedCornerShape(3.dp)).padding(padding),
+        modifier.fillMaxWidth().clip(CardShape).background(h.sheet).border(1.dp, h.rule, CardShape).padding(padding),
         content = content,
     )
 }
@@ -165,13 +175,38 @@ enum class Part { TOP, MID, BOTTOM }
 @Composable
 fun SheetPart(part: Part, modifier: Modifier = Modifier, padding: Dp = 16.dp, content: @Composable ColumnScope.() -> Unit) {
     val h = LocalHues.current
+    // the card's rounded corners: on top of the first slice and under the last one
+    val shape = when (part) {
+        Part.TOP -> RoundedCornerShape(topStart = CardR, topEnd = CardR)
+        Part.BOTTOM -> RoundedCornerShape(bottomStart = CardR, bottomEnd = CardR)
+        Part.MID -> RectangleShape
+    }
     Column(
-        modifier.fillMaxWidth().padding(top = if (part == Part.TOP) Gap else 0.dp).background(h.sheet).drawBehind {
+        modifier.fillMaxWidth().padding(top = if (part == Part.TOP) Gap else 0.dp).background(h.sheet, shape).drawWithCache {
             val w = 1.dp.toPx()
-            drawRect(h.rule, size = Size(w, size.height))
-            drawRect(h.rule, Offset(size.width - w, 0f), Size(w, size.height))
-            if (part == Part.TOP) drawRect(h.rule, size = Size(size.width, w))
-            if (part == Part.BOTTOM) drawRect(h.rule, Offset(0f, size.height - w), Size(size.width, w))
+            val r = CardR.toPx()
+            val x1 = size.width - w / 2
+            val y1 = size.height - w / 2
+            val edge = Path().apply {
+                when (part) {
+                    Part.TOP -> {
+                        moveTo(w / 2, size.height); lineTo(w / 2, r)
+                        arcTo(Rect(w / 2, w / 2, 2 * r, 2 * r), 180f, 90f, false)
+                        lineTo(size.width - r, w / 2)
+                        arcTo(Rect(size.width - 2 * r, w / 2, x1, 2 * r), 270f, 90f, false)
+                        lineTo(x1, size.height)
+                    }
+                    Part.BOTTOM -> {
+                        moveTo(w / 2, 0f); lineTo(w / 2, size.height - r)
+                        arcTo(Rect(w / 2, size.height - 2 * r, 2 * r, y1), 180f, -90f, false)
+                        lineTo(size.width - r, y1)
+                        arcTo(Rect(size.width - 2 * r, size.height - 2 * r, x1, y1), 90f, -90f, false)
+                        lineTo(x1, 0f)
+                    }
+                    Part.MID -> { moveTo(w / 2, 0f); lineTo(w / 2, size.height); moveTo(x1, 0f); lineTo(x1, size.height) }
+                }
+            }
+            onDrawBehind { drawPath(edge, h.rule, style = Stroke(w)) }
         }.padding(start = padding, end = padding, top = if (part == Part.TOP) padding else 0.dp, bottom = if (part == Part.BOTTOM) padding else 0.dp),
         content = content,
     )
@@ -195,7 +230,7 @@ fun Note(kind: NoteKind = NoteKind.WARN, modifier: Modifier = Modifier, content:
     val edge = when (kind) { NoteKind.WARN -> h.warn; NoteKind.INFO -> h.carbon; NoteKind.BAD -> h.neg }
     val bg = if (kind == NoteKind.INFO) h.carbonSoft else h.warnBg
     Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(topEnd = 6.dp, bottomEnd = 6.dp)).background(bg)
+        modifier.fillMaxWidth().clip(CtlShape).background(bg)
             .drawBehind { drawRect(edge, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) }
             .padding(start = 15.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp), content = content,
@@ -232,13 +267,13 @@ fun Btn(text: String, onClick0: () -> Unit, modifier: Modifier = Modifier, kind:
         return
     }
     val (bg, fg, border) = when (kind) {
-        BtnKind.PRI -> Triple(h.carbon, h.carbonInk, h.carbon)
+        BtnKind.PRI -> Triple(h.btnBg, h.btnFg, h.btnBg)
         BtnKind.WA -> Triple(Color(0xFF1FAA59), Color.White, Color(0xFF1FAA59))
         BtnKind.DANGER -> Triple(h.sheet, h.neg, h.rule2)
         else -> Triple(h.sheet, h.ink, h.rule2)
     }
     Box(
-        modifier.defaultMinSize(minHeight = if (small) 34.dp else 42.dp).clip(RoundedCornerShape(6.dp)).background(bg).border(1.dp, border, RoundedCornerShape(6.dp))
+        modifier.defaultMinSize(minHeight = if (small) 36.dp else 44.dp).clip(CtlShape).background(bg).border(1.dp, border, CtlShape)
             .clickable(enabled = enabled, onClick = onClick).padding(horizontal = if (small) 10.dp else 16.dp, vertical = if (small) 4.dp else 8.dp)
             .let { if (enabled) it else it.background(h.sheet.copy(alpha = 0.45f)) },
         contentAlignment = Alignment.Center,
@@ -251,14 +286,14 @@ fun Btn(text: String, onClick0: () -> Unit, modifier: Modifier = Modifier, kind:
 @Composable
 fun Seg(options: List<Pair<String, String>>, value: String, onPick: (String) -> Unit, modifier: Modifier = Modifier, raw: Boolean = false) {
     val h = LocalHues.current
-    Row(modifier.height(IntrinsicSize.Min).clip(RoundedCornerShape(6.dp)).border(1.dp, h.rule2, RoundedCornerShape(6.dp))) {
+    Row(modifier.height(IntrinsicSize.Min).clip(CtlShape).border(1.dp, h.rule2, CtlShape)) {
         options.forEachIndexed { i, (v, l) ->
             if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(h.rule2))
             val on = v == value
             Box(
-                Modifier.background(if (on) h.carbon else h.sheet).clickable { onPick(v) }.heightIn(min = 40.dp).padding(horizontal = 12.dp, vertical = 8.dp),
+                Modifier.background(if (on) h.btnBg else h.sheet).clickable { onPick(v) }.heightIn(min = 40.dp).padding(horizontal = 12.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center,
-            ) { Txt(l, color = if (on) h.carbonInk else h.ink2, weight = FontWeight.SemiBold, size = 14.4.sp, raw = raw, maxLines = 1) }
+            ) { Txt(l, color = if (on) h.btnFg else h.ink2, weight = FontWeight.SemiBold, size = 14.4.sp, raw = raw, maxLines = 1) }
         }
     }
 }
@@ -280,8 +315,8 @@ fun Select(options: List<Pair<String, String>>, value: String, onPick: (String) 
     val label = options.firstOrNull { it.first == value }?.second ?: options.firstOrNull()?.second ?: ""
     Box(modifier) {
         Row(
-            Modifier.fillMaxWidth().defaultMinSize(minHeight = if (small) 34.dp else 42.dp).clip(RoundedCornerShape(6.dp)).background(h.sheet)
-                .border(1.dp, if (dashed) h.rule2.copy(alpha = 0.6f) else h.rule2, RoundedCornerShape(6.dp)).clickable { open = true }
+            Modifier.fillMaxWidth().defaultMinSize(minHeight = if (small) 34.dp else 42.dp).clip(CtlShape).background(h.sheet)
+                .border(1.dp, if (dashed) h.rule2.copy(alpha = 0.6f) else h.rule2, CtlShape).clickable { open = true }
                 .padding(horizontal = 10.dp, vertical = if (small) 4.dp else 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -321,8 +356,8 @@ fun Inp(
         keyboardActions = KeyboardActions(onDone = { if (text != value) onCommit(text) }),
         decorationBox = { inner ->
             Box(
-                Modifier.fillMaxWidth().defaultMinSize(minHeight = if (small) 38.dp else 42.dp).clip(RoundedCornerShape(6.dp)).background(h.sheet)
-                    .border(if (focused) 2.dp else 1.dp, if (focused) h.focus else h.rule2, RoundedCornerShape(6.dp))
+                Modifier.fillMaxWidth().defaultMinSize(minHeight = if (small) 38.dp else 42.dp).clip(CtlShape).background(h.sheet)
+                    .border(if (focused) 2.dp else 1.dp, if (focused) h.focus else h.rule2, CtlShape)
                     .padding(horizontal = if (small) 8.dp else 10.dp, vertical = 8.dp),
                 contentAlignment = if (money) Alignment.CenterEnd else Alignment.CenterStart,
             ) {
@@ -339,10 +374,10 @@ fun Check(checked: Boolean, onChange: (Boolean) -> Unit, text: String, sub: Stri
     val h = LocalHues.current
     Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(vertical = 2.dp), verticalAlignment = Alignment.Top) {
         Box(
-            Modifier.padding(top = 2.dp).size(20.dp).clip(RoundedCornerShape(4.dp)).background(if (checked) h.carbon else h.sheet)
-                .border(1.5.dp, if (checked) h.carbon else h.rule2, RoundedCornerShape(4.dp)),
+            Modifier.padding(top = 2.dp).size(20.dp).clip(RoundedCornerShape(4.dp)).background(if (checked) h.btnBg else h.sheet)
+                .border(1.5.dp, if (checked) h.btnBg else h.rule2, RoundedCornerShape(4.dp)),
             contentAlignment = Alignment.Center,
-        ) { if (checked) Txt("✓", color = h.carbonInk, size = 13.sp, weight = FontWeight.Bold, raw = true) }
+        ) { if (checked) Txt("✓", color = h.btnFg, size = 13.sp, weight = FontWeight.Bold, raw = true) }
         Spacer(Modifier.width(10.dp))
         Column {
             Txt(text, size = 15.2.sp)
@@ -414,7 +449,7 @@ class Cell(val text: String, val color: Color = Color.Unspecified, val bold: Boo
 @Composable
 fun Table(cols: List<Col>, rows: List<List<Cell>>, totals: List<List<Cell>> = emptyList()) {
     val h = LocalHues.current
-    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp)).border(1.dp, h.rule, RoundedCornerShape(3.dp)).background(h.sheet).horizontalScroll(rememberScrollState())) {
+    Box(Modifier.fillMaxWidth().clip(CtlShape).border(1.dp, h.rule, CtlShape).background(h.sheet).horizontalScroll(rememberScrollState())) {
         Column {
             Row(Modifier.background(h.paper)) {
                 cols.forEach { c ->
@@ -488,14 +523,14 @@ fun Chip(text: String, count: Int?, on: Boolean, alert: Boolean = false, onClick
     val h = LocalHues.current
     val focus = LocalFocusManager.current
     val onClick = { focus.clearFocus(); onClick0() }
-    val border = if (on) h.carbon else if (alert) h.margin else h.rule2
+    val border = if (on) h.btnBg else if (alert) h.margin else h.rule2
     Row(
-        Modifier.clip(CircleShape).background(if (on) h.carbon else h.sheet).border(1.dp, border, CircleShape).clickable(onClick = onClick)
+        Modifier.clip(CircleShape).background(if (on) h.btnBg else h.sheet).border(1.dp, border, CircleShape).clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Txt(text, size = 14.sp, weight = FontWeight.SemiBold, color = if (on) h.carbonInk else if (alert) h.neg else h.ink2, maxLines = 1)
-        if (count != null) Txt(" $count", size = 14.sp, weight = FontWeight.SemiBold, color = if (on) h.carbonInk.copy(alpha = 0.85f) else h.ink3, raw = true)
+        Txt(text, size = 14.sp, weight = FontWeight.SemiBold, color = if (on) h.btnFg else if (alert) h.neg else h.ink2, maxLines = 1)
+        if (count != null) Txt(" $count", size = 14.sp, weight = FontWeight.SemiBold, color = if (on) h.btnFg.copy(alpha = 0.85f) else h.ink3, raw = true)
     }
 }
 

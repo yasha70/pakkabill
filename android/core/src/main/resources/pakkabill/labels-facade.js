@@ -71,7 +71,7 @@ var PBLabels = (function () {
   }
   function chartFor(o, src, courier) {
     var items = courier && courier !== 'all' ? src.items.filter(function (it) { return it.courier === courier; }) : src.items;
-    var ch = L.packChart(items, { blouse: blouseOn(o, src.items), sort: o.chartSort });
+    var ch = L.packChart(items, { blouse: src.blouse != null ? src.blouse : blouseOn(o, src.items), sort: o.chartSort });
     ch.parcels = courier && courier !== 'all' ? parcelsOf(items) : src.parcels;
     return ch;
   }
@@ -80,15 +80,42 @@ var PBLabels = (function () {
     ch.mapped.forEach(function (m) { if (!by[m.to]) { by[m.to] = []; order.push(m.to); } by[m.to].push(m.from); });
     return order.map(function (k) { return k + ': ' + by[k].join(', '); }).join(sep || ' · ');
   }
+  function labItems(labs) {
+    var it = [];
+    labs.forEach(function (p) { p.lab.rows.forEach(function (r) { it.push({ sku: r.sku, size: r.size, qty: r.qty, courier: p.lab.courier || 'Other', pid: p.fid + ':' + p.pi }); }); });
+    return it;
+  }
+  // blouse sizes as L / XL / XXL for the labels too (same tick as the packing chart)
+  function labBlouse(o) { return blouseOn(o, labItems(labelPages())); }
+  // every label, in print order
   function ordered(o) {
-    var labs = labelPages().map(function (p, i) { p.i = i; return p; });
-    return L.sortLabels(labs, o);
+    var labs = labelPages().map(function (p, i) { p.i = i; return p; }), c = {};
+    for (var k in o) c[k] = o[k];
+    c.blouse = labBlouse(o);
+    return L.sortLabels(labs, c);
+  }
+  // sizes the labels are packed in: [[size, labels]] in size order, '' (2+ sizes on one label) last
+  function labelSizes(o, labs) {
+    var bl = labBlouse(o), n = {};
+    labs.forEach(function (p) { var z = L.labelSize(p.lab, bl); n[z] = (n[z] || 0) + 1; });
+    return Object.keys(n).sort(function (a, b) { return (a === '') - (b === '') || L.sizeCmp(a, b); }).map(function (z) { return [z, n[z]]; });
+  }
+  // the size picked under "Labels to download", or 'all' when no label has it ('mixed' stands for '')
+  function onlySize(o, labs) {
+    var v = o.only; if (v == null || v === 'all') return 'all';
+    if (v === 'mixed') v = '';
+    return labelSizes(o, labs).some(function (x) { return x[0] === v; }) ? v : 'all';
+  }
+  // the labels that go in the PDF: all of them, or only one size
+  function picked(o, labs) {
+    var v = onlySize(o, labs), bl = labBlouse(o);
+    return v === 'all' ? labs : labs.filter(function (p) { return L.labelSize(p.lab, bl) === v; });
   }
   function fmtDateEn(d) { var M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']; return d.getDate() + ' ' + M[d.getMonth()] + ' ' + d.getFullYear(); }
 
   // labels.html chartDoc: what the designed packing chart pages show
   function chartDoc(o, src, forLabels, chk) {
-    var man = src.man, bl = blouseOn(o, src.items), all = chartFor(o, src, 'all'), cs = couriersOf(src.items), pc = !forLabels && src.from === 'man' ? L.pickCheck(man) : null;
+    var man = src.man, bl = src.blouse != null ? src.blouse : blouseOn(o, src.items), all = chartFor(o, src, 'all'), cs = couriersOf(src.items), pc = !forLabels && src.from === 'man' ? L.pickCheck(man) : null;
     var pct = function (v) { return all.grand ? Math.round(1000 * v / all.grand) / 10 + '%' : '0%'; };
     var kp = [{ label: 'PIECES TO PACK', value: all.grand, note: (all.parcels != null ? all.parcels + (forLabels ? ' labels' : ' parcels') + '  ·  ' : '') + all.rows.length + ' SKUs' }];
     if (bl) ['L', 'XL', 'XXL'].forEach(function (k) { kp.push({ label: 'SIZE ' + k, value: all.totals[k] || 0, note: pct(all.totals[k] || 0) + '  ·  ' + RANGE[k] + ' in', size: k }); });
@@ -104,7 +131,7 @@ var PBLabels = (function () {
       kicker: 'Ready to pack,', title: 'Packing chart', pill: forLabels ? 'LABELS IN ORDER' : 'PACKING CHART', date: date, blouse: bl,
       tagline: forLabels ? 'Packing chart for your sorted Meesho labels' : 'Packing chart from your Meesho manifest',
       sub: (bl ? 'Blouse sizes as L / XL / XXL' : 'Every size as written') + '  ·  ' + date,
-      forName: (man && man.supplier) || '', forLine: forLabels ? all.parcels + ' labels sorted by SKU and size  ·  ' + cs.names.length + (cs.names.length === 1 ? ' courier' : ' couriers')
+      forName: (man && man.supplier) || '', forLine: forLabels ? all.parcels + ' labels sorted by SKU and size' + (src.only != null && src.only !== 'all' ? ' (size ' + (src.only || 'mixed') + ' only)' : '') + '  ·  ' + cs.names.length + (cs.names.length === 1 ? ' courier' : ' couriers')
         : (src.from === 'man' ? 'From the Meesho manifest' : src.from === 'labels' ? 'From the labels' : 'From the picklist') + (all.parcels != null ? '  ·  ' + all.parcels + ' parcels' : '') + (cs.names.length ? '  ·  ' + cs.names.length + (cs.names.length === 1 ? ' courier' : ' couriers') : ''),
       main: all, kpis: kp, notes: notes, tableSub: 'Most pieces first' + (forLabels ? '. The labels follow in SKU and size order.' : '. One table for each courier follows.'),
       sections: forLabels || cs.names.length < 2 ? [] : cs.names.map(function (c) { var ch = chartFor(o, src, c); return { title: c, sub: ch.parcels + ' parcels  ·  ' + ch.grand + ' pieces', chart: ch }; }),
@@ -129,7 +156,7 @@ var PBLabels = (function () {
 
   // Everything the screen shows, for the options o: {by, courier, mixedLast, mode, pick, man, blouse, chartSort, chartCourier}
   function view(o, today) {
-    var labs = ordered(o), bad = badPages(), man = manInfo(), co = L.courierOrder(labs), tiles, check = null, pc = null;
+    var labs = ordered(o), bad = badPages(), man = manInfo(), co = L.courierOrder(labs), tiles, check = null, pc = null, lbl = labBlouse(o), only = onlySize(o, labs);
     if (labs.length || !man) {
       var pcs = 0, skus = {};
       labs.forEach(function (p) { p.lab.rows.forEach(function (r) { pcs += r.qty; skus[L.skuKey(r.sku)] = 1; }); });
@@ -160,20 +187,24 @@ var PBLabels = (function () {
     return {
       files: S.files.map(fileInfo), tiles: tiles, labels: labs.length, manifest: !!man, supplier: man ? man.supplier : '', manDate: man ? man.date : '', check: check, chart: chart,
       bad: bad.map(function (p) { var f = null; S.files.forEach(function (x) { if (x.id === p.fid) f = x; }); return { file: f ? f.name : '', page: p.pi + 1, why: p.lab.why === 'image' ? 'image' : 'table' }; }),
-      order: labs.map(function (p) { return { fid: p.fid, pi: p.pi, courier: p.lab.courier || 'Other', mixed: L.isMixed(p.lab), rows: p.lab.rows.map(function (r) { return { sku: r.sku, size: L.showSize(L.canonSize(r.size)) || r.size, qty: r.qty }; }) }; }),
+      sizes: labs.length ? labelSizes(o, labs).map(function (x) { return { size: x[0] === '' ? 'mixed' : x[0], labels: x[1] }; }) : [],
+      only: only === '' ? 'mixed' : only, labBlouse: lbl, picked: picked(o, labs).length,
+      order: labs.map(function (p) { return { fid: p.fid, pi: p.pi, courier: p.lab.courier || 'Other', mixed: L.isMixed(p.lab, lbl), size: (function (z) { return z === '' ? 'mixed' : z; })(L.labelSize(p.lab, lbl)), rows: p.lab.rows.map(function (r) { return { sku: r.sku, size: L.showSize(L.canonSize(r.size)) || r.size, qty: r.qty }; }) }; }),
       couriers: co.names.map(function (n) { return { name: n, labels: co.count[n] }; })
     };
   }
 
   // What the sorted PDF holds, in print order (labels.html build)
   function plan(o, today) {
-    var labs = ordered(o), bad = badPages(), man = manPages();
+    var allLabs = ordered(o), only = onlySize(o, allLabs), labs = picked(o, allLabs), man = manPages();
+    // one size only: just those labels (pages that could not be read have no size, so they stay out)
+    var bad = only === 'all' ? badPages() : [];
     var pageOf = function (p) { return { fid: p.fid, pi: p.pi, kind: p.kind, view: p.view, rot: p.rot, cutY: p.lab.cutY == null ? null : p.lab.cutY, lastY: p.lab.lastY == null ? null : p.lab.lastY }; };
-    var out = { labels: labs.map(pageOf), bad: bad.map(pageOf), man: o.man === 'none' ? [] : man.map(pageOf), chart: null };
+    var out = { labels: labs.map(pageOf), bad: bad.map(pageOf), man: o.man === 'none' ? [] : man.map(pageOf), chart: null, only: only === '' ? 'mixed' : only };
     if (o.pick && labs.length) {
-      var items = [], chk = man.length ? L.checkManifest(labs, manInfo()) : null;
-      labs.forEach(function (p) { p.lab.rows.forEach(function (r) { items.push({ sku: r.sku, size: r.size, qty: r.qty, courier: p.lab.courier || 'Other', pid: p.fid + ':' + p.pi }); }); });
-      out.chart = chartDoc(o, { from: 'labels', items: items, man: manInfo(), parcels: labs.length }, true, chk);
+      // the manifest check is for all labels; with one size only the rest would show as missing
+      var chk = man.length && only === 'all' ? L.checkManifest(labs, manInfo()) : null;
+      out.chart = chartDoc(o, { from: 'labels', items: labItems(labs), man: manInfo(), parcels: labs.length, blouse: labBlouse(o), only: only }, true, chk);
     }
     return out;
   }

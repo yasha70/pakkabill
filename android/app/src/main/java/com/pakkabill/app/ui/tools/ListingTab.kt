@@ -496,7 +496,7 @@ private fun DetailField(c: ListingController, t: LTemplate, s: ListingS, col: LC
     Spacer(Modifier.height(10.dp))
     if (col.name.startsWith("importer", true) && isIndia) {
         Field(label) {
-            Txt(importers[col.name] ?: "Not Required", color = h.ink3, raw = true, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(h.carbonTint).padding(10.dp))
+            Txt(importers[col.name] ?: "Not Required", color = h.ink3, raw = true, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(h.carbonTint).padding(10.dp))
             Small("Filled in for you because the country of origin is India.")
         }
         return
@@ -504,7 +504,7 @@ private fun DetailField(c: ListingController, t: LTemplate, s: ListingS, col: LC
     val makerOf = if (col.name.startsWith("packer", true)) gen.firstOrNull { it.name.equals(col.name.lowercase().replaceFirst("packer", "manufacturer"), true) } else null
     if (makerOf != null) {
         Field(label) {
-            if (s.packerSame) Txt(s.details[makerOf.name].orEmpty().ifEmpty { "–" }, color = h.ink3, raw = true, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(h.carbonTint).padding(10.dp))
+            if (s.packerSame) Txt(s.details[makerOf.name].orEmpty().ifEmpty { "–" }, color = h.ink3, raw = true, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(h.carbonTint).padding(10.dp))
             else Inp(s.details[col.name].orEmpty(), set, singleLine = false, minLines = 2)
             Check(s.packerSame, { v -> c.editS { it.copy(packerSame = v) } }, "Same as " + makerOf.name.lowercase())
         }
@@ -689,7 +689,7 @@ private fun PhotosStep(c: ListingController, t: LTemplate, selected: String?, se
         w.colours.forEach { col ->
             Column(Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, h.rule, RoundedCornerShape(10.dp)).padding(10.dp)) {
                 Row(verticalAlignment = Alignment.Top) {
-                    Swatch(sw[col.id].orEmpty(), 28, RoundedCornerShape(6.dp))
+                    Swatch(sw[col.id].orEmpty(), 28, RoundedCornerShape(10.dp))
                     Spacer(Modifier.width(8.dp))
                     Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Field("Colour name", Modifier.weight(1f)) { Inp(col.label, { v -> c.label(col.id, v.take(40)) }, placeholder = "Wine", small = true) }
@@ -875,7 +875,7 @@ private fun LinkRow(c: ListingController, w: ListingW, i: Int, im: LPhoto) {
     Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Txt("${i + 1}", size = 13.sp, color = h.ink3, modifier = Modifier.width(24.dp), raw = true)
-            Box(Modifier.size(44.dp).clip(RoundedCornerShape(6.dp))) { Thumb(c, im, 44) }
+            Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp))) { Thumb(c, im, 44) }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
                 Txt(im.name, size = 14.sp, weight = FontWeight.SemiBold, maxLines = 1, raw = true)

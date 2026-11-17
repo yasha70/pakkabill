@@ -4,6 +4,7 @@ import android.content.Context
 import com.pakkabill.app.autolist.AutoListController
 import com.pakkabill.app.data.PrefsKeyValue
 import com.pakkabill.app.gstr1.Gstr1Controller
+import com.pakkabill.app.labels.CropController
 import com.pakkabill.app.labels.LabelsController
 import com.pakkabill.app.lens.LensController
 import com.pakkabill.app.listing.ListingController
@@ -14,12 +15,13 @@ import kotlinx.coroutines.CoroutineScope
 
 /**
  * The website's other tools in the app, each made the first time it is opened (so the app starts as
- * fast as before): Labels & packing chart, GSTR-1, Low shipping image, Meesho listing, Meesho Lens and
+ * fast as before): Labels & packing chart, the Label cropper, GSTR-1, Low shipping image, Meesho listing, Meesho Lens and
  * Auto listing.
  */
 class AppTools(context: Context, scope: CoroutineScope, bills: () -> BillData) {
     private val app = context.applicationContext
     val labels by lazy { LabelsController(app, scope, PrefsKeyValue(app, "labels")) }
+    val cropper by lazy { CropController(app, scope, PrefsKeyValue(app, "crop")) }
     val gstr1 by lazy { Gstr1Controller(scope, PrefsKeyValue(app, "gstr1"), bills) }
     val lowship by lazy { LowshipController(scope, PrefsKeyValue(app, "lowship")) }
     val lens by lazy { LensController(scope, PrefsKeyValue(app, "lens")) }
@@ -30,6 +32,7 @@ class AppTools(context: Context, scope: CoroutineScope, bills: () -> BillData) {
     fun onFiles(tool: String, files: List<Pair<String, ByteArray>>) {
         when (tool) {
             "labels" -> labels.add(files)
+            "crop" -> cropper.add(files)
             "gstr1" -> gstr1.add(files)
             "g1check" -> gstr1.check(files)
             "lowship" -> lowship.addPhotos(files)

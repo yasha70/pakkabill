@@ -242,7 +242,7 @@ fun LazyListScope.itemsTab(d: BillData, acts: BillActs) {
 @Composable
 private fun ListRow(title: String, sub: String, right: String?, onClick: () -> Unit) {
     val h = LocalHues.current
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).clickable(onClick = onClick).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Txt(title.ifBlank { "-" }, weight = FontWeight.SemiBold, raw = true, maxLines = 1)
             if (sub.isNotBlank()) Small(sub, raw = true)

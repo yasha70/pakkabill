@@ -61,7 +61,7 @@ fun NoteCard(text: String, tone: Tone = Tone.INFO, action: String? = null, onAct
 fun MenuRow(icon: ImageVector, title: String, subtitle: String? = null, tint: Color = Color.Unspecified, trailing: (@Composable () -> Unit)? = null, onClick: (() -> Unit)? = null) {
     val h = LocalHues.current
     Row(
-        Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp)).let { if (onClick != null) it.clickable(onClick = onClick) else it }.padding(horizontal = 2.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp)).let { if (onClick != null) it.clickable(onClick = onClick) else it }.padding(horizontal = 2.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = if (tint == Color.Unspecified) h.ink3 else tint, modifier = Modifier.size(22.dp))

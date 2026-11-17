@@ -56,6 +56,7 @@ import com.pakkabill.app.ui.NoteKind
 import com.pakkabill.app.ui.NoteText
 import com.pakkabill.app.ui.PbIcons
 import com.pakkabill.app.ui.Seg
+import com.pakkabill.app.ui.Select
 import com.pakkabill.app.ui.Sheet
 import com.pakkabill.app.ui.SheetH
 import com.pakkabill.app.ui.Small
@@ -163,6 +164,8 @@ private fun FilesCard(v: LabelsView, busy: Busy?, acts: LabelActs) {
     }
 }
 
+private const val BLOUSE_HELP = "26–30 = L, 30–34 = XL, 36–40 = XXL. Free Size counts by its range, or by the range in the SKU (like BLOUSE-26-30)."
+
 private fun plural(n: Int, w: String) = if (n == 1) "1 $w" else "$n ${w}s"
 
 @Composable
@@ -246,7 +249,7 @@ private fun ChartCard(v: LabelsView, o: LabelOpts, acts: LabelActs) {
             }
         }
         Spacer(Modifier.height(10.dp))
-        Check(c.blouse, { acts.opts(o.copy(blouse = it)) }, "Blouse sizes as L / XL / XXL", "26–30 = L, 32–34 = XL, 36–40 = XXL. Free-size ranges count by their middle.")
+        Check(c.blouse, { acts.opts(o.copy(blouse = it)) }, "Blouse sizes as L / XL / XXL", BLOUSE_HELP)
         Spacer(Modifier.height(8.dp))
         Seg(listOf("most" to "Most pieces first", "az" to "SKU A to Z"), o.chartSort, { acts.opts(o.copy(chartSort = it)) })
         Spacer(Modifier.height(10.dp))
@@ -284,13 +287,37 @@ private fun Arrange(v: LabelsView, o: LabelOpts, out: Made?, busy: Busy?, acts: 
             Small(if (o.by == "sku") "All sizes of a product together" else "All S together, then all M…")
         }
         Spacer(Modifier.height(10.dp))
-        Check(o.courier, { acts.opts(o.copy(courier = it)) }, "Keep each courier’s labels together", "Handy when couriers pick up at different times.")
+        // blouse sizes as L / XL / XXL for the labels too (the same tick as the packing chart)
+        Check(v.labBlouse, { acts.opts(o.copy(blouse = it)) }, "Blouse sizes as L / XL / XXL", BLOUSE_HELP)
+        if (v.sizes.size > 1) {
+            // all the labels, or only one size, to print each size on its own
+            Spacer(Modifier.height(10.dp))
+            Field("Labels to download") {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Chip("All sizes", v.labels, v.only == "all") { acts.opts(o.copy(only = "all")) }
+                    v.sizes.forEach { z -> Chip(if (z.size == "mixed") "Mixed sizes" else z.size, z.labels, v.only == z.size) { acts.opts(o.copy(only = z.size)) } }
+                }
+                Small(if (v.labBlouse) "Pick L, XL or XXL to download only those labels. Blouse sizes: 26–30 = L, 30–34 = XL, 36–40 = XXL." else "Pick a size to download only those labels.")
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        if (v.couriers.size > 1) Check(o.courier, { acts.opts(o.copy(courier = it)) }, "Keep each courier’s labels together", "Handy when couriers pick up at different times.")
         Spacer(Modifier.height(8.dp))
         Check(o.mixedLast, { acts.opts(o.copy(mixedLast = it)) }, "Orders with 2 or more products at the end", "These need a bigger packet and more checking.")
         Spacer(Modifier.height(12.dp))
         Field("Page") {
-            Seg(listOf("full" to "Full page", "label" to "Label only, 4×6"), o.mode, { acts.opts(o.copy(mode = it)) })
-            Small(if (o.mode == "full") "Label and invoice, as Meesho gives it" else "For thermal label printers")
+            Select(
+                listOf("full" to "Full page", "label" to "Label only, 4×6 inch", "label4" to "Label only, 4×4 inch", "crop" to "Cut empty space"),
+                o.mode, { acts.opts(o.copy(mode = it)) },
+            )
+            Small(
+                when (o.mode) {
+                    "label" -> "For thermal label printers"
+                    "label4" -> "For 4×4 thermal labels, exact size"
+                    "crop" -> "Label and invoice, blank white area at the bottom cut off"
+                    else -> "Label and invoice, as Meesho gives it"
+                },
+            )
         }
         Spacer(Modifier.height(10.dp))
         Check(o.pick, { acts.opts(o.copy(pick = it)) }, "Add the packing chart at the start", "Pieces of each SKU in every size, with totals, for packing.")
@@ -298,7 +325,7 @@ private fun Arrange(v: LabelsView, o: LabelOpts, out: Made?, busy: Busy?, acts: 
             Spacer(Modifier.height(10.dp))
             Field("Manifest in the PDF") {
                 Seg(listOf("end" to "At the end", "start" to "At the start", "none" to "Leave out"), o.man, { acts.opts(o.copy(man = it)) })
-                if (o.mode == "label") Small("Manifest pages keep their own page size.")
+                if ((o.mode == "label" || o.mode == "label4") && o.man != "none") Small("Manifest pages keep their own page size.")
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -306,8 +333,9 @@ private fun Arrange(v: LabelsView, o: LabelOpts, out: Made?, busy: Busy?, acts: 
         if (out != null) {
             Spacer(Modifier.height(12.dp))
             Txt("Your PDF is ready: ${out.pages} pages.", weight = FontWeight.SemiBold, color = h.pos, raw = true)
+            if (out.only != "all") Small("Only size ${if (out.only == "mixed") "Mixed sizes" else out.only}: ${out.labels} labels.", raw = true)
             Spacer(Modifier.height(8.dp))
-            Thumbs(out)
+            PdfThumbs(out)
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Btn("Share", { acts.share(out) }, Modifier.weight(1f), kind = BtnKind.WA)
@@ -324,7 +352,7 @@ private fun Arrange(v: LabelsView, o: LabelOpts, out: Made?, busy: Busy?, acts: 
                 Column(Modifier.weight(1f)) {
                     l.rows.forEach { r -> Txt(r.sku + " · " + r.size.ifBlank { "-" } + (if (r.qty > 1) " × ${r.qty}" else ""), size = 14.sp, raw = true, maxLines = 1) }
                 }
-                if (l.mixed) Tag("2+ products", TagKind.BAD)
+                if (l.mixed) Tag("2+ products", TagKind.BAD) else if (v.labBlouse && l.size.isNotBlank() && l.size != "mixed") Tag(l.size, raw = true)
                 Spacer(Modifier.width(6.dp))
                 Small(l.courier, raw = true)
             }
@@ -335,15 +363,15 @@ private fun Arrange(v: LabelsView, o: LabelOpts, out: Made?, busy: Busy?, acts: 
 
 /** The first pages of the PDF just made, small, to see it is right before printing. */
 @Composable
-private fun Thumbs(out: Made) {
+internal fun PdfThumbs(out: Made, max: Int = 6) {
     val ctx = LocalContext.current
     val h = LocalHues.current
     var pages by remember(out) { mutableStateOf<List<ImageBitmap>>(emptyList()) }
-    LaunchedEffect(out) { pages = withContext(Dispatchers.Default) { runCatching { thumbs(ctx.cacheDir, out.bytes, 6) }.getOrDefault(emptyList()) } }
+    LaunchedEffect(out) { pages = withContext(Dispatchers.Default) { runCatching { thumbs(ctx.cacheDir, out.bytes, max) }.getOrDefault(emptyList()) } }
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         pages.forEachIndexed { i, p ->
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Image(p, "Page ${i + 1}", Modifier.height(150.dp).width((150f * p.width / p.height).dp).clip(RoundedCornerShape(3.dp)).border(1.dp, h.rule, RoundedCornerShape(3.dp)))
+                Image(p, "Page ${i + 1}", Modifier.height(150.dp).width((150f * p.width / p.height).dp).clip(RoundedCornerShape(4.dp)).border(1.dp, h.rule, RoundedCornerShape(4.dp)))
                 Small("${i + 1}", raw = true)
             }
         }
@@ -377,7 +405,7 @@ private fun HowItWorks(open: Boolean) {
         listOf(
             "In the Meesho Supplier Panel, open Orders → Ready to Ship, select the orders and download the labels. Download the manifest from the same page.",
             "Add both PDFs here. With only the manifest you still get the packing chart. PakkaBill reads the SKU, size, quantity and courier of every parcel.",
-            "Pick how to arrange them and make one PDF: packing chart, labels in order, then the manifest.",
+            "Pick how to arrange them and make one PDF: packing chart, labels in order, then the manifest. You can print one size at a time, on 4×6 or 4×4 inch labels, or with the empty space cut off.",
             "Your labels never leave this phone. Nothing is uploaded.",
         ).forEachIndexed { i, s ->
             Row(Modifier.padding(vertical = 4.dp)) {

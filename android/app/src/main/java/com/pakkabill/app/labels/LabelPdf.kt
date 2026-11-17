@@ -27,7 +27,8 @@ data class Box(val x0: Double, val y0: Double, val x1: Double, val y1: Double)
 /**
  * The sorted label PDF, made on the phone the way the website makes it (labels.html build): the packing
  * chart first, the manifest at the start or the end, the labels in order, unread pages last. In
- * "label only" mode each label is cut out above its invoice and fitted on a 4 x 6 inch page.
+ * "label only" mode each label is cut out above its invoice and fitted on a 4 x 6 or 4 x 4 inch page;
+ * "cut empty space" keeps label and invoice and cuts the blank white area under them.
  */
 object LabelPdf {
     private const val LW = 288.0
@@ -107,8 +108,8 @@ object LabelPdf {
         return box
     }
 
-    /** The matrix that fits [b] on a 4 x 6 inch page, turned sideways when that makes it bigger (labels.html fitPage). */
-    fun fit(b: Box): DoubleArray {
+    /** The matrix that fits [b] on a 4 inch wide, [LH] points tall page, turned sideways when that makes it bigger (labels.html fitPage). */
+    fun fit(b: Box, LH: Double = 432.0): DoubleArray {
         val w = b.x1 - b.x0
         val h = b.y1 - b.y0
         val s1 = min(LW / w, LH / h)
@@ -122,7 +123,10 @@ object LabelPdf {
      * PDF of its own; [progress] gets (done, of).
      */
     fun build(sources: Map<Int, Source>, plan: LabelPlan, o: LabelOpts, chart: ((Double, Double) -> ByteArray)?, progress: (Int, Int) -> Unit): Pair<ByteArray, Int> {
-        val labelOnly = o.mode == "label"
+        val labelOnly = o.mode == "label" || o.mode == "label4"
+        val crop = o.mode == "crop"
+        // 4 x 6 inch, or 4 x 4 inch (288 x 288) for "label4"
+        val LH = if (o.mode == "label4") 288.0 else 432.0
         val out = PDDocument()
         val extra = ArrayList<PDDocument>()
         try {
@@ -142,10 +146,18 @@ object LabelPdf {
             val layer = if (labelOnly) LayerUtility(out) else null
             seq.forEachIndexed { i, p ->
                 val src = sources[p.fid] ?: return@forEachIndexed
+                if (crop) {
+                    // label and invoice as they are, the empty white area under them cut off
+                    val pg = out.importPage(src.doc.getPage(p.pi))
+                    val r = src.renderer()?.let { rr -> runCatching { LabelCrop.inkRect(rr, p.pi, p.view, p.rot) }.getOrNull() }
+                    LabelCrop.cropPage(pg, r)
+                    if (i % 5 == 0) progress(i + 1, seq.size)
+                    return@forEachIndexed
+                }
                 if (layer == null) { copy(p); return@forEachIndexed }
                 val b = if (p.kind == "label") runCatching { labelBox(src, p) }.getOrElse { Box(p.view[0], p.view[1], p.view[2], p.view[3]) }
                 else Box(p.view[0], p.view[1], p.view[2], p.view[3])
-                val m = fit(b)
+                val m = fit(b, LH)
                 val form = layer.importPageAsForm(src.doc, p.pi)
                 val page = PDPage(PDRectangle(LW.toFloat(), LH.toFloat()))
                 out.addPage(page)

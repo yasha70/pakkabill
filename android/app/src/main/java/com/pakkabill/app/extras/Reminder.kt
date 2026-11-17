@@ -65,7 +65,7 @@ object Reminder {
         )
         val n = NotificationCompat.Builder(ctx, CHANNEL)
             .setSmallIcon(R.drawable.ic_notify)
-            .setColor(0xFF5B3FE6.toInt())
+            .setColor(0xFF2B3494.toInt())
             .setContentTitle(title)
             .setContentText(body.lineSequence().first())
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))

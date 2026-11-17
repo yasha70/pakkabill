@@ -382,7 +382,7 @@ class MainActivity : FragmentActivity(), PaymentResultWithDataListener {
             put("order_id", orderId)
             put("amount", amount)
             put("currency", "INR")
-            put("theme", JSONObject().put("color", "#5B3FE6"))
+            put("theme", JSONObject().put("color", "#2B3494"))
             put("prefill", JSONObject().apply { if (phone.length == 10) put("contact", "+91$phone"); if (name.isNotBlank()) put("name", name) })
             put("retry", JSONObject().put("enabled", true).put("max_count", 4))
         }

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="splash_background">#110E20</color>
-    <color name="widget_bg">#1B1631</color>
-    <color name="widget_rule">#3A3160</color>
-    <color name="widget_ink">#ECE8FB</color>
-    <color name="widget_ink2">#958DB3</color>
-    <color name="widget_profit">#74D8A7</color>
-    <color name="widget_loss">#FF8A8F</color>
+    <color name="splash_background">#0B0E1C</color>
+    <color name="widget_bg">#151A33</color>
+    <color name="widget_rule">#2C3258</color>
+    <color name="widget_ink">#E9EBF7</color>
+    <color name="widget_ink2">#8A91B3</color>
+    <color name="widget_profit">#6FD6A5</color>
+    <color name="widget_loss">#FF8F88</color>
 </resources>

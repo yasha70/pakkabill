@@ -25,7 +25,10 @@ import kotlinx.serialization.json.contentOrNull
     val by: String = "sku",
     val courier: Boolean = true,
     val mixedLast: Boolean = true,
-    /** "full" (label and invoice, as Meesho gives it) or "label" (label only, 4 x 6 inch) */
+    /**
+     * "full" (label and invoice, as Meesho gives it), "label" (label only, 4 x 6 inch), "label4" (label
+     * only, 4 x 4 inch) or "crop" (label and invoice, the empty white area at the bottom cut off)
+     */
     val mode: String = "full",
     /** the packing chart at the start of the sorted PDF */
     val pick: Boolean = true,
@@ -36,6 +39,8 @@ import kotlinx.serialization.json.contentOrNull
     /** "most" (most pieces first) or "az" */
     val chartSort: String = "most",
     val chartCourier: String = "all",
+    /** the labels that go in the PDF: "all", one size ("L", "XL", "Free Size"…) or "mixed" (2+ sizes on a label) */
+    val only: String = "all",
 )
 
 @Serializable data class ChartRow(val sku: String, val cells: Map<String, Int> = emptyMap(), val total: Int = 0)
@@ -58,13 +63,17 @@ import kotlinx.serialization.json.contentOrNull
 @Serializable data class ManifestCheck(val on: Int, val off: List<OffLabel> = emptyList(), val extra: List<ExtraRow> = emptyList(), val rows: Int = 0, val total: Int? = null)
 @Serializable data class BadPage(val file: String, val page: Int, val why: String)
 @Serializable data class LabelRow(val sku: String, val size: String, val qty: Int)
-@Serializable data class OrderedLabel(val fid: Int, val pi: Int, val courier: String, val mixed: Boolean, val rows: List<LabelRow>)
+@Serializable data class OrderedLabel(val fid: Int, val pi: Int, val courier: String, val mixed: Boolean, val rows: List<LabelRow>, val size: String = "")
+/** A size the labels are packed in ("mixed": 2 or more sizes on one label) and how many labels have it. */
+@Serializable data class SizeCount(val size: String, val labels: Int)
 
 /** Everything the Labels screen shows. */
 @Serializable data class LabelsView(
     val files: List<LabelFile> = emptyList(), val tiles: List<List<JsonElement>> = emptyList(), val labels: Int = 0, val manifest: Boolean = false,
     val supplier: String = "", val manDate: String = "", val check: ManifestCheck? = null, val chart: ChartView? = null,
     val bad: List<BadPage> = emptyList(), val order: List<OrderedLabel> = emptyList(), val couriers: List<NameCount> = emptyList(),
+    /** sizes of the labels, the size picked for the PDF ("all" when none), blouse sizes as L / XL / XXL, and how many labels go in the PDF */
+    val sizes: List<SizeCount> = emptyList(), val only: String = "all", val labBlouse: Boolean = false, val picked: Int = 0,
 ) {
     /** [label, value] tiles: Labels / Pieces / SKUs / Couriers (or Parcels with only the manifest) */
     val tileList: List<Pair<String, String>> get() = tiles.map { (it[0] as JsonPrimitive).content to ((it[1] as? JsonPrimitive)?.contentOrNull ?: "") }
@@ -84,7 +93,7 @@ import kotlinx.serialization.json.contentOrNull
     val notes: List<Note> = emptyList(), val tableSub: String = "", val sections: List<Section> = emptyList(), val stamp: Stamp? = null,
     val footer: String = "", val end: String = "",
 )
-@Serializable data class LabelPlan(val labels: List<PlanPage> = emptyList(), val bad: List<PlanPage> = emptyList(), val man: List<PlanPage> = emptyList(), val chart: ChartDoc? = null)
+@Serializable data class LabelPlan(val labels: List<PlanPage> = emptyList(), val bad: List<PlanPage> = emptyList(), val man: List<PlanPage> = emptyList(), val chart: ChartDoc? = null, val only: String = "all")
 @Serializable data class ChartCsv(val text: String, val suffix: String = "")
 
 /**

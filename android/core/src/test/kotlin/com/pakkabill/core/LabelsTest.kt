@@ -69,4 +69,39 @@ class LabelsTest {
         e.removeFile(1)
         assertEquals(0, e.view(LabelOpts(), "").labels)
     }
+
+    /** Blouse sizes as L / XL / XXL for the labels, and one size only in the PDF (labels.html labelSize, picked). */
+    @Test fun blouseSizesAndOneSizeOnly() {
+        val e = LabelsEngine()
+        e.addFile(
+            1, "blouses.pdf",
+            listOf(
+                label("Valmo", "VL0081234501", listOf("BLOUSE-RED", "34", "1", "Red", "260000000000011_1")),
+                label("Valmo", "VL0081234502", listOf("BLOUSE-RED", "28", "1", "Red", "260000000000012_1")),
+                label("Valmo", "VL0081234503", listOf("BLOUSE-BLUE-26-30", "Free Size", "1", "Blue", "260000000000013_1")),
+                label("Valmo", "VL0081234504", listOf("BLOUSE-RED", "38", "1", "Red", "260000000000014_1")),
+                PdfPageText(emptyList(), listOf(0.0, 0.0, 595.0, 842.0)),
+            ),
+        )
+        val v = e.view(LabelOpts(), "16 Nov 2026")
+        assertTrue(v.labBlouse)
+        assertEquals(listOf("L" to 2, "XL" to 1, "XXL" to 1), v.sizes.map { it.size to it.labels })
+        assertEquals("all", v.only)
+        assertEquals(4, v.picked)
+
+        val onlyL = LabelOpts(only = "L")
+        assertEquals(2, e.view(onlyL, "16 Nov 2026").picked)
+        val plan = e.plan(onlyL)
+        assertEquals("L", plan.only)
+        assertEquals(2, plan.labels.size)
+        // pages that could not be read have no size, so they stay out of a one-size PDF
+        assertEquals(0, plan.bad.size)
+        assertEquals(2, plan.chart!!.main.grand)
+        assertTrue(plan.chart!!.forLine.contains("(size L only)"), plan.chart!!.forLine)
+
+        // a size no label has falls back to every label
+        assertEquals("all", e.plan(LabelOpts(only = "5XL")).only)
+        // blouse sizes switched off: the sizes as written
+        assertEquals(listOf("28", "34", "38", "Free Size"), e.view(LabelOpts(blouse = false), "").sizes.map { it.size })
+    }
 }

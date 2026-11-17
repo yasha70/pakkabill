@@ -25,7 +25,11 @@ import kotlinx.serialization.json.Json
 data class Busy(val msg: String, val done: Int = 0, val of: Int = 0)
 
 /** A file the tool made (the sorted PDF, the chart PDF or CSV). */
-class Made(val name: String, val mime: String, val bytes: ByteArray, val pages: Int = 0)
+class Made(
+    val name: String, val mime: String, val bytes: ByteArray, val pages: Int = 0,
+    /** the sorted PDF: how many labels are in it and the one size they are ("all": every label) */
+    val labels: Int = 0, val only: String = "all",
+)
 
 /**
  * Labels & packing chart for the screen: PDFs are read on one worker thread (their text by PdfBox,
@@ -111,9 +115,11 @@ class LabelsController(private val context: Context, private val scope: Coroutin
         try {
             (plan.labels + plan.bad + plan.man).map { it.fid }.distinct().forEach { id -> files[id]?.let { sources[id] = LabelPdf.Source(it.second, context.cacheDir, id) } }
             val (bytes, pages) = LabelPdf.build(sources, plan, o, if (o.pick) { w, h -> ChartPdf.draw(plan.chart!!, w, h) } else null) { i, n ->
-                _busy.value = Busy("Cutting label $i of $n…", i, n)
+                _busy.value = Busy(if (o.mode == "crop") "Cutting empty space $i of $n…" else "Cutting label $i of $n…", i, n)
             }
-            val made = Made("meesho-labels-sorted-${stamp()}" + (if (o.mode == "label") "-4x6" else "") + ".pdf", "application/pdf", bytes, pages)
+            val only = if (plan.only == "all") "" else "-size-" + plan.only.lowercase().replace(Regex("[^a-z0-9]+"), "-")
+            val kind = when (o.mode) { "label" -> "-4x6"; "label4" -> "-4x4"; "crop" -> "-cropped"; else -> "" }
+            val made = Made("meesho-labels-sorted-${stamp()}$only$kind.pdf", "application/pdf", bytes, pages, labels = plan.labels.size, only = plan.only)
             _out.value = made
             made
         } catch (e: Throwable) {

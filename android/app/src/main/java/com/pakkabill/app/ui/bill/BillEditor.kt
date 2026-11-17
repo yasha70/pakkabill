@@ -277,7 +277,7 @@ fun BillEditor(start: Invoice, data: BillData, numberTaken: suspend (Invoice) ->
 private fun DateBox(date: String, onClick: () -> Unit) {
     val h = LocalHues.current
     Box(
-        Modifier.fillMaxWidth().height(42.dp).clip(RoundedCornerShape(6.dp)).background(h.sheet).border(1.dp, h.rule2, RoundedCornerShape(6.dp))
+        Modifier.fillMaxWidth().height(42.dp).clip(RoundedCornerShape(10.dp)).background(h.sheet).border(1.dp, h.rule2, RoundedCornerShape(10.dp))
             .clickable(onClick = onClick).padding(horizontal = 10.dp),
         contentAlignment = Alignment.CenterStart,
     ) { Txt(if (date.isBlank()) "Pick a date" else BillPdf.fdate(date), raw = true, color = if (date.isBlank()) h.ink3 else h.ink) }
@@ -287,7 +287,7 @@ private fun DateBox(date: String, onClick: () -> Unit) {
 private fun Suggest(title: String, sub: String, onClick: () -> Unit) {
     val h = LocalHues.current
     Row(
-        Modifier.fillMaxWidth().padding(top = 4.dp).clip(RoundedCornerShape(6.dp)).background(h.carbonTint).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().padding(top = 4.dp).clip(RoundedCornerShape(10.dp)).background(h.carbonTint).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {

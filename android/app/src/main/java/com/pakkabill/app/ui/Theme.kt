@@ -11,38 +11,48 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 
-/** PakkaBill's colours (the website's P&L inside PakkaBill: pnl.html :root.embed, index.html), light and dark. */
+/**
+ * PakkaBill's colours, light and dark: the website's official look (design/official.css). One brand
+ * colour, the app icon's navy; white cards on a light grey page; no wallpaper and no gradients.
+ */
 @Immutable
 data class Hues(
     val paper: Color, val sheet: Color, val rule: Color, val rule2: Color,
     val ink: Color, val ink2: Color, val ink3: Color,
     val carbon: Color, val carbonInk: Color, val carbonSoft: Color, val band: Color,
     val margin: Color, val neg: Color, val pos: Color, val warn: Color, val warnBg: Color, val dark: Boolean,
-    // the top bar and tab bar (--spine, --carbon-tint), the focus ring, the PakkaBill wordmark and the + button
-    val spine: Color = paper, val spineFg: Color = ink, val carbonTint: Color = carbonSoft, val focus: Color = Color(0xFFFF7A59),
-    val brand: List<Color> = listOf(carbon, carbon), val btn: List<Color> = listOf(carbon, carbon), val btnFg: Color = carbonInk,
-)
+    // the top bar and tab bar (--spine, --carbon-tint) and the focus ring
+    val spine: Color = paper, val spineFg: Color = ink, val carbonTint: Color = carbonSoft, val focus: Color = carbon,
+    // main buttons (--btn-bg): white text sits on this, never on carbon, which turns light in dark mode
+    val btnBg: Color = carbon, val btnFg: Color = carbonInk,
+    // soft lines inside a card, and the soft green and red behind ticks and warnings
+    val ruleSoft: Color = rule, val posSoft: Color = carbonSoft, val negSoft: Color = warnBg,
+) {
+    /** Kept for screens that still ask for the two-colour lists: both are the plain brand colour now. */
+    val brand: List<Color> get() = listOf(carbon, carbon)
+    val btn: List<Color> get() = listOf(btnBg, btnBg)
+}
 
 val LightHues = Hues(
-    paper = Color(0xFFFDF8F3), sheet = Color.White, rule = Color(0xFFE2DAF2), rule2 = Color(0xFFCFC4EA),
-    ink = Color(0xFF2A2540), ink2 = Color(0xFF5C5776), ink3 = Color(0xFF736E8D),
-    carbon = Color(0xFF5B3FE6), carbonInk = Color.White, carbonSoft = Color(0xFFECE6FF), band = Color(0xFFFFFDFB),
-    margin = Color(0xFFC8202A), neg = Color(0xFFC8202A), pos = Color(0xFF12714B), warn = Color(0xFFB26A00), warnBg = Color(0xFFFFF4DF), dark = false,
-    spine = Color(0xFFFFFDFB), spineFg = Color(0xFF2A2540), carbonTint = Color(0xFFF6F2FF), focus = Color(0xFFFF7A59),
-    brand = listOf(Color(0xFF6C4DFF), Color(0xFFB44DFF), Color(0xFFFF7A59)),
-    btn = listOf(Color(0xFF6C4DFF), Color(0xFF9A3FF0), Color(0xFFD0457C)), btnFg = Color.White,
+    paper = Color(0xFFF4F5F9), sheet = Color.White, rule = Color(0xFFDCDFEA), rule2 = Color(0xFFC3C8DC),
+    ink = Color(0xFF141A33), ink2 = Color(0xFF4A5170), ink3 = Color(0xFF6B7190),
+    carbon = Color(0xFF2B3494), carbonInk = Color.White, carbonSoft = Color(0xFFDFE2F5), band = Color.White,
+    margin = Color(0xFFB42318), neg = Color(0xFFB42318), pos = Color(0xFF0B7A4B), warn = Color(0xFF8A5200), warnBg = Color(0xFFFFF6DC), dark = false,
+    spine = Color.White, spineFg = Color(0xFF141A33), carbonTint = Color(0xFFF1F3FB), focus = Color(0xFF5B68D6),
+    btnBg = Color(0xFF2B3494), btnFg = Color.White,
+    ruleSoft = Color(0xFFECEEF4), posSoft = Color(0xFFDCF5E8), negSoft = Color(0xFFFDE8E6),
 )
 val DarkHues = Hues(
-    paper = Color(0xFF110E20), sheet = Color(0xFF1B1631), rule = Color(0xFF3A3160), rule2 = Color(0xFF4A4078),
-    ink = Color(0xFFECE8FB), ink2 = Color(0xFFBDB5D9), ink3 = Color(0xFF958DB3),
-    carbon = Color(0xFFB3A1FF), carbonInk = Color(0xFF140C33), carbonSoft = Color(0xFF35295E), band = Color(0xFF16122A),
-    margin = Color(0xFFFF8A8F), neg = Color(0xFFFF8A8F), pos = Color(0xFF74D8A7), warn = Color(0xFFF0C26A), warnBg = Color(0xFF2B2410), dark = true,
-    spine = Color(0xFF16122A), spineFg = Color(0xFFECE8FB), carbonTint = Color(0xFF231C3D), focus = Color(0xFFFF7A59),
-    brand = listOf(Color(0xFFB3A1FF), Color(0xFFD9A1FF), Color(0xFFFFA58C)),
-    btn = listOf(Color(0xFF9B85FF), Color(0xFF9B85FF)), btnFg = Color(0xFF140C33),
+    paper = Color(0xFF0B0E1C), sheet = Color(0xFF151A33), rule = Color(0xFF2C3258), rule2 = Color(0xFF3D4470),
+    ink = Color(0xFFE9EBF7), ink2 = Color(0xFFB3B9D6), ink3 = Color(0xFF8A91B3),
+    carbon = Color(0xFFAEB6F7), carbonInk = Color(0xFF0F1330), carbonSoft = Color(0xFF2A3063), band = Color(0xFF11152B),
+    margin = Color(0xFFFF8F88), neg = Color(0xFFFF8F88), pos = Color(0xFF6FD6A5), warn = Color(0xFFF0C26A), warnBg = Color(0xFF2B2410), dark = true,
+    spine = Color(0xFF11152B), spineFg = Color(0xFFE9EBF7), carbonTint = Color(0xFF1C2146), focus = Color(0xFFAEB6F7),
+    btnBg = Color(0xFF4C58D0), btnFg = Color.White,
+    ruleSoft = Color(0xFF20254A), posSoft = Color(0xFF143A2E), negSoft = Color(0xFF3D1A1F),
 )
 
-/** PakkaBill's fonts: Hind for headings and text, Teko for the PakkaBill wordmark. */
+/** PakkaBill's fonts: Hind for headings, text and the PakkaBill wordmark (bold), as on the website. */
 class Fonts(val head: FontFamily = FontFamily.Default, val body: FontFamily = FontFamily.Default, val mark: FontFamily = FontFamily.Default)
 
 val LocalHues = staticCompositionLocalOf { LightHues }
@@ -54,7 +64,7 @@ val LocalLang = staticCompositionLocalOf { "en" }
 // kept for older screens (Account, lock) that still use Material components
 @Immutable
 data class Extra(val gain: Color, val loss: Color, val heroStart: Color, val heroEnd: Color, val warn: Color, val warnContainer: Color)
-val LocalExtra = staticCompositionLocalOf { Extra(LightHues.pos, LightHues.neg, Color(0xFF4B3BD6), Color(0xFF26307F), LightHues.warn, LightHues.warnBg) }
+val LocalExtra = staticCompositionLocalOf { Extra(LightHues.pos, LightHues.neg, Color(0xFF2B3494), Color(0xFF222A7C), LightHues.warn, LightHues.warnBg) }
 
 /** theme: "auto" follows the phone, or "light" / "dark" (Settings, Appearance). */
 @Composable
@@ -62,7 +72,7 @@ fun PakkaBillTheme(theme: String = "auto", fonts: Fonts = Fonts(), lang: String 
     val dark = when (theme) { "dark" -> true; "light" -> false; else -> isSystemInDarkTheme() }
     val h = if (dark) DarkHues else LightHues
     val scheme = (if (dark) darkColorScheme() else lightColorScheme()).copy(
-        primary = h.carbon, onPrimary = h.carbonInk, primaryContainer = h.carbonSoft, onPrimaryContainer = h.ink,
+        primary = h.btnBg, onPrimary = h.btnFg, primaryContainer = h.carbonSoft, onPrimaryContainer = h.ink,
         secondary = h.carbon, background = h.paper, onBackground = h.ink, surface = h.sheet, onSurface = h.ink,
         surfaceVariant = h.paper, onSurfaceVariant = h.ink3, surfaceContainerLowest = h.sheet, surfaceContainerLow = h.sheet,
         surfaceContainer = h.paper, surfaceContainerHigh = h.sheet, surfaceContainerHighest = h.sheet,
@@ -79,7 +89,7 @@ fun PakkaBillTheme(theme: String = "auto", fonts: Fonts = Fonts(), lang: String 
     )
     CompositionLocalProvider(
         LocalHues provides h, LocalFonts provides fonts, LocalTr provides tr, LocalLang provides lang,
-        LocalExtra provides Extra(h.pos, h.neg, Color(0xFF4B3BD6), Color(0xFF26307F), h.warn, h.warnBg),
+        LocalExtra provides Extra(h.pos, h.neg, Color(0xFF2B3494), Color(0xFF222A7C), h.warn, h.warnBg),
     ) {
         MaterialTheme(colorScheme = scheme, typography = typo, content = content)
     }

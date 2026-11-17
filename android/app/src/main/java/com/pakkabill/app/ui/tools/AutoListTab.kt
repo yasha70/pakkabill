@@ -163,7 +163,7 @@ private fun Editor(c: AutoListController, t: ALTemplate) {
     val common by c.common.collectAsState()
     val isNew = st.templates.none { it.id == t.id }
     fun edit(f: (ALTemplate) -> ALTemplate) = c.updateEdit(f)
-    Sheet(Modifier.border(1.5.dp, h.carbon, RoundedCornerShape(3.dp))) {
+    Sheet(Modifier.border(1.5.dp, h.carbon, RoundedCornerShape(8.dp))) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             H2(if (isNew) "New template" else "Edit template", Modifier.weight(1f))
             Box(Modifier.size(36.dp).clip(CircleShape).press { c.cancelEdit() }, contentAlignment = Alignment.Center) { Icon(PbIcons.Close, "Close", tint = h.ink2, modifier = Modifier.size(20.dp)) }

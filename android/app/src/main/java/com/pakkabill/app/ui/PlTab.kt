@@ -67,10 +67,9 @@ fun Hero(big: Boolean, r: Report?, go: Go) {
     val shape = RoundedCornerShape(16.dp)
     Column(
         Modifier.fillMaxWidth().clip(shape)
-            .background(Brush.linearGradient(listOf(Color(0xFF26307F), Color(0xFF4B3BD6), Color(0xFF7C56EE))))
+            .background(Brush.linearGradient(listOf(Color(0xFF222A7C), Color(0xFF2B3494), Color(0xFF3A45B3))))
             .drawBehind {
-                drawCircle(Brush.radialGradient(listOf(Color(0x80FF7A59), Color(0x00FF7A59)), center = Offset(size.width + 50f, -60f), radius = 330f), radius = 330f, center = Offset(size.width + 50f, -60f))
-                drawCircle(Brush.radialGradient(listOf(Color(0x3878C8FF), Color(0x0078C8FF)), center = Offset(-60f, size.height + 90f), radius = 360f), radius = 360f, center = Offset(-60f, size.height + 90f))
+                drawCircle(Brush.radialGradient(listOf(Color(0x1FFFFFFF), Color(0x00FFFFFF)), center = Offset(size.width + 50f, -60f), radius = 330f), radius = 330f, center = Offset(size.width + 50f, -60f))
             }
             .padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -96,19 +95,19 @@ fun Hero(big: Boolean, r: Report?, go: Go) {
             val h = LocalHues.current
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.96f)).padding(horizontal = 16.dp, vertical = 14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Txt(if (s.NP < 0) "Real loss" else "Real profit", size = 11.5.sp, weight = FontWeight.Bold, color = Color(0xFF6F7599), upper = true, modifier = Modifier.weight(1f))
-                    if (s.NR != 0L) Box(Modifier.clip(CircleShape).background(if (s.NP < 0) Color(0xFFFDE8EA) else Color(0xFFE3F6EC)).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                        Txt("${pct(s.margin)} margin", size = 11.8.sp, weight = FontWeight.Bold, color = if (s.NP < 0) Color(0xFFB42331) else Color(0xFF16774A))
+                    Txt(if (s.NP < 0) "Real loss" else "Real profit", size = 11.5.sp, weight = FontWeight.Bold, color = Color(0xFF6B7190), upper = true, modifier = Modifier.weight(1f))
+                    if (s.NR != 0L) Box(Modifier.clip(CircleShape).background(if (s.NP < 0) Color(0xFFFDE8E6) else Color(0xFFDCF5E8)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                        Txt("${pct(s.margin)} margin", size = 11.8.sp, weight = FontWeight.Bold, color = if (s.NP < 0) Color(0xFFB42318) else Color(0xFF0B7A4B))
                     }
                 }
-                Txt(rs(s.NP, true), size = 32.sp, weight = FontWeight.SemiBold, head = true, color = if (s.NP < 0) Color(0xFFB42331) else Color(0xFF16774A), raw = true, lineHeight = 37.sp)
-                Txt(r.per.label, size = 12.8.sp, color = Color(0xFF4A5074))
+                Txt(rs(s.NP, true), size = 32.sp, weight = FontWeight.SemiBold, head = true, color = if (s.NP < 0) Color(0xFFB42318) else Color(0xFF0B7A4B), raw = true, lineHeight = 37.sp)
+                Txt(r.per.label, size = 12.8.sp, color = Color(0xFF4A5170))
                 r.vs?.let { vs ->
                     val d = vs.diff
                     Spacer(Modifier.height(6.dp))
                     Txt(
                         if (d == 0L) "Same as ${vs.prevLabel}" else (if (d > 0) "▲ " else "▼ ") + rs(kotlin.math.abs(d), true) + (if (d > 0) " more" else " less") + " than " + vs.prevLabel,
-                        size = 12.8.sp, weight = FontWeight.Bold, color = if (d > 0) h.pos.copy(alpha = 1f).let { Color(0xFF12714B) } else Color(0xFFC8202A),
+                        size = 12.8.sp, weight = FontWeight.Bold, color = if (d > 0) Color(0xFF0B7A4B) else Color(0xFFB42318),
                     )
                 }
             }
@@ -134,7 +133,7 @@ private fun HeroBtn(text: String, solid: Boolean = false, play: Boolean = false,
             }
             Spacer(Modifier.width(7.dp))
         }
-        Txt(text, size = 13.6.sp, weight = FontWeight.Bold, color = if (solid) Color(0xFF2F2A8A) else Color.White)
+        Txt(text, size = 13.6.sp, weight = FontWeight.Bold, color = if (solid) Color(0xFF2B3494) else Color.White)
     }
 }
 
@@ -146,7 +145,7 @@ fun LockBox(what: String, x: Access, go: Go) {
     val items = if (what == "rc") listOf("Every order with its Meesho payment, side by side", "Payments overdue, recoveries and rows that do not add up", "Mark each return or RTO as resellable or not", "Search by order ID or SKU")
     else listOf("Profit and loss statement, line by line", "RTO, returns and exchanges with every Meesho fee", "Profit by product and by category, with break-even price", "GST, TCS and TDS worked out", "Month by month", "Download as PDF and Excel")
     val trial = if (x.trialDays > 0) " New accounts get ${x.trialDays} days of Pro free." else ""
-    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp)).background(h.sheet).border(1.dp, h.rule, RoundedCornerShape(3.dp))) {
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(h.sheet).border(1.dp, h.rule, RoundedCornerShape(8.dp))) {
         Column(Modifier.padding(22.dp)) {
             repeat(7) { i ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 11.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -209,7 +208,7 @@ fun NextSteps(steps: List<StepItem>, go: Go) {
                     val w = 5.dp.toPx()
                     drawCircle(h.rule, radius = size.minDimension / 2 - w / 2, style = Stroke(w))
                     drawArc(
-                        Brush.linearGradient(listOf(Color(0xFF5B3FE6), Color(0xFF1FAA59))), -90f, 360f * done.size / steps.size, false,
+                        Brush.linearGradient(listOf(h.pos, h.pos)), -90f, 360f * done.size / steps.size, false,
                         topLeft = Offset(w / 2, w / 2), size = androidx.compose.ui.geometry.Size(size.width - w, size.height - w), style = Stroke(w, cap = StrokeCap.Round),
                     )
                 }
@@ -379,7 +378,7 @@ private fun Slip(r: Report) {
             Txt(value, size = 18.4.sp, weight = FontWeight.SemiBold, head = true, color = if (neg) h.neg else h.ink, raw = true)
         }
     }
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp)).background(h.rule).border(1.dp, h.rule, RoundedCornerShape(3.dp)), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(h.rule).border(1.dp, h.rule, RoundedCornerShape(8.dp)), verticalArrangement = Arrangement.spacedBy(1.dp)) {
         Row(Modifier.fillMaxWidth().background(h.sheet).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
                 Txt("Net profit", size = 13.sp, weight = FontWeight.SemiBold, color = h.ink3)
@@ -518,7 +517,7 @@ private fun LazyListScope.returnsSheet(r: Report, panes: Panes) {
             DetailsHead(title, true) { panes.toggle("returns", true) }
             Spacer(Modifier.height(10.dp))
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(h.paper).border(1.dp, h.rule, RoundedCornerShape(6.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(h.paper).border(1.dp, h.rule, RoundedCornerShape(10.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Txt("Total money lost", weight = FontWeight.SemiBold, color = h.ink2, modifier = Modifier.weight(1f))
@@ -547,7 +546,7 @@ private fun RvCard(r: Report, k: String) {
     val lines = listOf("Return shipping fee" to gg.retFee, "Forward shipping" to gg.fwdShip, "Meesho fees kept" to gg.fees, "Packing" to gg.pack, "Stock not resellable" to gg.stock, "Paid back by Meesho" to -gg.back)
         .filter { Math.round(it.second / 100.0) != 0L }
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(h.sheet).border(1.dp, h.rule, RoundedCornerShape(6.dp))
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(h.sheet).border(1.dp, h.rule, RoundedCornerShape(10.dp))
             .drawBehind { drawRect(acc, size = Size(size.width, 4.dp.toPx())) }.padding(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 12.dp),
     ) {
         Row(verticalAlignment = Alignment.Top) {

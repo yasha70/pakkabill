@@ -1,6 +1,8 @@
 package com.pakkabill.app.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -83,10 +85,27 @@ object PbIcons {
     val Sheet by lazy { lineIcon("sheet", "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z", "M3 9h18", "M3 15h18", "M9 9v12", "M15 9v12") }
     val Scan by lazy { lineIcon("scan", "M3 7V5a2 2 0 0 1 2-2h2", "M17 3h2a2 2 0 0 1 2 2v2", "M21 17v2a2 2 0 0 1-2 2h-2", "M7 21H5a2 2 0 0 1-2-2v-2", "M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "M16 16l-1.9-1.9") }
     val FileJson by lazy { lineIcon("filejson", "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z", "M14 2v4a2 2 0 0 0 2 2h4", "M10 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1a1 1 0 0 1 1 1v1a1 1 0 0 0 1 1", "M14 18a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1a1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1") }
+    // Home (dash.js) and the Label cropper
+    val Home by lazy { lineIcon("home", "M3 10.5 12 3l9 7.5", "M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5") }
+    val Arrow by lazy { lineIcon("arrow", "M5 12h14", "M13 6l6 6-6 6") }
+    val Lock by lazy { lineIcon("lock", "M7 11h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z", "M8 11V8a4 4 0 0 1 8 0v3") }
+    val Shield by lazy { lineIcon("shield", "M12 3 4 6v6c0 5 3.4 8.3 8 9 4.6-.7 8-4 8-9V6z", "M9 12l2 2 4-4") }
+    val Chart by lazy { lineIcon("chart", "M4 4v16h16", "M8 14l3-3 3 3 5-6") }
+    val Headset by lazy { lineIcon("headset", "M4 13a8 8 0 0 1 16 0v4a2 2 0 0 1-2 2h-1v-6h3", "M4 13v4a2 2 0 0 0 2 2h1v-6H4") }
+    val Crop by lazy { lineIcon("crop", "M6 2v14a2 2 0 0 0 2 2h14", "M18 22V8a2 2 0 0 0-2-2H2") }
     val Truck by lazy { lineIcon("truck", "M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2", "M15 18H9", "M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14", "M5 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0", "M15 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0") }
 }
 
-/** PakkaBill's mark: three bills, stacked (the website's mark without the green tile). */
+/** PakkaBill's mark on the app icon's navy tile, as the website's top bar shows it. */
+@Composable
+fun MarkTile(size: Dp = 32.dp) {
+    androidx.compose.foundation.layout.Box(
+        Modifier.size(size).then(Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(size * 0.28f))).then(Modifier.background(Color(0xFF2B3494))),
+        contentAlignment = androidx.compose.ui.Alignment.Center,
+    ) { Mark(size * 0.92f) }
+}
+
+/** PakkaBill's mark: three bills, stacked (the website's mark without the tile). */
 @Composable
 fun Mark(size: Dp = 28.dp, outline: Color = Color.Transparent) {
     Canvas(Modifier.size(size)) {

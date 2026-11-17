@@ -1,6 +1,9 @@
 package com.pakkabill.app.ui
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -62,15 +65,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageShader
-import androidx.compose.ui.graphics.ShaderBrush
-import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -92,6 +91,7 @@ import com.pakkabill.app.ui.tools.MeeshoWeb
 import com.pakkabill.app.ui.tools.MeeshoShipping
 import com.pakkabill.app.ui.tools.MeeshoSupplier
 import com.pakkabill.app.ui.tools.autolistTab
+import com.pakkabill.app.ui.tools.cropTab
 import com.pakkabill.app.ui.tools.lensTab
 import com.pakkabill.app.ui.tools.listingTab
 import com.pakkabill.app.ui.tools.lowshipTab
@@ -114,7 +114,6 @@ import com.pakkabill.app.ui.bill.shopTab
 import com.pakkabill.core.bill.BillStore
 import com.pakkabill.core.bill.Gst
 import com.pakkabill.core.bill.Invoice
-import com.pakkabill.core.Art
 import com.pakkabill.core.Report
 import com.pakkabill.core.Sel
 import kotlinx.coroutines.delay
@@ -123,18 +122,18 @@ import kotlinx.coroutines.launch
 /** The tabs of the website's Meesho P&L, in the same order. */
 val TABS = listOf("pl" to "P&L", "rc" to "Reconcile", "data" to "Upload", "costs" to "Costs", "exp" to "Expenses", "set" to "Settings", "guide" to "How to use")
 /** Pages opened from the Tools page; the Tools tab stays lit on them. */
-private val TOOL_PAGES = setOf("tools", "rc", "data", "costs", "exp", "set", "guide", "gstr1", "lowship", "autolist", "listing", "lens")
+private val TOOL_PAGES = setOf("tools", "rc", "data", "costs", "exp", "set", "guide", "gstr1", "lowship", "autolist", "listing", "lens", "crop")
 /** The billing pages; the Bills tab stays lit on all of them. */
 private val BILL_TABS = setOf("bills", "parties", "items", "gst", "shop")
 
 /**
  * The whole app, laid out like PakkaBill on a phone: the PakkaBill bar on top, the page, and the
- * tab bar at the bottom with the + in the middle. Every page is a lazy list, so only what is on
+ * tab bar at the bottom with the + in the middle. It opens on Home, as the website does. Every page is a lazy list, so only what is on
  * screen is drawn, and each tab keeps its own scroll position.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Root(pnl: PnlController, account: AccountController, bills: BillController, tools: AppTools, lockOn: Boolean, snackbar: SnackbarHostState, startTab: String = "pl") {
+fun Root(pnl: PnlController, account: AccountController, bills: BillController, tools: AppTools, lockOn: Boolean, snackbar: SnackbarHostState, startTab: String = "home") {
     val platform = LocalPlatform.current
     val ui by pnl.ui.collectAsState()
     val acct by account.ui.collectAsState()
@@ -180,11 +179,11 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
         if (top) lists.remove(k)
         tab = k
     }
-    // where the back button goes from a page: a billing page to Bills, a tool to Tools, the rest to the P&L
+    // where the back button goes from a page: a billing page to Bills, a tool to Tools, the rest to Home
     fun parentOf(k: String) = when {
         k in BILL_TABS && k != "bills" -> "bills"
         k in TOOL_PAGES && k != "tools" -> "tools"
-        else -> "pl"
+        else -> "home"
     }
     LaunchedEffect(startTab) { open(startTab) }
 
@@ -202,6 +201,10 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
     LaunchedEffect(Unit) { tools.gstr1.messages.collect { say(it) } }
     LaunchedEffect(Unit) { tools.lowship.messages.collect { say(it) } }
     LaunchedEffect(Unit) { tools.lens.messages.collect { say(it) } }
+    // the Label cropper is made the first time its page opens
+    var cropSeen by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(tab) { if (tab == "crop") cropSeen = true }
+    if (cropSeen) LaunchedEffect(Unit) { tools.cropper.messages.collect { say(it) } }
     // Meesho listing is made the first time its page opens (it reads the saved template then, not at every start)
     var listingSeen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(tab) { if (tab == "listing") listingSeen = true }
@@ -296,20 +299,7 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
     val costList = report?.costs.orEmpty()
     val costShown = remember(costList, costQ, costCat, costMiss) { costRows(costList, costQ, costCat, costMiss) }
 
-    // the website's background doodles: a 300 × 300 tile repeated behind everything, made once
     val density = LocalDensity.current
-    val tilePx = with(density) { 300.dp.roundToPx() }
-    val tile = remember(h.dark, tilePx) { platform.svg(Art.doodle(h.dark), tilePx) }
-    val paper = h.paper
-    val doodle = remember(tile, paper) {
-        Modifier.drawWithCache {
-            val brush = tile?.let { ShaderBrush(ImageShader(it, TileMode.Repeated, TileMode.Repeated)) }
-            onDrawBehind {
-                drawRect(paper)
-                if (brush != null) drawRect(brush)
-            }
-        }
-    }
     // only a change between keyboard shown and hidden redraws the page, not every step of its animation
     val ime = WindowInsets.ime
     val imeOpen by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
@@ -329,18 +319,24 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
         say = ::say,
     )
 
-    Box(Modifier.fillMaxSize().then(doodle)) {
+    Box(Modifier.fillMaxSize().background(h.paper)) {
         Column(Modifier.fillMaxSize().imePadding()) {
             TopBar(lang, { pnl.setLang(it) }, h.dark, { pnl.setTheme(if (h.dark) "light" else "dark") }, login) { accountOpen = true }
-            SystemBack(enabled = tab != "pl" && !accountOpen && !addOpen) { open(parentOf(tab), top = false) }
+            SystemBack(enabled = tab != "home" && !accountOpen && !addOpen) { open(parentOf(tab), top = false) }
             Box(Modifier.fillMaxWidth().weight(1f)) {
-                val list = lists.getOrPut(tab) { LazyListState() }
-                key(tab) {
+                // pages change with a short fade; each keeps its own scroll position
+                AnimatedContent(
+                    tab, Modifier.fillMaxSize(), label = "page",
+                    transitionSpec = { (fadeIn(tween(170, delayMillis = 40)) + slideInVertically(tween(210)) { it / 40 }) togetherWith fadeOut(tween(70)) },
+                ) { tab ->
+                    val list = lists.getOrPut(tab) { LazyListState() }
                     LazyColumn(
                         Modifier.fillMaxSize(), state = list,
                         contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 2.dp, bottom = 28.dp),
                     ) {
                         when (tab) {
+                            "home" -> homeTab(report, ui.sample, billData, acct, HomeActs(open = { open(it) }, url = { platform.openUrl(it) }, sellsPro = platform.sellsPro))
+                            "crop" -> cropTab(tools.cropper)
                             "pl" -> plTab(ui, x, flags, go, panes, ex)
                             "rc" -> rcTab(ui, x, RcState(rcB, rcQ, rcRowsNow, { rcB = it }, { rcQ = it }), { id, c -> pnl.setMark(id, c) }, go, panes)
                             "data" -> block("data") { DataTab(ui, go, DataActs(upload = { platform.pickMeeshoFiles() }, remove = { pnl.removeFile(it.id) }, removeAll = { pnl.removeAllFiles() })) }
@@ -404,7 +400,7 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
         var showBusy by remember { mutableStateOf(false) }
         LaunchedEffect(ui.busy) { if (ui.busy == null) showBusy = false else { delay(350); showBusy = true } }
         AnimatedVisibility(showBusy, enter = fadeIn(tween(120)), exit = fadeOut(tween(120))) {
-            Box(Modifier.fillMaxSize().background(Color(0x590F1122)).clickable(remember { MutableInteractionSource() }, null) {}, contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().background(Color(0x8C0B0E1C)).clickable(remember { MutableInteractionSource() }, null) {}, contentAlignment = Alignment.Center) {
                 Box(Modifier.clip(RoundedCornerShape(12.dp)).background(h.sheet).padding(horizontal = 20.dp, vertical = 16.dp)) { Txt(ui.busy ?: "Working", weight = FontWeight.SemiBold) }
             }
         }
@@ -412,6 +408,7 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
         AddSheet(
             addOpen, close = { addOpen = false }, bill = { newBill(it) },
             labels = { addOpen = false; open("labels", top = false); platform.pickPdfs() },
+            crop = { addOpen = false; open("crop", top = false); platform.pickFor("crop", arrayOf("application/pdf")) },
             meesho = { addOpen = false; open("data", top = false); platform.pickMeeshoFiles() },
         )
 
@@ -475,7 +472,7 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
         AnimatedVisibility(planOpen, enter = slideInHorizontally(tween(220)) { it } + fadeIn(tween(220)), exit = slideOutHorizontally(tween(200)) { it } + fadeOut(tween(200))) {
             SystemBack { planOpen = false }
             LaunchedEffect(Unit) { account.refresh(force = false) }
-            Column(Modifier.fillMaxSize().then(doodle)) {
+            Column(Modifier.fillMaxSize().background(h.paper)) {
                 OverlayBar("PakkaBill Pro") { planOpen = false }
                 PlanScreen(acct, account, ::say)
             }
@@ -483,16 +480,16 @@ fun Root(pnl: PnlController, account: AccountController, bills: BillController, 
 
         AnimatedVisibility(accountOpen, enter = slideInHorizontally(tween(220)) { it } + fadeIn(tween(220)), exit = slideOutHorizontally(tween(200)) { it } + fadeOut(tween(200))) {
             SystemBack { accountOpen = false }
-            Column(Modifier.fillMaxSize().then(doodle)) {
+            Column(Modifier.fillMaxSize().background(h.paper)) {
                 OverlayBar("My account") { accountOpen = false }
-                AccountScreen(acct, account, lockOn, PaddingValues(0.dp), openPnlSettings = { accountOpen = false; open("set") }, openPlan = { planOpen = true }, say = ::say)
+                AccountScreen(acct, account, lockOn, PaddingValues(0.dp), openPnlSettings = { accountOpen = false; open("set") }, openPlan = { planOpen = true }, openBills = { accountOpen = false; open("bills") }, say = ::say)
             }
         }
 
         SnackbarHost(
             snackbar,
             Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars).imePadding().padding(bottom = if (imeOpen || accountOpen) 12.dp else 78.dp),
-        ) { d -> Snackbar(d, containerColor = h.ink, contentColor = h.paper, actionColor = h.carbonSoft, shape = RoundedCornerShape(10.dp)) }
+        ) { d -> Snackbar(d, containerColor = Color(0xFF141A33), contentColor = Color.White, actionColor = Color(0xFFAEB6F7), dismissActionContentColor = Color.White, shape = RoundedCornerShape(12.dp)) }
     }
 
     if (pickDates) report?.let { r -> DateRange(r, { pickDates = false }) { a, b -> pickDates = false; pnl.select(Sel(mode = "custom", from = a, to = b, basis = r.per.basis)) } }
@@ -512,18 +509,18 @@ private fun TopBar(lang: String, setLang: (String) -> Unit, dark: Boolean, flipT
             .windowInsetsPadding(WindowInsets.statusBars).height(56.dp).padding(start = 12.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Mark(28.dp, outline = if (h.dark) Color.Transparent else h.rule)
-        Spacer(Modifier.width(7.dp))
+        MarkTile(32.dp)
+        Spacer(Modifier.width(9.dp))
         Text(
-            "PakkaBill", Modifier.padding(top = 5.dp),
-            style = TextStyle(brush = Brush.horizontalGradient(h.brand), fontFamily = f.mark, fontWeight = FontWeight.SemiBold, fontSize = 27.sp, lineHeight = 27.sp, letterSpacing = 0.2.sp),
+            "PakkaBill",
+            style = TextStyle(color = h.ink, fontFamily = f.head, fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 24.sp, letterSpacing = (-0.3).sp),
             maxLines = 1,
         )
         Spacer(Modifier.weight(1f))
-        Row(Modifier.clip(CircleShape).background(h.paper).border(1.dp, h.rule, CircleShape).padding(2.dp)) {
+        Row(Modifier.clip(CtlShape).background(h.paper).border(1.dp, h.rule, CtlShape).padding(2.dp)) {
             listOf("en" to "EN", "hi" to "हिंदी").forEach { (v, l) ->
-                Box(Modifier.clip(CircleShape).background(if (lang == v) h.carbon else Color.Transparent).clickable { setLang(v) }.padding(horizontal = 10.dp, vertical = 5.dp)) {
-                    Txt(l, size = 13.sp, weight = FontWeight.Bold, color = if (lang == v) h.carbonInk else h.ink3, raw = true, lineHeight = 15.sp)
+                Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (lang == v) h.btnBg else Color.Transparent).clickable { setLang(v) }.padding(horizontal = 10.dp, vertical = 5.dp)) {
+                    Txt(l, size = 13.sp, weight = FontWeight.Bold, color = if (lang == v) h.btnFg else h.ink3, raw = true, lineHeight = 15.sp)
                 }
             }
         }
@@ -540,53 +537,54 @@ private fun BarIcon(icon: ImageVector, label: String, tint: Color, bg: Color = C
 }
 
 // short Hindi names that fit under the icons
-private val HI_BAR = mapOf("P&L" to "मुनाफ़ा", "Labels" to "लेबल", "Bills" to "बिल", "Tools" to "टूल्स")
+private val HI_BAR = mapOf("Home" to "होम", "Profit" to "मुनाफ़ा", "Labels" to "लेबल", "Tools" to "टूल्स")
 
-/** .tabbar: P&L, Labels, the + (new bill, estimate, labels or Meesho files), Bills, and every other tool. */
+/** .tabbar: Home, Profit, the + (new bill, estimate, labels or Meesho files), Labels, and every other tool. */
 @Composable
 private fun BottomBar(tab: String, issues: Int, lang: String, pick: (String) -> Unit, add: () -> Unit) {
     val h = LocalHues.current
     Row(
-        Modifier.fillMaxWidth().background(h.sheet).drawBehind {
-            drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color(0x14141846)), startY = -14.dp.toPx(), endY = 0f), Offset(0f, -14.dp.toPx()), Size(size.width, 14.dp.toPx()))
-            drawRect(h.rule, size = Size(size.width, 1.dp.toPx()))
-        }.windowInsetsPadding(WindowInsets.navigationBars).height(62.dp).padding(horizontal = 4.dp),
+        Modifier.fillMaxWidth().background(h.sheet).drawBehind { drawRect(h.rule, size = Size(size.width, 1.dp.toPx())) }
+            .windowInsetsPadding(WindowInsets.navigationBars).height(60.dp).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         fun label(s: String) = if (lang == "hi") HI_BAR[s] ?: s else s
-        BarTab(PbIcons.Rupee, label("P&L"), tab == "pl", issues) { pick("pl") }
-        BarTab(PbIcons.Tag, label("Labels"), tab == "labels") { pick("labels") }
+        BarTab(PbIcons.Home, label("Home"), tab == "home") { pick("home") }
+        BarTab(PbIcons.Rupee, label("Profit"), tab == "pl", issues) { pick("pl") }
         Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+            // the website's round + : the brand colour with a ring of the bar's own colour around it
             Box(
-                Modifier.offset(y = (-12).dp).size(54.dp).shadow(10.dp, RoundedCornerShape(16.dp), ambientColor = h.carbon, spotColor = h.carbon)
-                    .clip(RoundedCornerShape(16.dp)).background(Brush.linearGradient(h.btn)).clickable(onClick = add),
+                Modifier.offset(y = (-10).dp).size(58.dp).shadow(6.dp, CircleShape, ambientColor = h.btnBg, spotColor = h.btnBg).clip(CircleShape).background(h.sheet).padding(4.dp)
+                    .clip(CircleShape).background(h.btnBg).clickable(onClick = add),
                 contentAlignment = Alignment.Center,
-            ) { Icon(PbIcons.Plus, t("New bill, labels or Meesho files"), tint = h.btnFg, modifier = Modifier.size(26.dp)) }
+            ) { Icon(PbIcons.Plus, t("New bill, labels or Meesho files"), tint = h.btnFg, modifier = Modifier.size(24.dp)) }
         }
-        BarTab(PbIcons.Receipt, label("Bills"), tab in BILL_TABS) { pick("bills") }
-        BarTab(PbIcons.Grid, label("Tools"), tab in TOOL_PAGES) { pick("tools") }
+        BarTab(PbIcons.Tag, label("Labels"), tab == "labels") { pick("labels") }
+        BarTab(PbIcons.Grid, label("Tools"), tab in TOOL_PAGES || tab in BILL_TABS) { pick("tools") }
     }
 }
 
 @Composable
 private fun RowScope.BarTab(icon: ImageVector, label: String, on: Boolean, badge: Int = 0, onClick: () -> Unit) {
     val h = LocalHues.current
-    val c = if (on) h.carbon else h.ink2
+    // the chosen tab's colour and pill ease in
+    val c by animateColorAsState(if (on) h.carbon else h.ink3, tween(160), label = "tab")
+    val pill by animateColorAsState(if (on) h.carbonTint else h.carbonTint.copy(alpha = 0f), tween(160), label = "pill")
     Column(
         Modifier.weight(1f).fillMaxHeight().clickable(remember { MutableInteractionSource() }, null, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
         Box {
-            Box(Modifier.clip(CircleShape).background(if (on) h.carbonTint else Color.Transparent).padding(horizontal = 14.dp, vertical = 3.dp)) {
+            Box(Modifier.clip(CircleShape).background(pill).padding(horizontal = 14.dp, vertical = 3.dp)) {
                 Icon(icon, null, tint = c, modifier = Modifier.size(22.dp))
             }
             if (badge > 0) Box(
                 Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-3).dp).clip(CircleShape).background(h.margin).padding(horizontal = 5.dp),
                 contentAlignment = Alignment.Center,
-            ) { Txt(if (badge > 99) "99+" else "$badge", size = 10.5.sp, color = Color.White, weight = FontWeight.Bold, raw = true, lineHeight = 16.sp) }
+            ) { Txt(if (badge > 99) "99+" else "$badge", size = 10.5.sp, color = if (h.dark) Color(0xFF0B0E1C) else Color.White, weight = FontWeight.Bold, raw = true, lineHeight = 16.sp) }
         }
         Spacer(Modifier.height(2.dp))
-        Txt(label, size = 11.5.sp, weight = if (on) FontWeight.SemiBold else FontWeight.Medium, color = c, maxLines = 1, raw = true, lineHeight = 14.sp, align = TextAlign.Center)
+        Txt(label, size = 11.sp, weight = FontWeight.SemiBold, color = c, maxLines = 1, raw = true, lineHeight = 14.sp, align = TextAlign.Center)
     }
 }
 
@@ -607,13 +605,13 @@ private fun MoreRow(icon: ImageVector, label: String, on: Boolean, onClick: () -
     }
 }
 
-/** The + button's menu: a new bill, a new estimate, Meesho labels to sort, or Meesho files for the P&L. */
+/** The + button's menu: a new bill, a new estimate, Meesho labels to sort or crop, or Meesho files for the P&L. */
 @Composable
-private fun AddSheet(open: Boolean, close: () -> Unit, bill: (String) -> Unit, labels: () -> Unit, meesho: () -> Unit) {
+private fun AddSheet(open: Boolean, close: () -> Unit, bill: (String) -> Unit, labels: () -> Unit, crop: () -> Unit, meesho: () -> Unit) {
     val h = LocalHues.current
     if (open) SystemBack(onBack = close)
     AnimatedVisibility(open, enter = fadeIn(tween(160)), exit = fadeOut(tween(160))) {
-        Box(Modifier.fillMaxSize().background(Color(0x66100C24)).clickable(remember { MutableInteractionSource() }, null, onClick = close))
+        Box(Modifier.fillMaxSize().background(Color(0x8C0B0E1C)).clickable(remember { MutableInteractionSource() }, null, onClick = close))
     }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
         AnimatedVisibility(open, enter = slideInVertically(tween(220)) { it }, exit = slideOutVertically(tween(180)) { it }) {
@@ -626,6 +624,7 @@ private fun AddSheet(open: Boolean, close: () -> Unit, bill: (String) -> Unit, l
                 MoreRow(PbIcons.Receipt, "New GST bill", false) { bill("invoice") }
                 MoreRow(PbIcons.Book, "New estimate", false) { bill("estimate") }
                 MoreRow(PbIcons.Tag, "Sort Meesho labels", false, labels)
+                MoreRow(PbIcons.Crop, "Crop label PDF", false, crop)
                 MoreRow(PbIcons.Upload, "Add Meesho files (P&L)", false, meesho)
             }
         }

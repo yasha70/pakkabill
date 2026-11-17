@@ -115,7 +115,7 @@ private fun StatusCard(ui: AccountUi) {
     val shape = RoundedCornerShape(16.dp)
     Column(
         Modifier.fillMaxWidth().clip(shape)
-            .background(if (tone == 1) Brush.linearGradient(listOf(Color(0xFF26307F), Color(0xFF4B3BD6), Color(0xFF7C56EE))) else Brush.linearGradient(listOf(h.sheet, h.sheet)))
+            .background(if (tone == 1) Brush.linearGradient(listOf(Color(0xFF222A7C), Color(0xFF2B3494), Color(0xFF3A45B3))) else Brush.linearGradient(listOf(h.sheet, h.sheet)))
             .border(1.dp, if (tone == 2) h.warn else if (tone == 1) Color.Transparent else h.rule, shape)
             .padding(18.dp),
     ) {

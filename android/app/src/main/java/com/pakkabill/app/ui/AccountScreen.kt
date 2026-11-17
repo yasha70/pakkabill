@@ -76,6 +76,7 @@ fun AccountScreen(
     padding: PaddingValues,
     openPnlSettings: () -> Unit,
     openPlan: () -> Unit = {},
+    openBills: () -> Unit = {},
     say: (String) -> Unit,
 ) {
     val platform = LocalPlatform.current
@@ -110,7 +111,7 @@ fun AccountScreen(
                     Icons.Outlined.Fingerprint, "App lock", "Fingerprint, face or screen lock when PakkaBill opens",
                     trailing = { Switch(checked = lockOn, onCheckedChange = { platform.setAppLock(it) }) },
                 ) { platform.setAppLock(!lockOn) }
-                MenuRow(Icons.AutoMirrored.Outlined.ReceiptLong, "GST billing", "Bills, estimates and GSTR-1 open on the website for now") { platform.openUrl("$SITE/") }
+                MenuRow(Icons.AutoMirrored.Outlined.ReceiptLong, "GST billing", "Bills, estimates, parties and items", onClick = openBills)
             }
         }
         item {
