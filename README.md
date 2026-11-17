@@ -251,7 +251,7 @@ higher `versionCode` and the same key.
 Publishing in one tap: add the key once as repository secrets (Settings → Secrets and variables →
 Actions): `ANDROID_KEYSTORE_BASE64` (the .p12 file in base64: `base64 -w0 pakkabill-release.p12`),
 `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`pakkabill`) and `ANDROID_KEY_PASSWORD`. Then
-Actions → "Publish Android app" → Run workflow. It takes the newest build from `main` whose "Android
+Actions → "Publish Android app" → Run workflow (it also runs by itself after every passing "Android app" build on main, and publishes when the versionCode is higher than the website's). It takes the newest build from `main` whose "Android
 app" run passed, signs it, refuses a different key (phones could not update) or a versionCode that
 is not higher, commits `download/PakkaBill.apk` and `download/app.json` (the website serves them),
 and keeps the signed bundle (.aab) as the run's artifact for Google Play. `.well-known/assetlinks.json` lists the key fingerprints

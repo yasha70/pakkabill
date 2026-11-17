@@ -9,8 +9,15 @@
 # ANDROID_KEY_ALIAS (pakkabill) and ANDROID_KEY_PASSWORD (for a .p12, usually the same password).
 name: Publish Android app
 
+# By hand (Actions -> "Publish Android app" -> Run workflow), and by itself whenever an "Android app"
+# run on main passes: a build with a higher versionCode than the website's then goes live with no
+# more taps; a build without a new versionCode is left alone (nothing to publish).
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Android app"]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: write
@@ -23,6 +30,8 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # started by a build: only one that passed, made from a push to main
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     steps:
       - uses: actions/checkout@v4
         with:
@@ -84,6 +93,11 @@ jobs:
           NAME=$("$BT/aapt2" dump badging PakkaBill.apk | grep -o "versionName='[^']*'" | cut -d"'" -f2)
           LIVE=$(python3 -c "import json; print(json.load(open('download/app.json')).get('versionCode', 0))")
           if [ "$CODE" -le "$LIVE" ]; then
+            if [ "$GITHUB_EVENT_NAME" = "workflow_run" ]; then
+              echo "::notice::versionCode $CODE is not higher than the website's $LIVE: nothing new to publish."
+              echo "SKIP=1" >> "$GITHUB_ENV"
+              exit 0
+            fi
             echo "::error::versionCode $CODE is not higher than the website's $LIVE."
             exit 1
           fi
@@ -91,6 +105,7 @@ jobs:
           echo "NAME=$NAME" >> "$GITHUB_ENV"
 
       - name: Put it on the website (download/)
+        if: env.SKIP != '1'
         run: |
           cp PakkaBill.apk download/PakkaBill.apk
           python3 - <<'EOF'
@@ -107,6 +122,7 @@ jobs:
           git push origin HEAD:main
 
       - uses: actions/upload-artifact@v4
+        if: env.SKIP != '1'
         with:
           name: PakkaBill-${{ env.NAME }}-signed
           path: |
