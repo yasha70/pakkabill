@@ -634,5 +634,49 @@ for (const cfg of settings) {
   ok(m2 && m2.main && (m2.main.v > 0) === (m2.d > 0) && Math.abs(m2.main.v) <= Math.abs(m2.d) * 10, 'insights mom: the biggest reason moves profit the same way', m2 && JSON.stringify(m2.main));
 }
 
+{
+  // account health (owner account): score, order pattern and suggestions from the same numbers as the Returns tab
+  const all = run([D.payBook, ORD], { costs: D.costs, expenses: D.expenses, cfg: { pack: D.pack } });
+  const catOf = (sku, pn) => E.categoryOf(pn || sku);
+  const RV = E.returnsView(all.M, all.IX, all.cfg, all.per), X = E.returnsDeep(RV, { catOf });
+  const H = E.accountHealth(all.IX, RV, X, all.per);
+  ok(H.score != null && H.score >= 0 && H.score <= 100, 'health: a score out of 100', H.score);
+  ok(['Healthy', 'Fair', 'Needs work', 'At risk'].includes(H.grade), 'health: a grade', H.grade);
+  eq(H.m.rto.v, X.tot.rtoRate, 'health: RTO rate is the Returns tab rate');
+  eq(H.m.ret.v, X.tot.retRate, 'health: return rate is the Returns tab rate');
+  eq(H.m.exch.v, X.tot.exchRate, 'health: exchange rate is the Returns tab rate');
+  eq(H.weeks.reduce((t, w) => t + w.n, 0) <= H.orders, true, 'health: weeks hold no more orders than placed');
+  eq(H.dow.reduce((t, n) => t + n, 0), H.orders, 'health: every order has a weekday');
+  eq(H.live + H.cancelled, H.orders, 'health: live and cancelled add up to orders placed');
+  eq(H.skus.reduce((t, g) => t + g.n, 0), H.live, 'health: product orders add up');
+  ok(H.weeks.every((w, i) => !i || w.from > H.weeks[i - 1].to), 'health: weeks in order without overlap');
+  ok(H.suggestions.every((x, i) => !i || x.pri <= H.suggestions[i - 1].pri), 'health: suggestions most useful first');
+  eq(H.grow.length + H.cut.length, H.suggestions.length, 'health: every suggestion is grow or cut');
+  const stars = (H.grow.find((x) => x.k === 'stars') || { rows: [] }).rows.map((r) => r.sku);
+  const falling = (H.grow.find((x) => x.k === 'falling') || { rows: [] }).rows.map((r) => r.sku);
+  ok(stars.every((s) => !falling.includes(s)), 'health: a falling product is not a star');
+  // the score by hand from the metrics
+  let W = 0, S0 = 0;
+  H.metrics.forEach((m) => { if (m.ok) { W += m.w; S0 += m.w * m.score; } });
+  eq(H.score, Math.round(S0 / W * 100), 'health: score is the weighted average');
+  // a perfect account and a bad one
+  const mk = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+  const day = (i) => '2026-0' + (6 + Math.floor(i / 30)) + '-' + String(1 + (i % 28)).padStart(2, '0');
+  const good = { list: mk(300, (i) => ({ od: day(Math.floor(i / 3)), st: 'DELIVERED', sku: 'S' + (i % 6), pn: '' })) };
+  const gd = { tot: { done: 300, delivered: 300, rto: 0, lost: 0, ret: 6, exch: 3, rtoRate: 0, retRate: 0.02, exchRate: 0.01, backRate: 0.03 }, bySku: [], bySkuSize: [], byState: [], byPrice: [], insights: [] };
+  const HG = E.accountHealth(good, { G: {} }, gd, {});
+  ok(HG.score >= 80 && HG.grade === 'Healthy', 'health: a clean account is healthy', HG.score);
+  eq(HG.cut.length, 0, 'health: nothing to cut on a clean account');
+  const bad = { list: mk(300, (i) => ({ od: day(Math.floor(i / 3)), st: i % 5 ? 'DELIVERED' : 'CANCELLED', sku: 'S1', pn: '' })) };
+  const bd = { tot: { done: 240, delivered: 180, rto: 60, lost: 0, ret: 50, exch: 25, rtoRate: 0.25, retRate: 0.28, exchRate: 0.14, backRate: 0.42 }, bySku: [], bySkuSize: [], byState: [], byPrice: [], insights: [] };
+  const HB = E.accountHealth(bad, { G: { ret: { n: 50, loss: 500000 }, rto: { n: 60, loss: 300000 } } }, bd, {});
+  ok(HB.score < 40 && HB.grade === 'At risk', 'health: a bad account is at risk', HB.score);
+  ['retHow', 'rtoHow', 'exchHow', 'cancel', 'top'].forEach((k) => ok(HB.suggestions.some((x) => x.k === k), 'health: bad account gets ' + k));
+  ok(HB.cut.find((x) => x.k === 'retHow').save > 0, 'health: saving from fewer returns');
+  // too few orders: no score
+  const HT = E.accountHealth({ list: mk(5, (i) => ({ od: day(i), st: 'DELIVERED', sku: 'A' })) }, { G: {} }, { tot: { done: 5, delivered: 5, rto: 0, lost: 0, ret: 0, exch: 0, rtoRate: 0, retRate: 0, exchRate: 0, backRate: 0 } }, {});
+  eq(HT.score, null, 'health: no score on 5 orders');
+}
+
 console.log(`${checks - fails} of ${checks} checks passed`);
 process.exit(fails ? 1 : 0);

@@ -298,6 +298,16 @@ still says delivered or is blank. Returns not reversed yet show the profit they 
 sale less its GST and the goods back in stock, plus a return fee), not the sale. Whole rupees are rounded,
 not cut. Tests: `node test/pnl-audit.js` (950 checks).
 
+Account health (`E.accountHealth`, the "Account health" tab after Returns) is shown only to the owner account
+for now (`pbPnlAccess().owner`, phone `owner`). It gives a score out of 100 from RTO (25), returns (25), the
+order trend of the last weeks against the weeks before (20), exchanges (10), cancellations (10) and how much
+of the orders one product makes (10), each scored between a healthy and a bad level (`E.HEALTH_BENCH`); the
+order pattern week by week and by day of the week; and suggestions, most useful first, to get more orders
+(products falling, best products to push, products rising, the safest price range, the best day) and to cut
+returns, exchanges and RTO (sizes and products that come back, states and products with high RTO, cancellations,
+with the money a month it saves). Rates are the Returns tab's. To give it to every seller, return `true` from
+`A.owner` in `pnl.html`.
+
 - `pnl.html` the whole tool, shown inside PakkaBill in a frame (`pnl.html?embed=1`) with PakkaBill's
   colours, fonts and light/dark setting. Shop name and GSTIN start from Shop settings.
 - `pnl-libs.js` SheetJS (xlsx-js-style), jsPDF, jsPDF-AutoTable and JSZip, loaded only by `pnl.html`.

@@ -82,6 +82,12 @@
 :root { --s-rto: #6250d6; --s-ret: #eb6834; --s-exch: #1baf7a; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --s-rto: #9085e9; --s-ret: #d95926; --s-exch: #199e70; } }
 :root[data-theme="dark"] { --s-rto: #9085e9; --s-ret: #d95926; --s-exch: #199e70; }
+.hl-top { display: flex; align-items: center; gap: 14px; margin-top: 12px; flex-wrap: wrap; }
+.hl-score { width: 92px; height: 92px; border-radius: 50%; display: grid; place-content: center; text-align: center; border: 6px solid var(--rule); flex: none; }
+.hl-score strong { font-family: var(--f-head); font-size: 2rem; line-height: 1; } .hl-score span { font-size: .75rem; color: var(--ink-3); }
+.hl-score.hl-good { border-color: var(--pos); } .hl-score.hl-warn { border-color: var(--warn); } .hl-score.hl-bad { border-color: var(--margin); }
+.hl-bar { background: var(--carbon); } .hl-list { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 12px; } .hl-t { display: block; margin-bottom: 2px; }
+.hl-rows { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; }
 .s-rto { background: var(--s-rto); } .s-ret { background: var(--s-ret); } .s-exch { background: var(--s-exch); }
 .rtab td.rb { min-width: 110px; } .rtab td:first-child .small:last-child { white-space: nowrap; } .rtab td:first-child { overflow-wrap: anywhere; }
 .rtab3 { table-layout: fixed; width: 100%; } .rtab3 th:nth-child(1) { width: 31%; } .rtab3 th:nth-child(2) { width: 46%; } .rtab3 th:nth-child(3) { width: 23%; } .rtab3 td, .rtab3 th { padding-left: 6px; padding-right: 6px; } table.t.rtab3 th { white-space: normal; vertical-align: bottom; } .rbl { display: flex; align-items: center; gap: 6px; height: 13px; margin: 2px 0; }
@@ -535,6 +541,7 @@ details.more[open] > summary { margin-bottom: 10px; }
 <main id="main">
   <section class="panel" id="p-pl" role="tabpanel" aria-labelledby="t-pl" hidden></section>
   <section class="panel" id="p-ret" role="tabpanel" aria-labelledby="t-ret" hidden></section>
+  <section class="panel" id="p-health" role="tabpanel" aria-labelledby="t-health" hidden></section>
   <section class="panel" id="p-rc" role="tabpanel" aria-labelledby="t-rc" hidden></section>
   <section class="panel" id="p-data" role="tabpanel" aria-labelledby="t-data" hidden></section>
   <section class="panel" id="p-costs" role="tabpanel" aria-labelledby="t-costs" hidden></section>
@@ -1936,6 +1943,146 @@ details.more[open] > summary { margin-bottom: 10px; }
     };
   }
 
+  /* ---------------- account health: order pattern, RTO, returns, exchanges, what to do ----------------
+     A score out of 100 from how the account is doing against what a healthy Meesho account looks like,
+     the order pattern (week by week, day of week, products rising and falling) and suggestions to get
+     more orders and fewer returns, exchanges and RTO. Rates are the ones the Returns tab shows (D from
+     returnsDeep); orders are counted by order date, cancelled ones included. */
+  var HEALTH_BENCH = {
+    rto: { good: 0.10, bad: 0.25, w: 25, min: 20 },     // of parcels shipped
+    ret: { good: 0.08, bad: 0.20, w: 25, min: 20 },     // of orders delivered
+    exch: { good: 0.03, bad: 0.10, w: 10, min: 20 },    // of orders delivered
+    cancel: { good: 0.03, bad: 0.10, w: 10, min: 20 },  // of orders placed
+    trend: { good: 0.10, bad: -0.25, w: 20, min: 10 },  // last weeks against the weeks before
+    top: { good: 0.35, bad: 0.70, w: 10, min: 20 }      // share of orders from the best product
+  };
+  function accountHealth(IX, RV, D, per) {
+    per = per || {};
+    var B = HEALTH_BENCH, list = (IX && IX.list) || [];
+    D = D || returnsDeep(RV);
+    var T = D.tot;
+    function inP(d) { return !!d && (!per.from || d >= per.from) && (!per.to || d <= per.to); }
+    var placed = [], first = '', last = '';
+    list.forEach(function (x) {
+      if (!inP(x.od)) return;
+      placed.push(x);
+      if (!first || x.od < first) first = x.od;
+      if (x.od > last) last = x.od;
+    });
+    var nOrd = placed.length, cancelled = placed.filter(function (x) { return x.st === 'CANCELLED'; }).length;
+    var live = placed.filter(function (x) { return x.st !== 'CANCELLED'; });
+    var span = nOrd ? dayDiff(first, last) + 1 : 0;
+
+    // week by week, the newest week ending on the last order date
+    var nW = Math.min(12, Math.floor(span / 7)), weeks = [];
+    for (var k = nW - 1; k >= 0; k--) weeks.push({ from: addDays(last, -7 * k - 6), to: addDays(last, -7 * k), n: 0, cancel: 0 });
+    placed.forEach(function (x) {
+      for (var i = 0; i < weeks.length; i++) if (x.od >= weeks[i].from && x.od <= weeks[i].to) { weeks[i].n++; if (x.st === 'CANCELLED') weeks[i].cancel++; break; }
+    });
+    var h = Math.min(4, Math.floor(nW / 2)), recent = 0, prev = 0;
+    for (var j = 0; j < h; j++) { recent += weeks[nW - 1 - j].n; prev += weeks[nW - 1 - h - j].n; }
+    var growth = h && prev ? recent / prev - 1 : null;
+
+    // day of the week (Monday first)
+    var dow = [0, 0, 0, 0, 0, 0, 0];
+    placed.forEach(function (x) { var d = new Date(Date.UTC(+x.od.slice(0, 4), +x.od.slice(5, 7) - 1, +x.od.slice(8, 10))).getUTCDay(); dow[(d + 6) % 7]++; });
+    var bestDow = nOrd ? dow.indexOf(Math.max.apply(null, dow)) : -1;
+
+    // products: orders, rising and falling, the best share
+    var SK = {}, rFrom = h ? weeks[nW - h].from : '', pFrom = h ? weeks[nW - 2 * h].from : '';
+    live.forEach(function (x) {
+      var s = x.sku || '(no SKU)', g = SK[s] || (SK[s] = { sku: s, pn: x.pn || '', n: 0, recent: 0, prev: 0 });
+      if (!g.pn && x.pn) g.pn = x.pn;
+      g.n++;
+      if (h && x.od >= rFrom) g.recent++; else if (h && x.od >= pFrom) g.prev++;
+    });
+    var skus = Object.keys(SK).map(function (s) { return SK[s]; }).sort(function (a, b) { return b.n - a.n || (a.sku < b.sku ? -1 : 1); });
+    var top = skus[0] || null, topShare = top && live.length ? top.n / live.length : 0;
+    var rd = {};
+    (D.bySku || []).forEach(function (g) { rd[g.key] = g; });
+    skus.forEach(function (g) { var r = rd[g.sku]; g.rtoRate = r ? r.rtoRate : 0; g.retRate = r ? r.retRate : 0; g.exchRate = r ? r.exchRate : 0; g.backRate = r ? r.backRate : 0; g.done = r ? r.done : 0; g.delivered = r ? r.delivered : 0; });
+
+    // the score
+    function sc(v, b) {
+      var lo = b.good < b.bad; // lower is better
+      if (lo ? v <= b.good : v >= b.good) return 1;
+      if (lo ? v >= b.bad : v <= b.bad) return 0;
+      return (b.bad - v) / (b.bad - b.good);
+    }
+    var metrics = [
+      { k: 'rto', v: T.rtoRate, n: T.done, of: T.rto + T.lost },
+      { k: 'ret', v: T.retRate, n: T.delivered, of: T.ret },
+      { k: 'exch', v: T.exchRate, n: T.delivered, of: T.exch },
+      { k: 'cancel', v: nOrd ? cancelled / nOrd : 0, n: nOrd, of: cancelled },
+      { k: 'trend', v: growth, n: prev, of: recent },
+      { k: 'top', v: topShare, n: live.length, of: top ? top.n : 0 }
+    ].map(function (m) {
+      var b = B[m.k];
+      m.good = b.good; m.bad = b.bad; m.w = b.w;
+      m.ok = m.v != null && m.n >= b.min;
+      m.score = m.ok ? sc(m.v, b) : null;
+      m.status = !m.ok ? '' : m.score >= 0.75 ? 'good' : m.score >= 0.35 ? 'warn' : 'bad';
+      return m;
+    });
+    var W = 0, S0 = 0;
+    metrics.forEach(function (m) { if (m.ok) { W += m.w; S0 += m.w * m.score; } });
+    var score = W >= 40 ? Math.round(S0 / W * 100) : null;
+    var grade = score == null ? '' : score >= 80 ? 'Healthy' : score >= 60 ? 'Fair' : score >= 40 ? 'Needs work' : 'At risk';
+    var M = {}; metrics.forEach(function (m) { M[m.k] = m; });
+
+    // suggestions: grow = more orders, cut = fewer returns, exchanges and RTO; pri: biggest first
+    var sug = [], months = Math.max(1, span / 30);
+    var G = (RV && RV.G) || {}, perRet = G.ret && G.ret.n ? G.ret.loss / G.ret.n : 0, perRto = G.rto && G.rto.n ? G.rto.loss / G.rto.n : 0;
+    function add(x) { sug.push(x); }
+    // returns and exchanges
+    var hotSize = (D.bySkuSize || []).filter(function (g) { return g.delivered >= 6 && g.backRate >= Math.max(0.2, T.backRate * 1.5); }).slice(0, 3);
+    if (hotSize.length) add({ kind: 'cut', k: 'skuSize', pri: 80, rows: hotSize.map(function (g) { return { sku: g.sku, size: g.size, rate: g.backRate, n: g.delivered }; }) });
+    (D.insights || []).forEach(function (x) {
+      if (x.k === 'sizeExch') add({ kind: 'cut', k: 'sizeExch', pri: 70, cat: x.cat, size: x.size, rate: x.rate });
+      if (x.k === 'sizeHigh' && !hotSize.some(function (g) { return g.size === x.size; })) add({ kind: 'cut', k: 'sizeHigh', pri: 72, cat: x.cat, size: x.size, rate: x.rate, avg: x.avg });
+    });
+    var retSku = skus.filter(function (g) { return g.delivered >= 8 && g.retRate >= Math.max(B.ret.bad, T.retRate * 1.4); }).sort(function (a, b) { return b.retRate - a.retRate; }).slice(0, 3);
+    if (retSku.length) add({ kind: 'cut', k: 'retSku', pri: 75, rows: retSku.map(function (g) { return { sku: g.sku, pn: g.pn, rate: g.retRate, n: g.delivered }; }) });
+    if (M.ret.ok && M.ret.status !== 'good') {
+      var saveRet = Math.round(Math.max(0, T.retRate - B.ret.good) * T.delivered / months * perRet);
+      add({ kind: 'cut', k: 'retHow', pri: 60 + Math.round((1 - M.ret.score) * 20), rate: T.retRate, good: B.ret.good, save: saveRet });
+    }
+    if (M.exch.ok && M.exch.status !== 'good') add({ kind: 'cut', k: 'exchHow', pri: 50, rate: T.exchRate, good: B.exch.good });
+    // RTO
+    var rtoSt = (D.byState || []).filter(function (g) { return g.done >= 10 && g.rtoRate >= Math.max(B.rto.good * 1.5, T.rtoRate * 1.3); }).sort(function (a, b) { return b.rtoRate - a.rtoRate; }).slice(0, 3);
+    if (rtoSt.length) add({ kind: 'cut', k: 'rtoState', pri: 68, rows: rtoSt.map(function (g) { return { state: g.key, rate: g.rtoRate, n: g.done }; }), avg: T.rtoRate });
+    var rtoSku = skus.filter(function (g) { return g.done >= 10 && g.rtoRate >= Math.max(B.rto.good * 1.5, T.rtoRate * 1.3); }).sort(function (a, b) { return b.rtoRate - a.rtoRate; }).slice(0, 3);
+    if (rtoSku.length) add({ kind: 'cut', k: 'rtoSku', pri: 66, rows: rtoSku.map(function (g) { return { sku: g.sku, pn: g.pn, rate: g.rtoRate, n: g.done }; }), avg: T.rtoRate });
+    if (M.rto.ok && M.rto.status !== 'good') {
+      var saveRto = Math.round(Math.max(0, T.rtoRate - B.rto.good) * T.done / months * perRto);
+      add({ kind: 'cut', k: 'rtoHow', pri: 62 + Math.round((1 - M.rto.score) * 20), rate: T.rtoRate, good: B.rto.good, save: saveRto });
+    }
+    if (M.cancel.ok && M.cancel.status !== 'good') add({ kind: 'cut', k: 'cancel', pri: 55, rate: M.cancel.v, n: cancelled });
+    // more orders
+    var falling = [];
+    if (M.trend.ok && growth < 0) {
+      falling = skus.filter(function (g) { return g.prev >= 5 && g.recent <= g.prev * 0.6; }).sort(function (a, b) { return (b.prev - b.recent) - (a.prev - a.recent); }).slice(0, 3);
+      add({ kind: 'grow', k: 'falling', pri: 70 + Math.round(-growth * 40), growth: growth, weeks: h, rows: falling.map(function (g) { return { sku: g.sku, pn: g.pn, prev: g.prev, recent: g.recent }; }) });
+    }
+    var stars = skus.filter(function (g) { return g.n >= Math.max(5, live.length * 0.03) && g.done >= 5 && g.backRate <= Math.max(T.backRate, 0.05) && g.rtoRate <= Math.max(T.rtoRate, 0.05) && falling.every(function (f) { return f.sku !== g.sku; }); }).slice(0, 3);
+    if (stars.length) add({ kind: 'grow', k: 'stars', pri: 65, rows: stars.map(function (g) { return { sku: g.sku, pn: g.pn, n: g.n, back: g.backRate, rto: g.rtoRate }; }) });
+    var rising = skus.filter(function (g) { return g.recent >= 5 && g.recent >= g.prev * 1.5 && stars.every(function (s) { return s.sku !== g.sku; }); }).sort(function (a, b) { return (b.recent - b.prev) - (a.recent - a.prev); }).slice(0, 3);
+    if (rising.length) add({ kind: 'grow', k: 'rising', pri: 58, weeks: h, rows: rising.map(function (g) { return { sku: g.sku, pn: g.pn, prev: g.prev, recent: g.recent }; }) });
+    if (M.top.ok && M.top.status !== 'good') add({ kind: 'grow', k: 'top', pri: 52, sku: top.sku, share: topShare, n: skus.length });
+    var lowBand = (D.byPrice || []).filter(function (g) { return g.delivered >= 10; }).sort(function (a, b) { return (a.retRate + a.rtoRate) - (b.retRate + b.rtoRate); })[0];
+    if (lowBand && (D.byPrice || []).filter(function (g) { return g.delivered >= 10; }).length >= 2) add({ kind: 'grow', k: 'band', pri: 40, band: lowBand.key, ret: lowBand.retRate, rto: lowBand.rtoRate });
+    if (bestDow >= 0 && nOrd >= 28 && dow[bestDow] / nOrd >= 1.25 / 7) add({ kind: 'grow', k: 'dow', pri: 35, day: bestDow, share: dow[bestDow] / nOrd });
+    if (M.trend.ok && growth >= 0.1) add({ kind: 'grow', k: 'growing', pri: 30, growth: growth, weeks: h });
+    sug.sort(function (a, b) { return b.pri - a.pri; });
+
+    return {
+      score: score, grade: grade, metrics: metrics, m: M, bench: B,
+      orders: nOrd, live: live.length, cancelled: cancelled, first: first, last: last, span: span, perDay: span ? live.length / span : 0,
+      weeks: weeks, growth: growth, cmpWeeks: h, dow: dow, bestDow: bestDow, skus: skus, top: top, topShare: topShare,
+      tot: T, suggestions: sug, grow: sug.filter(function (x) { return x.kind === 'grow'; }), cut: sug.filter(function (x) { return x.kind === 'cut'; })
+    };
+  }
+
   /* The first and last dates the reports really have in a period: payment dates (with ads, referral and
      compensation entries) when counted by payment date, order dates when counted by order date. */
   function dataSpan(M, per) {
@@ -2449,7 +2596,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     monthStart: monthStart, monthEnd: monthEnd, nextMonth: nextMonth, fmtDate: fmtDate, fmtMonth: fmtMonth, money: money,
     skuLetters: skuLetters, nameCount: nameCount, packRule: packRule, piecesOf: piecesOf, normSt: normSt, classify: classify, detect: detect, parsePay: parsePay, parseAds: parseAds, parseAmt: parseAmt, parseOrd: parseOrd,
     calibrate: calibrate, ingest: ingest, merge: merge, index: index, dataMonths: dataMonths, periodFor: periodFor, expFor: expFor,
-    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, taxCheck: taxCheck, hundred: hundred, recoveries: recoveries, recKind: recKind, returnsDeep: returnsDeep, normSize: normSize, sizeCmp: sizeCmp, groupSize: groupSize, dataSpan: dataSpan, insights: insights, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
+    compute: compute, monthly: monthly, reconcile: reconcile, returnsView: returnsView, categoryOf: categoryOf, catNames: catNames, readCats: readCats, niceCat: niceCat, payouts: payouts, health: health, accuracy: accuracy, priceCheck: priceCheck, priceDefaults: priceDefaults, claims: claims, ticketText: ticketText, taxCheck: taxCheck, hundred: hundred, recoveries: recoveries, recKind: recKind, returnsDeep: returnsDeep, accountHealth: accountHealth, HEALTH_BENCH: HEALTH_BENCH, normSize: normSize, sizeCmp: sizeCmp, groupSize: groupSize, dataSpan: dataSpan, insights: insights, onTheWay: onTheWay, demo: demo, uid: uid, buyRate: buyRate, gstRows: gstRows
   };
 });
 
@@ -2742,9 +2889,11 @@ details.more[open] > summary { margin-bottom: 10px; }
     var P = host();
     if (P) { try { return P.pbPnlAccess(); } catch (e) { /* fall through */ } }
     var a = lsJSON('pb-acct'), c = lsJSON('pb-cfg'), login = !!(a && a.token);
-    return { login: login, pro: login && (!(c && c.enabled && c.enforce) || !!(a.user && a.user.paidUntil > Date.now())), trialDays: (c && c.trialDays) || 0, play: false };
+    return { login: login, pro: login && (!(c && c.enabled && c.enforce) || !!(a.user && a.user.paidUntil > Date.now())), trialDays: (c && c.trialDays) || 0, play: false, owner: login && !!(a.user && a.user.phone === 'owner') };
   }
   A.access = access;
+  // Account health is only for the owner account for now.
+  A.owner = function () { return !!access().owner; };
   // Sample data always shows in full, so people can see what the full report looks like.
   A.full = function () { if (S.demo) return true; var x = access(); return x.login && x.pro; };
   // Opens log in / sign up, or the Pro plans, in the app around this page.
@@ -2775,12 +2924,15 @@ details.more[open] > summary { margin-bottom: 10px; }
   /* ---------------- rendering hooks (views.js fills A.V) ---------------- */
   var TABS = [['pl', 'P&L'], ['ret', 'Returns'], ['rc', 'Reconcile'], ['data', 'Upload'], ['costs', 'Costs'], ['calc', 'Price check'], ['exp', 'Expenses'], ['set', 'Settings'], ['guide', 'How to use']];
   A.TABS = TABS;
+  // the tabs this person sees: Account health only for the owner account
+  function tabs() { return A.owner() ? TABS.slice(0, 2).concat([['health', 'Account health']], TABS.slice(2)) : TABS; }
+  A.tabs = tabs;
   function renderChrome() {
     var st = cfg();
     var biz = $('#band-biz');
     if (biz) biz.innerHTML = (st.biz ? esc(st.biz) : '') + (st.gstin ? '<br>' + esc(st.gstin) : '');
     var miss = hasData() ? S.R.missing.length : 0, iss = hasData() ? S.REC.counts.issues.n : 0;
-    $('#tabs-in').innerHTML = TABS.map(function (t) {
+    $('#tabs-in').innerHTML = tabs().map(function (t) {
       var badge = t[0] === 'costs' && miss ? '<span class="dot" aria-label="' + miss + ' missing">' + miss + '</span>' : t[0] === 'rc' && iss ? '<span class="dot" aria-label="' + iss + ' need attention">' + iss + '</span>' : '';
       return '<button class="tab" role="tab" id="t-' + t[0] + '" aria-controls="p-' + t[0] + '" aria-selected="' + (S.tab === t[0]) + '" data-act="tab" data-tab="' + t[0] + '">' + esc(t[1]) + badge + '</button>';
     }).join('');
@@ -2796,8 +2948,9 @@ details.more[open] > summary { margin-bottom: 10px; }
     }
   }
   function render() {
+    if (S.tab === 'health' && !A.owner()) S.tab = hasData() ? 'pl' : 'data';
     renderChrome();
-    TABS.forEach(function (t) {
+    tabs().concat(A.owner() ? [] : [['health']]).forEach(function (t) {
       var p = $('#p-' + t[0]);
       if (t[0] === S.tab) {
         p.hidden = false; p.innerHTML = A.V[t[0]]();
@@ -3584,7 +3737,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     S.tab = 'data'; render();
     var files = await idbGet('files');
     if (Array.isArray(files) && files.length && !S.demo) { S.real.files = files; recompute(); }
-    S.tab = (t0 && TABS.some(function (t) { return t[0] === t0; })) ? t0 : (hasData() ? 'pl' : 'data');
+    S.tab = (t0 && tabs().some(function (t) { return t[0] === t0; })) ? t0 : (hasData() ? 'pl' : 'data');
     if (!hasData() && (S.tab === 'pl' || S.tab === 'rc')) S.tab = 'data';
     render();
     if (EMBED) shopDefaults(); else initRemote();
@@ -4351,6 +4504,87 @@ details.more[open] > summary { margin-bottom: 10px; }
     }
     return '';
   }
+  /* ---------------- Account health (owner account only for now) ---------------- */
+  var DOW = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  var HM = {
+    rto: ['RTO', 'of parcels shipped', function (m) { return m.of + ' of ' + m.n + ' parcels'; }],
+    ret: ['Customer returns', 'of orders delivered', function (m) { return m.of + ' of ' + m.n + ' delivered'; }],
+    exch: ['Exchanges', 'of orders delivered', function (m) { return m.of + ' of ' + m.n + ' delivered'; }],
+    cancel: ['Cancelled', 'of orders placed', function (m) { return m.of + ' of ' + m.n + ' orders'; }],
+    trend: ['Order trend', 'recent weeks against the weeks before', function (m) { return m.of + ' orders against ' + m.n; }],
+    top: ['Best product’s share', 'of orders from one product', function (m) { return m.of + ' of ' + m.n + ' orders'; }]
+  };
+  function hmVal(m) { return m.k === 'trend' ? (m.v > 0 ? '+' : '') + Math.round(m.v * 100) + '%' : pct(m.v); }
+  function hmGood(m) { return m.k === 'trend' ? 'Healthy: +' + Math.round(m.good * 100) + '% or more' : 'Healthy: under ' + Math.round(m.good * 100) + '%'; }
+  function skuTxt(r) { return '<b>' + esc(r.sku) + '</b>' + (r.pn ? ' <span class="muted">' + esc(r.pn.slice(0, 40)) + '</span>' : ''); }
+  function hSug(x) {
+    function rows(f) { return '<ul class="hl-rows">' + x.rows.map(function (r) { return '<li>' + f(r) + '</li>'; }).join('') + '</ul>'; }
+    var t = '', b = '', act = '';
+    switch (x.k) {
+      case 'skuSize': t = 'Fix the fit of these sizes'; b = '<span>These sizes come back far more than the rest. Measure a piece against your size chart, write the real measurements in the description and add a model photo with the size worn.</span>' + rows(function (r) { return skuTxt(r) + ' size <b>' + esc(r.size) + '</b>: ' + pct(r.rate) + ' come back (' + r.n + ' delivered)'; }); act = 'ret'; break;
+      case 'sizeHigh': t = esc(x.cat) + ' in size ' + esc(x.size) + ' come back too often'; b = '<span>' + pct(x.rate) + ' returned or exchanged, against ' + pct(x.avg) + ' for the other sizes. Check the size chart for this size.</span>'; act = 'ret'; break;
+      case 'sizeExch': t = 'Buyers swap ' + esc(x.cat) + ' in size ' + esc(x.size); b = '<span>' + pct(x.rate) + ' are exchanged for another size: your size chart probably runs small or large here. Correct it so buyers pick the right size the first time.</span>'; act = 'ret'; break;
+      case 'retSku': t = 'Products with the most returns'; b = '<span>Make the photos match the real colour and fabric, show every side, and check quality before packing. If it still comes back, change or stop the product.</span>' + rows(function (r) { return skuTxt(r) + ': ' + pct(r.rate) + ' returned (' + r.n + ' delivered)'; }); act = 'ret'; break;
+      case 'retHow': t = 'Bring returns down from ' + pct(x.rate) + ' to under ' + pct(x.good); b = '<span>Real photos in daylight, exact measurements, honest fabric and colour names, and a quality check before packing.</span>' + (x.save > 0 ? ' <span>That saves about </span><b>' + rs(x.save, true) + ' a month</b><span> in return charges, packing and stock.</span>' : ''); break;
+      case 'exchHow': t = 'Exchanges are ' + pct(x.rate) + ', healthy is under ' + pct(x.good); b = '<span>Exchanges mean buyers pick the wrong size. Put a clear size chart image in the catalogue and the measurements in the description.</span>'; act = 'ret'; break;
+      case 'rtoState': t = 'States with high RTO'; b = '<span>Most RTO is cash-on-delivery refused at the door. Keep the price and photos honest so buyers do not change their mind, and dispatch the same day: the longer a parcel takes, the more get refused.</span>' + rows(function (r) { return '<b>' + esc(r.state) + '</b>: ' + pct(r.rate) + ' RTO (' + r.n + ' parcels), against ' + pct(x.avg) + ' overall'; }); act = 'ret'; break;
+      case 'rtoSku': t = 'Products with high RTO'; b = '<span>Buyers order these and then refuse them. Check that the price is not far above similar products and that the photos are not oversold.</span>' + rows(function (r) { return skuTxt(r) + ': ' + pct(r.rate) + ' RTO (' + r.n + ' parcels)'; }); act = 'ret'; break;
+      case 'rtoHow': t = 'Bring RTO down from ' + pct(x.rate) + ' to under ' + pct(x.good); b = '<span>Dispatch within 24 hours, keep stock right so orders are not delayed, and keep photos and descriptions honest.</span>' + (x.save > 0 ? ' <span>That saves about </span><b>' + rs(x.save, true) + ' a month</b><span> in shipping, packing and lost stock.</span>' : ''); break;
+      case 'cancel': t = pct(x.rate) + ' of orders are cancelled'; b = '<span>' + pl(x.n, 'order') + ' cancelled. Keep stock in the Meesho panel right, so you never accept an order you cannot send, and dispatch on time: late dispatch gets orders cancelled and lowers your rating.</span>'; break;
+      case 'falling': t = 'Orders are down ' + Math.round(-x.growth * 100) + '% in the last ' + pl(x.weeks, 'week'); b = '<span>Check your prices against similar products (Meesho Lens shows competitor prices), refresh the main photo, and make sure the products are in stock.</span>' + (x.rows.length ? rows(function (r) { return skuTxt(r) + ': ' + r.recent + ' orders, from ' + r.prev; }) : ''); act = 'calc'; break;
+      case 'stars': t = 'Push your best products'; b = '<span>They sell well and come back less than average. Keep them in stock, add new colours or a combo, and put ads on them first.</span>' + rows(function (r) { return skuTxt(r) + ': ' + r.n + ' orders, ' + pct(r.back) + ' returned or exchanged, ' + pct(r.rto) + ' RTO'; }); break;
+      case 'rising': t = 'Products picking up'; b = '<span>Orders are growing: keep more stock so you never run out while they climb.</span>' + rows(function (r) { return skuTxt(r) + ': ' + r.recent + ' orders in the last ' + pl(x.weeks, 'week') + ', from ' + r.prev; }); break;
+      case 'top': t = Math.round(x.share * 100) + '% of orders come from one product'; b = '<span>If </span><b>' + esc(x.sku) + '</b><span> drops in search, orders fall with it. List new catalogues in the same style and price, so more products bring orders.</span>'; break;
+      case 'band': t = 'Your safest price range: ' + esc(x.band); b = '<span>Orders at this price come back the least: ' + pct(x.ret) + ' returned, ' + pct(x.rto) + ' RTO. New products in this range keep more of what they sell.</span>'; break;
+      case 'dow': t = 'Most orders come on ' + DOW[x.day]; b = '<span>' + Math.round(x.share * 100) + '% of orders. Launch new catalogues and start ads the day before.</span>'; break;
+      case 'growing': t = 'Orders are up ' + Math.round(x.growth * 100) + '% in the last ' + pl(x.weeks, 'week'); b = '<span>Good. Keep stock ahead of demand and dispatch on time, so the rating stays high and Meesho keeps showing your products.</span>'; break;
+    }
+    if (!t) return '';
+    var lab = { ret: 'See returns', calc: 'Price check' };
+    return '<li class="hl-s"><b class="hl-t">' + t + '</b><div class="small">' + b + '</div>' + (act ? '<button class="btn sm" data-act="tab" data-tab="' + act + '" style="margin-top:6px">' + lab[act] + '</button>' : '') + '</li>';
+  }
+  V.health = function () {
+    if (!A.owner()) return '';
+    if (!A.hasData()) return empty();
+    var RV = S.RV;
+    if (!RV || !RV.done) return '<div class="stack">' + demoBar() + '<section class="sheet"><h2>Account health</h2><p>No delivered, returned or RTO orders in this period yet.</p></section></div>';
+    var D = E.returnsDeep(RV, { catOf: A.catOf }), H = E.accountHealth(S.IX, RV, D, S.per);
+    var tone = H.score == null ? '' : H.score >= 80 ? 'good' : H.score >= 60 ? 'warn' : 'bad';
+    var h = '<div class="stack">' + demoBar() + '<section class="sheet"><div class="row" style="justify-content:space-between;align-items:center"><h2>Account health</h2><span class="tag">Owner preview</span></div>' +
+      '<p class="muted" style="margin:6px 0 0">' + (H.orders ? '<span>' + pl(H.orders, 'order') + ' placed from ' + fd(H.first) + ' to ' + fd(H.last) + '.</span> ' : '') + '<span>Change the period on the P&L tab.</span></p>' +
+      '<div class="hl-top">' + (H.score == null
+        ? '<p class="small muted">Not enough orders yet for a score: it needs at least 20 delivered or shipped orders.</p>'
+        : '<div class="hl-score hl-' + tone + '" role="img" aria-label="Score ' + H.score + ' out of 100"><strong>' + H.score + '</strong><span>of 100</span></div><div><span class="tag ' + tone + '">' + H.grade + '</span><p class="small" style="margin:6px 0 0">' +
+          (H.cut.length || H.grow.length ? 'Below: ' + pl(H.grow.length, 'way') + ' to get more orders and ' + pl(H.cut.length, 'way') + ' to cut returns, exchanges and RTO, most useful first.' : 'Nothing needs fixing right now.') + '</p></div>') + '</div>';
+    h += '<div class="way-g" style="margin-top:12px">' + H.metrics.map(function (m) {
+      var L = HM[m.k];
+      return '<div><small>' + L[0] + '</small><strong' + (m.status === 'bad' ? ' class="neg"' : '') + '>' + (m.ok ? hmVal(m) : '-') + '</strong>' +
+        '<span class="small muted">' + (m.ok ? L[2](m) : 'Not enough orders yet') + '</span>' + (m.ok ? '<span class="small"><span class="tag ' + m.status + '">' + (m.status === 'good' ? 'Good' : m.status === 'warn' ? 'Watch' : 'Fix') + '</span> <span class="muted">' + hmGood(m) + '</span></span>' : '') + '</div>';
+    }).join('') + '</div></section>';
+
+    // the order pattern
+    if (H.weeks.length) {
+      var wmax = Math.max(1, Math.max.apply(null, H.weeks.map(function (w) { return w.n; })));
+      h += '<section class="sheet"><h3>Orders week by week</h3><p class="small muted" style="margin:4px 0 0">' + (Math.round(H.perDay * 10) / 10) + ' orders a day on average' + (H.growth != null ? '; the last ' + pl(H.cmpWeeks, 'week') + ' are ' + (H.growth >= 0 ? 'up ' : 'down ') + Math.abs(Math.round(H.growth * 100)) + '% on the ' + pl(H.cmpWeeks, 'week') + ' before.' : '.') + '</p>' +
+        '<div class="tw" style="margin-top:10px"><table class="t rtab"><thead><tr><th>Week</th><th>Orders</th></tr></thead><tbody>' + H.weeks.map(function (w) {
+          return '<tr><td>' + fd(w.from) + ' to ' + fd(w.to) + '</td><td class="rb"><div class="rbl"><i class="hl-bar" style="width:' + Math.round(w.n / wmax * 75) + '%"></i><span>' + w.n + (w.cancel ? ' (' + w.cancel + ' cancelled)' : '') + '</span></div></td></tr>';
+        }).join('') + '</tbody></table></div></section>';
+    }
+    if (H.orders >= 14) {
+      var dmax = Math.max(1, Math.max.apply(null, H.dow));
+      h += '<section class="sheet"><h3>Orders by day of the week</h3><div class="tw" style="margin-top:10px"><table class="t rtab"><tbody>' + H.dow.map(function (n, i) {
+        return '<tr><td>' + DOW[i] + (i === H.bestDow ? ' <span class="tag good">Most</span>' : '') + '</td><td class="rb"><div class="rbl"><i class="hl-bar" style="width:' + Math.round(n / dmax * 75) + '%"></i><span>' + n + '</span></div></td></tr>';
+      }).join('') + '</tbody></table></div></section>';
+    }
+
+    // what to do
+    function list(xs) { var li = xs.map(hSug).filter(Boolean); return li.length ? '<ol class="hl-list">' + li.join('') + '</ol>' : ''; }
+    var g = list(H.grow), c = list(H.cut);
+    h += '<section class="sheet"><h3>Get more orders</h3>' + (g || '<p class="small muted" style="margin:6px 0 0">Nothing stands out yet. More weeks of orders will show which products are rising and falling.</p>') + '</section>';
+    h += '<section class="sheet"><h3>Cut returns, exchanges and RTO</h3>' + (c || '<p class="small muted" style="margin:6px 0 0">Returns, exchanges and RTO are all at healthy levels.</p>') + '</section>';
+    h += '<section class="sheet"><details class="more"><summary>How the score works</summary><p class="small muted" style="margin:8px 0 0">Each measure scores from 0 to 1 between a healthy level and a bad one, and the score is their weighted average out of 100: RTO 25 (healthy under 10%, bad from 25%), returns 25 (under 8%, bad from 20%), order trend 20 (up 10% or more, bad when down 25%), exchanges 10 (under 3%, bad from 10%), cancelled 10 (under 3%, bad from 10%) and the best product’s share 10 (under 35%, bad from 70%). A measure without enough orders is left out. Rates are the ones the Returns tab shows, so orders too new to have come back are not counted.</p></details></section></div>';
+    return h;
+  };
   V.ret = function () {
     if (!A.hasData()) return empty();
     if (!A.full()) return '<div class="stack">' + lockHtml('ret') + '</div>';

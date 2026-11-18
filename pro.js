@@ -1675,7 +1675,8 @@ p.pbp-help{display:block}
   // (or everything free, when paid plans are off).
   const pbPnlAccess = () => {
     const login = !!(acct && acct.token);
-    return { login, pro: login && pbPro(), trialDays: (cfg && cfg.trialDays) || 0, play: playApp() };
+    // owner: the PakkaBill owner account, which sees features before they reach every seller (Account health)
+    return { login, pro: login && pbPro(), trialDays: (cfg && cfg.trialDays) || 0, play: playApp(), owner: login && !!acct.user && acct.user.phone === 'owner' };
   };
   Object.assign(window, { pbPnlAccess, pbPro, pbGate, pbCanAddBill, pbPlanMount, pbLocked, pbUpgrade: openUpgrade, pbUnzipFiles, pbRefreshAccount: refresh, pbAuth: openAuth, pbAuthChip, pbAuthCard, pbNudge, pbAuthProfile: () => askProfile(true) });
 })();
