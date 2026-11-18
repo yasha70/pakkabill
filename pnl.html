@@ -2924,8 +2924,8 @@ details.more[open] > summary { margin-bottom: 10px; }
   /* ---------------- rendering hooks (views.js fills A.V) ---------------- */
   var TABS = [['pl', 'P&L'], ['ret', 'Returns'], ['rc', 'Reconcile'], ['data', 'Upload'], ['costs', 'Costs'], ['calc', 'Price check'], ['exp', 'Expenses'], ['set', 'Settings'], ['guide', 'How to use']];
   A.TABS = TABS;
-  // the tabs this person sees: Account health only for the owner account
-  function tabs() { return A.owner() ? TABS.slice(0, 2).concat([['health', 'Account health']], TABS.slice(2)) : TABS; }
+  // the tabs this person sees: Account health only for the owner account, and first for them
+  function tabs() { return A.owner() ? [['health', 'Account health']].concat(TABS) : TABS; }
   A.tabs = tabs;
   function renderChrome() {
     var st = cfg();
@@ -3737,7 +3737,7 @@ details.more[open] > summary { margin-bottom: 10px; }
     S.tab = 'data'; render();
     var files = await idbGet('files');
     if (Array.isArray(files) && files.length && !S.demo) { S.real.files = files; recompute(); }
-    S.tab = (t0 && tabs().some(function (t) { return t[0] === t0; })) ? t0 : (hasData() ? 'pl' : 'data');
+    S.tab = (t0 && tabs().some(function (t) { return t[0] === t0; })) ? t0 : (hasData() ? (A.owner() ? 'health' : 'pl') : 'data');
     if (!hasData() && (S.tab === 'pl' || S.tab === 'rc')) S.tab = 'data';
     render();
     if (EMBED) shopDefaults(); else initRemote();

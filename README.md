@@ -298,7 +298,8 @@ still says delivered or is blank. Returns not reversed yet show the profit they 
 sale less its GST and the goods back in stock, plus a return fee), not the sale. Whole rupees are rounded,
 not cut. Tests: `node test/pnl-audit.js` (950 checks).
 
-Account health (`E.accountHealth`, the "Account health" tab after Returns) is shown only to the owner account
+Account health (`E.accountHealth`, the "Account health" tab) is shown only to the owner account, as the
+first tab and the one the P&L opens on,
 for now (`pbPnlAccess().owner`, phone `owner`). It gives a score out of 100 from RTO (25), returns (25), the
 order trend of the last weeks against the weeks before (20), exchanges (10), cancellations (10) and how much
 of the orders one product makes (10), each scored between a healthy and a bad level (`E.HEALTH_BENCH`); the
