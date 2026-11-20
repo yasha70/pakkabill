@@ -6,41 +6,46 @@
 
 /* ---------- colours ---------- */
 :root{
---carbon:#2b3494;--carbon-soft:#dfe2f5;--carbon-tint:#f1f3fb;
---btn-bg:#2b3494;--btn-bg-hover:#222a7c;--btn-fg:#fff;--btn-grad:none;
---brand-grad:linear-gradient(#2b3494,#2b3494);--brand-2:#6b7190;--glow:none;--doodle:none;
---spine:#fff;--spine-fg:#141a33;
---ink:#141a33;--ink-2:#4a5170;--ink-3:#6b7190;
---red:#b42318;--red-soft:#fde8e6;--green:#0b7a4b;--green-soft:#dcf5e8;--amber:#a15c07;--focus:#5b68d6;
---desk:#f4f5f9;--desk-2:#e9ebf3;--paper:#fff;--rule:#dcdfea;--rule-soft:#eceef4;
---shadow-sheet:0 1px 2px #141a330a,0 1px 3px #141a3314;--shadow-pop:0 24px 48px -16px #141a3359,0 0 0 1px #141a330f;
---r-ctl:10px;--r-card:14px;
+--carbon:#4338ca;--carbon-soft:#e0e0fc;--carbon-tint:#f3f2ff;
+--btn-bg:#4338ca;--btn-bg-hover:#3730a3;--btn-fg:#fff;--btn-grad:linear-gradient(135deg,#4f46e5 0%,#6d28d9 100%);
+--brand-grad:linear-gradient(90deg,#4f46e5,#8b3dd9 60%,#f08a24);--brand-2:#6b6a90;--glow:none;--doodle:none;
+--accent:#f08a24;--accent-soft:#fff1e0;--violet:#7c3aed;--violet-soft:#f1e8ff;--pink:#db2777;--pink-soft:#fde7f1;--teal:#0d9488;--teal-soft:#dcf6f2;
+--spine:#fff;--spine-fg:#15132e;
+--ink:#15132e;--ink-2:#4a4870;--ink-3:#6c6a90;
+--red:#b42318;--red-soft:#fde8e6;--green:#0b7a4b;--green-soft:#dcf5e8;--amber:#a15c07;--focus:#6366f1;
+--desk:#f6f5fc;--desk-2:#ecebf8;--paper:#fff;--rule:#e0def0;--rule-soft:#eeedf7;
+--shadow-sheet:0 1px 2px #15132e0a,0 4px 14px -6px #4338ca1f;--shadow-pop:0 24px 48px -16px #15132e59,0 0 0 1px #15132e0f;
+--tex-dot:#4338ca1a;--tex-glow-a:#7c3aed17;--tex-glow-b:#f08a2412;--tex-grain:.035;
+--r-ctl:11px;--r-card:16px;
 --font-head:"PB Hind","Hind",system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){
---carbon:#aeb6f7;--carbon-soft:#2a3063;--carbon-tint:#1c2146;
---btn-bg:#4c58d0;--btn-bg-hover:#5f6ade;--btn-fg:#fff;--btn-grad:none;
---brand-grad:linear-gradient(#aeb6f7,#aeb6f7);--brand-2:#8a91b3;--glow:none;--doodle:none;
---spine:#11152b;--spine-fg:#e9ebf7;
---ink:#e9ebf7;--ink-2:#b3b9d6;--ink-3:#8a91b3;
---red:#ff8f88;--red-soft:#3d1a1f;--green:#6fd6a5;--green-soft:#143a2e;--amber:#f0c26a;--focus:#aeb6f7;
---desk:#0b0e1c;--desk-2:#1d2242;--paper:#151a33;--rule:#2c3258;--rule-soft:#20254a;
---shadow-sheet:0 1px 2px #0006,0 1px 3px #0006;--shadow-pop:0 24px 48px -16px #000c,0 0 0 1px #ffffff12;
+--carbon:#b4b2ff;--carbon-soft:#2c2a66;--carbon-tint:#1d1b45;
+--btn-bg:#5b54e8;--btn-bg-hover:#6d67f0;--btn-fg:#fff;--btn-grad:linear-gradient(135deg,#5b54e8 0%,#8b4cf0 100%);
+--brand-grad:linear-gradient(90deg,#8b87ff,#c08bff 60%,#ffb35c);--brand-2:#8f8db8;--glow:none;--doodle:none;
+--accent:#ffb35c;--accent-soft:#3a2614;--violet:#c4a1ff;--violet-soft:#2d1f52;--pink:#ff8cc0;--pink-soft:#3d1a30;--teal:#5fe0d0;--teal-soft:#123a37;
+--spine:#110f26;--spine-fg:#ebeaf9;
+--ink:#ebeaf9;--ink-2:#b7b5d8;--ink-3:#8f8db8;
+--red:#ff8f88;--red-soft:#3d1a1f;--green:#6fd6a5;--green-soft:#143a2e;--amber:#f0c26a;--focus:#b4b2ff;
+--desk:#0b0a1a;--desk-2:#1e1c40;--paper:#15132e;--rule:#2d2a58;--rule-soft:#211f46;
+--shadow-sheet:0 1px 2px #0006,0 6px 18px -8px #000a;--shadow-pop:0 24px 48px -16px #000c,0 0 0 1px #ffffff12;
+--tex-dot:#b4b2ff14;--tex-glow-a:#7c3aed24;--tex-glow-b:#f08a2410;--tex-grain:.04;
 }}
 :root[data-theme=dark]{
---carbon:#aeb6f7;--carbon-soft:#2a3063;--carbon-tint:#1c2146;
---btn-bg:#4c58d0;--btn-bg-hover:#5f6ade;--btn-fg:#fff;--btn-grad:none;
---brand-grad:linear-gradient(#aeb6f7,#aeb6f7);--brand-2:#8a91b3;--glow:none;--doodle:none;
---spine:#11152b;--spine-fg:#e9ebf7;
---ink:#e9ebf7;--ink-2:#b3b9d6;--ink-3:#8a91b3;
---red:#ff8f88;--red-soft:#3d1a1f;--green:#6fd6a5;--green-soft:#143a2e;--amber:#f0c26a;--focus:#aeb6f7;
---desk:#0b0e1c;--desk-2:#1d2242;--paper:#151a33;--rule:#2c3258;--rule-soft:#20254a;
---shadow-sheet:0 1px 2px #0006,0 1px 3px #0006;--shadow-pop:0 24px 48px -16px #000c,0 0 0 1px #ffffff12;
+--carbon:#b4b2ff;--carbon-soft:#2c2a66;--carbon-tint:#1d1b45;
+--btn-bg:#5b54e8;--btn-bg-hover:#6d67f0;--btn-fg:#fff;--btn-grad:linear-gradient(135deg,#5b54e8 0%,#8b4cf0 100%);
+--brand-grad:linear-gradient(90deg,#8b87ff,#c08bff 60%,#ffb35c);--brand-2:#8f8db8;--glow:none;--doodle:none;
+--accent:#ffb35c;--accent-soft:#3a2614;--violet:#c4a1ff;--violet-soft:#2d1f52;--pink:#ff8cc0;--pink-soft:#3d1a30;--teal:#5fe0d0;--teal-soft:#123a37;
+--spine:#110f26;--spine-fg:#ebeaf9;
+--ink:#ebeaf9;--ink-2:#b7b5d8;--ink-3:#8f8db8;
+--red:#ff8f88;--red-soft:#3d1a1f;--green:#6fd6a5;--green-soft:#143a2e;--amber:#f0c26a;--focus:#b4b2ff;
+--desk:#0b0a1a;--desk-2:#1e1c40;--paper:#15132e;--rule:#2d2a58;--rule-soft:#211f46;
+--shadow-sheet:0 1px 2px #0006,0 6px 18px -8px #000a;--shadow-pop:0 24px 48px -16px #000c,0 0 0 1px #ffffff12;
+--tex-dot:#b4b2ff14;--tex-glow-a:#7c3aed24;--tex-glow-b:#f08a2410;--tex-grain:.04;
 }
 
 @media screen{
 /* ---------- page ---------- */
-body{background-image:none}
 body:before{display:none!important}
 ::selection{background:var(--carbon-soft)}
 :focus-visible{outline:2.5px solid var(--focus);outline-offset:2px}
@@ -64,8 +69,8 @@ body:before{display:none!important}
 
 /* ---------- buttons and controls ---------- */
 .pb-btn{border-radius:var(--r-ctl);font-weight:600;letter-spacing:.002em}
-.pb-btn--primary,.spine__new,.tabbar__new span,.billnav .billnav__new{background-image:none;box-shadow:0 1px 2px #141a3329}
-.pb-btn--primary:hover:not(:disabled),.spine__new:hover{filter:none;background:var(--btn-bg-hover)}
+.pb-btn--primary,.spine__new,.tabbar__new span,.billnav .billnav__new{background-image:var(--btn-grad);box-shadow:0 1px 2px #15132e29,0 6px 16px -8px #6d28d999,inset 0 1px 0 #ffffff26}
+.pb-btn--primary:hover:not(:disabled),.spine__new:hover{filter:brightness(1.08) saturate(1.05);box-shadow:0 1px 2px #15132e29,0 10px 22px -8px #6d28d9b3,inset 0 1px 0 #ffffff2e}
 .pb-btn--secondary{color:var(--ink);border-color:var(--rule);box-shadow:0 1px 2px #141a330d}
 .pb-btn--secondary:hover:not(:disabled){background:var(--desk);border-color:var(--ink-3)}
 .pb-btn--ghost:hover:not(:disabled){background:var(--desk-2)}
@@ -103,7 +108,7 @@ body:before{display:none!important}
 .tabbar{background:var(--paper);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none;border-top:1px solid var(--rule)}
 .tabbar a{height:58px;font-size:11px;font-weight:600;color:var(--ink-3)}
 .tabbar a[aria-current=page]{color:var(--carbon)}
-.tabbar__new span{width:50px;height:50px;border-radius:50%;transform:translateY(-10px);box-shadow:0 6px 14px -6px #2b3494b3,0 0 0 4px var(--paper)}
+.tabbar__new span{width:50px;height:50px;border-radius:50%;transform:translateY(-10px);box-shadow:0 8px 18px -6px #6d28d9b3,0 0 0 4px var(--paper)}
 
 /* ---------- billing chips ---------- */
 .billnav a{height:34px;border-radius:8px;font-size:13.5px}
@@ -191,7 +196,7 @@ body:before{display:none!important}
 
 @media screen{
 /* the PakkaBill mark as a badge, like the app icon */
-.spine__brand .mark,.topbar__brand .mark{background:#2b3494;border-radius:9px;padding:5px;box-sizing:border-box;box-shadow:0 1px 2px #141a3333}
+.spine__brand .mark,.topbar__brand .mark{background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:9px;padding:5px;box-sizing:border-box;box-shadow:0 1px 2px #141a3333}
 .topbar__brand .mark{border-radius:8px;padding:4px}
 .stub__no{color:var(--carbon)}
 /* help page */
@@ -227,3 +232,68 @@ body:before{display:none!important}
 .spine__help-ico{width:28px;height:28px}
 .spine__help-ico svg{width:18px;height:18px}
 }
+
+/* ---------- colour and texture (2026 refresh) ----------
+   The page has a soft texture: two faint colour glows (violet top right, saffron bottom left), a fine
+   dot grid and a light paper grain. Cards are white (or deep navy in dark mode) and lift a little.
+   The brand is an indigo-to-violet gradient with a saffron accent. Printed bills (.sheet) are untouched. */
+@media screen{
+body{background-color:var(--desk);background-image:
+  radial-gradient(900px 600px at 100% 0%,var(--tex-glow-a),transparent 70%),
+  radial-gradient(800px 600px at 0% 100%,var(--tex-glow-b),transparent 70%),
+  radial-gradient(var(--tex-dot) 1px,transparent 1.3px),
+  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .25 0 0 0 0 .5 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.16'/%3E%3C/svg%3E");
+  background-size:auto,auto,20px 20px,160px 160px;background-attachment:fixed;background-repeat:no-repeat,no-repeat,repeat,repeat}
+html:not(.pb-home-on) body{background-blend-mode:normal}
+::selection{background:#c7c4ff;color:#15132e}
+
+/* page title: a small gradient bar above it, and a gradient word where the title colours one */
+.page-title{color:var(--ink)}
+.page-head .page-title:before,.pbh-hello .page-title:before{content:"";display:block;width:38px;height:4px;border-radius:4px;background:var(--brand-grad);margin-bottom:12px}
+.preview-head .page-title:before{display:none}
+
+/* cards: softer edge, gentle colour shadow, light top sheen */
+.paper{border-color:var(--rule);box-shadow:var(--shadow-sheet);background-image:linear-gradient(180deg,#ffffff08,transparent 40%)}
+
+/* side menu: a faint colour wash at the top, gradient selected item with a saffron tick */
+.spine{background-image:linear-gradient(180deg,var(--carbon-tint) 0,var(--spine) 220px);border-right-color:var(--rule)}
+.spine__word{background:var(--brand-grad)!important;-webkit-background-clip:text!important;background-clip:text!important;color:transparent!important}
+.spine-nav a{transition:background-color .15s,color .15s}
+.spine-nav a[aria-current=page]{background:linear-gradient(90deg,var(--carbon-soft),var(--carbon-tint));color:var(--carbon);font-weight:600;box-shadow:inset 3px 0 0 var(--accent)}
+.spine-nav__h{color:var(--ink-3)}
+.spine__help{background:linear-gradient(135deg,var(--carbon-tint),var(--violet-soft))}
+.spine__help-ico{background:var(--btn-grad)}
+.topbar{background:color-mix(in srgb,var(--spine) 86%,transparent);-webkit-backdrop-filter:blur(14px) saturate(1.5);backdrop-filter:blur(14px) saturate(1.5)}
+.topbar__brand .spine__word{font-size:19px}
+.tabbar{background:color-mix(in srgb,var(--paper) 92%,transparent);-webkit-backdrop-filter:blur(16px) saturate(1.5);backdrop-filter:blur(16px) saturate(1.5)}
+.tabbar a[aria-current=page]{color:var(--carbon)}
+.billnav a[aria-current=page]{background:var(--btn-grad);border-color:transparent}
+.pb-seg__opt.is-on{color:var(--carbon)}
+.pill{border-radius:999px}
+.pb-toast{background:linear-gradient(135deg,#1e1b4b,#2e1065)}
+
+/* app home (dash.js): the main action is a gradient card with soft rings; each tool has its own colour */
+:root .pbh-m{border-radius:16px;box-shadow:var(--shadow-sheet);transition:border-color .15s,box-shadow .2s,transform .2s}
+:root .pbh-m:hover{transform:translateY(-2px);box-shadow:0 16px 30px -18px #4338ca66;border-color:var(--carbon)}
+:root .pbh-m--pri{position:relative;overflow:hidden;border-color:transparent;background:#4338ca;background-image:radial-gradient(160px 160px at 92% -20%,#ffffff2e,transparent 70%),radial-gradient(220px 140px at 0% 120%,#f08a2459,transparent 70%),linear-gradient(135deg,#4f46e5,#6d28d9)}
+:root .pbh-m--pri:hover{border-color:transparent;background-color:#4338ca;box-shadow:0 18px 34px -16px #6d28d9a6}
+:root .pbh-m--pri .pbh-mi{background:#ffffff26;box-shadow:inset 0 0 0 1px #ffffff33}
+:root .pbh-main>:nth-child(2) .pbh-mi{background:var(--accent-soft);color:var(--accent)}
+:root .pbh-main>:nth-child(3) .pbh-mi{background:var(--pink-soft);color:var(--pink)}
+:root .pbh-main>:nth-child(4) .pbh-mi{background:var(--teal-soft);color:var(--teal)}
+:root .pbh-main>:nth-child(5) .pbh-mi{background:var(--violet-soft);color:var(--violet)}
+:root .pbh-hello .page-title span{background:var(--brand-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+:root .pbh-h{color:var(--ink-2)}
+:root .pbh-trust li:nth-child(2) .pbh-ti{background:var(--carbon-tint);color:var(--carbon)}
+:root .pbh-trust li:nth-child(3) .pbh-ti{background:var(--accent-soft);color:var(--accent)}
+:root .pbh-trust li:nth-child(4) .pbh-ti{background:var(--violet-soft);color:var(--violet)}
+:root .pbh-legal{background:var(--carbon-tint)}
+
+/* All tools sheet: each group keeps its own soft colour */
+:root .g2 .pbt__ico{background:var(--accent-soft);color:var(--accent)}
+:root .g3 .pbt__ico{background:var(--pink-soft);color:var(--pink)}
+:root .g4 .pbt__ico{background:var(--teal-soft);color:var(--teal)}
+:root .g5 .pbt__ico{background:var(--violet-soft);color:var(--violet)}
+:root .pbt__tile:hover{box-shadow:0 12px 24px -18px #4338ca80}
+}
+@media screen and (prefers-reduced-motion:reduce){:root .pbh-m:hover{transform:none}}

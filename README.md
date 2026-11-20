@@ -99,10 +99,12 @@ The website's own home page (about PakkaBill, pricing, questions) is at `/home` 
 
 ## Look and design
 
-One look everywhere: the app icon's navy (`#2B3494`) as the only brand colour, white cards on a light
-grey page, plain bold headings in Hind, boxed form fields, and a dark mode with the same layout. No
-wallpaper and no colour gradients on buttons. Printed bills (`.sheet`) are not touched, so old bills
-keep their design.
+One look everywhere: an indigo-to-violet brand gradient (`--btn-grad`, `--brand-grad`, `#4f46e5` to
+`#6d28d9`) with a saffron accent (`--accent`, `#f08a24`), white cards that lift a little on a textured page
+(two faint colour glows, a fine dot grid and a light paper grain, all in `body`'s background), plain bold
+headings in Hind with a small gradient bar above page titles, colour-coded icon tiles for each tool
+(`--accent`, `--pink`, `--teal`, `--violet` and their `-soft` tints), boxed form fields, and a dark mode
+with the same layout. Printed bills (`.sheet`) are not touched, so old bills keep their design.
 
 - `design/official.css`: the colours (light and dark), headings, cards, buttons, form fields, the
   desktop side menu (the tool list scrolls and fades at the bottom edge; on a laptop screen the
