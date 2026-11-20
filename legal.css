@@ -1,6 +1,6 @@
 /* PakkaBill information pages: About, Contact, Terms, Privacy, Refunds, Delete account, Page not found.
    Same colours as the app (design/official.css): navy #2B3494, plain white cards. */
-:root { --bg: #f4f5f9; --card: #fff; --ink: #141a33; --ink2: #4a5170; --ink3: #6b7190; --line: #dcdfea; --brand: #2b3494; --brand-fg: #fff; --tint: #f1f3fb; --danger: #b42318; --ok: #0b7a4b; color-scheme: light; }
+:root { --bg: #f6f5fc; --card: #fff; --ink: #141a33; --ink2: #4a5170; --ink3: #6b7190; --line: #dcdfea; --brand: #4338ca; --brand-fg: #fff; --tint: #f3f2ff; --danger: #b42318; --ok: #0b7a4b; color-scheme: light; }
 @media (prefers-color-scheme: dark) { :root { --bg: #0b0e1c; --card: #151a33; --ink: #e9ebf7; --ink2: #b3b9d6; --ink3: #8a91b3; --line: #2c3258; --brand: #aeb6f7; --brand-fg: #0f1330; --tint: #1c2146; --danger: #ff8f88; --ok: #6fd6a5; color-scheme: dark; } }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif; -webkit-font-smoothing: antialiased; }
@@ -14,7 +14,7 @@ header a { color: var(--ink); text-decoration: none; font-weight: 700; font-size
 .lg-top nav { display: none; gap: 2px; margin-right: 8px; }
 .lg-top nav a { padding: 8px 11px; border-radius: 8px; color: var(--ink2); text-decoration: none; font-size: .94rem; font-weight: 500; }
 .lg-top nav a:hover, .lg-top nav a[aria-current=page] { color: var(--ink); background: var(--bg); }
-.lg-open { display: inline-flex; align-items: center; height: 38px; padding: 0 15px; border-radius: 10px; background: #2b3494; color: #fff !important; font-weight: 600; font-size: .94rem; text-decoration: none; white-space: nowrap; }
+.lg-open { display: inline-flex; align-items: center; height: 38px; padding: 0 15px; border-radius: 10px; background: #4338ca; color: #fff !important; font-weight: 600; font-size: .94rem; text-decoration: none; white-space: nowrap; }
 .lg-open:hover { background: #222a7c; }
 @media (min-width: 760px) { .lg-top nav { display: flex; } }
 main { max-width: 800px; margin: 22px auto 0; padding: 30px 20px 26px; }
@@ -43,7 +43,7 @@ button[disabled] { opacity: .6; cursor: wait; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
 .grid .card { margin: 0; }
 .grid .card b { display: block; color: var(--ink); margin-bottom: 4px; }
-.cta { display: inline-flex; align-items: center; min-height: 46px; margin-top: 10px; padding: 0 20px; border-radius: 10px; background: #2b3494; color: #fff !important; font-weight: 600; text-decoration: none; }
+.cta { display: inline-flex; align-items: center; min-height: 46px; margin-top: 10px; padding: 0 20px; border-radius: 10px; background: #4338ca; color: #fff !important; font-weight: 600; text-decoration: none; }
 .cta:hover { background: #222a7c; }
 .hi { font-weight: 600; color: var(--brand); }
 /* footer (added by legal.js) */

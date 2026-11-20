@@ -38,24 +38,24 @@
 }
 /* inside PakkaBill: its colours and fonts, no header band (PakkaBill has its own) */
 :root.embed {
-  --paper: #f4f5f9; --sheet: #FFFFFF; --rule: #dcdfea; --rule-2: #c3c8dc;
+  --paper: #f6f5fc; --sheet: #FFFFFF; --rule: #dcdfea; --rule-2: #c3c8dc;
   --ink: #141a33; --ink-2: #4a5170; --ink-3: #6b7190;
-  --carbon: #2b3494; --carbon-ink: #FFFFFF; --carbon-soft: #e6e9f7;
-  --margin: #b42318; --neg: #b42318; --pos: #0b7a4b; --warn: #a15c07; --warn-bg: #fff6dc; --focus: #5b68d6;
+  --carbon: #4338ca; --carbon-ink: #FFFFFF; --carbon-soft: #e0e0fc;
+  --margin: #b42318; --neg: #b42318; --pos: #0b7a4b; --warn: #a15c07; --warn-bg: #fff6dc; --focus: #6366f1;
 }
 @media (prefers-color-scheme: dark) {
   :root.embed:not([data-theme="light"]) {
-    --paper: #0b0e1c; --sheet: #151a33; --rule: #2c3258; --rule-2: #3d4470;
+    --paper: #0b0a1a; --sheet: #15132e; --rule: #2c3258; --rule-2: #3d4470;
     --ink: #e9ebf7; --ink-2: #b3b9d6; --ink-3: #8a91b3;
-    --carbon: #aeb6f7; --carbon-ink: #0f1330; --carbon-soft: #2a3063;
-    --margin: #ff8f88; --neg: #ff8f88; --pos: #6fd6a5; --warn: #f0c26a; --warn-bg: #2b2410; --focus: #aeb6f7;
+    --carbon: #b4b2ff; --carbon-ink: #0f1330; --carbon-soft: #2c2a66;
+    --margin: #ff8f88; --neg: #ff8f88; --pos: #6fd6a5; --warn: #f0c26a; --warn-bg: #2b2410; --focus: #b4b2ff;
   }
 }
 :root.embed[data-theme="dark"] {
-  --paper: #0b0e1c; --sheet: #151a33; --rule: #2c3258; --rule-2: #3d4470;
+  --paper: #0b0a1a; --sheet: #15132e; --rule: #2c3258; --rule-2: #3d4470;
   --ink: #e9ebf7; --ink-2: #b3b9d6; --ink-3: #8a91b3;
-  --carbon: #aeb6f7; --carbon-ink: #0f1330; --carbon-soft: #2a3063;
-  --margin: #ff8f88; --neg: #ff8f88; --pos: #6fd6a5; --warn: #f0c26a; --warn-bg: #2b2410; --focus: #aeb6f7;
+  --carbon: #b4b2ff; --carbon-ink: #0f1330; --carbon-soft: #2c2a66;
+  --margin: #ff8f88; --neg: #ff8f88; --pos: #6fd6a5; --warn: #f0c26a; --warn-bg: #2b2410; --focus: #b4b2ff;
 }
 :root.embed.pbfonts { --f-head: "PB Hind", "Hind", system-ui, -apple-system, "Segoe UI", sans-serif; --f-body: "PB Hind", "Hind", system-ui, -apple-system, "Segoe UI", sans-serif; }
 .embed .band { display: none; }
@@ -384,7 +384,7 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: .88rem; co
 .rv-notes li { margin: 3px 0; }
 
 /* "Know your real profit" banner */
-.hero { position: relative; overflow: hidden; border-radius: 16px; padding: 22px 22px 20px; color: #fff; background: linear-gradient(135deg, #222a7c 0%, #2b3494 55%, #3a45b3 100%); display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: center; box-shadow: 0 14px 36px -22px rgba(40, 30, 140, .8); }
+.hero { position: relative; overflow: hidden; border-radius: 16px; padding: 22px 22px 20px; color: #fff; background: radial-gradient(260px 180px at 100% 0%, #f08a2440, transparent 70%), linear-gradient(135deg, #3730a3 0%, #4f46e5 50%, #7c3aed 100%); display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: center; box-shadow: 0 14px 36px -22px rgba(40, 30, 140, .8); }
 .hero.has-kpi { grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); }
 .hero::before { content: ""; position: absolute; left: -80px; bottom: -120px; width: 260px; height: 260px; border-radius: 50%; background: radial-gradient(circle, rgba(120, 200, 255, .22), rgba(120, 200, 255, 0) 70%); pointer-events: none; }
 .hero::after { content: ""; position: absolute; right: -70px; top: -90px; width: 240px; height: 240px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, .12), rgba(255, 255, 255, 0) 70%); pointer-events: none; }
@@ -398,7 +398,7 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: .88rem; co
 .hero-btn { display: inline-flex; align-items: center; gap: 7px; border: 1px solid rgba(255, 255, 255, .45); background: rgba(255, 255, 255, .12); color: #fff; border-radius: 999px; padding: 8px 14px 8px 10px; font: inherit; font-weight: 700; font-size: .88rem; cursor: pointer; }
 .hero-btn svg { width: 18px; height: 18px; flex: none; }
 .hero-btn:hover { background: rgba(255, 255, 255, .22); }
-.hero-btn.solid { background: #fff; color: #2b3494; border-color: #fff; padding-left: 14px; }
+.hero-btn.solid { background: #fff; color: #4338ca; border-color: #fff; padding-left: 14px; }
 .hero-kpi { position: relative; z-index: 1; background: rgba(255, 255, 255, .96); color: #1b1f3b; border-radius: 14px; padding: 14px 16px; box-shadow: 0 10px 30px -14px rgba(10, 5, 60, .6); }
 .hk-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .hk-top span { font-size: .72rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #6f7599; }

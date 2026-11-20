@@ -105,6 +105,11 @@ One look everywhere: an indigo-to-violet brand gradient (`--btn-grad`, `--brand-
 headings in Hind with a small gradient bar above page titles, colour-coded icon tiles for each tool
 (`--accent`, `--pink`, `--teal`, `--violet` and their `-soft` tints), boxed form fields, and a dark mode
 with the same layout. Printed bills (`.sheet`) are not touched, so old bills keep their design.
+The website home page follows patterns from leading Indian SaaS sites: a slim announcement bar, the key
+words of the headline in an italic serif with a saffron underline, a tick list under the buttons, a row of
+numbers (all true: 9 tools, 20 bill designs, ₹0 to start, 2 languages) with the platforms PakkaBill reads,
+one dark "How it works" section, and the screens on a soft colour mesh. Only true facts, never invented
+user counts or reviews.
 
 - `design/official.css`: the colours (light and dark), headings, cards, buttons, form fields, the
   desktop side menu (the tool list scrolls and fades at the bottom edge; on a laptop screen the
