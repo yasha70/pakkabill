@@ -1,0 +1,352 @@
+== this emulator, for comparison: the phone's own Settings app
+Settings app scroll: Total frames rendered: 130;Janky frames: 86 (66.15%);50th percentile: 42ms;90th percentile: 81ms;Number Slow UI thread: 30;Number Slow issue draw commands: 85;Number Frame deadline missed: 86;Number Frame deadline missed (legacy): 84;50th gpu percentile: 22ms;90th gpu percentile: 4950ms;
+start running: 3387
+== sample data
+tapped 'check my profit' at 386,747
+tapped 'try with sample data' at 704,1529
+11-21 09:43:44.360  3387  3455 I System.out: PakkaBill P&L: report in 903 ms, 8 SKUs
+P&L scroll: Total frames rendered: 157;Janky frames: 128 (81.53%);50th percentile: 77ms;90th percentile: 113ms;Number Slow UI thread: 83;Number Slow issue draw commands: 128;Number Frame deadline missed: 128;Number Frame deadline missed (legacy): 128;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+== tabs
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+tapped 'reconcile' at 664,588
+Reconcile scroll: Total frames rendered: 72;Janky frames: 54 (75.00%);50th percentile: 61ms;90th percentile: 89ms;Number Slow UI thread: 32;Number Slow issue draw commands: 54;Number Frame deadline missed: 54;Number Frame deadline missed (legacy): 54;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+tapped 'upload' at 757,1788
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+tapped 'product costs' at 699,1406
+Costs scroll: Total frames rendered: 76;Janky frames: 63 (82.89%);50th percentile: 73ms;90th percentile: 113ms;Number Slow UI thread: 39;Number Slow issue draw commands: 63;Number Frame deadline missed: 63;Number Frame deadline missed (legacy): 63;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+tapped 'expenses' at 150,1788
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+NOT FOUND: 'settings'
+NOT FOUND: 'settings'
+tapped 'settings' at 140,2161
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+NOT FOUND: 'how to use'
+NOT FOUND: 'how to use'
+tapped 'how to use' at 680,2151
+tapped 'next' at 799,1990
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+NOT FOUND: 'pakkabill pro'
+NOT FOUND: 'pakkabill pro'
+tapped 'pakkabill pro' at 180,1800
+== Hindi
+tapped 'profit' at 328,2298
+tapped 'हिंदी' at 779,201
+tapped 'en' at 676,201
+== downloads need login
+tapped 'download excel' at 304,2049
+== account
+tapped 'log in' at 1014,202
+== own files
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+tapped 'upload' at 757,1788
+== dark mode
+tapped 'profit' at 328,2298
+tapped 'dark' at 899,202
+tapped 'light' at 899,202
+== GST bills
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+NOT FOUND: 'bills'
+tapped 'bills' at 104,971
+tapped 'ravi traders' at 329,1651
+tapped 'meena boutique' at 369,1458
+tapped '+ new bill' at 304,788
+tapped 'cash sale' at 540,1220
+NOT FOUND: 'use'
+tapped 'item name' at 540,332
+tapped 'use' at 956,480
+tapped 'qty' at 98,437
+tapped 'save' at 952,2235
+tapped 'unpaid' at 281,1117
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+NOT FOUND: 'gst summary'
+tapped 'gst summary' at 700,1289
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+NOT FOUND: 'shop details'
+tapped 'shop details' at 688,1675
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+NOT FOUND: 'parties'
+NOT FOUND: 'parties'
+NOT FOUND: 'parties'
+NOT FOUND: 'parties'
+NOT FOUND: 'parties'
+NOT FOUND on the Tools page: Parties
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+NOT FOUND: 'items'
+tapped 'items' at 117,1413
+tapped 'new bill, labels or meesho files' at 539,2232
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+NOT FOUND: 'bills'
+tapped 'bills' at 104,987
+bills running: 6047
+== tools
+tapped 'tools' at 963,2298
+== labels and packing chart
+tapped 'labels' at 751,2298
+tapped 'add label pdf and manifest pdf' at 540,1077
+held 'meesho-labels-sample.pdf' at 437,605
+tapped 'meesho-manifest-sample.pdf' at 465,797
+tapped 'select' at 871,191
+labels running: 6047
+== GSTR-1
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+NOT FOUND: 'gstr-1 json'
+tapped 'gstr-1 json' at 178,1807
+== low shipping image
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+tapped 'low shipping image' at 755,970
+tapped 'add your product photo' at 540,1455
+tapped 'maroon_front.jpg' at 215,700
+NOT FOUND: 'make versions'
+tapped 'make versions' at 540,1786
+NOT ON SCREEN after 153 s: 'save all to gallery'
+NOT FOUND: 'get meesho's real shipping'
+NOT FOUND: 'get meesho's real shipping'
+NOT FOUND: 'get meesho's real shipping'
+NOT FOUND: 'get meesho's real shipping'
+NOT FOUND: 'get meesho's real shipping'
+NOT FOUND: 'get meesho's real shipping'
+NOT FOUND: 'get meesho's real shipping'
+NOT FOUND: 'get meesho's real shipping'
+NOT FOUND: 'get meesho's real shipping'
+NOT FOUND: 'get meesho's real shipping'
+NOT FOUND: Get Meesho's real shipping
+11-21 09:43:07.571  1673  2890 E chromium: [ERROR:simple_file_enumerator.cc(21)] opendir /data/user/0/com.google.android.googlequicksearchbox/cache/WebView/Profile 1/HTTP Cache/Code Cache/wasm: No such file or directory (2)
+11-21 09:43:07.571  1673  2890 E chromium: [ERROR:simple_index_file.cc(614)] Could not reconstruct index from disk
+11-21 09:43:07.571  1673  2890 E chromium: [ERROR:simple_file_enumerator.cc(21)] opendir /data/user/0/com.google.android.googlequicksearchbox/cache/WebView/Profile 1/HTTP Cache/Code Cache/js: No such file or directory (2)
+11-21 09:43:07.571  1673  2890 E chromium: [ERROR:simple_index_file.cc(614)] Could not reconstruct index from disk
+11-21 09:43:22.527   554  1192 I ActivityManager: Start proc 3687:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0/u0i1 for  {com.pakkabill.app/org.chromium.content.app.SandboxedProcessService0:0}
+11-21 09:48:14.627   554   588 I ActivityManager: Start proc 6103:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0/u0i2 for  {com.pakkabill.app/org.chromium.content.app.SandboxedProcessService0:0}
+11-21 09:48:14.680  6047  6113 E chromium: [ERROR:simple_file_enumerator.cc(21)] opendir /data/user/0/com.pakkabill.app/cache/WebView/Default/HTTP Cache/Code Cache/wasm: No such file or directory (2)
+11-21 09:48:14.681  6047  6113 E chromium: [ERROR:simple_index_file.cc(614)] Could not reconstruct index from disk
+11-21 09:48:14.681  6047  6113 E chromium: [ERROR:simple_file_enumerator.cc(21)] opendir /data/user/0/com.pakkabill.app/cache/WebView/Default/HTTP Cache/Code Cache/js: No such file or directory (2)
+11-21 09:48:14.681  6047  6113 E chromium: [ERROR:simple_index_file.cc(614)] Could not reconstruct index from disk
+NOT FOUND: 'done'
+lowship running: 6047
+== Meesho listing
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+NOT FOUND: 'meesho listing'
+NOT FOUND: 'meesho listing'
+tapped 'meesho listing' at 195,669
+tapped 'choose the template file' at 540,1344
+tapped 'blouses-template.xlsx' at 395,605
+NOT FOUND: 'next: details'
+tapped 'next: details' at 718,2005
+NOT FOUND: 'next: sizes'
+tapped 'next: sizes' at 718,2005
+tapped '32' at 128,1160
+tapped '34' at 244,1160
+tapped 'fill empty cells' at 540,1674
+tapped 'next: photos' at 718,1917
+tapped 'pick many at once' at 540,1407
+held 'maroon_front.jpg' at 215,700
+tapped 'maroon_back.jpg' at 539,700
+tapped 'select' at 871,191
+tapped 'next: image links' at 717,2005
+NOT FOUND: 'next: download'
+tapped 'next: download' at 718,2005
+listing running: 6047
+== Meesho Lens
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+NOT FOUND: 'meesho lens'
+NOT FOUND: 'meesho lens'
+tapped 'meesho lens' at 695,1016
+tapped 'open meesho and look at competitors' at 540,727
+tapped 'close' at 74,202
+== Auto listing
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+tapped 'auto listing' at 169,1406
+tapped 'new template from' at 745,1407
+tapped 'readymade blouse' at 758,900
+NOT FOUND: 'sizes, prices and stock'
+NOT FOUND: 'sizes, prices and stock'
+NOT FOUND: 'sizes, prices and stock'
+NOT FOUND: 'sizes, prices and stock'
+NOT FOUND: 'sizes, prices and stock'
+NOT FOUND: 'sizes, prices and stock'
+NOT FOUND: 'sizes, prices and stock'
+NOT FOUND: 'sizes, prices and stock'
+NOT FOUND: 'sizes, prices and stock'
+NOT FOUND: 'sizes, prices and stock'
+NOT FOUND: Sizes, prices and stock
+tapped 'save template' at 304,1183
+tapped 'add product photos' at 540,1869
+tapped 'maroon_front.jpg' at 215,700
+NOT FOUND: 'price (all sizes)'
+tapped 'price (all sizes)' at 226,1714
+tapped 'price (all sizes)' at 226,1802
+tapped 'stock per size' at 807,1417
+tapped 'fill in meesho' at 540,1682
+NOT FOUND: 'meesho · pakkabill auto listing'
+tapped 'open meesho supplier panel' at 540,1564
+11-21 09:43:07.571  1673  2890 E chromium: [ERROR:simple_file_enumerator.cc(21)] opendir /data/user/0/com.google.android.googlequicksearchbox/cache/WebView/Profile 1/HTTP Cache/Code Cache/wasm: No such file or directory (2)
+11-21 09:43:07.571  1673  2890 E chromium: [ERROR:simple_index_file.cc(614)] Could not reconstruct index from disk
+11-21 09:43:07.571  1673  2890 E chromium: [ERROR:simple_file_enumerator.cc(21)] opendir /data/user/0/com.google.android.googlequicksearchbox/cache/WebView/Profile 1/HTTP Cache/Code Cache/js: No such file or directory (2)
+11-21 09:43:07.571  1673  2890 E chromium: [ERROR:simple_index_file.cc(614)] Could not reconstruct index from disk
+11-21 09:43:22.527   554  1192 I ActivityManager: Start proc 3687:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0/u0i1 for  {com.pakkabill.app/org.chromium.content.app.SandboxedProcessService0:0}
+11-21 09:48:14.627   554   588 I ActivityManager: Start proc 6103:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0/u0i2 for  {com.pakkabill.app/org.chromium.content.app.SandboxedProcessService0:0}
+11-21 09:48:14.680  6047  6113 E chromium: [ERROR:simple_file_enumerator.cc(21)] opendir /data/user/0/com.pakkabill.app/cache/WebView/Default/HTTP Cache/Code Cache/wasm: No such file or directory (2)
+11-21 09:48:14.681  6047  6113 E chromium: [ERROR:simple_index_file.cc(614)] Could not reconstruct index from disk
+11-21 09:48:14.681  6047  6113 E chromium: [ERROR:simple_file_enumerator.cc(21)] opendir /data/user/0/com.pakkabill.app/cache/WebView/Default/HTTP Cache/Code Cache/js: No such file or directory (2)
+11-21 09:48:14.681  6047  6113 E chromium: [ERROR:simple_index_file.cc(614)] Could not reconstruct index from disk
+11-21 09:59:51.706  6047  6047 I chromium: [INFO:CONSOLE(1)] "[object Object]", source: https://www.meesho.com/4T6CS/1sK/FYqL/Ymaifl/Zt/fwf5GbwY/Bw0MAg/IwwMVGp/GZDoKAQ?v=665f09e6-81a2-dbdf-7b88-bba442a217c3 (1)
+11-21 09:59:56.476  6047  6047 I chromium: [INFO:CONSOLE(0)] "The resource https://www.meesho.com/assets/svgicons/meeshoLogo.svg was preloaded using link preload in Early Hints but not used within a few seconds from the window's load event.", source: https://www.meesho.com/ (0)
+11-21 09:59:56.476  6047  6047 I chromium: [INFO:CONSOLE(0)] "The resource https://www.meesho.com/fonts/Mier_B02-Book.woff2 was preloaded using link preload in Early Hints but not used within a few seconds from the window's load event.", source: https://www.meesho.com/ (0)
+11-21 09:59:56.476  6047  6047 I chromium: [INFO:CONSOLE(0)] "The resource https://www.meesho.com/fonts/Mier_B02-Bold.woff2 was preloaded using link preload in Early Hints but not used within a few seconds from the window's load event.", source: https://www.meesho.com/ (0)
+11-21 09:59:56.476  6047  6047 I chromium: [INFO:CONSOLE(0)] "The resource https://www.meesho.com/css/mier-fonts.css?display=swap was preloaded using link preload in Early Hints but not used within a few seconds from the window's load event.", source: https://www.meesho.com/ (0)
+11-21 09:59:56.476  6047  6047 I chromium: [INFO:CONSOLE(0)] "The resource https://www.meesho.com/fonts/Mier_B02-Demi.woff2 was preloaded using link preload in Early Hints but not used within a few seconds from the window's load event.", source: https://www.meesho.com/ (0)
+11-21 10:00:12.499  6047  6047 E chromium: [ERROR:aw_browser_terminator.cc(154)] Renderer process (6103) crash detected (code -1).
+11-21 10:02:03.858   554   588 I ActivityManager: Start proc 10604:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1/u0i3 for  {com.pakkabill.app/org.chromium.content.app.SandboxedProcessService0:1}
+11-21 10:02:09.072  6047  6047 I chromium: [INFO:CONSOLE(0)] "The resource https://supplier.meesho.com/css/normalize.css was preloaded using link preload in Early Hints but not used within a few seconds from the window's load event.", source: https://supplier.meesho.com/ (0)
+11-21 10:02:09.072  6047  6047 I chromium: [INFO:CONSOLE(0)] "The resource https://supplier.meesho.com/images/logo.svg was preloaded using link preload in Early Hints but not used within a few seconds from the window's load event.", source: https://supplier.meesho.com/ (0)
+tapped 'done' at 975,2230
+autolist running: 6047
+== restart
+debug running: 10687
+11-21 09:43:30.330  3951  3951 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-21 09:43:30.342  3951  3951 I AndroidRuntime: Using default boot image
+11-21 09:43:30.342  3951  3951 I AndroidRuntime: Leaving lock profiling enabled
+11-21 09:43:30.526  3951  3951 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-21 09:43:31.938  3951  3951 D AndroidRuntime: Shutting down VM
+11-21 09:43:35.222  4092  4092 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-21 09:43:35.233  4092  4092 I AndroidRuntime: Using default boot image
+11-21 09:43:35.234  4092  4092 I AndroidRuntime: Leaving lock profiling enabled
+11-21 09:43:35.522  4092  4092 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-21 09:43:36.735  4092  4092 D AndroidRuntime: Shutting down VM
+11-21 09:44:18.450  4655  4655 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-21 09:44:18.460  4655  4655 I AndroidRuntime: Using default boot image
+11-21 09:44:18.460  4655  4655 I AndroidRuntime: Leaving lock profiling enabled
+11-21 09:44:18.642  4655  4655 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-21 09:44:19.691  4655  4655 D AndroidRuntime: Shutting down VM
+11-21 09:44:21.609  4678  4678 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-21 09:44:21.612  4678  4678 I AndroidRuntime: Using default boot image
+11-21 09:44:21.612  4678  4678 I AndroidRuntime: Leaving lock profiling enabled
+11-21 09:44:21.672  4678  4678 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-21 09:44:22.695  4678  4678 D AndroidRuntime: Shutting down VM
+11-21 09:44:24.617  4705  4705 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-21 09:44:24.619  4705  4705 I AndroidRuntime: Using default boot image
+11-21 09:44:24.619  4705  4705 I AndroidRuntime: Leaving lock profiling enabled
+11-21 09:44:24.680  4705  4705 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-21 09:44:25.702  4705  4705 D AndroidRuntime: Shutting down VM
+11-21 09:44:32.819  4766  4766 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-21 09:44:32.822  4766  4766 I AndroidRuntime: Using default boot image
+11-21 09:44:32.822  4766  4766 I AndroidRuntime: Leaving lock profiling enabled
+11-21 09:44:32.881  4766  4766 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-21 09:44:33.946  4766  4766 D AndroidRuntime: Shutting down VM
+== release build (minified) smoke test
+Serving...
+All files should be loaded. Notifying the device.
+Performing Incremental Install
+Success
+Install command complete in 724 ms
+tapped 'check my profit' at 386,747
+tapped 'try with sample data' at 704,1529
+Release P&L scroll: Total frames rendered: 118;Janky frames: 92 (77.97%);50th percentile: 65ms;90th percentile: 93ms;Number Slow UI thread: 37;Number Slow issue draw commands: 92;Number Frame deadline missed: 92;Number Frame deadline missed (legacy): 87;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+tapped 'product costs' at 699,1406
+Release Costs scroll: Total frames rendered: 69;Janky frames: 53 (76.81%);50th percentile: 61ms;90th percentile: 97ms;Number Slow UI thread: 25;Number Slow issue draw commands: 53;Number Frame deadline missed: 53;Number Frame deadline missed (legacy): 48;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+NOT FOUND: 'bills'
+tapped 'bills' at 104,931
+tapped '+ new bill' at 304,1112
+tapped 'profit' at 328,2298
+tapped 'profit' at 695,353
+NOT FOUND: 'how to use'
+tapped 'हिंदी' at 779,193
+release running: 10931
+11-21 10:03:03.972 11049 11049 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-21 10:03:03.975 11049 11049 I AndroidRuntime: Using default boot image
+11-21 10:03:03.975 11049 11049 I AndroidRuntime: Leaving lock profiling enabled
+11-21 10:03:04.029 11049 11049 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-21 10:03:05.100 11049 11049 D AndroidRuntime: Shutting down VM
+11-21 10:03:08.025 11075 11075 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-21 10:03:08.027 11075 11075 I AndroidRuntime: Using default boot image
+11-21 10:03:08.027 11075 11075 I AndroidRuntime: Leaving lock profiling enabled
+11-21 10:03:08.083 11075 11075 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-21 10:03:09.096 11075 11075 D AndroidRuntime: Shutting down VM
+11-21 10:03:10.953 10931 10970 I System.out: PakkaBill P&L: report in 103 ms, 8 SKUs
+11-21 10:03:46.876 11253 11253 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-21 10:03:46.878 11253 11253 I AndroidRuntime: Using default boot image
+11-21 10:03:46.878 11253 11253 I AndroidRuntime: Leaving lock profiling enabled
+11-21 10:03:46.936 11253 11253 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-21 10:03:47.960 11253 11253 D AndroidRuntime: Shutting down VM
+11-21 10:03:49.871 11279 11279 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-21 10:03:49.873 11279 11279 I AndroidRuntime: Using default boot image
+11-21 10:03:49.873 11279 11279 I AndroidRuntime: Leaving lock profiling enabled
+11-21 10:03:49.931 11279 11279 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-21 10:03:50.948 11279 11279 D AndroidRuntime: Shutting down VM
+11-21 10:03:52.862 11299 11299 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-21 10:03:52.864 11299 11299 I AndroidRuntime: Using default boot image
+11-21 10:03:52.864 11299 11299 I AndroidRuntime: Leaving lock profiling enabled
+11-21 10:03:52.918 11299 11299 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-21 10:03:53.936 11299 11299 D AndroidRuntime: Shutting down VM
+11-21 10:04:06.391 11362 11362 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-21 10:04:06.393 11362 11362 I AndroidRuntime: Using default boot image
+11-21 10:04:06.393 11362 11362 I AndroidRuntime: Leaving lock profiling enabled
+11-21 10:04:06.449 11362 11362 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+big shop: 3570 payment rows, 4330 order rows, 200 SKUs
+== big shop: new
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+tapped 'upload' at 757,1788
+NOT FOUND: 'drop meesho files here'
+tapped 'drop meesho files here' at 540,1514
+tapped 'meesho-big-payments.csv' at 435,605
+NOT ON SCREEN after 302 s: 'real profit'
+new: P&L scroll: Total frames rendered: 91;Janky frames: 75 (82.42%);50th percentile: 61ms;90th percentile: 85ms;Number Slow UI thread: 31;Number Slow issue draw commands: 75;Number Frame deadline missed: 75;Number Frame deadline missed (legacy): 74;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+tapped 'product costs' at 699,1406
+new: open Costs: Total frames rendered: 5;Janky frames: 3 (60.00%);50th percentile: 34ms;90th percentile: 53ms;Number Slow UI thread: 2;Number Slow issue draw commands: 3;Number Frame deadline missed: 3;Number Frame deadline missed (legacy): 3;50th gpu percentile: 21ms;90th gpu percentile: 25ms;
+new: Costs scroll: Total frames rendered: 87;Janky frames: 71 (81.61%);50th percentile: 61ms;90th percentile: 101ms;Number Slow UI thread: 34;Number Slow issue draw commands: 71;Number Frame deadline missed: 71;Number Frame deadline missed (legacy): 72;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'tools' at 963,2298
+tapped 'tools' at 963,2298
+tapped 'reconcile' at 664,588
+new: open Reconcile: Total frames rendered: 4;Janky frames: 4 (100.00%);50th percentile: 46ms;90th percentile: 129ms;Number Slow UI thread: 1;Number Slow issue draw commands: 4;Number Frame deadline missed: 4;Number Frame deadline missed (legacy): 4;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+new: Reconcile scroll: Total frames rendered: 0;Janky frames: 0 (0.00%);50th percentile: 4950ms;90th percentile: 4950ms;Number Slow UI thread: 0;Number Slow issue draw commands: 0;Number Frame deadline missed: 0;Number Frame deadline missed (legacy): 0;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+11-21 10:03:10.953 10931 10970 I System.out: PakkaBill P&L: report in 103 ms, 8 SKUs
+11-21 10:06:05.519 11710 11731 I System.out: PakkaBill P&L: report in 716 ms, 200 SKUs
+== the website's app (versionCode 9) for comparison
+Success
+tapped 'try with sample data' at 704,1526
+Old app P&L scroll: Total frames rendered: 75;Janky frames: 71 (94.67%);50th percentile: 89ms;90th percentile: 129ms;Number Slow UI thread: 31;Number Slow issue draw commands: 71;Number Frame deadline missed: 71;Number Frame deadline missed (legacy): 72;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'costs' at 751,2295
+Old app Costs scroll: Total frames rendered: 59;Janky frames: 57 (96.61%);50th percentile: 77ms;90th percentile: 125ms;Number Slow UI thread: 24;Number Slow issue draw commands: 57;Number Frame deadline missed: 57;Number Frame deadline missed (legacy): 59;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+== big shop: old
+tapped 'upload files' at 209,821
+NOT FOUND: 'drop meesho files here'
+tapped 'drop meesho files here' at 540,1515
+tapped 'meesho-big-payments.csv' at 435,605
+NOT ON SCREEN after 302 s: 'real profit'
+old: P&L scroll: Total frames rendered: 70;Janky frames: 70 (100.00%);50th percentile: 89ms;90th percentile: 121ms;Number Slow UI thread: 28;Number Slow issue draw commands: 70;Number Frame deadline missed: 70;Number Frame deadline missed (legacy): 70;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'costs' at 751,2295
+old: open Costs: Total frames rendered: 3;Janky frames: 3 (100.00%);50th percentile: 73ms;90th percentile: 101ms;Number Slow UI thread: 1;Number Slow issue draw commands: 3;Number Frame deadline missed: 3;Number Frame deadline missed (legacy): 3;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+old: Costs scroll: Total frames rendered: 79;Janky frames: 74 (93.67%);50th percentile: 81ms;90th percentile: 125ms;Number Slow UI thread: 27;Number Slow issue draw commands: 74;Number Frame deadline missed: 74;Number Frame deadline missed (legacy): 75;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+tapped 'reconcile' at 327,2295
+old: open Reconcile: Total frames rendered: 1;Janky frames: 1 (100.00%);50th percentile: 133ms;90th percentile: 133ms;Number Slow UI thread: 0;Number Slow issue draw commands: 1;Number Frame deadline missed: 1;Number Frame deadline missed (legacy): 1;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+old: Reconcile scroll: Total frames rendered: 0;Janky frames: 0 (0.00%);50th percentile: 4950ms;90th percentile: 4950ms;Number Slow UI thread: 0;Number Slow issue draw commands: 0;Number Frame deadline missed: 0;Number Frame deadline missed (legacy): 0;50th gpu percentile: 4950ms;90th gpu percentile: 4950ms;
+11-21 10:12:25.988 13496 13513 I System.out: PakkaBill P&L: report in 97 ms, 8 SKUs
+11-21 10:14:07.047 13793 13812 I System.out: PakkaBill P&L: report in 726 ms, 200 SKUs
