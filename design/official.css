@@ -299,6 +299,8 @@ html:not(.pb-home-on) body{background-blend-mode:normal}
 :root .pbh-trust li:nth-child(3) .pbh-ti{background:var(--accent-soft);color:var(--accent)}
 :root .pbh-trust li:nth-child(4) .pbh-ti{background:var(--violet-soft);color:var(--violet)}
 :root .pbh-legal{background:var(--carbon-tint)}
+/* small links at the foot of Home: at least 24px tall, easy to tap on a phone */
+:root .pbh-legal a,:root .pbh-foot a{display:inline-flex;align-items:center;min-height:28px}
 
 /* All tools sheet: each group keeps its own soft colour */
 :root .g2 .pbt__ico{background:var(--accent-soft);color:var(--accent)}

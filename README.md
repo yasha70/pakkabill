@@ -159,18 +159,28 @@ live-looking Profit & Loss card for the app's sample shop, ₹1,15,741 sales and
 phone screen) and ticks under the buttons; the reports PakkaBill reads; the problem and the answer (where
 every ₹100 of the sample's sales went, and "without / with PakkaBill"); the tools as a bento of small,
 real-looking parts (the sample's best SKU, the packing chart, a filled-in listing form, two real bills,
-the GSTR-1 tables) with Meesho listing, Meesho Lens and the Label cropper under them; "20 bill designs"
+the GSTR-1 tables), under a "Your Meesho week" rail that puts all nine tools in a seller's order (List & price,
+Pack & ship, See profit, Bill & file GST), as Flipkart Seller Hub and Lisstify do; "20 bill designs"
 with the real sample bill in Bill book, Sapphire, Utsav and Zari (`img/home-design-*.webp`); how it works
 (dark, with the app's "In short" screen); privacy, with who makes PakkaBill (the business name, address,
 email and phone saved in the admin panel, Settings → Business details); Free and Pro with prices and
-trial days read from `/api/config`; questions; a closing band; and a footer with the tools, company and
-legal links. On a phone a "Check my profit" bar stays at the bottom once the hero's buttons have scrolled
+trial days read from `/api/config`; questions; a closing band (with the Android app's version, size and
+lowest Android version read from `download/app.json`); and a footer with the tools, company and legal links. On a phone a "Check my profit" bar stays at the bottom once the hero's buttons have scrolled
 away, and parts fade up as they come into view (not when the device asks for less motion). Only true
 facts: sample numbers are marked as sample, and there are no invented user counts, ratings or reviews.
 Everything is in English and Hindi (the choice is
 saved as `hisaab:lang`, so the P&L and Labels tools open in the same language). It shows at `/home`
 (`/?home=1`) and `#/home`; the website itself opens on the app's Home screen (above). Share preview image: `img/og.jpg`
 (1200×630).
+
+Search: the page title leads with what sellers search for ("Meesho Profit Calculator, Labels & GST Bills |
+PakkaBill", under 60 characters), the description stays under 160, and the structured data (JSON-LD in
+`index.html`) has Organization, WebSite and SoftwareApplication, with no ratings until there are real ones.
+Lighthouse: SEO, accessibility and best practices 100 on `/` and `/home`. Phone speed (about 65) is held back
+by the app's code being inside `index.html` (about 960 KB of script before the page can finish); the home
+page itself is about 5% of the file. Google treats `/` as the page (`/home` redirects to `/?home=1` and the
+canonical is `/`), so the home page's text is not a search result of its own; that would need `/home` to be
+a rewrite with its own canonical.
 
 ## OTP sign-up (off until you turn it on in the admin panel)
 
