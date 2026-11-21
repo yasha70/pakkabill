@@ -3,6 +3,7 @@
 //   img/home-pnl.webp, img/home-insights.webp  Profit & Loss (sample data)
 //   img/home-labels.webp                       packing chart, from sample labels made here
 //   img/home-bill.webp                         a GST bill (sample data)
+//   img/home-design-*.webp                     the same bill in Bill book, Sapphire, Utsav and Zari
 //   img/og.jpg                                 the share picture (1200 x 630)
 // Run:  npm run dev   (in another terminal), then   node design/shots.cjs
 // Needs Playwright (as test/autolist-browser.js does) and Python with Pillow for the WebP/JPEG files.
@@ -95,6 +96,20 @@ async function bill(b) {
   await ctx.close();
 }
 
+// four of the 20 bill designs on the same sample bill, for the home page's "20 bill designs" part
+async function designs(b) {
+  const ctx = await b.newContext({ viewport: { width: 1366, height: 1200 }, deviceScaleFactor: 1.5, colorScheme: 'light' }); const p = await ctx.newPage(); await p.addInitScript(quiet);
+  await p.goto(SITE + '/#/bills', { waitUntil: 'load' }); await p.waitForTimeout(1200);
+  await p.getByText('Try it with sample data').first().click(); await p.waitForTimeout(1200);
+  await p.getByText('RBH/26-27/0004').first().click(); await p.waitForTimeout(1800);
+  for (const [name, id] of [['Bill book', 'billbook'], ['Sapphire', 'sapphire'], ['Utsav', 'utsav'], ['Zari', 'zari']]) {
+    await p.locator('.dpick__o', { hasText: name }).first().click(); await p.waitForTimeout(900);
+    await p.locator('.sheet').first().screenshot({ path: path.join(TMP, id + '.png') });
+    save(path.join(TMP, id + '.png'), 'home-design-' + id + '.webp', 520, 736);
+  }
+  await ctx.close();
+}
+
 // drawn in the site's own page, so it uses PakkaBill's fonts; run after pnl() (it shows home-pnl.webp)
 async function og(b) {
   const ctx = await b.newContext({ viewport: { width: 1200, height: 630 }, deviceScaleFactor: 1, colorScheme: 'light' }); const p = await ctx.newPage();
@@ -103,12 +118,12 @@ async function og(b) {
     const d = document.createElement('div'); d.id = 'og';
     d.innerHTML = `<style>
       body>#og{display:block!important}
-      #og{position:fixed;inset:0;z-index:99999;width:1200px;height:630px;overflow:hidden;font-family:"PB Hind","Hind",system-ui,sans-serif;color:#fff;background:linear-gradient(135deg,#1f2670 0%,#2b3494 55%,#3a45b3 100%)}
+      #og{position:fixed;inset:0;z-index:99999;width:1200px;height:630px;overflow:hidden;font-family:"PB Hind","Hind",system-ui,sans-serif;color:#fff;background:radial-gradient(520px 360px at 100% 0%,#f08a2459,transparent 70%),radial-gradient(560px 380px at 0% 100%,#db277740,transparent 70%),linear-gradient(135deg,#312e81 0%,#4f46e5 50%,#7c3aed 100%)}
       #og .l{position:absolute;left:72px;top:64px;width:640px}
-      #og .b{display:flex;align-items:center;gap:16px;font-size:40px;font-weight:700;letter-spacing:-.02em}
+      #og .b{display:flex;align-items:center;gap:16px;font-family:"PB Display","PB Hind",sans-serif;font-size:40px;font-weight:800;letter-spacing:-.035em}
       #og .b img{width:64px;height:64px;border-radius:16px;box-shadow:0 0 0 2px #ffffff40}
-      #og h1{margin:54px 0 0;font-size:84px;line-height:1.04;font-weight:700;letter-spacing:-.035em}
-      #og h1 em{font-style:normal;color:#b9c1ff}
+      #og h1{margin:54px 0 0;font-family:"PB Display","PB Hind",sans-serif;font-size:80px;line-height:1.04;font-weight:800;letter-spacing:-.045em}
+      #og h1 em{font-family:"PB Serif",Georgia,serif;font-style:italic;font-weight:400;font-size:1.08em;color:#fde3b4}
       #og p{margin:26px 0 0;font-size:29px;line-height:1.4;color:#dfe2f8;max-width:19em}
       #og ul{list-style:none;display:flex;flex-wrap:wrap;gap:12px;margin:34px 0 0;padding:0}
       #og li{padding:9px 20px;border-radius:999px;background:#ffffff1f;border:1.5px solid #ffffff47;font-size:23px;font-weight:600}
@@ -123,7 +138,7 @@ async function og(b) {
     document.body.appendChild(d);
     document.documentElement.classList.remove('pb-home-on'); // only the picture shows
   });
-  await p.waitForTimeout(900);
+  await p.evaluate(() => document.fonts.ready); await p.waitForTimeout(900);
   await p.screenshot({ path: path.join(TMP, 'og.png'), clip: { x: 0, y: 0, width: 1200, height: 630 } });
   save(path.join(TMP, 'og.png'), 'og.jpg', 1200, 630);
   await ctx.close();
@@ -131,5 +146,5 @@ async function og(b) {
 
 (async () => {
   const b = await chromium.launch();
-  try { await pnl(b); await labels(b); await bill(b); await og(b); } finally { await b.close(); fs.rmSync(TMP, { recursive: true, force: true }); }
+  try { await pnl(b); await labels(b); await bill(b); await designs(b); await og(b); } finally { await b.close(); fs.rmSync(TMP, { recursive: true, force: true }); }
 })().catch((e) => { console.error(e); process.exit(1); });

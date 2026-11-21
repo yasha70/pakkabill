@@ -101,15 +101,18 @@ The website's own home page (about PakkaBill, pricing, questions) is at `/home` 
 
 One look everywhere: an indigo-to-violet brand gradient (`--btn-grad`, `--brand-grad`, `#4f46e5` to
 `#6d28d9`) with a saffron accent (`--accent`, `#f08a24`), white cards that lift a little on a textured page
-(two faint colour glows, a fine dot grid and a light paper grain, all in `body`'s background), plain bold
-headings in Hind with a small gradient bar above page titles, colour-coded icon tiles for each tool
-(`--accent`, `--pink`, `--teal`, `--violet` and their `-soft` tints), boxed form fields, and a dark mode
-with the same layout. Printed bills (`.sheet`) are not touched, so old bills keep their design.
-The website home page follows patterns from leading Indian SaaS sites: a slim announcement bar, the key
-words of the headline in an italic serif with a saffron underline, a tick list under the buttons, a row of
-numbers (all true: 9 tools, 20 bill designs, ₹0 to start, 2 languages) with the platforms PakkaBill reads,
-one dark "How it works" section, and the screens on a soft colour mesh. Only true facts, never invented
-user counts or reviews.
+(two faint colour glows, a fine dot grid and a light paper grain, all in `body`'s background), colour-coded
+icon tiles for each tool (`--accent`, `--pink`, `--teal`, `--violet` and their `-soft` tints), boxed form
+fields, and a dark mode with the same layout. Printed bills (`.sheet`) are not touched, so old bills keep
+their design.
+
+Type: headings use Figtree (`--font-display`, "PB Display"), with a small gradient bar above page titles;
+body text and every amount stay in Hind (`--font-text`, `--font-head`), which also draws all Devanagari and
+the rupee sign (Figtree is loaded for Latin only). A few accent words on the home page use Instrument Serif
+italic ("PB Serif"); in Hindi they turn back into the heading font. Both fonts are self-hosted in `fonts/`
+(SIL Open Font License, texts next to them), preloaded by `index.html` and kept offline by `sw.js`.
+Figtree was picked over Plus Jakarta Sans, Manrope, Onest, Inter Tight, Hanken and Schibsted Grotesk and
+Bricolage Grotesque because its full stops and commas sit tight at headline sizes and it is the smallest.
 
 - `design/official.css`: the colours (light and dark), headings, cards, buttons, form fields, the
   desktop side menu (the tool list scrolls and fades at the bottom edge; on a laptop screen the
@@ -117,9 +120,11 @@ user counts or reviews.
   `<style id="pb-official">` straight after the main styles, so it wins over them).
 - `design/home-gate.html`, `design/home.css`, `design/home.html`: the home page (see below).
 - After editing any of these, run `python3 design/build.py`. It is the only build step.
-- `design/shots.cjs` makes the home page's pictures (`img/home-*.webp`) and the share picture
-  (`img/og.jpg`) from the app itself with its sample data: `npm run dev`, then `node design/shots.cjs`.
-  Run it after a change to how the app looks.
+- `design/shots.cjs` makes the home page's pictures (`img/home-*.webp`, including four bill designs) and
+  the share picture (`img/og.jpg`) from the app itself with its sample data: `npm run dev`, then
+  `node design/shots.cjs`. Run it after a change to how the app looks. The hero's Profit & Loss card
+  repeats the sample's numbers (₹1,15,741 sales, ₹17,951 kept, where every ₹100 went): if the sample
+  data changes, change them in `design/home.html` too.
 - The P&L and Labels tools (`pnl.html`, `labels.html`), the admin panel (`admin.html`) and the
   information pages (`legal.css`) carry the same colours in their own `:root` blocks. The tool scripts
   (`pro.js`, `support.js`, `shops.js`...) use the colour variables, with the navy as the fallback.
@@ -146,11 +151,23 @@ may not be the account's own mobile number (checked in the form and in `api/auth
 ## Home page
 
 `index.html` starts with the website's home page (`#pb-home`, between the `<!--pb-home-->` markers; edit
-`design/home.html` and `design/home.css`, then run `python3 design/build.py`): a top bar with Log in
-and Sign up, what PakkaBill does, four plain facts, the tools, three steps, real screens with sample
-data (`img/home-*.webp`), Free and Pro with prices and trial days read from `/api/config`, questions,
-and a footer with the tools, company and legal links and the business name, address, email and phone
-saved in the admin panel (Settings → Business details), in English and Hindi (the choice is
+`design/home.html` and `design/home.css`, then run `python3 design/build.py`). Its order comes from
+a study of 21 leading sites (Indian billing and seller tools such as myBillBook, Vyapar, Zoho Invoice,
+Khatabook, Swipe, ClearTax, Lisstify and GST Tool, and Stripe, Linear, Ramp, Notion and others):
+a slim announcement bar; a top bar with Log in and Sign up; the hero, with the product as its picture (a
+live-looking Profit & Loss card for the app's sample shop, ₹1,15,741 sales and ₹17,951 kept, in front of the
+phone screen) and ticks under the buttons; the reports PakkaBill reads; the problem and the answer (where
+every ₹100 of the sample's sales went, and "without / with PakkaBill"); the tools as a bento of small,
+real-looking parts (the sample's best SKU, the packing chart, a filled-in listing form, two real bills,
+the GSTR-1 tables) with Meesho listing, Meesho Lens and the Label cropper under them; "20 bill designs"
+with the real sample bill in Bill book, Sapphire, Utsav and Zari (`img/home-design-*.webp`); how it works
+(dark, with the app's "In short" screen); privacy, with who makes PakkaBill (the business name, address,
+email and phone saved in the admin panel, Settings → Business details); Free and Pro with prices and
+trial days read from `/api/config`; questions; a closing band; and a footer with the tools, company and
+legal links. On a phone a "Check my profit" bar stays at the bottom once the hero's buttons have scrolled
+away, and parts fade up as they come into view (not when the device asks for less motion). Only true
+facts: sample numbers are marked as sample, and there are no invented user counts, ratings or reviews.
+Everything is in English and Hindi (the choice is
 saved as `hisaab:lang`, so the P&L and Labels tools open in the same language). It shows at `/home`
 (`/?home=1`) and `#/home`; the website itself opens on the app's Home screen (above). Share preview image: `img/og.jpg`
 (1200×630).
