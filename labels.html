@@ -153,6 +153,44 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
 .how ol { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 6px; }
 .how .priv { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding: 10px 12px; border-radius: 12px; background: var(--pos-bg); font-size: .92rem; }
 .how .priv svg { width: 20px; height: 20px; color: var(--pos); flex: none; margin-top: 2px; }
+/* blouse sizes: the line under the tick, and the "Change sizes" dialog */
+.btn.sm { min-height: 38px; padding: 6px 12px; font-size: .9rem; border-radius: 9px; }
+.btn.sm svg { width: 16px; height: 16px; }
+.btn.sm[disabled] { opacity: .5; cursor: not-allowed; }
+.szline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 0 30px; }
+.pill.ok { background: var(--pos-bg); color: var(--pos); }
+.lnk { border: 0; background: none; padding: 6px 2px; min-height: 38px; color: var(--carbon); font-weight: 700; font-size: .92rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+dialog.sz { width: min(540px, calc(100% - 32px)); max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); padding: 0; border: 1px solid var(--rule); border-radius: 18px; background: var(--sheet); color: var(--ink); box-shadow: 0 30px 70px -24px rgba(16, 12, 52, .6); overflow: auto; overscroll-behavior: contain; }
+dialog.sz::backdrop { background: rgba(14, 11, 40, .55); }
+dialog.sz.fb { display: block; position: fixed; top: 16px; left: 0; right: 0; margin: 0 auto; z-index: 20; }
+.sz-in { padding: 18px; display: grid; gap: 12px; }
+.sz-top { display: flex; align-items: center; gap: 12px; }
+.sz-top h2 { flex: 1; font-size: 1.25rem; }
+.sz-in .sub { margin: 0; }
+.sz-grid { display: grid; grid-template-columns: minmax(88px, 1fr) minmax(128px, 2.2fr) 36px 34px; gap: 8px 10px; align-items: center; }
+.sz-grid .hd { font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-2); }
+.sz-grid .n { text-align: right; }
+.sz-grid select, .sz-grid input { width: 100%; min-width: 0; min-height: 44px; border: 1.5px solid var(--rule-2); border-radius: 10px; background: var(--paper); color: var(--ink); padding: 6px 8px; font-weight: 700; }
+.sz-grid select { padding-right: 4px; }
+.sz-grid input { text-align: center; }
+.sz-grid select:focus, .sz-grid input:focus { border-color: var(--carbon); }
+.sz-grid [aria-invalid="true"] { border-color: var(--neg); background: var(--warn-bg); }
+.sz-rg { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.sz-rg > span { color: var(--ink-3); }
+.sz-grid .pc { font-weight: 700; color: var(--ink-2); font-size: .92rem; }
+.sz-grid .x[disabled] { opacity: .35; cursor: default; }
+.sz-more { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.sz-err { margin: 0; color: var(--neg); font-weight: 600; font-size: .9rem; }
+.sz-err:empty, .sz-prev:empty { display: none; }
+.sz-prev { display: grid; gap: 4px; border-left: 3px solid var(--carbon); background: var(--carbon-soft); padding: 10px 12px; border-radius: 0 10px 10px 0; font-size: .9rem; }
+.sz-prev span { color: var(--ink-2); font-size: .85rem; overflow-wrap: anywhere; }
+.sz-acts { margin-top: 0; }
+.sz-acts .btn { flex: 1 1 180px; }
+@media (width < 560px) {
+  dialog.sz { width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 18px 18px 0 0; border-bottom: 0; max-height: 92vh; max-height: 92dvh; }
+  .sz-in { padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (width < 380px) { .sz-grid { grid-template-columns: minmax(84px, 1fr) minmax(112px, 2fr) 30px 34px; gap: 8px 6px; } .sz-rg { gap: 4px; } }
 .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: #1b1631; color: #fff; padding: 10px 16px; border-radius: 10px; font-weight: 600; font-size: .92rem; z-index: 10; box-shadow: 0 10px 30px -10px rgba(0, 0, 0, .5); max-width: calc(100% - 32px); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -503,8 +541,58 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   /* ---------------- packing chart ---------------- */
   /* Blouse sizes are bust sizes in inches; sellers pack them as letter sizes: 26 to 30 is L, 32 to 34 XL,
      36 to 40 XXL (31 and 35 go up to the next). A free-size range counts by its middle, so "Free Size 26-30"
-     is L, "Free-Size: 30-34" is XL and "Free Size 36-40" is XXL; "38 Alterable" is 38. */
-  var BLOUSE = [[26, 31, 'L'], [31, 35, 'XL'], [35, 40.5, 'XXL']];
+     is L, "Free-Size: 30-34" is XL and "Free Size 36-40" is XXL; "38 Alterable" is 38.
+     Those are PakkaBill's sizes; a seller can set their own (setSizes), like M 26-28, L 30-32, XL 34-36. */
+  var SIZES0 = [{ size: 'L', from: 26, to: 30 }, { size: 'XL', from: 32, to: 34 }, { size: 'XXL', from: 36, to: 40 }];
+  var MAX_SIZES = 8, SIZES, BLOUSE, GROUP;
+  function copySizes(gs) { return gs.map(function (g) { return { size: g.size, from: g.from, to: g.to }; }); }
+  /* [{size, from, to}] in inch order -> [[from, below, size]]. A number between two sizes goes up to the next one,
+     a half size (30.5) stays with the size below, and the last size ends at its own 'to'. PakkaBill's sizes give
+     [[26, 31, 'L'], [31, 35, 'XL'], [35, 40.5, 'XXL']]. */
+  function blouseRules(gs) {
+    var r = [];
+    gs.forEach(function (g, i) { var nx = gs[i + 1]; r.push([i ? r[i - 1][1] : g.from, nx ? Math.min(g.to + 1, nx.from) : g.to + 0.5, g.size]); });
+    return r;
+  }
+  // inches as typed: a number from 10 to 99, whole or half ('30', 30, '30.5'); null when it is not one
+  function inch(v) {
+    if (typeof v !== 'number' && !/^\s*\d+(?:[.,]\d+)?\s*$/.test(String(v == null ? '' : v))) return null;
+    var n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'));
+    return isFinite(n) && n >= 10 && n <= 99 ? Math.round(n * 2) / 2 : null;
+  }
+  /* A seller's own sizes [{size, from, to}] (any order, inches as typed) -> {ok: true, sizes} in inch order, or
+     {ok: false, why, at, to}: why is 'empty' | 'many' | 'name' | 'same' | 'num' | 'range' | 'overlap' | 'order',
+     at (and to) the place in the list given. Sizes are letter sizes (M, XL, 3XL...), each once, going up with the inches. */
+  function checkSizes(list) {
+    if (!list || !list.length) return { ok: false, why: 'empty' };
+    if (list.length > MAX_SIZES) return { ok: false, why: 'many' };
+    var gs = [], seen = {};
+    for (var i = 0; i < list.length; i++) {
+      var g = list[i] || {}, z = canonSize(g.size), a = inch(g.from), b = inch(g.to);
+      if (LETTER.indexOf(z) < 0) return { ok: false, why: 'name', at: i };
+      if (seen[z] != null) return { ok: false, why: 'same', at: i, to: seen[z] };
+      if (a == null || b == null) return { ok: false, why: 'num', at: i, field: a == null ? 'from' : 'to' };
+      if (a > b) return { ok: false, why: 'range', at: i };
+      seen[z] = i; gs.push({ size: z, from: a, to: b, i: i });
+    }
+    gs.sort(function (p, q) { return p.from - q.from; });
+    for (var j = 1; j < gs.length; j++) {
+      if (gs[j].from <= gs[j - 1].to) return { ok: false, why: 'overlap', at: gs[j].i, to: gs[j - 1].i };
+      if (LETTER.indexOf(gs[j].size) < LETTER.indexOf(gs[j - 1].size)) return { ok: false, why: 'order', at: gs[j].i, to: gs[j - 1].i };
+    }
+    return { ok: true, sizes: copySizes(gs) };
+  }
+  // the sizes inch sizes count as: the seller's own, or PakkaBill's when list is empty or not right. Returns them.
+  function setSizes(list) {
+    var c = list ? checkSizes(list) : null;
+    SIZES = c && c.ok ? c.sizes : copySizes(SIZES0);
+    BLOUSE = blouseRules(SIZES);
+    GROUP = {}; SIZES.forEach(function (g) { GROUP[g.size] = 1; });
+    return copySizes(SIZES);
+  }
+  function sizes() { return copySizes(SIZES); }
+  function defaultSizes() { return copySizes(SIZES0); }
+  setSizes(null);
   /* A size of just "Free Size" with the inches in the SKU ("BLOUSE-RED-26-30", "RB_30_34", "PNK 36 TO 40",
      "PGR3034"): the range from the SKU, like "30-34". Two numbers from 24 to 44, the second 2 to 8 more. */
   function skuRange(sku) {
@@ -519,7 +607,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   // sku (optional): for a plain "Free Size", the inches written in the SKU
   function blouseSize(sz, sku) {
     var c = canonSize(sz);
-    if (c === 'L' || c === 'XL' || c === 'XXL') return c;
+    if (GROUP[c]) return c;
     if (c === 'FREE SIZE') { var r = skuRange(sku); return r ? blouseSize(r) : null; }
     // only inch sizes: numbers with words like Free-Size or Alterable around them, nothing else
     if (c.replace(/FREE|SIZE|ALTERABLE|INCHES|INCH|BUST|\bIN\b|\bTO\b|\d{2}(?:\.\d)?|[\s:\-–\/"'()]/g, '')) return null;
@@ -532,10 +620,10 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   // most pieces in inch sizes from 26 to 40: a blouse seller
   function looksBlouse(items) {
     var all = 0, b = 0;
-    items.forEach(function (it) { all += it.qty; var g = blouseSize(it.size, it.sku); if (g && !/^(L|XL|XXL)$/.test(canonSize(it.size))) b += it.qty; });
+    items.forEach(function (it) { all += it.qty; var g = blouseSize(it.size, it.sku); if (g && !GROUP[canonSize(it.size)]) b += it.qty; });
     return all > 0 && b / all >= 0.5;
   }
-  // items [{sku, size, qty}] -> SKU x size table. opt.blouse: inch sizes as L / XL / XXL. opt.sort: 'most' | 'az'
+  // items [{sku, size, qty}] -> SKU x size table. opt.blouse: inch sizes as L / XL / XXL (or the seller's sizes). opt.sort: 'most' | 'az'
   function packChart(items, opt) {
     opt = opt || {};
     var rows = {}, sp = {}, tot = {}, map = {}, grand = 0;
@@ -549,7 +637,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       rows[g].cells[col] = (rows[g].cells[col] || 0) + it.qty; rows[g].total += it.qty;
       tot[col] = (tot[col] || 0) + it.qty; grand += it.qty;
     });
-    if (opt.blouse) ['L', 'XL', 'XXL'].forEach(function (c) { if (!tot[c]) tot[c] = 0; });
+    if (opt.blouse) SIZES.forEach(function (g) { if (!tot[g.size]) tot[g.size] = 0; });
     var cols = Object.keys(tot).sort(function (a, b) { return (a === '-') - (b === '-') || sizeCmp(a, b); });
     var list = Object.keys(rows).map(function (g) {
       var r = rows[g]; r.sku = bestSku(sp[g], g); return r;
@@ -562,7 +650,8 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
 
   root.PBL = { words: words, lines: lines, parseLabel: parseLabel, parseManifest: parseManifest, checkManifest: checkManifest, canonSize: canonSize,
     showSize: showSize, sizeCmp: sizeCmp, skuCmp: skuCmp, itemCmp: itemCmp, sortLabels: sortLabels, pickList: pickList, isMixed: isMixed, labelSize: labelSize, courierOrder: courierOrder,
-    skuKey: skuKey, pageKind: pageKind, manifestPage: manifestPage, pickCheck: pickCheck, blouseSize: blouseSize, skuRange: skuRange, looksBlouse: looksBlouse, packChart: packChart };
+    skuKey: skuKey, pageKind: pageKind, manifestPage: manifestPage, pickCheck: pickCheck, blouseSize: blouseSize, skuRange: skuRange, looksBlouse: looksBlouse, packChart: packChart,
+    sizes: sizes, setSizes: setSizes, checkSizes: checkSizes, defaultSizes: defaultSizes, LETTERS: LETTER.slice(), MAX_SIZES: MAX_SIZES };
 })(typeof window !== 'undefined' ? window : this);
 </script>
 <script>
@@ -652,8 +741,6 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     'From the labels: {n} labels · {n} pieces': 'लेबल से: {n1} लेबल · {n2} पीस',
     'From the picklist in the manifest: {n} pieces': 'मैनिफ़ेस्ट की पिकलिस्ट से: {n} पीस',
     'All': 'सभी', 'Parcels': 'पार्सल',
-    'Blouse sizes as L / XL / XXL': 'ब्लाउज़ साइज़ L / XL / XXL में',
-    '26–30 = L, 30–34 = XL, 36–40 = XXL. Free Size counts by its range, or by the range in the SKU (like BLOUSE-26-30).': '26–30 = L, 30–34 = XL, 36–40 = XXL। फ़्री साइज़ अपनी रेंज से गिना जाता है, या SKU में लिखी रेंज से (जैसे BLOUSE-26-30)।',
     'Most pieces first': 'सबसे ज़्यादा पीस पहले', 'SKU A to Z': 'SKU A से Z',
     'GRAND TOTAL': 'कुल जोड़',
     'Sizes counted as:': 'साइज़ ऐसे गिने गए:',
@@ -670,9 +757,31 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     'Add both PDFs here. With only the manifest you still get the packing chart. PakkaBill reads the SKU, size, quantity and courier of every parcel.': 'दोनों PDF यहाँ जोड़ें। सिर्फ़ मैनिफ़ेस्ट से भी पैकिंग चार्ट बन जाता है। PakkaBill हर पार्सल का SKU, साइज़, मात्रा और कूरियर पढ़ता है।',
     'Labels to download': 'कौन से लेबल डाउनलोड करें', 'All sizes': 'सभी साइज़', 'Mixed sizes': 'मिले-जुले साइज़',
     'Only size {x}: {n} labels.': 'सिर्फ़ साइज़ {x}: {n} लेबल।',
-    'Pick L, XL or XXL to download only those labels. Blouse sizes: 26–30 = L, 30–34 = XL, 36–40 = XXL.': 'सिर्फ़ उन्हीं लेबल को डाउनलोड करने के लिए L, XL या XXL चुनें। ब्लाउज़ साइज़: 26–30 = L, 30–34 = XL, 36–40 = XXL।',
     'Pick a size to download only those labels.': 'सिर्फ़ उसी साइज़ के लेबल डाउनलोड करने के लिए साइज़ चुनें।',
-    'Pick how to arrange them and download one PDF: packing chart, labels in order, then the manifest.': 'क्रम चुनें और एक PDF डाउनलोड करें: पैकिंग चार्ट, क्रम में लेबल, फिर मैनिफ़ेस्ट।'
+    'Pick how to arrange them and download one PDF: packing chart, labels in order, then the manifest.': 'क्रम चुनें और एक PDF डाउनलोड करें: पैकिंग चार्ट, क्रम में लेबल, फिर मैनिफ़ेस्ट।',
+    // the seller's own blouse sizes
+    'Blouse sizes as {x}': 'ब्लाउज़ साइज़ {x} में',
+    '{x}. Free Size counts by its range, or by the range in the SKU (like BLOUSE-26-30).': '{x}। फ़्री साइज़ अपनी रेंज से गिना जाता है, या SKU में लिखी रेंज से (जैसे BLOUSE-26-30)।',
+    'Blouse sizes: {x}.': 'ब्लाउज़ साइज़: {x}।',
+    'Change sizes': 'साइज़ बदलें', 'Your saved sizes': 'आपके सेव किए साइज़', 'For now, not saved': 'अभी के लिए, सेव नहीं',
+    'Blouse sizes': 'ब्लाउज़ साइज़', 'Close': 'बंद करें',
+    'Choose which inch sizes count as which size. A number between two rows goes up to the next size, and Free Size counts by the middle of its range.': 'चुनें कि कौन-सा इंच साइज़ किस साइज़ में गिना जाए। दो लाइनों के बीच का नंबर अगले साइज़ में जाता है, और फ़्री साइज़ अपनी रेंज के बीच वाले नंबर से गिना जाता है।',
+    'Inches': 'इंच', 'Size {n}': 'साइज़ {n}', '{x}: from (inches)': '{x}: कितने इंच से', '{x}: to (inches)': '{x}: कितने इंच तक', 'Remove {x}': '{x} हटाएँ',
+    'Add a size': 'साइज़ जोड़ें', 'Use PakkaBill’s sizes': 'PakkaBill वाले साइज़ लें',
+    'Use for now': 'अभी के लिए इस्तेमाल करें', 'Save as my default': 'हर बार के लिए सेव करें',
+    'Saved. These sizes will be used every time.': 'सेव हो गया। अब हर बार यही साइज़ इस्तेमाल होंगे।',
+    'Using these sizes for now. Save them to use them next time too.': 'अभी के लिए ये साइज़ इस्तेमाल हो रहे हैं। अगली बार के लिए भी चाहिए तो सेव करें।',
+    'Could not save on this device. The sizes are used for now.': 'इस डिवाइस पर सेव नहीं हो सका। अभी के लिए ये साइज़ इस्तेमाल हो रहे हैं।',
+    'Back to PakkaBill’s sizes, saved for next time too.': 'फिर से PakkaBill वाले साइज़, अगली बार के लिए भी सेव।',
+    '{n} of {n} pieces in these files are counted in these sizes.': 'इन फ़ाइलों के {n2} में से {n1} पीस इन साइज़ में गिने गए।',
+    'Other sizes stay as written: {x}.': 'बाकी साइज़ जैसे लिखे हैं वैसे ही रहेंगे: {x}।',
+    'Add at least one size.': 'कम से कम एक साइज़ जोड़ें।', 'Up to {n} sizes.': 'ज़्यादा से ज़्यादा {n} साइज़।',
+    'Pick a size in row {n}.': 'लाइन {n} में साइज़ चुनें।',
+    '{x} is there twice. Keep each size once.': '{x} दो बार है। हर साइज़ एक ही बार रखें।',
+    '{x}: type the inches as a number from 10 to 99.': '{x}: इंच 10 से 99 के बीच नंबर में लिखें।',
+    '{x}: the first number is more than the second.': '{x}: पहला नंबर दूसरे से बड़ा है।',
+    '{x} and {x} share inches. Each inch size can count in one size only.': '{x} और {x} में एक जैसे इंच हैं। एक इंच साइज़ एक ही साइज़ में गिना जा सकता है।',
+    '{x} has smaller inches than {x}. Bigger inches should be a bigger size.': '{x} के इंच {x} से छोटे हैं। बड़े इंच बड़े साइज़ में होने चाहिए।'
   };
   // t('Reading {n} of {n} pages…', 3, 10); in Hindi {n1}/{n2} pick numbers by position. {x} is plain text.
   function t(s) {
@@ -687,6 +796,24 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   S.opts = { by: 'sku', courier: true, mixedLast: true, mode: 'full', pick: true, man: 'end', blouse: null, chartSort: 'most', chartCourier: 'all', only: 'all' };
   try { var so = JSON.parse(localStorage.getItem(OPTS_KEY) || 'null'); if (so) for (var k in S.opts) if (so[k] != null) S.opts[k] = so[k]; } catch (e) { /* ignore */ }
   function saveOpts() { try { localStorage.setItem(OPTS_KEY, JSON.stringify(S.opts)); } catch (e) { /* ignore */ } }
+
+  /* Blouse sizes: which inch sizes count as L, XL, XXL... PakkaBill's (26-30 L, 32-34 XL, 36-40 XXL) unless the
+     seller saved their own as the default ("Save as my default", kept on this device); "Use for now" changes
+     them until the page is closed. */
+  var SIZES_KEY = 'pakkabill:labels.sizes';
+  var mySizes = null; // the seller's saved sizes, or null for PakkaBill's
+  try { var ss = JSON.parse(localStorage.getItem(SIZES_KEY) || 'null'), sc = ss && L.checkSizes(ss); if (sc && sc.ok) mySizes = sc.sizes; } catch (e) { /* ignore */ }
+  L.setSizes(mySizes);
+  // 'pb': PakkaBill's sizes, 'saved': the seller's saved sizes, 'now': changed for now and not saved
+  function sizesState() {
+    var cur = JSON.stringify(L.sizes());
+    if (mySizes) return cur === JSON.stringify(mySizes) ? 'saved' : 'now';
+    return cur === JSON.stringify(L.defaultSizes()) ? 'pb' : 'now';
+  }
+  // "26–30 = L, 32–34 = XL, 36–40 = XXL"; dash '-' for the PDF
+  function rangeOf(g, dash) { return g.from === g.to ? String(g.from) : g.from + (dash || '–') + g.to; }
+  function sizesText(gs) { return (gs || L.sizes()).map(function (g) { return rangeOf(g) + ' = ' + g.size; }).join(', '); }
+  function sizeList() { return L.sizes().map(function (g) { return g.size; }); }
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function $(s, r) { return (r || document).querySelector(s); }
@@ -1088,13 +1215,15 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   function pdfAssets() {
     return assetsP || (assetsP = Promise.all([window.PBPDF ? 0 : loadScript('labels-pdf.js'), window.HPF ? 0 : loadScript('pnl-pdf-fonts.js'), window.fontkit ? 0 : loadScript('pdf-fontkit.js')]));
   }
-  var RANGE = { L: '26-30', XL: '32-34', XXL: '36-40' };
   // what the designed chart pages show: from the manifest (with each courier) or from the labels in the sorted PDF
   function chartDoc(src, forLabels, chk) {
     var man = src.man, bl = src.blouse != null ? src.blouse : blouseOn(src.items), all = chartFor(src, 'all'), cs = couriersOf(src.items), pc = !forLabels && src.from === 'man' ? pickCheck(man) : null;
     var pct = function (v) { return all.grand ? Math.round(1000 * v / all.grand) / 10 + '%' : '0%'; };
+    var gs = L.sizes(), range = {};
+    gs.forEach(function (g) { range[g.size] = rangeOf(g, '-'); });
     var kp = [{ label: 'PIECES TO PACK', value: all.grand, note: (all.parcels != null ? all.parcels + (forLabels ? ' labels' : ' parcels') + '  ·  ' : '') + all.rows.length + ' SKUs' }];
-    if (bl) ['L', 'XL', 'XXL'].forEach(function (k) { kp.push({ label: 'SIZE ' + k, value: all.totals[k] || 0, note: pct(all.totals[k] || 0) + '  ·  ' + RANGE[k] + ' in', size: k }); });
+    // a card for each size, when they fit in one row (up to 4 sizes; more go in the split bar and the table)
+    if (bl && gs.length <= 4) gs.forEach(function (g) { var k = g.size; kp.push({ label: 'SIZE ' + k, value: all.totals[k] || 0, note: pct(all.totals[k] || 0) + '  ·  ' + range[k] + ' in', size: k }); });
     else kp.push({ label: forLabels ? 'LABELS' : 'PARCELS', value: all.parcels != null ? all.parcels : '-', icon: 'box' }, { label: 'SKUS', value: all.rows.length, icon: 'tag' }, { label: 'COURIERS', value: cs.names.length || '-', icon: 'truck' });
     var notes = [];
     if (bl && all.mapped.length) notes.push({ text: 'Sizes counted as  -  ' + mappedText(all, '   ') + '. A free-size range counts by its middle.', kind: 'muted' });
@@ -1105,8 +1234,9 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     var date = (man && man.date) || fmtDateEn(new Date());
     return {
       kicker: 'Ready to pack,', title: 'Packing chart', pill: forLabels ? 'LABELS IN ORDER' : 'PACKING CHART', date: date, blouse: bl,
+      sizes: gs.map(function (g) { return g.size; }), ranges: range,
       tagline: forLabels ? 'Packing chart for your sorted Meesho labels' : 'Packing chart from your Meesho manifest',
-      sub: (bl ? 'Blouse sizes as L / XL / XXL' : 'Every size as written') + '  ·  ' + date,
+      sub: (bl ? 'Blouse sizes as ' + gs.map(function (g) { return g.size; }).join(' / ') : 'Every size as written') + '  ·  ' + date,
       forName: (man && man.supplier) || '', forLine: forLabels ? all.parcels + ' labels sorted by SKU and size' + (src.only != null && src.only !== 'all' ? ' (size ' + (src.only || 'mixed') + ' only)' : '') + '  ·  ' + cs.names.length + (cs.names.length === 1 ? ' courier' : ' couriers')
         : (src.from === 'man' ? 'From the Meesho manifest' : src.from === 'labels' ? 'From the labels' : 'From the picklist') + (all.parcels != null ? '  ·  ' + all.parcels + ' parcels' : '') + (cs.names.length ? '  ·  ' + cs.names.length + (cs.names.length === 1 ? ' courier' : ' couriers') : ''),
       main: all, kpis: kp, notes: notes, tableSub: 'Most pieces first' + (forLabels ? '. The labels follow in SKU and size order.' : '. One table for each courier follows.'),
@@ -1129,7 +1259,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   function plainChart(P, out, src) {
     var man = src.man, bl = blouseOn(src.items);
     return Promise.all([out.embedFont(P.StandardFonts.Helvetica), out.embedFont(P.StandardFonts.HelveticaBold)]).then(function (fx) {
-      var cw = chartWriter(P, out, { r: fx[0], b: fx[1] }, 595.28, 841.89, { title: 'Packing chart' + (bl ? '  -  L / XL / XXL' : ''), short: 'Packing chart', right: (man && man.date) || fmtDateEn(new Date()) });
+      var cw = chartWriter(P, out, { r: fx[0], b: fx[1] }, 595.28, 841.89, { title: 'Packing chart' + (bl ? '  -  ' + sizeList().join(' / ') : ''), short: 'Packing chart', right: (man && man.date) || fmtDateEn(new Date()) });
       var all = chartFor(src, 'all'), cs = couriersOf(src.items);
       cw.newPage();
       if (man && man.supplier) cw.line('Supplier: ' + man.supplier, { bold: true });
@@ -1138,7 +1268,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       if (cs.names.length > 1) cw.line('Couriers: ' + cs.names.map(function (c) { return c + ' ' + cs.count[c]; }).join('   '), { color: cw.colors.mute });
       cw.gap(0.3);
       cw.table(all);
-      if (bl) cw.line('Sizes counted as  -  ' + (mappedText(all, '   ') || 'L, XL, XXL as written') + '. Free-size ranges count by their middle.', { color: cw.colors.mute, size: 8 });
+      if (bl) cw.line('Sizes counted as  -  ' + (mappedText(all, '   ') || sizeList().join(', ') + ' as written') + '. Free-size ranges count by their middle.', { color: cw.colors.mute, size: 8 });
       var pc = src.from === 'man' ? pickCheck(man) : null;
       if (pc) cw.line(pc.same ? 'Checked: same as Meesho\'s picklist in the manifest (' + pc.pieces + ' pieces).' : 'Not the same as Meesho\'s picklist in the manifest: ' + pc.diffs.length + ' differences, see PakkaBill.', { bold: true, size: 8, color: pc.same ? cw.colors.ok : cw.colors.warn });
       if (cs.names.length > 1) { cw.gap(0.6); cs.names.forEach(function (c) { var ch = chartFor(src, c); cw.table(ch, c, ch.parcels + ' parcels  -  ' + ch.grand + ' pieces', true); }); }
@@ -1278,7 +1408,9 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     dl: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>',
     share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>',
     copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
-    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+    plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'
   };
   function seg(name, val, items) {
     return '<div class="seg" role="group">' + items.map(function (it) {
@@ -1287,6 +1419,14 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
   }
   function chk(name, val, label, help) {
     return '<label class="chk"><input type="checkbox" data-act="chk" data-k="' + name + '"' + (val ? ' checked' : '') + '><span>' + esc(t(label)) + (help ? '<small>' + esc(t(help)) + '</small>' : '') + '</span></label>';
+  }
+  // "Blouse sizes as L / XL / XXL" with the sizes in use, and the button that changes them
+  function blouseChk(val, where) {
+    var st = sizesState();
+    return '<div class="opt"><label class="chk"><input type="checkbox" data-act="chk" data-k="blouse"' + (val ? ' checked' : '') + '><span>' + esc(t('Blouse sizes as {x}', sizeList().join(' / '))) +
+      '<small>' + esc(t('{x}. Free Size counts by its range, or by the range in the SKU (like BLOUSE-26-30).', sizesText())) + '</small></span></label>' +
+      '<div class="szline"><button type="button" class="btn sm" data-act="sizes" data-where="' + where + '">' + ICO.edit + esc(t('Change sizes')) + '</button>' +
+      (st === 'saved' ? '<span class="pill ok">' + esc(t('Your saved sizes')) + '</span>' : st === 'now' ? '<span class="pill w">' + esc(t('For now, not saved')) + '</span>' : '') + '</div></div>';
   }
   function heroHtml() {
     return '<section class="hero"><div class="hero-top"><div><p class="hero-k" style="margin:0 0 8px"><i></i>' + esc(t('Free · your files stay on your device')) + '</p><h1>' + esc(t('Labels & packing chart')) + '</h1></div>' +
@@ -1352,7 +1492,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     // options and download
     h += '<section class="card"><h2>' + esc(t('How to arrange')) + '</h2><div class="opts">' +
       '<div class="opt"><span class="lbl">' + esc(t('Order labels by')) + '</span>' + seg('by', o.by, [['sku', 'SKU, then size', 'All sizes of a product together'], ['size', 'Size, then SKU', 'All S together, then all M…']]) + '</div>' +
-      chk('blouse', labBlouse(), 'Blouse sizes as L / XL / XXL', '26–30 = L, 30–34 = XL, 36–40 = XXL. Free Size counts by its range, or by the range in the SKU (like BLOUSE-26-30).') +
+      blouseChk(labBlouse(), 'arrange') +
       onlyHtml(labs) +
       (co.names.length > 1 ? chk('courier', o.courier, 'Keep each courier’s labels together', 'Handy when couriers pick up at different times.') : '') +
       chk('mixedLast', o.mixedLast, 'Orders with 2 or more products at the end', 'These need a bigger packet and more checking.') +
@@ -1379,7 +1519,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
     if (cs.names.length > 1) h += '<div class="tabs chips" role="group" aria-label="' + esc(t('Courier')) + '" style="margin-top:12px">' + [['all', t('All'), cs.all]].concat(cs.names.map(function (c) { return [c, c, cs.count[c]]; })).map(function (x) {
       return '<button type="button" data-act="ccur" data-v="' + esc(x[0]) + '" aria-pressed="' + (cur === x[0]) + '">' + esc(x[1]) + ' <small>' + x[2] + '</small></button>';
     }).join('') + '</div>';
-    h += '<div class="opts" style="margin:12px 0">' + chk('blouse', bl, 'Blouse sizes as L / XL / XXL', '26–30 = L, 30–34 = XL, 36–40 = XXL. Free Size counts by its range, or by the range in the SKU (like BLOUSE-26-30).') +
+    h += '<div class="opts" style="margin:12px 0">' + blouseChk(bl, 'chart') +
       '<div class="opt">' + seg('chartSort', o.chartSort, [['most', 'Most pieces first'], ['az', 'SKU A to Z']]) + '</div></div>';
     h += '<div class="tw"><table class="t chart"><thead><tr><th>SKU</th>' + ch.cols.map(function (c) { return '<th class="n">' + esc(c) + '</th>'; }).join('') + '<th class="n">' + esc(t('Total')) + '</th></tr></thead><tbody>' +
       ch.rows.map(function (r) { return '<tr><td class="sku">' + esc(r.sku) + '</td>' + ch.cols.map(function (c) { var v = r.cells[c] || 0; return '<td class="n' + (v ? '' : ' z') + '">' + v + '</td>'; }).join('') + '<td class="n"><b>' + r.total + '</b></td></tr>'; }).join('') +
@@ -1400,7 +1540,7 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       return [x[0], sizeName(x[0]), plural(x[1], '1 label', '{n} labels')];
     }));
     return '<div class="opt"><span class="lbl">' + esc(t('Labels to download')) + '</span>' + seg('only', onlySize(labs), items) +
-      '<p class="fine" style="margin:6px 0 0">' + esc(t(bl ? 'Pick L, XL or XXL to download only those labels. Blouse sizes: 26–30 = L, 30–34 = XL, 36–40 = XXL.' : 'Pick a size to download only those labels.')) + '</p></div>';
+      '<p class="fine" style="margin:6px 0 0">' + esc(t('Pick a size to download only those labels.') + (bl ? ' ' + t('Blouse sizes: {x}.', sizesText()) : '')) + '</p></div>';
   }
   function orderHtml(labs) {
     var o = S.opts, MAX = 400, h = '<div class="tw"><table class="t ord"><thead><tr><th class="n">#</th><th>SKU</th><th>' + esc(t('Size')) + '</th><th class="n">' + esc(t('Qty')) + '</th></tr></thead><tbody>';
@@ -1425,6 +1565,136 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       '<div class="priv">' + ICO.lock + '<span>' + esc(t('Your labels never leave this phone or computer. Nothing is uploaded.')) + '</span></div>' +
       (S.files.length ? '<div class="acts"><button type="button" class="btn" data-act="reset">' + esc(t('Start again')) + '</button></div>' : '') + '</section>';
   }
+  /* ---------------- the seller's sizes: "Change sizes" ---------------- */
+  /* A dialog outside #app (render() does not touch it, so typing keeps its place). SZ while it is open:
+     rows [{size, from, to}] as typed, where = the card it was opened from, shown = problems are shown. */
+  var SZ = null;
+  function sizeRows() { return SZ.rows.map(function (r) { return { size: r.size, from: r.from, to: r.to }; }); }
+  // the chart these sizes would give for the files added now (the sizes in use are put back)
+  function sizesTry(gs) {
+    var src = chartSource(); if (!src || !src.items.length) return null;
+    var keep = L.sizes();
+    try { L.setSizes(gs); return packChart(src.items, { blouse: true }); } finally { L.setSizes(keep); }
+  }
+  function sizesErr(c) {
+    var nm = function (i) { var r = SZ.rows[i]; return (r && canonSize(r.size)) || t('Size {n}', i + 1); };
+    if (c.why === 'empty') return t('Add at least one size.');
+    if (c.why === 'many') return t('Up to {n} sizes.', L.MAX_SIZES);
+    if (c.why === 'name') return t('Pick a size in row {n}.', c.at + 1);
+    if (c.why === 'same') return t('{x} is there twice. Keep each size once.', nm(c.at));
+    if (c.why === 'num') return t('{x}: type the inches as a number from 10 to 99.', nm(c.at));
+    if (c.why === 'range') return t('{x}: the first number is more than the second.', nm(c.at));
+    if (c.why === 'overlap') return t('{x} and {x} share inches. Each inch size can count in one size only.', nm(c.to), nm(c.at));
+    if (c.why === 'order') return t('{x} has smaller inches than {x}. Bigger inches should be a bigger size.', nm(c.to), nm(c.at));
+    return '';
+  }
+  // the boxes a problem is in: [data-sz, row]
+  function sizesBad(c) {
+    if (c.why === 'num') return [[c.field, c.at]];
+    if (c.why === 'range') return [['from', c.at], ['to', c.at]];
+    if (c.why === 'overlap') return [['to', c.to], ['from', c.at]];
+    if (c.why === 'order') return [['size', c.to], ['size', c.at]];
+    if (c.why === 'same' || c.why === 'name') return [['size', c.at]];
+    return [];
+  }
+  function sizesHtml() {
+    var n = SZ.rows.length;
+    var h = '<div class="sz-in"><div class="sz-top"><h2 id="sz-h">' + esc(t('Blouse sizes')) + '</h2><button type="button" class="x" data-act="sz-close" aria-label="' + esc(t('Close')) + '">×</button></div>' +
+      '<p class="sub">' + esc(t('Choose which inch sizes count as which size. A number between two rows goes up to the next size, and Free Size counts by the middle of its range.')) + '</p>' +
+      '<div class="sz-grid"><span class="hd">' + esc(t('Size')) + '</span><span class="hd">' + esc(t('Inches')) + '</span><span class="hd n">' + esc(t('Pcs')) + '</span><span></span>';
+    SZ.rows.forEach(function (r, i) {
+      var name = canonSize(r.size) || t('Size {n}', i + 1);
+      h += '<select data-sz="size" data-i="' + i + '" aria-label="' + esc(t('Size {n}', i + 1)) + '">' + L.LETTERS.map(function (z) { return '<option' + (z === r.size ? ' selected' : '') + '>' + esc(z) + '</option>'; }).join('') + '</select>' +
+        '<span class="sz-rg"><input data-sz="from" data-i="' + i + '" inputmode="decimal" autocomplete="off" maxlength="4" value="' + esc(r.from) + '" aria-label="' + esc(t('{x}: from (inches)', name)) + '"><span aria-hidden="true">–</span>' +
+        '<input data-sz="to" data-i="' + i + '" inputmode="decimal" autocomplete="off" maxlength="4" value="' + esc(r.to) + '" aria-label="' + esc(t('{x}: to (inches)', name)) + '"></span>' +
+        '<span class="n pc" data-pc="' + i + '"></span>' +
+        '<button type="button" class="x" data-act="sz-rm" data-i="' + i + '" aria-label="' + esc(t('Remove {x}', name)) + '"' + (n < 2 ? ' disabled' : '') + '>×</button>';
+    });
+    return h + '</div><div class="sz-more"><button type="button" class="btn sm" data-act="sz-add"' + (n >= L.MAX_SIZES ? ' disabled' : '') + '>' + ICO.plus + esc(t('Add a size')) + '</button>' +
+      '<button type="button" class="lnk" data-act="sz-reset">' + esc(t('Use PakkaBill’s sizes')) + '</button></div>' +
+      '<p class="sz-err" id="sz-err" role="alert"></p><div class="sz-prev" id="sz-prev" aria-live="polite"></div>' +
+      '<div class="acts sz-acts"><button type="button" class="btn pri" data-act="sz-save">' + esc(t('Save as my default')) + '</button>' +
+      '<button type="button" class="btn" data-act="sz-use">' + esc(t('Use for now')) + '</button></div></div>';
+  }
+  // counts per size, how the sizes in these files count, and the problem (when shown); returns the check
+  function sizesInfo() {
+    var d = $('#szdlg'), c = L.checkSizes(sizeRows()), ch = c.ok ? sizesTry(c.sizes) : null, mine = {};
+    if (!d) return c;
+    [].forEach.call(d.querySelectorAll('[data-sz]'), function (el) { el.removeAttribute('aria-invalid'); });
+    $('#sz-err', d).textContent = !c.ok && SZ.shown ? sizesErr(c) : '';
+    if (!c.ok && SZ.shown) sizesBad(c).forEach(function (b) { var el = d.querySelector('[data-sz="' + b[0] + '"][data-i="' + b[1] + '"]'); if (el) el.setAttribute('aria-invalid', 'true'); });
+    [].forEach.call(d.querySelectorAll('[data-pc]'), function (el) { var r = SZ.rows[+el.getAttribute('data-pc')]; el.textContent = ch ? String(ch.totals[canonSize(r.size)] || 0) : '–'; });
+    var pv = $('#sz-prev', d);
+    if (!ch) { pv.innerHTML = ''; return c; }
+    c.sizes.forEach(function (g) { mine[g.size] = 1; });
+    var n = 0, other = [];
+    ch.cols.forEach(function (k) { if (mine[k]) n += ch.totals[k] || 0; else if (ch.totals[k]) other.push(k + ' (' + ch.totals[k] + ')'); });
+    pv.innerHTML = '<b>' + esc(t('{n} of {n} pieces in these files are counted in these sizes.', n, ch.grand)) + '</b>' +
+      (ch.mapped.length ? '<span>' + esc(t('Sizes counted as:')) + ' ' + esc(mappedText(ch)) + '</span>' : '') +
+      (other.length ? '<span>' + esc(t('Other sizes stay as written: {x}.', other.join(', '))) + '</span>' : '');
+    return c;
+  }
+  function paintSizes(focus) {
+    var d = $('#szdlg'); if (!d || !SZ) return;
+    d.innerHTML = sizesHtml(); sizesInfo();
+    var el = focus && d.querySelector(focus); if (el) el.focus();
+  }
+  function openSizes(where) {
+    SZ = { rows: L.sizes().map(function (g) { return { size: g.size, from: String(g.from), to: String(g.to) }; }), where: where || '', shown: false };
+    var d = $('#szdlg');
+    if (!d) {
+      d = document.createElement('dialog'); d.id = 'szdlg'; d.className = 'sz'; d.setAttribute('aria-labelledby', 'sz-h');
+      d.addEventListener('close', closedSizes);
+      document.body.appendChild(d);
+    }
+    paintSizes();
+    // browsers without <dialog>: shown as a panel at the top
+    var modal = false;
+    if (typeof d.showModal === 'function') { try { d.showModal(); modal = true; } catch (e) { /* below */ } }
+    if (!modal) { d.setAttribute('open', ''); d.classList.add('fb'); }
+    var f = d.querySelector('select'); if (f) f.focus();
+  }
+  function closeSizes() {
+    var d = $('#szdlg'); if (!d || !SZ) return;
+    if (typeof d.close === 'function' && d.open && !d.classList.contains('fb')) d.close(); else { d.removeAttribute('open'); d.classList.remove('fb'); closedSizes(); }
+  }
+  // back to the "Change sizes" button it was opened from (the page may have been drawn again)
+  function closedSizes() {
+    if (!SZ) return;
+    var b = $('[data-act="sizes"][data-where="' + SZ.where + '"]') || $('[data-act="sizes"]'); SZ = null;
+    if (b) { try { b.focus({ preventScroll: true }); } catch (e) { b.focus(); } }
+  }
+  function addSizeRow() {
+    var rows = SZ.rows, last = rows[rows.length - 1], used = {}, LS = L.LETTERS, z = '';
+    rows.forEach(function (r) { used[canonSize(r.size)] = 1; });
+    var at = last ? LS.indexOf(canonSize(last.size)) + 1 : LS.indexOf('L');
+    for (var i = 0; i < LS.length && !z; i++) { var c = LS[(Math.max(0, at) + i) % LS.length]; if (!used[c]) z = c; }
+    // blouse sizes go in twos: after 36-40 comes 42-44
+    var to = parseFloat(last && last.to), from = isFinite(to) ? to + 2 : 26;
+    rows.push({ size: z, from: String(from), to: String(from + 2) });
+    paintSizes('[data-sz="size"][data-i="' + (rows.length - 1) + '"]');
+  }
+  // "Use for now" (save: false) or "Save as my default" (save: true)
+  function applySizes(save) {
+    SZ.shown = true;
+    var c = sizesInfo();
+    if (!c.ok) { var bad = $('#szdlg [aria-invalid="true"]'); if (bad) bad.focus(); return; }
+    L.setSizes(c.sizes);
+    var msg = sizesState() === 'now' ? t('Using these sizes for now. Save them to use them next time too.') : '';
+    if (save) {
+      var pb = JSON.stringify(c.sizes) === JSON.stringify(L.defaultSizes());
+      try {
+        if (pb) localStorage.removeItem(SIZES_KEY); else localStorage.setItem(SIZES_KEY, JSON.stringify(c.sizes));
+        mySizes = pb ? null : c.sizes;
+        msg = t(pb ? 'Back to PakkaBill’s sizes, saved for next time too.' : 'Saved. These sizes will be used every time.');
+      } catch (e) { msg = t('Could not save on this device. The sizes are used for now.'); }
+    }
+    // the seller set sizes to count blouses by: count these files that way
+    var src = chartSource(); if (src && !blouseOn(src.items)) { S.opts.blouse = true; saveOpts(); }
+    S.out = null; render(); closeSizes();
+    if (msg) toast(msg);
+  }
+
   function render() {
     var app = $('#app'), y = window.scrollY;
     document.documentElement.lang = LANG === 'hi' ? 'hi' : 'en-IN';
@@ -1463,11 +1733,29 @@ table.ord td:nth-child(3) { overflow-wrap: anywhere; }
       });
     }
     else if (a === 'reset') { S.files.forEach(function (f) { if (f.doc) f.doc.destroy(); }); S.files = []; S.out = null; render(); }
+    // the seller's sizes
+    else if (a === 'sizes') openSizes(b.getAttribute('data-where'));
+    else if (!SZ) return;
+    else if (a === 'sz-close') closeSizes();
+    else if (a === 'sz-add') addSizeRow();
+    else if (a === 'sz-rm') { SZ.rows.splice(+b.getAttribute('data-i'), 1); paintSizes('[data-act="sz-add"]'); }
+    else if (a === 'sz-reset') { SZ.rows = L.defaultSizes().map(function (g) { return { size: g.size, from: String(g.from), to: String(g.to) }; }); paintSizes('[data-act="sz-reset"]'); }
+    else if (a === 'sz-use' || a === 'sz-save') applySizes(a === 'sz-save');
+  });
+  // typing in "Change sizes": the counts follow at once; a problem shows once a box is left (or Save is pressed)
+  document.addEventListener('input', function (e) {
+    var el = e.target, k = el.getAttribute && el.getAttribute('data-sz'), r = k && SZ && SZ.rows[+el.getAttribute('data-i')];
+    if (r) { r[k] = el.value; sizesInfo(); }
   });
   document.addEventListener('change', function (e) {
-    var el = e.target, a = el.getAttribute && el.getAttribute('data-act');
+    var el = e.target, a = el.getAttribute && el.getAttribute('data-act'), k = el.getAttribute && el.getAttribute('data-sz');
     if (a === 'file') { addFiles(el.files); el.value = ''; }
     else if (a === 'chk') { S.opts[el.getAttribute('data-k')] = el.checked; saveOpts(); S.out = null; render(); var c = el.getAttribute('data-k') === 'blouse' && $('#chart'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'nearest' }); }
+    else if (k && SZ && SZ.rows[+el.getAttribute('data-i')]) {
+      SZ.rows[+el.getAttribute('data-i')][k] = el.value; SZ.shown = true;
+      // a new size name: draw the rows again, for the names read out with each box
+      if (k === 'size') paintSizes('[data-sz="size"][data-i="' + el.getAttribute('data-i') + '"]'); else sizesInfo();
+    }
   });
   // files dropped anywhere on the page are added (and never open in the browser instead)
   ['dragenter', 'dragover'].forEach(function (ev) { document.addEventListener(ev, function (e) { e.preventDefault(); var d = $('#drop'); if (d) d.classList.add('over'); }); });

@@ -417,6 +417,19 @@ inch sizes count as letter sizes (26–30 L, 32–34 XL, 36–40 XXL, a free-siz
 rule as the P&L's Returns tab. It shows for all parcels or one courier, and downloads as a PDF (all, then
 each courier), Excel (CSV) or WhatsApp text. With labels only, the chart is made from the labels.
 
+**Change sizes** (under "Blouse sizes as L / XL / XXL", on the packing chart and in How to arrange) lets the
+seller set which inch sizes count as which size: up to 8 letter sizes (XXS to 8XL), each with its inches from–to,
+like M 26–28, L 30–32, XL 34–36, XXL 38–40, 3XL 42–44. A number between two sizes goes up to the next one, a half
+size stays with the size below unless the next one starts there, and a free-size range counts by its middle. While
+typing it shows the pieces of the added files in each size, how their sizes are counted and which stay as written;
+mistakes (a size twice, overlapping inches, bigger inches on a smaller size) are named before anything changes.
+**Use for now** uses them until the page is closed; **Save as my default** also keeps them on this device
+(`pakkabill:labels.sizes`), so the tool counts that way every time it opens ("Your saved sizes" next to the
+button). "Use PakkaBill's sizes" puts back 26–30 L, 32–34 XL, 36–40 XXL; saving those forgets the seller's own.
+The chart, the labels' order, Labels to download, the PDFs (size cards for up to 4 sizes), CSV and WhatsApp
+text all follow the sizes in use. Engine: `PBL.setSizes`, `checkSizes`, `sizes`, `defaultSizes`; PakkaBill's
+sizes give exactly the old rule, and the Android app keeps them.
+
 Page: Full page, Label only 4×6 inch, Label only 4×4 inch (every page exactly 288 × 288 pt), or **Cut empty space** (label and invoice as Meesho made them, the blank
 white area at the bottom of each label page cut off, as in the Label cropper; rotated pages too; manifest pages are
 not cut).

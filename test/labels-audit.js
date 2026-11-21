@@ -231,5 +231,48 @@ eq(['26', '28', '30', '31', '32', '34', '35', '36', '38', '40', 'L', '2XL', 'Fre
   eq(labs.map((x) => L.labelSize(x.lab, true)), ['L', 'XL', 'XXL'], 'labels with Free Size go under L / XL / XXL for download');
 }
 
+/* 15. the seller's own sizes ("Change sizes"), and back to PakkaBill's */
+{
+  const ps = [{ size: 'L', from: 26, to: 30 }, { size: 'XL', from: 32, to: 34 }, { size: 'XXL', from: 36, to: 40 }];
+  eq(L.sizes(), ps, 'PakkaBill sizes to start with');
+  eq(L.defaultSizes(), ps, 'PakkaBill sizes are the default');
+  // as typed in the page: names in any spelling, inches as text, rows in any order
+  const mine = [{ size: 'xl', from: '34', to: '36' }, { size: 'm', from: '26', to: '28' }, { size: 'L', from: 30, to: 32 }, { size: '2XL', from: ' 38 ', to: '40' }, { size: '3xl', from: '42', to: '44' }];
+  const c = L.checkSizes(mine);
+  ok(c.ok, 'own sizes are fine');
+  eq(c.sizes, [{ size: 'M', from: 26, to: 28 }, { size: 'L', from: 30, to: 32 }, { size: 'XL', from: 34, to: 36 }, { size: 'XXL', from: 38, to: 40 }, { size: 'XXXL', from: 42, to: 44 }],
+    'own sizes: in inch order, written the PakkaBill way, inches as numbers');
+  eq(L.setSizes(mine), c.sizes, 'own sizes are used');
+  eq(['26', '28', '29', '30', '32', '33', '34', '36', '37', '38', '40', '42', '44', '45', '24', 'Free Size 26-30', 'Free-Size: 30-34', 'Free Size 36-40', 'M', 'L', '2XL', 'S', '38 Alterable'].map((z) => L.blouseSize(z)),
+    ['M', 'M', 'L', 'L', 'L', 'XL', 'XL', 'XL', 'XXL', 'XXL', 'XXL', 'XXXL', 'XXXL', null, null, 'M', 'L', 'XXL', 'M', 'L', 'XXL', null, 'XXL'],
+    'own sizes: inches, numbers between two sizes go up, ranges by their middle, letter sizes as written');
+  eq([['Free Size', 'BLOUSE-RED-26-30'], ['Free Size', 'RB_30_34'], ['Free Size', 'PNK 36 TO 40']].map(([z, k]) => L.blouseSize(z, k)), ['M', 'L', 'XXL'], 'own sizes: Free Size with the inches in the SKU');
+  const items = [['B1', '26', 2], ['B1', '30', 1], ['B1', '34', 3], ['B1', 'M', 1], ['B2', '42', 2], ['B2', '46', 1], ['B2', 'Free Size 36-40', 1]].map(([sku, size, qty]) => ({ sku, size, qty }));
+  ok(L.looksBlouse(items), 'own sizes: inch sizes look like blouses');
+  const ch = L.packChart(items, { blouse: true });
+  eq(ch.cols, ['M', 'L', 'XL', 'XXL', 'XXXL', '46'], 'own sizes: a column for each, then sizes outside them as they are');
+  eq([ch.totals.M, ch.totals.L, ch.totals.XL, ch.totals.XXL, ch.totals.XXXL, ch.totals['46'], ch.grand], [3, 1, 3, 1, 2, 1, 11], 'own sizes: totals');
+  eq(ch.mapped.map((m) => m.from + '>' + m.to), ['26>M', '30>L', '34>XL', 'Free Size 36-40>XXL', '42>XXXL'], 'own sizes: how each size was counted');
+  const labs = items.map((x, i) => ({ i, lab: { courier: 'Valmo', rows: [Object.assign({ color: '', order: '' }, x)], orders: [], ids: [] } }));
+  eq(labs.map((x) => L.labelSize(x.lab, true)), ['M', 'L', 'XL', 'M', 'XXXL', '46', 'XXL'], 'own sizes: each label is packed as one of them');
+  eq(L.sortLabels(labs, { by: 'size', courier: false, mixedLast: true, blouse: true }).map((x) => x.lab.rows[0].size), ['M', '26', '30', '34', 'Free Size 36-40', '42', '46'], 'own sizes: labels in size order (inside a size, as written first)');
+  // half sizes: with the size below when the next one starts higher, with the next when it starts there
+  L.setSizes([{ size: 'L', from: 26, to: 30 }, { size: 'XL', from: 30.5, to: 34 }]);
+  eq(['30', '30.5', '34', '34.5', '35'].map((z) => L.blouseSize(z)), ['L', 'XL', 'XL', null, null], 'half sizes go where the next size starts; the last size ends at its own number');
+  L.setSizes([{ size: 'S', from: 32, to: 32 }, { size: 'M', from: 34, to: 34 }]);
+  eq(['31', '32', '33', '34', '35', 'Free Size 32-34'].map((z) => L.blouseSize(z)), [null, 'S', 'M', 'M', null, 'M'], 'one number per size');
+  // what is not right is not used
+  const why = (gs) => { const r = L.checkSizes(gs); return r.ok ? 'ok' : r.why + (r.at != null ? ' ' + r.at : '') + (r.to != null ? '/' + r.to : '') + (r.field ? ' ' + r.field : ''); };
+  const g = (size, from, to) => ({ size, from, to });
+  eq([[], null, [g('L', 26, 30), g('Q', 32, 34)], [g('L', 26, 30), g('l', 32, 34)], [g('L', 'abc', 30)], [g('L', 26, '')], [g('L', 9, 30)], [g('L', 26, 100)], [g('L', 30, 26)],
+    [g('L', 26, 30), g('XL', 30, 34)], [g('XL', 26, 30), g('L', 32, 34)], [g('XL', 32, 34), g('L', 26, 30)], L.LETTERS.slice(0, 9).map((z, i) => g(z, 10 + 2 * i, 10 + 2 * i))].map(why),
+  ['empty', 'empty', 'name 1', 'same 1/0', 'num 0 from', 'num 0 to', 'num 0 from', 'num 0 to', 'range 0', 'overlap 1/0', 'order 1/0', 'ok', 'many'], 'sizes that are not right, and why');
+  eq(L.setSizes([g('L', 30, 26)]), ps, 'sizes that are not right: PakkaBill sizes are used');
+  L.setSizes(mine);
+  eq(L.setSizes(null), ps, 'back to PakkaBill sizes');
+  eq(['26', '30', '31', '34', '35', '40', '40.5', 'M', 'XXXL'].map((z) => L.blouseSize(z)), ['L', 'L', 'XL', 'XL', 'XXL', 'XXL', null, null, null], 'PakkaBill sizes work as before');
+  eq(L.packChart([{ sku: 'K', size: 'M', qty: 2 }], { blouse: true }).cols, ['M', 'L', 'XL', 'XXL'], 'PakkaBill columns are back');
+}
+
 console.log(`${checks - fails}/${checks} label checks passed`);
 if (fails) process.exit(1);

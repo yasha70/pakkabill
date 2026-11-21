@@ -32,7 +32,8 @@
   var HEX = { indigo: '#2B3494', brand: '#5B3FE6', coral: '#FF7A59', ink: '#211E34', grey: '#6C6884', lav: '#D0CCFF', soft: '#F0ECFF', paper: '#FAF8FD',
     rule: '#DED8EE', pos: '#007628', warn: '#A33A10', gold: '#F5C453', white: '#FFFFFF', faint: '#BDB8CF' };
   var SIZE_HEX = ['#6250D6', '#EB6834', '#1BAF7A', '#EDA100', '#2A78D6', '#E87BA4', '#008300'];
-  var RANGE = { L: '26-30', XL: '32-34', XXL: '36-40' };
+  // PakkaBill's blouse sizes; the page passes the seller's own as data.sizes and data.ranges
+  var SIZES = ['L', 'XL', 'XXL'], RANGE = { L: '26-30', XL: '32-34', XXL: '36-40' };
   var SUB = { '‘': "'", '’': "'", '“': '"', '”': '"', '–': '-', '—': '-', '−': '-', '…': '...', ' ': ' ', '→': '->', '×': 'x', '✓': 'ok' };
 
   function rng(seed) { return function () { seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -169,12 +170,13 @@
   }
 
   /* ---------- the packing chart ---------- */
-  /* data: { kicker, title, pill, sub, forName, forLine, date, blouse, main: chart, sections: [{title, sub, chart}],
+  /* data: { kicker, title, pill, sub, forName, forLine, date, blouse, sizes: ['L', 'XL', 'XXL'], ranges: {L: '26-30'},
+     main: chart, sections: [{title, sub, chart}],
      kpis: [{label, value, note, size}], notes: [{text, kind}], stamp: {top, bottom}, footer, end } */
   function draw(P, doc, data, W, H) {
     return fonts(P, doc).then(function (F) {
       var small = W < 400, M = small ? 14 : 40, CW = W - 2 * M, pages = [], pg = null, y = 0;
-      var BOT = small ? 24 : 58, ROW = small ? 14 : 19.5, colorOf = sizeColors(P, data.main.cols, data.blouse);
+      var BOT = small ? 24 : 58, ROW = small ? 14 : 19.5, colorOf = sizeColors(P, data.main.cols, data.blouse ? data.sizes || SIZES : null), ranges = data.ranges || RANGE;
       function newPage(first) {
         var page = doc.addPage([W, H]); pg = painter(P, page, F); pages.push(pg);
         if (first) y = cover(); else y = header();
@@ -276,7 +278,9 @@
         y += bh + 12;
         x = M;
         cols.forEach(function (k) {
-          var lab = k + (data.blouse && RANGE[k] ? ' (' + RANGE[k] + ')' : '') + '  ' + Math.round(1000 * ch.totals[k] / ch.grand) / 10 + '%';
+          var lab = k + (data.blouse && ranges[k] ? ' (' + ranges[k] + ')' : '') + '  ' + Math.round(1000 * ch.totals[k] / ch.grand) / 10 + '%';
+          // many sizes: the key goes on to a second line
+          if (x > M && x + 10 + pg.width(lab, F.serif, 7.6) > W - M) { x = M; y += 12; }
           pg.circle(x + 3.5, y - 2.6, 3.5, { fill: colorOf(k) });
           x += 10 + pg.text(lab, x + 10, y, F.serif, 7.6, c.grey) + 16;
         });
@@ -380,12 +384,11 @@
       return { pages: pages.length, brand: F.brand };
     });
   }
-  // one colour per size column, the same in the cards, the split bar, the table and the size mix
-  function sizeColors(P, cols, blouse) {
-    var m = {};
-    if (blouse) { m.L = SIZE_HEX[0]; m.XL = SIZE_HEX[1]; m.XXL = SIZE_HEX[2]; }
-    var i = blouse ? 3 : 0;
-    cols.forEach(function (k) { if (!m[k]) m[k] = SIZE_HEX[i++ % SIZE_HEX.length]; });
+  // one colour per size column, the same in the cards, the split bar, the table and the size mix;
+  // blouse sizes (L, XL, XXL or the seller's own) first, in their order, so a size keeps its colour
+  function sizeColors(P, cols, sizes) {
+    var m = {}, i = 0;
+    (sizes || []).concat(cols).forEach(function (k) { if (!m[k]) m[k] = SIZE_HEX[i++ % SIZE_HEX.length]; });
     return function (k) {
       var h = m[k] || '#9A96B0';
       return P.rgb(parseInt(h.substr(1, 2), 16) / 255, parseInt(h.substr(3, 2), 16) / 255, parseInt(h.substr(5, 2), 16) / 255);
