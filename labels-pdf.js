@@ -32,7 +32,7 @@
   var HEX = { indigo: '#2B3494', brand: '#5B3FE6', coral: '#FF7A59', ink: '#211E34', grey: '#6C6884', lav: '#D0CCFF', soft: '#F0ECFF', paper: '#FAF8FD',
     rule: '#DED8EE', pos: '#007628', warn: '#A33A10', gold: '#F5C453', white: '#FFFFFF', faint: '#BDB8CF' };
   var SIZE_HEX = ['#6250D6', '#EB6834', '#1BAF7A', '#EDA100', '#2A78D6', '#E87BA4', '#008300'];
-  // PakkaBill's blouse sizes; the page passes the seller's own as data.sizes and data.ranges
+  // PakkaBill's size groups (blouses); the page passes the seller's own as data.sizes and data.ranges
   var SIZES = ['L', 'XL', 'XXL'], RANGE = { L: '26-30', XL: '32-34', XXL: '36-40' };
   var SUB = { '‘': "'", '’': "'", '“': '"', '”': '"', '–': '-', '—': '-', '−': '-', '…': '...', ' ': ' ', '→': '->', '×': 'x', '✓': 'ok' };
 
@@ -170,7 +170,8 @@
   }
 
   /* ---------- the packing chart ---------- */
-  /* data: { kicker, title, pill, sub, forName, forLine, date, blouse, sizes: ['L', 'XL', 'XXL'], ranges: {L: '26-30'},
+  /* data: { kicker, title, pill, sub, forName, forLine, date, blouse (sizes counted in groups), sizes: ['L', 'XL', 'XXL'] (the groups),
+     ranges: {L: '26-30'}, sizeIcon: 'blouse' | 'tag',
      main: chart, sections: [{title, sub, chart}],
      kpis: [{label, value, note, size}], notes: [{text, kind}], stamp: {top, bottom}, footer, end } */
   function draw(P, doc, data, W, H) {
@@ -251,11 +252,14 @@
           var x = M + i * (w + gap), sc = k.size ? colorOf(k.size) : null;
           pg.rrect(x, y, w, h, 8, { fill: c.white, stroke: c.rule, lw: 0.8 });
           if (sc) pg.rect(x + 8, y, w - 16, 3, { fill: sc });
-          pg.text(k.label, x + 12, y + 18, F.disp, 6.4, c.grey, { sp: 1 });
+          // a long group name stops short of the card's icon
+          var lab = k.label, room = w - (i === 0 ? 24 : 40);
+          if (pg.width(lab, F.disp, 6.4, 1) > room) { while (lab.length > 1 && pg.width(lab + '...', F.disp, 6.4, 1) > room) lab = lab.slice(0, -1); lab = lab.replace(/\s+$/, '') + '...'; }
+          pg.text(lab, x + 12, y + 18, F.disp, 6.4, c.grey, { sp: 1 });
           pg.text(String(k.value), x + 12, y + 46, F.disp, i === 0 ? 26 : 23, i === 0 ? c.indigo : c.ink);
           if (k.note) pg.text(pg.fit(k.note, F.serif, 7.4, w - 20), x + 12, y + 60, F.serif, 7.4, c.grey);
-          if (i === 0) pg.text('pakka!', x + w - 10, y + 44, F.hand, 13, c.coral, { align: 'right', rotate: 8 });
-          else pg.icon(k.size ? 'blouse' : (k.icon || 'box'), x + w - 18, y + 22, 16, 8, sc || c.lav, 0.9, 0.85);
+          if (i === 0) { if (w >= 110) pg.text('pakka!', x + w - 10, y + 44, F.hand, 13, c.coral, { align: 'right', rotate: 8 }); }   // not on narrow cards, where it would touch the number
+          else pg.icon(k.size ? data.sizeIcon || 'blouse' : (k.icon || 'box'), x + w - 18, y + 22, 16, 8, sc || c.lav, 0.9, 0.85);
         });
         y += h + 22;
       }
@@ -363,7 +367,7 @@
       newPage(true);
       kpis(data.kpis);
       splitBar(data.main);
-      title(data.tableTitle || 'Pieces by SKU', data.tableSub, data.blouse ? 'blouse' : 'box');
+      title(data.tableTitle || 'Pieces by SKU', data.tableSub, data.blouse ? data.sizeIcon || 'blouse' : 'box');
       table(data.main, false);
       notes(data.notes);
       (data.sections || []).forEach(function (s) { sectionHead(s); table(s.chart, false); });

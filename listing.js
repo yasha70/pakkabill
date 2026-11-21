@@ -2006,7 +2006,8 @@ function renderSizes() {
     out.push(h('h3', { class: 'pbl-h3' }, 'Measurements'), h('div', { class: 'table-wrap' }, h('table', { class: 'rtable pbl-chart' },
       h('thead', null, h('tr', null, h('th', { class: 'l', scope: 'col' }, 'Size'), ms.map(m => h('th', { class: 'l', scope: 'col' }, m.name.replace(/\s*size$/i, ''), m.required ? h('span', { class: 'pbl-req' }, ' *') : null)))),
       h('tbody', null, sel.map(s => h('tr', null, h('th', { class: 'l', scope: 'row' }, s), ms.map(m => h('td', { class: 'l' }, measureControl(s, m)))))))));
-    out.push(h('div', { class: 'pbl-actions' }, btn('Fill empty cells with typical blouse measurements', fillTypical)));
+    // typical measurements are a blouse chart: other products (kurtis, jeans, kids...) type their own
+    if (isBlouseTemplate()) out.push(h('div', { class: 'pbl-actions' }, btn('Fill empty cells with typical blouse measurements', fillTypical)));
     out.push(checkbox('I\'ve checked these against my own size chart', S.chartChecked, v => { S.chartChecked = v; changed(); }));
   }
   out.push(navFooter());
@@ -2019,7 +2020,9 @@ function measureControl(size, m) {
   if (m.options) return selectEl(m.options, cur, set, '–', { 'aria-label': label });
   return input({ type: 'number', inputmode: 'decimal', step: 'any', value: cur, 'aria-label': label, oninput: e => set(e.target.value) });
 }
+function isBlouseTemplate() { return /blouse/i.test(String((state.tpl && state.tpl.info && state.tpl.info.category) || '')); }
 function fillTypical() {
+  if (!isBlouseTemplate()) return;
   const S = state.S; let n = 0;
   for (const s of sortedSizes()) {
     for (const m of state.tpl.schema.byRole.measure) {

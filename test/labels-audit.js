@@ -264,14 +264,59 @@ eq(['26', '28', '30', '31', '32', '34', '35', '36', '38', '40', 'L', '2XL', 'Fre
   // what is not right is not used
   const why = (gs) => { const r = L.checkSizes(gs); return r.ok ? 'ok' : r.why + (r.at != null ? ' ' + r.at : '') + (r.to != null ? '/' + r.to : '') + (r.field ? ' ' + r.field : ''); };
   const g = (size, from, to) => ({ size, from, to });
-  eq([[], null, [g('L', 26, 30), g('Q', 32, 34)], [g('L', 26, 30), g('l', 32, 34)], [g('L', 'abc', 30)], [g('L', 26, '')], [g('L', 9, 30)], [g('L', 26, 100)], [g('L', 30, 26)],
-    [g('L', 26, 30), g('XL', 30, 34)], [g('XL', 26, 30), g('L', 32, 34)], [g('XL', 32, 34), g('L', 26, 30)], L.LETTERS.slice(0, 9).map((z, i) => g(z, 10 + 2 * i, 10 + 2 * i))].map(why),
-  ['empty', 'empty', 'name 1', 'same 1/0', 'num 0 from', 'num 0 to', 'num 0 from', 'num 0 to', 'range 0', 'overlap 1/0', 'order 1/0', 'ok', 'many'], 'sizes that are not right, and why');
+  eq([[], null, [g('L', 26, 30), g('', 32, 34)], [g('Kurti long size', 1, 2)], [g('L', 26, 30), g('l', 32, 34)], [g('L', 'abc', 30)], [g('L', 26, '')], [g('L', -1, 30)], [g('L', 26, 1000)], [g('L', 30, 26)],
+    [g('L', 26, 30), g('XL', 30, 34)], [g('XL', 26, 30), g('L', 32, 34)], [g('XL', 32, 34), g('L', 26, 30)], L.LETTERS.slice(0, 9).map((z, i) => g(z, 10 + 2 * i, 10 + 2 * i)),
+    [g('L', '', '')], [{ size: 'S', also: 'XS, M' }, g('M', 30, 32)], [{ size: 'S', also: 'XS' }, { size: 'M', also: ['xs'] }], [{ size: 'Big', from: 40, to: 44 }, g('L', 26, 30)]].map(why),
+  ['empty', 'empty', 'name 1', 'name 0', 'same 1/0', 'num 0 from', 'num 0 to', 'num 0 from', 'num 0 to', 'range 0', 'overlap 1/0', 'order 1/0', 'ok', 'many', 'nothing 0', 'taken 0/1', 'twice 1/0', 'ok'],
+  'groups that are not right, and why');
   eq(L.setSizes([g('L', 30, 26)]), ps, 'sizes that are not right: PakkaBill sizes are used');
   L.setSizes(mine);
   eq(L.setSizes(null), ps, 'back to PakkaBill sizes');
   eq(['26', '30', '31', '34', '35', '40', '40.5', 'M', 'XXXL'].map((z) => L.blouseSize(z)), ['L', 'L', 'XL', 'XL', 'XXL', 'XXL', null, null, null], 'PakkaBill sizes work as before');
   eq(L.packChart([{ sku: 'K', size: 'M', qty: 2 }], { blouse: true }).cols, ['M', 'L', 'XL', 'XXL'], 'PakkaBill columns are back');
+}
+
+/* 16. any product: size groups for jeans, shoes, kids, kurtis and merged letter sizes */
+{
+  const g = (size, from, to, also) => Object.assign({ size, from, to }, also ? { also } : {});
+  // jeans and trousers: waist inches, one number a size
+  eq(L.setSizes([g('S', 28, 28), g('M', 30, 30), g('L', 32, 32), g('XL', 34, 34), g('XXL', 36, 36)]).map((x) => x.size), ['S', 'M', 'L', 'XL', 'XXL'], 'jeans groups');
+  eq(['28', '29', '30', 'Waist 32', '32 inch', '34', '36', '38', 'M', '30W 32L'].map((z) => L.blouseSize(z)), ['S', 'M', 'M', 'L', 'L', 'XL', 'XXL', null, 'M', null], 'jeans: waist sizes, words around them, letter sizes as they are');
+  const jeans = [['J1', '28', 2], ['J1', '30', 1], ['J2', '32', 3], ['J2', '36', 1], ['J2', '40', 1]].map(([sku, size, qty]) => ({ sku, size, qty }));
+  ok(L.looksBlouse(jeans), 'jeans: waist sizes are counted in the groups');
+  const jc = L.packChart(jeans, { blouse: true });
+  eq([jc.cols, jc.totals.S, jc.totals.M, jc.totals.L, jc.totals.XL, jc.totals.XXL, jc.totals['40']], [['S', 'M', 'L', 'XL', 'XXL', '40'], 2, 1, 3, 0, 1, 1], 'jeans chart');
+  // shoes: UK / IND sizes with half sizes, groups named any way
+  eq(L.setSizes([g('uk 6-7', 6, 7), g('UK 8-9', 8, 9.5)]).map((x) => x.size), ['uk 6-7', 'UK 8-9'], 'shoe groups keep their names as typed');
+  eq(['UK 6', 'IND-7', '7.5', 'UK7', '8', 'UK 9.5', '10', 'UK10', 'uk 6-7', '6 UK (EU 39)'].map((z) => L.blouseSize(z)),
+    ['uk 6-7', 'uk 6-7', 'uk 6-7', 'uk 6-7', 'UK 8-9', 'UK 8-9', null, null, 'uk 6-7', null], 'shoes: UK and IND sizes, half sizes, a size named like the group');
+  eq(L.packChart([{ sku: 'SH', size: 'UK 6', qty: 1 }, { sku: 'SH', size: 'UK 9', qty: 2 }], { blouse: true }).cols, ['uk 6-7', 'UK 8-9'], 'shoes chart');
+  // kids: age in years; months are not years, so they stay as written
+  L.setSizes([g('2-4 Y', 2, 4), g('5-7 Y', 5, 7)]);
+  eq(['2-3 Years', '3-4 Yrs', '4-5 Y', '5-6 Years', '6-7 Years', '7-8 Years', '0-6 Months', 'Age 6'].map((z) => L.blouseSize(z)), ['2-4 Y', '2-4 Y', '2-4 Y', '5-7 Y', '5-7 Y', null, null, '5-7 Y'], 'kids: ages by their middle, past the last group as written');
+  // letter sizes merged, and sizes written another way, with no numbers at all
+  const merge = L.checkSizes([{ size: 's', also: 'XS, xxs' }, { size: '3XL+', also: '3XL, 4XL,5xl, 3XL' }, { size: 'Big', also: ['Free Size', 'free', 'One Size'] }]);
+  ok(merge.ok, 'groups without numbers are fine');
+  eq(merge.sizes, [{ size: 'S', also: ['XS', 'xxs'] }, { size: '3XL+', also: ['3XL', '4XL', '5xl'] }, { size: 'Big', also: ['Free Size'] }], 'groups without numbers: each size once, as typed (One Size is Free Size)');
+  L.setSizes(merge.sizes);
+  eq(['XS', 'xs', 'S', 'XXS', '3XL', 'XXXL', '4XL', '5XL', '6XL', 'M', 'Free Size', 'ONE SIZE', '32', 'BIG'].map((z) => L.blouseSize(z)), ['S', 'S', 'S', 'S', '3XL+', '3XL+', '3XL+', '3XL+', null, null, 'Big', 'Big', null, 'Big'], 'merged letter sizes');
+  const kurtis = [['K1', 'XS', 1], ['K1', 'S', 2], ['K1', 'M', 3], ['K2', '4XL', 1], ['K2', '3XL', 2]].map(([sku, size, qty]) => ({ sku, size, qty }));
+  const kc = L.packChart(kurtis, { blouse: true });
+  eq([kc.cols, kc.totals.S, kc.totals.M, kc.totals['3XL+'], kc.totals.Big], [['S', 'M', '3XL+', 'Big'], 3, 3, 3, 0], 'kurti chart with merged sizes');
+  eq(kc.mapped.map((m) => m.from + '>' + m.to), ['XS>S', '3XL>3XL+', '4XL>3XL+'], 'kurti chart: how each size was counted');
+  const klabs = kurtis.map((x, i) => ({ i, lab: { courier: 'Valmo', rows: [Object.assign({ color: '', order: '' }, x)], orders: [], ids: [] } }));
+  eq(klabs.map((x) => L.labelSize(x.lab, true)), ['S', 'S', 'M', '3XL+', '3XL+'], 'kurti labels packed as their groups');
+  // numbers and sizes written another way in one group; Free Size in a group wins over the SKU
+  L.setSizes([g('L', 26, 30, 'Free Size'), g('XL', 32, 34)]);
+  eq([L.blouseSize('Free Size', 'BLOUSE-32-34'), L.blouseSize('31'), L.blouseSize('Free Size 32-34')], ['L', 'XL', 'XL'], 'Free Size counted where the seller put it');
+  // a group named like a number counts that size too
+  L.setSizes([g('32', 31, 33)]);
+  eq(['31', '32', '33', '34'].map((z) => L.blouseSize(z)), ['32', '32', '32', null], 'a group named 32');
+  // the number in a size
+  eq(['32', '36 inch', '38 Alterable', 'UK 7', 'IND-6', '7.5', '100 cm', 'Waist 30', '2-3 Years', 'Free-Size: 30-34', '32B', 'XL', '0-6 Months', '1 2 3', ''].map(L.sizeNumber),
+    [32, 36, 38, 7, 6, 7.5, 100, 30, 2.5, 32, null, null, null, null, null], 'the number in a size');
+  eq(L.setSizes(null), [{ size: 'L', from: 26, to: 30 }, { size: 'XL', from: 32, to: 34 }, { size: 'XXL', from: 36, to: 40 }], 'back to PakkaBill groups');
+  eq(['UK 7', '5-6 Years', '28', '42'].map((z) => L.blouseSize(z)), [null, null, 'L', null], 'PakkaBill groups: only blouse inches');
 }
 
 console.log(`${checks - fails}/${checks} label checks passed`);

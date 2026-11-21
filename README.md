@@ -8,7 +8,7 @@ GSTR-1) shows a small bar of chips to move between them, with New bill; the Prof
 bar so bills stay one tap away on a phone. The logo opens Home.
 
 - Meesho P&L: profit and loss and payment reconciliation from Meesho's payment report, with Excel and PDF.
-- Labels & packing chart: a packing chart from Meesho's manifest (blouse sizes as L / XL / XXL), and shipping labels in SKU and size order, as one PDF.
+- Labels & packing chart: a packing chart from Meesho's manifest (sizes counted in the seller's own groups for any product, blouse inches as L / XL / XXL to start), and shipping labels in SKU and size order, as one PDF.
 - Meesho Lens: competitor prices and sales.
 - Label cropper: cuts the empty white space under shipping labels in a PDF.
 - Meesho listing: the bulk catalog upload Excel from catalogue photos and a Meesho template.
@@ -301,7 +301,9 @@ required by Google Play.
 template (a prefilled one works too), fills product details and sizes once, drops in the front, back
 and side photo of each colour, and pastes the links from Meesho's Images Bulk Upload. The tool writes
 the rows into the seller's own template, so Meesho's instructions, dropdowns and formulas stay as they
-were. Manufacturer and packer details start from Shop settings.
+were. Manufacturer and packer details start from Shop settings. Measurements are typed from the seller's own
+size chart for any product; "Fill empty cells with typical blouse measurements" shows only on a blouse
+template, so a kurti, jeans or kids' chart never gets blouse numbers.
 
 - `listing.js` the whole tool, loaded with the app but only started when the page opens. It carries
   JSZip 3.10.1 (MIT) so it works offline. The app calls `window.pbListingMount(el)`.
@@ -412,23 +414,30 @@ kept at the end in their original order.
 Packing chart: Meesho's Supplier Manifest PDF has "Picklist" pages (SKU, Color, Size, Total Quantity) and
 then one table per courier (S. No., Sub Order No., AWB, SKU, Qty., Size), where one parcel's order number,
 AWB and size run over two or three lines. Every parcel is read from the courier tables and the result is
-checked against the picklist. The chart has a row per SKU and a column per size with totals; for blouses
-inch sizes count as letter sizes (26–30 L, 32–34 XL, 36–40 XXL, a free-size range by its middle), the same
-rule as the P&L's Returns tab. It shows for all parcels or one courier, and downloads as a PDF (all, then
+checked against the picklist. The chart has a row per SKU and a column per size with totals; "Count sizes
+in groups" counts sizes together (for blouses, PakkaBill's groups: inch sizes as 26–30 L, 32–34 XL, 36–40 XXL,
+a free-size range by its middle, the same rule as the P&L's Returns tab). It turns on by itself when most
+pieces are sizes the groups change. It shows for all parcels or one courier, and downloads as a PDF (all, then
 each courier), Excel (CSV) or WhatsApp text. With labels only, the chart is made from the labels.
 
-**Change sizes** (under "Blouse sizes as L / XL / XXL", on the packing chart and in How to arrange) lets the
-seller set which inch sizes count as which size: up to 8 letter sizes (XXS to 8XL), each with its inches from–to,
-like M 26–28, L 30–32, XL 34–36, XXL 38–40, 3XL 42–44. A number between two sizes goes up to the next one, a half
-size stays with the size below unless the next one starts there, and a free-size range counts by its middle. While
-typing it shows the pieces of the added files in each size, how their sizes are counted and which stay as written;
-mistakes (a size twice, overlapping inches, bigger inches on a smaller size) are named before anything changes.
-**Use for now** uses them until the page is closed; **Save as my default** also keeps them on this device
-(`pakkabill:labels.sizes`), so the tool counts that way every time it opens ("Your saved sizes" next to the
-button). "Use PakkaBill's sizes" puts back 26–30 L, 32–34 XL, 36–40 XXL; saving those forgets the seller's own.
-The chart, the labels' order, Labels to download, the PDFs (size cards for up to 4 sizes), CSV and WhatsApp
-text all follow the sizes in use. Engine: `PBL.setSizes`, `checkSizes`, `sizes`, `defaultSizes`; PakkaBill's
-sizes give exactly the old rule, and the Android app keeps them.
+**Change size groups** (under "Count sizes in groups", on the packing chart and in How to arrange) works for any
+product. Each of up to 8 groups has a name (up to 12 letters: L, 3XL+, Kids 2-5, Shoes 7-8...), the numbers it
+covers (bust or waist inches, age in years, UK / IND shoe size, cm: "36 inch", "Waist 30", "UK 7", "IND-6",
+"2-3 Years", "100 cm" are read as numbers, a range by its middle; "32B" or "0-6 Months" are not) and sizes
+written another way ("Also count": XS, 3XL, Free Size...). A number between two groups goes up to the next one,
+a half size stays with the group below unless the next one starts there. "Start from" fills in ready-made
+groups to check against the seller's own chart: Blouse (PakkaBill's), Kurti, top or dress (bust 36 S to 46
+3XL), Jeans or trousers (waist 28 S to 38 3XL), Kids (age 0-2 to 13-16), 3XL and bigger as 3XL+, or Empty.
+While typing it shows the pieces of the added files in each group, how their sizes are counted and which stay
+as written; mistakes (no name, a name twice, one number only, a group with nothing in it, a size in two groups
+or named like another group, groups sharing numbers, bigger numbers on a smaller letter size) are named and
+their boxes marked before anything changes. **Use for now** uses them until the page is closed; **Save as my
+default** also keeps them on this device (`pakkabill:labels.sizes`), so the tool counts that way every time it
+opens ("Your saved groups" next to the button); saving PakkaBill's blouse groups forgets the seller's own. The
+chart, the labels' order, Labels to download, the PDFs (a card per group for up to 4 groups, a tag icon for the
+seller's own groups), CSV and WhatsApp text all follow the groups in use. Engine: `PBL.setSizes`, `checkSizes`,
+`sizes`, `defaultSizes`, `groupName`, `sizeNumber`; PakkaBill's groups give exactly the old blouse rule, and the
+Android app keeps them.
 
 Page: Full page, Label only 4×6 inch, Label only 4×4 inch (every page exactly 288 × 288 pt), or **Cut empty space** (label and invoice as Meesho made them, the blank
 white area at the bottom of each label page cut off, as in the Label cropper; rotated pages too; manifest pages are
